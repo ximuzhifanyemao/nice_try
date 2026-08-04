@@ -76,34 +76,34 @@ export default function Calendar({ logs, loading }: CalendarProps) {
 
   if (loading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-        <div className="flex justify-center py-8">
-          <div className="h-6 w-6 animate-spin rounded-full border-3 border-blue-200 border-t-blue-600" />
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
+        <div className="flex justify-center py-6">
+          <div className="h-5 w-5 animate-spin rounded-full border-3 border-blue-200 border-t-blue-600" />
         </div>
       </div>
     )
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 space-y-4">
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3 space-y-2">
       {/* 月份导航 */}
       <div className="flex items-center justify-between">
         <button
           type="button"
           onClick={handlePrevMonth}
-          className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+          className="p-1 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h3 className="text-lg font-semibold text-gray-800">{monthLabel}</h3>
+        <h3 className="text-sm font-semibold text-gray-800">{monthLabel}</h3>
         <button
           type="button"
           onClick={handleNextMonth}
-          className="p-1.5 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+          className="p-1 text-gray-500 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </button>
@@ -112,14 +112,14 @@ export default function Calendar({ logs, loading }: CalendarProps) {
       {/* 星期标题 */}
       <div className="grid grid-cols-7 text-center">
         {weekDays.map((d) => (
-          <div key={d} className="text-xs font-medium text-gray-400 py-1">
+          <div key={d} className="text-[11px] font-medium text-gray-400 py-1">
             {d}
           </div>
         ))}
       </div>
 
       {/* 日期网格 */}
-      <div className="grid grid-cols-7 text-center gap-y-1">
+      <div className="grid grid-cols-7 text-center gap-y-0.5">
         {days.map((day) => {
           const dateKey = format(day, 'yyyy-MM-dd')
           const hasLogs = logsByDate.has(dateKey)
@@ -133,7 +133,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
               type="button"
               onClick={() => handleDayClick(day)}
               disabled={!hasLogs}
-              className={`relative flex flex-col items-center justify-center w-full aspect-square rounded-lg text-sm transition-colors cursor-pointer
+              className={`relative flex flex-col items-center justify-center h-8 rounded-lg text-xs transition-colors cursor-pointer
                 ${!inMonth ? 'text-gray-300' : 'text-gray-700'}
                 ${today ? 'font-bold text-blue-600' : ''}
                 ${isSelected ? 'bg-blue-100 ring-1 ring-blue-300' : 'hover:bg-gray-50'}
@@ -141,7 +141,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
               `}
             >
               {today ? (
-                <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 text-white text-[11px] font-bold">
                   {format(day, 'd')}
                 </span>
               ) : (
@@ -157,27 +157,27 @@ export default function Calendar({ logs, loading }: CalendarProps) {
 
       {/* 选中日期的记录列表 */}
       {selectedDate && selectedLogs.length > 0 && (
-        <div className="border-t border-gray-100 pt-3 space-y-3">
-          <p className="text-sm font-medium text-gray-700">
+        <div className="border-t border-gray-100 pt-2 space-y-2">
+          <p className="text-[11px] font-medium text-gray-700">
             {format(selectedDate, 'M月d日 EEEE', { locale: zhCN })} 的学习记录
           </p>
           {selectedLogs.map((log) => {
             const totalHours = log.subjects?.reduce((sum, s) => sum + (s.hours || 0), 0) ?? 0
 
             return (
-              <div key={log.id} className="bg-gray-50 rounded-lg p-3 space-y-2">
+              <div key={log.id} className="bg-gray-50 rounded-lg p-2 space-y-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-400 font-mono">
+                  <span className="text-[11px] text-gray-400 font-mono">
                     {log.user_id.slice(0, 8)}
                   </span>
                   {totalHours > 0 && (
-                    <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+                    <span className="text-[11px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
                       {totalHours}h
                     </span>
                   )}
                 </div>
                 {log.subjects && log.subjects.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-1">
                     {log.subjects
                       .filter((s) => s.hours > 0)
                       .map((s) => {
@@ -188,7 +188,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
                         return (
                           <span
                             key={s.id}
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium ${colorClass}`}
                           >
                             {subject?.name ?? s.id}
                             <span className="opacity-65">{s.hours}h</span>
@@ -198,7 +198,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
                   </div>
                 )}
                 {log.summary && (
-                  <p className="text-xs text-gray-500 leading-relaxed line-clamp-3">
+                  <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-3">
                     {log.summary}
                   </p>
                 )}
@@ -210,7 +210,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
 
       {/* 无选中日期记录 */}
       {selectedDate && selectedLogs.length === 0 && (
-        <div className="border-t border-gray-100 pt-3 text-center text-sm text-gray-400">
+        <div className="border-t border-gray-100 pt-2 text-center text-[11px] text-gray-400">
           当天暂无学习记录
         </div>
       )}
