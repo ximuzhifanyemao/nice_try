@@ -28,6 +28,7 @@ export default function Navbar() {
               <span className="text-white/70 truncate max-w-[160px]">{user.email}</span>
               <Link to="/" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">首页</Link>
               <Link to="/my-records" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">我的记录</Link>
+              <Link to="/summary" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">学习总结</Link>
               <button
                 onClick={handleSignOut}
                 className="rounded bg-white/15 px-3 py-1 hover:bg-white/25 transition-colors cursor-pointer"
@@ -72,6 +73,7 @@ export default function Navbar() {
               <div className="text-white/70 pb-1 border-b border-white/20 dark:border-slate-700 truncate">{user.email}</div>
               <Link to="/" onClick={closeMenu} className="block py-1 hover:text-slate-200">首页</Link>
               <Link to="/my-records" onClick={closeMenu} className="block py-1 hover:text-slate-200">我的记录</Link>
+              <Link to="/summary" onClick={closeMenu} className="block py-1 hover:text-slate-200">学习总结</Link>
               <button
                 onClick={() => { handleSignOut(); closeMenu() }}
                 className="block w-full text-left py-1 hover:text-slate-200 cursor-pointer"
