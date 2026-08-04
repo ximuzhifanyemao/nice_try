@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Countdown from '../components/Countdown'
 import Calendar from '../components/Calendar'
+import QuickLinks from '../components/QuickLinks'
 import LogCard from '../components/LogCard'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchAllLogs } from '../lib/dailyLogs'
@@ -31,20 +32,22 @@ export default function Home() {
   }, [])
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 space-y-8">
-      {/* 考研倒计时 */}
-      <section>
-        <Countdown />
-      </section>
-
-      {/* 学习日历 */}
-      <section>
-        <h2 className="text-xl font-bold text-gray-800 mb-4">学习日历</h2>
-        <Calendar logs={logs} loading={loading} />
-      </section>
+    <div className="mx-auto max-w-5xl px-4 py-6 space-y-8">
+      {/* 顶部三栏：快捷网站 | 倒计时 | 右上角日历 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr_280px] gap-6 items-start">
+        <div className="order-2 lg:order-1">
+          <QuickLinks />
+        </div>
+        <div className="order-1 lg:order-2">
+          <Countdown />
+        </div>
+        <div className="order-3 lg:self-start">
+          <Calendar logs={logs} loading={loading} />
+        </div>
+      </div>
 
       {/* 公开学习时间线 */}
-      <section>
+      <section className="max-w-3xl mx-auto">
         <h2 className="text-xl font-bold text-gray-800 mb-4">学习动态</h2>
 
         {loading && (
