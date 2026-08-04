@@ -14,7 +14,7 @@ export default function Navbar() {
     <nav className="bg-slate-700 dark:bg-slate-800 dark:border-b dark:border-slate-700 text-white shadow-md sticky top-0 z-50 transition-colors duration-200">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
         <Link to="/" className="text-lg sm:text-xl font-bold tracking-wide">
-          考研倒计时
+          我还有梦想
         </Link>
 
         {/* Desktop nav */}
