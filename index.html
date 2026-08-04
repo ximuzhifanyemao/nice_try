@@ -1,20 +1,9 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="zh-CN" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>考研倒计时</title>
-    <!-- 防闪烁：在 CSS/JS 加载前先设置主题 -->
-    <script>
-      (function () {
-        try {
-          var stored = localStorage.getItem('theme');
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var isDark = stored === 'dark' || (stored !== 'light' && prefersDark);
-          if (isDark) document.documentElement.classList.add('dark');
-        } catch (e) {}
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 
 export type Theme = 'light' | 'dark'
 
@@ -10,44 +10,16 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined)
 
-const STORAGE_KEY = 'theme'
+// 全站锁死暗色模式，不再动态切换
+const FORCED_THEME: Theme = 'dark'
 
-function getInitialTheme(): Theme {
-  if (typeof window === 'undefined') return 'light'
-  const stored = localStorage.getItem(STORAGE_KEY) as Theme | null
-  if (stored === 'light' || stored === 'dark') return stored
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  return prefersDark ? 'dark' : 'light'
-}
-
-function applyTheme(theme: Theme) {
-  if (typeof document === 'undefined') return
-  const root = document.documentElement
-  if (theme === 'dark') {
-    root.classList.add('dark')
-  } else {
-    root.classList.remove('dark')
-  }
-}
+const NOOP = () => { /* 全站强制暗色，切换操作已禁用 */ }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(getInitialTheme)
-
-  useEffect(() => {
-    applyTheme(theme)
-    try {
-      localStorage.setItem(STORAGE_KEY, theme)
-    } catch {
-      /* ignore storage errors */
-    }
-  }, [theme])
-
-  const setTheme = (next: Theme) => setThemeState(next)
-
-  const toggleTheme = () => setThemeState((prev) => (prev === 'light' ? 'dark' : 'light'))
-
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider
+      value={{ theme: FORCED_THEME, toggleTheme: NOOP, setTheme: NOOP }}
+    >
       {children}
     </ThemeContext.Provider>
   )
