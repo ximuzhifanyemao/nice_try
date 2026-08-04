@@ -51,7 +51,7 @@ export default function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps
       </div>
 
       {log.subjects && log.subjects.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="space-y-2">
           {log.subjects
             .filter((s) => s.hours > 0)
             .map((s) => {
@@ -61,13 +61,17 @@ export default function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps
                 : 'bg-gray-100 text-gray-700'
 
               return (
-                <span
-                  key={s.id}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium ${colorClass}`}
-                >
-                  {subject?.name ?? s.id}
-                  <span className="opacity-65 text-xs">{s.hours}h</span>
-                </span>
+                <div key={s.id}>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium ${colorClass}`}
+                  >
+                    {subject?.name ?? s.id}
+                    <span className="opacity-65 text-xs">{s.hours}h</span>
+                  </span>
+                  {s.summary && (
+                    <p className="mt-1 ml-1 text-xs text-gray-500">{s.summary}</p>
+                  )}
+                </div>
               )
             })}
         </div>

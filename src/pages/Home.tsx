@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import Countdown from '../components/Countdown'
+import Calendar from '../components/Calendar'
 import LogCard from '../components/LogCard'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchAllLogs } from '../lib/dailyLogs'
@@ -34,6 +35,12 @@ export default function Home() {
       {/* 考研倒计时 */}
       <section>
         <Countdown />
+      </section>
+
+      {/* 学习日历 */}
+      <section>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">学习日历</h2>
+        <Calendar logs={logs} loading={loading} />
       </section>
 
       {/* 公开学习时间线 */}
