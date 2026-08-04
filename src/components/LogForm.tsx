@@ -155,7 +155,7 @@ export default function LogForm({
                         }
                         setErrors((prev) => ({ ...prev, subjects: undefined }))
                       }}
-                      className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-blue-500 dark:focus:ring-blue-400"
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-slate-600 focus:ring-blue-500 dark:focus:ring-blue-400"
                     />
                     <span className="text-sm font-medium text-gray-800 dark:text-slate-200">{subject.name}</span>
                   </label>

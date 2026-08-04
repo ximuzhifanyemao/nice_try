@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import { ThemeProvider } from './contexts/ThemeContext'
 import Navbar from './components/Navbar'
+import BottomTab from './components/BottomTab'
 import ProtectedRoute from './components/ProtectedRoute'
 import Home from './pages/Home'
 import Login from './pages/Login'
@@ -17,7 +18,7 @@ export default function App() {
     <ThemeProvider>
       <BrowserRouter>
         <AuthProvider>
-          <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200">
+          <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
             <Navbar />
             <Routes>
               <Route path="/" element={<Home />} />
@@ -31,6 +32,7 @@ export default function App() {
                 <Route path="/timer" element={<TimerPage />} />
               </Route>
             </Routes>
+            <BottomTab />
           </div>
         </AuthProvider>
       </BrowserRouter>
