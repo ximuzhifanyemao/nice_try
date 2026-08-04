@@ -8,11 +8,13 @@ export default function Register() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
+    setSuccess('')
 
     if (!email.includes('@')) {
       setError('请输入有效的邮箱地址')
@@ -24,11 +26,16 @@ export default function Register() {
     }
 
     setLoading(true)
-    const { error: authError } = await signUp(email, password)
+    const { error: authError, needsEmailConfirmation } = await signUp(email, password)
     setLoading(false)
 
     if (authError) {
       setError(authError.message)
+      return
+    }
+
+    if (needsEmailConfirmation) {
+      setSuccess('注册成功！请检查邮箱并点击确认链接，然后返回登录。')
       return
     }
 
@@ -75,13 +82,21 @@ export default function Register() {
             <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer text-sm"
-          >
-            {loading ? '注册中...' : '注册'}
-          </button>
+          {success && (
+            <div className="text-sm text-green-700 bg-green-50 border border-green-200 px-3 py-2 rounded-lg">
+              {success}
+            </div>
+          )}
+
+          {!success && (
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2.5 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer text-sm"
+            >
+              {loading ? '注册中...' : '注册'}
+            </button>
+          )}
         </form>
 
         <p className="mt-4 text-center text-sm text-gray-500">

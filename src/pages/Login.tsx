@@ -28,9 +28,13 @@ export default function Login() {
     setLoading(false)
 
     if (authError) {
-      setError(authError.message === 'Invalid login credentials'
-        ? '邮箱或密码错误'
-        : authError.message)
+      if (authError.message.includes('Email not confirmed')) {
+        setError('邮箱尚未确认，请检查收件箱并点击确认链接后再登录')
+      } else {
+        setError(authError.message === 'Invalid login credentials'
+          ? '邮箱或密码错误'
+          : authError.message)
+      }
       return
     }
 
