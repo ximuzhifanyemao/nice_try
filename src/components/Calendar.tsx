@@ -15,6 +15,8 @@ import {
 import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
+import { useAuth } from '../contexts/AuthContext'
+import { Link } from 'react-router-dom'
 
 const CATEGORY_COLORS: Record<string, string> = {
   math: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
@@ -29,6 +31,7 @@ interface CalendarProps {
 }
 
 export default function Calendar({ logs, loading }: CalendarProps) {
+  const { user } = useAuth()
   const [currentMonth, setCurrentMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
@@ -67,7 +70,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
 
   const handleDayClick = (day: Date) => {
     const key = format(day, 'yyyy-MM-dd')
-    if (logsByDate.has(key)) {
+    if (isToday(day) || logsByDate.has(key)) {
       setSelectedDate((prev) =>
         prev && isSameDay(prev, day) ? null : day,
       )
@@ -210,8 +213,29 @@ export default function Calendar({ logs, loading }: CalendarProps) {
 
       {/* 无选中日期记录 */}
       {selectedDate && selectedLogs.length === 0 && (
-        <div className="border-t border-gray-100 dark:border-slate-700 pt-2 text-center text-[11px] text-gray-400 dark:text-slate-500">
-          当天暂无学习记录
+        <div className="border-t border-gray-100 dark:border-slate-700 pt-2 space-y-2">
+          {isToday(selectedDate) ? (
+            <>
+              <p className="text-[11px] font-medium text-gray-700 dark:text-slate-300">
+                {format(selectedDate, 'M月d日 EEEE', { locale: zhCN })} 的学习记录
+              </p>
+              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-3 text-center space-y-2">
+                <p className="text-xs text-amber-700 dark:text-amber-300">
+                  今日未有所录，速往记之
+                </p>
+                <Link
+                  to={user ? '/my-records/new' : '/login'}
+                  className="inline-block px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-500 rounded-lg transition-colors"
+                >
+                  {user ? '去提交' : '登录后提交'}
+                </Link>
+              </div>
+            </>
+          ) : (
+            <p className="text-center text-[11px] text-gray-400 dark:text-slate-500">
+              当天暂无学习记录
+            </p>
+          )}
         </div>
       )}
     </div>
