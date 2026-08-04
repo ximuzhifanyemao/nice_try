@@ -12,7 +12,20 @@ export default function Home() {
   useEffect(() => {
     fetchAllLogs()
       .then(setLogs)
-      .catch((err) => setError(err instanceof Error ? err.message : '加载失败'))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          setError('请求超时，请检查网络连接后刷新页面重试')
+        } else {
+          const msg = err instanceof Error ? err.message : '加载失败'
+          if (msg.includes('Invalid path') || msg.includes('URL')) {
+            setError('服务配置错误，请联系管理员检查 Supabase 配置')
+          } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            setError('网络连接失败，请检查网络后重试')
+          } else {
+            setError(msg)
+          }
+        }
+      })
       .finally(() => setLoading(false))
   }, [])
 
