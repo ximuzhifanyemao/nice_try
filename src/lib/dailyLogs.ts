@@ -31,6 +31,16 @@ export function todayStr(): string {
   return `${year}-${month}-${day}`
 }
 
+/** 获取本地时区的昨日日期（yyyy-MM-dd） */
+export function yesterdayStr(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 /** 判断是否为同一天已有记录导致的唯一约束冲突 */
 export function isDuplicateDateError(err: unknown): boolean {
   const code = (err as { code?: string } | null)?.code

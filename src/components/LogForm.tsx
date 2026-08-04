@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { DailyLogInput, DailyLogSubject } from '../lib/dailyLogs'
-import { todayStr } from '../lib/dailyLogs'
+import { todayStr, yesterdayStr } from '../lib/dailyLogs'
 import type { Subject } from '../lib/subjects'
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -73,6 +73,8 @@ export default function LogForm({
       newErrors.date = '请选择记录日期'
     } else if (date > todayStr()) {
       newErrors.date = '记录日期不能晚于今天'
+    } else if (!isEditing && date < yesterdayStr()) {
+      newErrors.date = '最多补交昨天的记录'
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -109,6 +111,7 @@ export default function LogForm({
           id="log-date"
           type="date"
           value={date}
+          min={yesterdayStr()}
           max={todayStr()}
           onChange={(e) => {
             setDate(e.target.value)
@@ -117,7 +120,7 @@ export default function LogForm({
           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
         />
         <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">
-          默认今天，可补交之前的记录
+          默认今天，最多补交昨天
         </p>
         {errors.date && (
           <p className="mt-1 text-sm text-red-500">{errors.date}</p>
