@@ -28,10 +28,10 @@ function pad(n: number): string {
 }
 
 const TIME_UNITS = [
-  { key: 'days' as const, label: '天', color: 'from-blue-600 to-blue-700' },
-  { key: 'hours' as const, label: '时', color: 'from-indigo-500 to-indigo-600' },
-  { key: 'minutes' as const, label: '分', color: 'from-violet-500 to-violet-600' },
-  { key: 'seconds' as const, label: '秒', color: 'from-purple-500 to-purple-600' },
+  { key: 'days' as const, label: '天', color: 'from-blue-500 to-blue-600 dark:from-blue-700 dark:to-blue-800' },
+  { key: 'hours' as const, label: '时', color: 'from-indigo-500 to-indigo-600 dark:from-indigo-700 dark:to-indigo-800' },
+  { key: 'minutes' as const, label: '分', color: 'from-violet-500 to-violet-600 dark:from-violet-700 dark:to-violet-800' },
+  { key: 'seconds' as const, label: '秒', color: 'from-purple-500 to-purple-600 dark:from-purple-700 dark:to-purple-800' },
 ]
 
 export default function Countdown() {
@@ -52,12 +52,12 @@ export default function Countdown() {
 
   return (
     <div className="flex flex-col items-center gap-5 py-4">
-      <h2 className="text-lg sm:text-xl text-gray-600 font-medium">
+      <h2 className="text-lg sm:text-xl text-gray-600 dark:text-slate-300 font-medium">
         距离 2026 考研还有
       </h2>
 
       {timeLeft === null ? (
-        <p className="text-3xl font-bold text-blue-700">考研已经结束！</p>
+        <p className="text-3xl font-bold text-blue-700 dark:text-blue-400">考研已经结束！</p>
       ) : (
         <div className="grid grid-cols-4 gap-2 sm:gap-3">
           {TIME_UNITS.map(({ key, label, color }) => (
@@ -74,7 +74,7 @@ export default function Countdown() {
         </div>
       )}
 
-      <p className="text-sm text-gray-400">2026年12月20日</p>
+      <p className="text-sm text-gray-400 dark:text-slate-500">2026年12月20日</p>
     </div>
   )
 }

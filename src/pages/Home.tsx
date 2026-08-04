@@ -48,20 +48,20 @@ export default function Home() {
 
       {/* 公开学习时间线 */}
       <section className="max-w-3xl mx-auto">
-        <h2 className="text-xl font-bold text-gray-800 mb-4">学习动态</h2>
+        <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-4">学习动态</h2>
 
         {loading && (
           <div className="flex justify-center py-12">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:border-slate-700 border-t-blue-600 dark:border-t-blue-500" />
           </div>
         )}
 
         {error && (
-          <div className="text-center py-8 text-red-500">加载失败: {error}</div>
+          <div className="text-center py-8 text-red-500 dark:text-red-400">加载失败: {error}</div>
         )}
 
         {!loading && !error && logs.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-gray-400 dark:text-slate-500">
             暂无学习记录
           </div>
         )}

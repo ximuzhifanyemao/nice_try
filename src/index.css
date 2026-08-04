@@ -1,1 +1,51 @@
 @import "tailwindcss";
+
+/* Tailwind v4 dark 变体兜底（若默认 class 策略不生效则启用） */
+@custom variant dark (&:where(.dark, .dark *));
+
+/* 全局暗色基础样式 */
+html.dark {
+  color-scheme: dark;
+}
+
+html.dark ::selection {
+  background: rgba(59, 130, 246, 0.35);
+  color: #e2e8f0;
+}
+
+::selection {
+  background: rgba(59, 130, 246, 0.25);
+  color: #0f172a;
+}
+
+/* 滚动条 - 亮色 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* 滚动条 - 暗色 */
+html.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
