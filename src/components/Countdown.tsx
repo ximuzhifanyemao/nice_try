@@ -51,10 +51,7 @@ export default function Countdown() {
   }, [])
 
   return (
-    <div className="flex flex-col items-center gap-5 py-4">
-      <h2 className="text-lg sm:text-xl text-gray-600 dark:text-slate-300 font-medium">
-        距离 2026 考研还有
-      </h2>
+    <div className="flex flex-col items-center gap-3 py-4">
 
       {timeLeft === null ? (
         <p className="text-3xl font-bold text-blue-700 dark:text-blue-400">考研已经结束！</p>
