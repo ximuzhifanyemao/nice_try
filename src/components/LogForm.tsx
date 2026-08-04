@@ -3,10 +3,10 @@ import type { DailyLogInput, DailyLogSubject } from '../lib/dailyLogs'
 import type { Subject } from '../lib/subjects'
 
 const CATEGORY_COLORS: Record<string, string> = {
-  math: 'bg-blue-50 border-blue-300',
-  english: 'bg-green-50 border-green-300',
-  '408': 'bg-purple-50 border-purple-300',
-  politics: 'bg-red-50 border-red-300',
+  math: 'bg-blue-50 border-blue-300 dark:bg-blue-900/20 dark:border-blue-700/50',
+  english: 'bg-green-50 border-green-300 dark:bg-green-900/20 dark:border-green-700/50',
+  '408': 'bg-purple-50 border-purple-300 dark:bg-purple-900/20 dark:border-purple-700/50',
+  politics: 'bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700/50',
 }
 
 interface LogFormProps {
@@ -88,19 +88,19 @@ export default function LogForm({
   const isEditing = !!initialData
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-5 space-y-5">
-      <h3 className="text-lg font-semibold text-gray-900">
+    <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 dark:shadow-slate-900/20 rounded-lg shadow p-5 space-y-5">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
         {isEditing ? '编辑学习记录' : '新建学习记录'}
       </h3>
 
       {/* 科目选择 */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
           学习科目
         </label>
         <div className="space-y-3">
           {availableSubjects.map((subject) => {
-            const colorClass = CATEGORY_COLORS[subject.category] ?? 'bg-gray-50 border-gray-200'
+            const colorClass = CATEGORY_COLORS[subject.category] ?? 'bg-gray-50 border-gray-200 dark:bg-slate-700/30 dark:border-slate-600'
 
             return (
               <div
@@ -121,9 +121,9 @@ export default function LogForm({
                         }
                         setErrors((prev) => ({ ...prev, subjects: undefined }))
                       }}
-                      className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                      className="w-4 h-4 text-blue-600 rounded border-gray-300 dark:border-slate-600 dark:bg-slate-700 focus:ring-blue-500 dark:focus:ring-blue-400"
                     />
-                    <span className="text-sm font-medium text-gray-800">{subject.name}</span>
+                    <span className="text-sm font-medium text-gray-800 dark:text-slate-200">{subject.name}</span>
                   </label>
 
                   <div className="flex items-center gap-1">
@@ -135,9 +135,9 @@ export default function LogForm({
                       min={0}
                       placeholder="0"
                       disabled={subjectHours[subject.id] <= 0}
-                      className="w-20 px-2 py-1 text-sm text-center border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:text-gray-400"
+                      className="w-20 px-2 py-1 text-sm text-center border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 disabled:bg-gray-100 disabled:text-gray-400 dark:disabled:bg-slate-800 dark:disabled:text-slate-500"
                     />
-                    <span className="text-sm text-gray-500">小时</span>
+                    <span className="text-sm text-gray-500 dark:text-slate-400">小时</span>
                   </div>
                 </div>
 
@@ -152,7 +152,7 @@ export default function LogForm({
                       }))
                     }
                     placeholder="该科目学习内容..."
-                    className="w-full px-2 py-1 text-xs border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
+                    className="w-full px-2 py-1 text-xs border border-gray-200 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
                   />
                 )}
               </div>
@@ -166,7 +166,7 @@ export default function LogForm({
 
       {/* 学习总结 */}
       <div>
-        <label htmlFor="log-summary" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="log-summary" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
           学习总结（可选）
         </label>
         <textarea
@@ -175,22 +175,22 @@ export default function LogForm({
           onChange={(e) => setSummary(e.target.value)}
           rows={4}
           placeholder="今天学了什么？有什么收获或反思？"
-          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 resize-y"
+          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 resize-y"
         />
       </div>
 
       {/* 按钮 */}
-      <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+      <div className="flex justify-end gap-3 pt-2 border-t border-gray-100 dark:border-slate-700">
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+          className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
         >
           取消
         </button>
         <button
           type="submit"
-          className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors cursor-pointer"
+          className="px-4 py-2 text-sm text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600 rounded-lg transition-colors cursor-pointer"
         >
           {isEditing ? '保存' : '提交'}
         </button>

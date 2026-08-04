@@ -49,7 +49,7 @@ export default function EditRecord() {
   if (loading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:border-slate-700 border-t-blue-600 dark:border-t-blue-500" />
       </div>
     )
   }
@@ -57,10 +57,10 @@ export default function EditRecord() {
   if (error || !log) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-12 text-center">
-        <p className="text-red-500 mb-4">{error || '记录不存在'}</p>
+        <p className="text-red-500 dark:text-red-400 mb-4">{error || '记录不存在'}</p>
         <button
           onClick={() => navigate('/my-records')}
-          className="text-blue-600 hover:underline"
+          className="text-blue-600 dark:text-blue-400 hover:underline"
         >
           返回我的记录
         </button>
@@ -70,7 +70,7 @@ export default function EditRecord() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">编辑学习记录</h1>
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-6">编辑学习记录</h1>
       <LogForm
         initialData={{ subjects: log.subjects, summary: log.summary }}
         availableSubjects={getAvailableSubjects()}

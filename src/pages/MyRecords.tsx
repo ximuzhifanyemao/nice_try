@@ -54,7 +54,7 @@ export default function MyRecords() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800">我的记录</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">我的记录</h1>
         <Link
           to={hasTodayLog ? `/my-records/${logs.find(l => {
             const today = new Date().toISOString().slice(0, 10)
@@ -62,8 +62,8 @@ export default function MyRecords() {
           })?.id}/edit` : '/my-records/new'}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             hasTodayLog
-              ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
+              ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-300 dark:hover:bg-yellow-900/60'
+              : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600'
           }`}
         >
           {hasTodayLog ? '今日已提交，编辑' : '新建今日记录'}
@@ -72,16 +72,16 @@ export default function MyRecords() {
 
       {loading && (
         <div className="flex justify-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 border-t-blue-600" />
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:border-slate-700 border-t-blue-600 dark:border-t-blue-500" />
         </div>
       )}
 
       {error && (
-        <div className="text-center py-8 text-red-500">加载失败: {error}</div>
+        <div className="text-center py-8 text-red-500 dark:text-red-400">加载失败: {error}</div>
       )}
 
       {!loading && !error && logs.length === 0 && (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-gray-400 dark:text-slate-500">
           你还没有学习记录，点击上方按钮开始记录
         </div>
       )}

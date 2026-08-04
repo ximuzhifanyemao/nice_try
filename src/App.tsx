@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import Navbar from './components/Navbar'
 import ProtectedRoute from './components/ProtectedRoute'
 import Home from './pages/Home'
@@ -11,22 +12,24 @@ import EditRecord from './pages/EditRecord'
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <div className="min-h-screen bg-gray-50">
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route element={<ProtectedRoute />}>
-              <Route path="/my-records" element={<MyRecords />} />
-              <Route path="/my-records/new" element={<NewRecord />} />
-              <Route path="/my-records/:id/edit" element={<EditRecord />} />
-            </Route>
-          </Routes>
-        </div>
-      </AuthProvider>
-    </BrowserRouter>
+    <ThemeProvider>
+      <BrowserRouter>
+        <AuthProvider>
+          <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200">
+            <Navbar />
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route element={<ProtectedRoute />}>
+                <Route path="/my-records" element={<MyRecords />} />
+                <Route path="/my-records/new" element={<NewRecord />} />
+                <Route path="/my-records/:id/edit" element={<EditRecord />} />
+              </Route>
+            </Routes>
+          </div>
+        </AuthProvider>
+      </BrowserRouter>
+    </ThemeProvider>
   )
 }
