@@ -135,7 +135,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
               key={dateKey}
               type="button"
               onClick={() => handleDayClick(day)}
-              disabled={!hasLogs}
+              disabled={!hasLogs && !isToday(day)}
               className={`relative flex flex-col items-center justify-center h-8 rounded-lg text-xs transition-colors cursor-pointer
                 ${!inMonth ? 'text-gray-300 dark:text-slate-600' : 'text-gray-700 dark:text-slate-300'}
                 ${today ? 'font-bold text-blue-600 dark:text-blue-400' : ''}
