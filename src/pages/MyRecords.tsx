@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import LogCard from '../components/LogCard'
 import type { DailyLog } from '../lib/dailyLogs'
-import { fetchMyLogs, fetchTodayLog, deleteLog } from '../lib/dailyLogs'
+import { fetchMyLogs, fetchTodayLog, deleteLog, todayStr } from '../lib/dailyLogs'
 
 export default function MyRecords() {
   const { user } = useAuth()
@@ -56,10 +56,7 @@ export default function MyRecords() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">我的记录</h1>
         <Link
-          to={hasTodayLog ? `/my-records/${logs.find(l => {
-            const today = new Date().toISOString().slice(0, 10)
-            return l.date === today
-          })?.id}/edit` : '/my-records/new'}
+          to={hasTodayLog ? `/my-records/${logs.find(l => l.date === todayStr())?.id}/edit` : '/my-records/new'}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             hasTodayLog
               ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-300 dark:hover:bg-yellow-900/60'

@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import LogForm from '../components/LogForm'
 import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLog, DailyLogInput } from '../lib/dailyLogs'
-import { fetchMyLogs, updateLog } from '../lib/dailyLogs'
+import { fetchMyLogs, updateLog, isDuplicateDateError } from '../lib/dailyLogs'
 
 export default function EditRecord() {
   const { id } = useParams<{ id: string }>()
@@ -38,7 +38,11 @@ export default function EditRecord() {
       await updateLog(id, data)
       navigate('/my-records')
     } catch (err) {
-      alert(err instanceof Error ? err.message : '保存失败，请重试')
+      if (isDuplicateDateError(err)) {
+        alert('该日期已有记录，请选择其他日期')
+      } else {
+        alert(err instanceof Error ? err.message : '保存失败，请重试')
+      }
     }
   }
 
@@ -72,7 +76,7 @@ export default function EditRecord() {
     <div className="mx-auto max-w-2xl px-4 py-6">
       <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-6">编辑学习记录</h1>
       <LogForm
-        initialData={{ subjects: log.subjects, summary: log.summary }}
+        initialData={{ date: log.date, subjects: log.subjects, summary: log.summary }}
         availableSubjects={getAvailableSubjects()}
         onSubmit={handleSubmit}
         onCancel={handleCancel}
