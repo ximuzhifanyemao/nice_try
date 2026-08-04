@@ -3,6 +3,7 @@ import { supabase } from './supabase'
 export interface DailyLogSubject {
   id: string
   hours: number
+  summary?: string
 }
 
 export interface DailyLog {
