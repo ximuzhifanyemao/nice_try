@@ -17,8 +17,24 @@ export interface DailyLog {
 }
 
 export interface DailyLogInput {
+  date: string
   subjects: DailyLogSubject[]
   summary: string
+}
+
+/** 获取本地时区的今日日期（yyyy-MM-dd），避免 toISOString 的 UTC 偏差 */
+export function todayStr(): string {
+  const d = new Date()
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+/** 判断是否为同一天已有记录导致的唯一约束冲突 */
+export function isDuplicateDateError(err: unknown): boolean {
+  const code = (err as { code?: string } | null)?.code
+  return code === '23505' || (err instanceof Error && /duplicate key|already exists/i.test(err.message))
 }
 
 export async function fetchAllLogs(): Promise<DailyLog[]> {
@@ -49,7 +65,7 @@ export async function fetchMyLogs(userId: string): Promise<DailyLog[]> {
 }
 
 export async function fetchTodayLog(userId: string): Promise<DailyLog | null> {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = todayStr()
   const { data, error } = await supabase
     .from('daily_logs')
     .select('*')
@@ -65,12 +81,11 @@ export async function fetchTodayLog(userId: string): Promise<DailyLog | null> {
 }
 
 export async function createLog(userId: string, logData: DailyLogInput): Promise<DailyLog> {
-  const today = new Date().toISOString().slice(0, 10)
   const { data, error } = await supabase
     .from('daily_logs')
     .insert({
       user_id: userId,
-      date: today,
+      date: logData.date,
       subjects: logData.subjects,
       summary: logData.summary,
     })
@@ -88,6 +103,7 @@ export async function updateLog(logId: string, logData: DailyLogInput): Promise<
   const { data, error } = await supabase
     .from('daily_logs')
     .update({
+      date: logData.date,
       subjects: logData.subjects,
       summary: logData.summary,
     })

@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import LogForm from '../components/LogForm'
 import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLogInput } from '../lib/dailyLogs'
-import { createLog } from '../lib/dailyLogs'
+import { createLog, isDuplicateDateError } from '../lib/dailyLogs'
 
 export default function NewRecord() {
   const { user } = useAuth()
@@ -15,7 +15,11 @@ export default function NewRecord() {
       await createLog(user.id, data)
       navigate('/my-records')
     } catch (err) {
-      alert(err instanceof Error ? err.message : '提交失败，请重试')
+      if (isDuplicateDateError(err)) {
+        alert('该日期已有记录，请选择其他日期')
+      } else {
+        alert(err instanceof Error ? err.message : '提交失败，请重试')
+      }
     }
   }
 

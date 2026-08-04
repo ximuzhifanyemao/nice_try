@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { DailyLogInput, DailyLogSubject } from '../lib/dailyLogs'
+import { todayStr } from '../lib/dailyLogs'
 import type { Subject } from '../lib/subjects'
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -48,7 +49,8 @@ export default function LogForm({
     return init
   })
   const [summary, setSummary] = useState(initialData?.summary ?? '')
-  const [errors, setErrors] = useState<{ subjects?: string }>({})
+  const [date, setDate] = useState(initialData?.date ?? todayStr())
+  const [errors, setErrors] = useState<{ subjects?: string; date?: string }>({})
 
   const handleHoursChange = (subjectId: string, value: string) => {
     const num = parseFloat(value)
@@ -62,10 +64,15 @@ export default function LogForm({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    const newErrors: { subjects?: string } = {}
+    const newErrors: { subjects?: string; date?: string } = {}
     const hasAnyHours = Object.values(subjectHours).some((h) => h > 0)
     if (!hasAnyHours) {
       newErrors.subjects = '请至少为一个科目设置学习时长'
+    }
+    if (!date) {
+      newErrors.date = '请选择记录日期'
+    } else if (date > todayStr()) {
+      newErrors.date = '记录日期不能晚于今天'
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -82,7 +89,7 @@ export default function LogForm({
           : { id, hours }
       })
 
-    onSubmit({ subjects, summary: summary.trim() })
+    onSubmit({ date, subjects, summary: summary.trim() })
   }
 
   const isEditing = !!initialData
@@ -92,6 +99,30 @@ export default function LogForm({
       <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
         {isEditing ? '编辑学习记录' : '新建学习记录'}
       </h3>
+
+      {/* 记录日期 */}
+      <div>
+        <label htmlFor="log-date" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+          记录日期
+        </label>
+        <input
+          id="log-date"
+          type="date"
+          value={date}
+          max={todayStr()}
+          onChange={(e) => {
+            setDate(e.target.value)
+            setErrors((prev) => ({ ...prev, date: undefined }))
+          }}
+          className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
+        />
+        <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">
+          默认今天，可补交之前的记录
+        </p>
+        {errors.date && (
+          <p className="mt-1 text-sm text-red-500">{errors.date}</p>
+        )}
+      </div>
 
       {/* 科目选择 */}
       <div>
