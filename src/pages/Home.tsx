@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import Countdown from '../components/Countdown'
 import Calendar from '../components/Calendar'
-import QuickLinks from '../components/QuickLinks'
 import LogCard from '../components/LogCard'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchAllLogs } from '../lib/dailyLogs'
@@ -33,15 +32,12 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 space-y-8">
-      {/* 顶部三栏：快捷网站 | 倒计时 | 右上角日历 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[180px_1fr_280px] gap-6 items-start">
-        <div className="order-2 lg:order-1">
-          <QuickLinks />
-        </div>
-        <div className="order-1 lg:order-2">
+      {/* 顶部：倒计时 | 日历 */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-6 items-start">
+        <div>
           <Countdown />
         </div>
-        <div className="order-3 lg:self-start">
+        <div className="lg:self-start">
           <Calendar logs={logs} loading={loading} />
         </div>
       </div>
