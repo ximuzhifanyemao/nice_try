@@ -10,6 +10,7 @@ import MyRecords from './pages/MyRecords'
 import NewRecord from './pages/NewRecord'
 import EditRecord from './pages/EditRecord'
 import Summary from './pages/Summary'
+import TimerPage from './pages/TimerPage'
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
                 <Route path="/summary" element={<Summary />} />
                 <Route path="/my-records/new" element={<NewRecord />} />
                 <Route path="/my-records/:id/edit" element={<EditRecord />} />
+                <Route path="/timer" element={<TimerPage />} />
               </Route>
             </Routes>
           </div>
