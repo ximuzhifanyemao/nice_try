@@ -44,9 +44,6 @@ export default function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps
               今日 {totalHours}h
             </span>
           )}
-          <span className="text-xs text-gray-300 dark:text-slate-600 font-mono" title={log.user_id}>
-            {log.user_id.slice(0, 8)}
-          </span>
         </div>
       </div>
 
