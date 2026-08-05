@@ -17,8 +17,8 @@ export default function NewRecord() {
       if (data.date === todayStr()) {
         const prev = await fetchLogBeforeDate(user.id, todayStr())
         if (prev && !(prev.summary ?? '').trim()) {
-          alert(`请先在「打卡」页补写 ${formatDateCn(prev.date)} 的学习总结，才能提交今日记录`)
-          navigate('/checkin')
+          alert(`请先在「记录」页补写 ${formatDateCn(prev.date)} 的学习总结，才能提交今日记录`)
+          navigate('/my-records')
           return
         }
       }

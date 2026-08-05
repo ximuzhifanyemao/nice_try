@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import LogCard from '../components/LogCard'
 import type { DailyLog } from '../lib/dailyLogs'
-import { fetchMyLogs, fetchTodayLog, deleteLog, todayStr } from '../lib/dailyLogs'
+import { fetchMyLogs, deleteLog, todayStr } from '../lib/dailyLogs'
 
 export default function MyRecords() {
   const { user } = useAuth()
@@ -11,21 +11,13 @@ export default function MyRecords() {
   const [logs, setLogs] = useState<DailyLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [hasTodayLog, setHasTodayLog] = useState(false)
 
   const loadLogs = useCallback(() => {
     if (!user) return
     setLoading(true)
     setError(null)
-
-    Promise.all([
-      fetchMyLogs(user.id),
-      fetchTodayLog(user.id),
-    ])
-      .then(([myLogs, todayLog]) => {
-        setLogs(myLogs)
-        setHasTodayLog(!!todayLog)
-      })
+    fetchMyLogs(user.id)
+      .then(setLogs)
       .catch((err) => setError(err instanceof Error ? err.message : '加载失败'))
       .finally(() => setLoading(false))
   }, [user])
@@ -34,18 +26,19 @@ export default function MyRecords() {
     loadLogs()
   }, [loadLogs])
 
+  const today = todayStr()
+  const todayLog = logs.find((l) => l.date === today) ?? null
+  const hasTodayLog = !!todayLog
+  const todayMissing = !!todayLog && !(todayLog.summary ?? '').trim()
+
   const handleDelete = useCallback(async (logId: string) => {
     try {
       await deleteLog(logId)
       setLogs((prev) => prev.filter((l) => l.id !== logId))
-      // Re-check today
-      if (user) {
-        fetchTodayLog(user.id).then((tl) => setHasTodayLog(!!tl))
-      }
     } catch {
       alert('删除失败，请重试')
     }
-  }, [user])
+  }, [])
 
   const handleEdit = useCallback((logId: string) => {
     navigate(`/my-records/${logId}/edit`)
@@ -56,7 +49,7 @@ export default function MyRecords() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">记录</h1>
         <Link
-          to={hasTodayLog ? `/my-records/${logs.find(l => l.date === todayStr())?.id}/edit` : '/my-records/new'}
+          to={hasTodayLog ? `/my-records/${todayLog?.id}/edit` : '/my-records/new'}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             hasTodayLog
               ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-300 dark:hover:bg-yellow-900/60'
@@ -66,6 +59,26 @@ export default function MyRecords() {
           {hasTodayLog ? '今日已提交，编辑' : '新建今日记录'}
         </Link>
       </div>
+
+      {/* 今日总结状态 */}
+      {todayLog && (
+        <div
+          className={`rounded-xl shadow-sm border px-5 py-4 ${
+            todayMissing
+              ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+              : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
+          }`}
+        >
+          <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">
+            {todayMissing ? '今日总结未写' : '今日打卡完成 ✓'}
+          </p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+            {todayMissing
+              ? '今天的学习记录已提交，请在下方的今日记录中补写总结'
+              : '今天的总结已填写'}
+          </p>
+        </div>
+      )}
 
       {loading && (
         <div className="flex justify-center py-12">
@@ -92,6 +105,7 @@ export default function MyRecords() {
               isOwner={true}
               onEdit={() => handleEdit(log.id)}
               onDelete={() => handleDelete(log.id)}
+              onSummarySaved={loadLogs}
             />
           ))}
         </div>

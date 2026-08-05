@@ -1,7 +1,8 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
+import { updateLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 
@@ -10,12 +11,44 @@ interface LogCardProps {
   isOwner: boolean
   onEdit: () => void
   onDelete: () => void
+  /** 总结保存成功后的回调（父组件刷新列表） */
+  onSummarySaved?: () => void
 }
 
-function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps) {
+function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProps) {
+  const [editingSummary, setEditingSummary] = useState(false)
+  const [summaryDraft, setSummaryDraft] = useState('')
+  const [savingSummary, setSavingSummary] = useState(false)
+
+  const hasSummary = !!(log.summary ?? '').trim()
+
   const handleDelete = () => {
     if (window.confirm('确定要删除这条学习记录吗？')) {
       onDelete()
+    }
+  }
+
+  const openSummaryEditor = () => {
+    setSummaryDraft(log.summary ?? '')
+    setEditingSummary(true)
+  }
+
+  const saveSummary = async () => {
+    if (savingSummary) return
+    setSavingSummary(true)
+    try {
+      const summary = summaryDraft.trim()
+      await updateLog(log.id, {
+        date: log.date,
+        subjects: log.subjects,
+        summary,
+      })
+      setEditingSummary(false)
+      onSummarySaved?.()
+    } catch {
+      alert('保存失败，请重试')
+    } finally {
+      setSavingSummary(false)
     }
   }
 
@@ -81,6 +114,50 @@ function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps) {
         <p className="text-sm text-gray-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-6">
           {log.summary}
         </p>
+      )}
+
+      {isOwner && !editingSummary && (
+        <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-slate-700">
+          <span className="text-xs text-gray-400 dark:text-slate-500">
+            {hasSummary ? '学习总结' : '未写总结'}
+          </span>
+          <button
+            type="button"
+            onClick={openSummaryEditor}
+            className="text-xs text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+          >
+            {hasSummary ? '编辑总结' : '写总结'}
+          </button>
+        </div>
+      )}
+
+      {isOwner && editingSummary && (
+        <div className="pt-2 border-t border-gray-50 dark:border-slate-700 space-y-2">
+          <textarea
+            value={summaryDraft}
+            onChange={(e) => setSummaryDraft(e.target.value)}
+            rows={3}
+            placeholder="今天学了什么？有什么收获或反思？"
+            className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 resize-y"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setEditingSummary(false)}
+              className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              onClick={saveSummary}
+              disabled={savingSummary}
+              className="px-4 py-1.5 text-sm text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-slate-700 rounded-lg transition-colors cursor-pointer disabled:cursor-not-allowed"
+            >
+              {savingSummary ? '保存中...' : '保存总结'}
+            </button>
+          </div>
+        </div>
       )}
 
       {isOwner && (

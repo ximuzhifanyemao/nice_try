@@ -54,7 +54,7 @@ const Summary: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">总结</h1>
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">统计</h1>
 
       <RangePicker value={range} onChange={setRange} />
 
