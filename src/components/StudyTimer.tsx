@@ -166,7 +166,11 @@ export default function StudyTimer() {
             (s) => s.id === entry.id && (s.activity ?? '') === (entry.activity ?? '')
           )
           if (idx >= 0) {
-            mergedSubjects[idx] = { ...mergedSubjects[idx], hours: mergedSubjects[idx].hours + entry.hours }
+            // 相加后重新取整到两位小数，避免浮点误差（如 0.13+0.27 → 0.40000000000000005）
+            mergedSubjects[idx] = {
+              ...mergedSubjects[idx],
+              hours: Math.round((mergedSubjects[idx].hours + entry.hours) * 100) / 100,
+            }
           } else {
             mergedSubjects.push(entry)
           }
