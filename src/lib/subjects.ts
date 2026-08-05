@@ -5,13 +5,13 @@ export interface Subject {
 }
 
 export const ALL_SUBJECTS: Subject[] = [
-  { id: 'math', name: '数学', category: 'math' },
+  { id: 'politics', name: '政治', category: 'politics' },
   { id: 'english', name: '英语', category: 'english' },
+  { id: 'math', name: '数学', category: 'math' },
   { id: 'ds', name: '数据结构', category: '408' },
   { id: 'co', name: '计算机组成原理', category: '408' },
   { id: 'os', name: '操作系统', category: '408' },
   { id: 'cn', name: '计算机网络', category: '408' },
-  { id: 'politics', name: '政治', category: 'politics' },
 ]
 
 export function getAvailableSubjects(): Subject[] {
