@@ -54,18 +54,19 @@ export default function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps
         <div className="space-y-2">
           {log.subjects
             .filter((s) => s.hours > 0)
-            .map((s) => {
+            .map((s, index) => {
               const subject = getSubjectById(s.id)
               const colorClass = subject
                 ? CATEGORY_COLORS[subject.category] ?? 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
                 : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
 
               return (
-                <div key={s.id}>
+                <div key={`${s.id}-${s.activity ?? ''}-${index}`}>
                   <span
                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium ${colorClass}`}
                   >
-                    {subject?.name ?? s.id}
+                    {(subject?.name ?? s.id)}
+                    {s.activity ? `·${s.activity}` : ''}
                     <span className="opacity-65 text-xs">{s.hours}h</span>
                   </span>
                   {s.summary && (

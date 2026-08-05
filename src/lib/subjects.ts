@@ -15,13 +15,21 @@ export const ALL_SUBJECTS: Subject[] = [
 ]
 
 export function getAvailableSubjects(): Subject[] {
-  const now = new Date()
-  // 9月1日起显示政治
-  if (now.getMonth() >= 8) {
-    return ALL_SUBJECTS
-  }
-  // 8月及之前：不显示政治
-  return ALL_SUBJECTS.filter((s) => s.id !== 'politics')
+  return ALL_SUBJECTS
+}
+
+/** 各科类的可选学习内容（做了什么） */
+export const SUBJECT_ACTIVITIES: Record<string, string[]> = {
+  english: ['单词', '听课', '做题'],
+  math: ['听课', '练习'],
+  '408': ['听课', '练习'],
+  politics: ['听课', '背诵', '刷题'],
+}
+
+/** 按科目 category 返回可选学习内容；无配置返回 [] */
+export function getActivitiesForSubject(subjectId: string): string[] {
+  const category = getSubjectById(subjectId)?.category
+  return category ? SUBJECT_ACTIVITIES[category] ?? [] : []
 }
 
 export function getSubjectById(id: string): Subject | undefined {

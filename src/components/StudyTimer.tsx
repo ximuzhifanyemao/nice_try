@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { getAvailableSubjects, getSubjectById } from '../lib/subjects'
-import { createLog, fetchTodayLog, updateLog, todayStr } from '../lib/dailyLogs'
+import { getAvailableSubjects, getSubjectById, getActivitiesForSubject } from '../lib/subjects'
+import { createLog, fetchTodayLog, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
 import { useAuth } from '../contexts/AuthContext'
 
 
 /* ── 类型 ── */
 interface TimerState {
   subjectId: string | null
+  activity: string
   startTime: number // Date.now()
 }
 
@@ -36,7 +37,9 @@ function saveAccum(accum: AccumMap) {
 function loadRunningTimer(): TimerState | null {
   try {
     const raw = localStorage.getItem(RUNNING_KEY)
-    return raw ? JSON.parse(raw) : null
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as TimerState
+    return { subjectId: parsed.subjectId ?? null, activity: parsed.activity ?? '', startTime: parsed.startTime }
   } catch {
     return null
   }
@@ -69,6 +72,11 @@ function formatDurationShort(totalSeconds: number): string {
   return `${m}min`
 }
 
+/** 累计键：科目::学习内容 */
+function accumKey(subjectId: string, activity: string): string {
+  return `${subjectId}::${activity}`
+}
+
 /* ── 科目颜色 ── */
 const SUBJECT_COLORS: Record<string, string> = {
   math: 'border-blue-400 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/40',
@@ -89,6 +97,8 @@ export default function StudyTimer() {
 
   /* 当前运行中的计时器 */
   const [running, setRunning] = useState<TimerState | null>(loadRunningTimer)
+  /* 待选学习内容的科目 */
+  const [pendingSubject, setPendingSubject] = useState<string | null>(null)
   /* 今日累计 */
   const [accum, setAccum] = useState<AccumMap>(loadAccum)
   /* 当前计时器已流逝的秒数（用于实时显示） */
@@ -114,10 +124,11 @@ export default function StudyTimer() {
   }, [running?.startTime, running?.subjectId])
 
   /* ── 开始计时 ── */
-  const handleStart = (subjectId: string) => {
-    const state: TimerState = { subjectId, startTime: Date.now() }
+  const handleStart = (subjectId: string, activity: string) => {
+    const state: TimerState = { subjectId, activity, startTime: Date.now() }
     setRunning(state)
     saveRunningTimer(state)
+    setPendingSubject(null)
     setSaved(false)
   }
 
@@ -131,8 +142,9 @@ export default function StudyTimer() {
       saveRunningTimer(null)
       return
     }
+    const key = accumKey(running.subjectId!, running.activity ?? '')
     const newAccum = { ...accum }
-    newAccum[running.subjectId!] = (newAccum[running.subjectId!] || 0) + seconds
+    newAccum[key] = (newAccum[key] || 0) + seconds
     setAccum(newAccum)
     saveAccum(newAccum)
     setRunning(null)
@@ -145,23 +157,32 @@ export default function StudyTimer() {
     if (!user || Object.keys(accum).length === 0) return
     setSaving(true)
     try {
-      // 将秒数转为小时（保留 2 位小数）
-      const subjectHours: Record<string, number> = {}
-      for (const [id, sec] of Object.entries(accum)) {
-        subjectHours[id] = Math.round((sec / 3600) * 100) / 100
+      // 将秒数转为小时（保留 2 位小数），按 科目::学习内容 分组
+      const subjectEntries: DailyLogSubject[] = []
+      for (const [key, sec] of Object.entries(accum)) {
+        if (sec <= 0) continue
+        const [id, activity] = key.split('::')
+        const hours = Math.round((sec / 3600) * 100) / 100
+        subjectEntries.push(
+          activity
+            ? { id, hours, activity }
+            : { id, hours }
+        )
       }
 
       const existingLog = await fetchTodayLog(user.id)
 
       if (existingLog) {
-        // 合并已有记录：累计 + 已有
+        // 合并已有记录：按 (id, activity) 匹配
         const mergedSubjects = [...existingLog.subjects]
-        for (const [id, hours] of Object.entries(subjectHours)) {
-          const idx = mergedSubjects.findIndex((s) => s.id === id)
+        for (const entry of subjectEntries) {
+          const idx = mergedSubjects.findIndex(
+            (s) => s.id === entry.id && (s.activity ?? '') === (entry.activity ?? '')
+          )
           if (idx >= 0) {
-            mergedSubjects[idx] = { ...mergedSubjects[idx], hours: mergedSubjects[idx].hours + hours }
+            mergedSubjects[idx] = { ...mergedSubjects[idx], hours: mergedSubjects[idx].hours + entry.hours }
           } else {
-            mergedSubjects.push({ id, hours })
+            mergedSubjects.push(entry)
           }
         }
         await updateLog(existingLog.id, {
@@ -170,10 +191,9 @@ export default function StudyTimer() {
           summary: existingLog.summary,
         })
       } else {
-        const subjects = Object.entries(subjectHours).map(([id, hours]) => ({ id, hours }))
         await createLog(user.id, {
           date: todayStr(),
-          subjects,
+          subjects: subjectEntries,
           summary: '',
         })
       }
@@ -197,8 +217,14 @@ export default function StudyTimer() {
 
   const totalSeconds = Object.values(accum).reduce((a, b) => a + b, 0)
   const currentSubject = running?.subjectId
-    ? getSubjectById(running.subjectId)?.name ?? running.subjectId
+    ? (getSubjectById(running.subjectId)?.name ?? running.subjectId) +
+      (running.activity ? ` · ${running.activity}` : '')
     : null
+  /** 某科目今日累计秒数（含各学习内容） */
+  const subjectTotal = (id: string): number =>
+    Object.entries(accum)
+      .filter(([key]) => key.startsWith(id + '::'))
+      .reduce((a, [, sec]) => a + sec, 0)
 
   return (
     <div className="space-y-6">
@@ -218,7 +244,12 @@ export default function StudyTimer() {
                   if (isActive) {
                     handleStop()
                   } else if (!running) {
-                    handleStart(subj.id)
+                    const activities = getActivitiesForSubject(subj.id)
+                    if (activities.length > 0) {
+                      setPendingSubject(pendingSubject === subj.id ? null : subj.id)
+                    } else {
+                      handleStart(subj.id, '')
+                    }
                   }
                 }}
                 disabled={isDisabled}
@@ -227,17 +258,45 @@ export default function StudyTimer() {
                     ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-slate-900 scale-105 shadow-md ' + getSubjectColor(subj.id)
                     : isDisabled
                       ? 'opacity-40 cursor-not-allowed border-gray-200 dark:border-slate-700 text-gray-400 dark:text-slate-500'
-                      : getSubjectColor(subj.id)
+                      : pendingSubject === subj.id
+                        ? 'ring-2 ring-offset-2 ring-blue-300 dark:ring-offset-slate-900 ' + getSubjectColor(subj.id)
+                        : getSubjectColor(subj.id)
                   }`}
               >
                 {subj.name}
-                {(accum[subj.id] ?? 0) > 0 && (
-                  <span className="ml-1.5 text-xs opacity-75">({formatDurationShort(accum[subj.id]!)})</span>
+                {subjectTotal(subj.id) > 0 && (
+                  <span className="ml-1.5 text-xs opacity-75">({formatDurationShort(subjectTotal(subj.id))})</span>
                 )}
               </button>
             )
           })}
         </div>
+
+        {/* 选择学习内容 */}
+        {pendingSubject && !running && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
+            <span className="text-sm text-gray-700 dark:text-slate-300">
+              {getSubjectById(pendingSubject)?.name} · 选择学习内容
+            </span>
+            {getActivitiesForSubject(pendingSubject).map((act) => (
+              <button
+                key={act}
+                type="button"
+                onClick={() => handleStart(pendingSubject, act)}
+                className="px-3 py-1 text-sm rounded-full bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-600 hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-300 transition-colors cursor-pointer"
+              >
+                {act}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setPendingSubject(null)}
+              className="ml-auto text-xs text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 cursor-pointer"
+            >
+              取消
+            </button>
+          </div>
+        )}
       </div>
 
       {/* 计时器面板 */}
@@ -281,11 +340,13 @@ export default function StudyTimer() {
             {Object.entries(accum)
               .filter(([, sec]) => sec > 0)
               .sort(([, a], [, b]) => b - a)
-              .map(([id, sec]) => {
+              .map(([key, sec]) => {
+                const [id, activity] = key.split('::')
                 const subj = getSubjectById(id)
+                const label = (subj?.name ?? id) + (activity ? `·${activity}` : '')
                 return (
-                  <div key={id} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600 dark:text-slate-400">{subj?.name ?? id}</span>
+                  <div key={key} className="flex justify-between items-center text-sm">
+                    <span className="text-gray-600 dark:text-slate-400">{label}</span>
                     <span className="font-mono text-gray-800 dark:text-slate-200">{formatDurationShort(sec)}</span>
                   </div>
                 )

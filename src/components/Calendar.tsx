@@ -183,17 +183,18 @@ export default function Calendar({ logs, loading }: CalendarProps) {
                   <div className="flex flex-wrap gap-1">
                     {log.subjects
                       .filter((s) => s.hours > 0)
-                      .map((s) => {
+                      .map((s, index) => {
                         const subject = getSubjectById(s.id)
                         const colorClass = subject
                           ? CATEGORY_COLORS[subject.category] ?? 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
                           : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
                         return (
                           <span
-                            key={s.id}
+                            key={`${s.id}-${s.activity ?? ''}-${index}`}
                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium ${colorClass}`}
                           >
-                            {subject?.name ?? s.id}
+                            {(subject?.name ?? s.id)}
+                            {s.activity ? `·${s.activity}` : ''}
                             <span className="opacity-65">{s.hours}h</span>
                           </span>
                         )
