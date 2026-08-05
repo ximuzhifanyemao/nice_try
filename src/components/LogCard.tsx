@@ -1,10 +1,9 @@
 import { memo, useState } from 'react'
-import { format } from 'date-fns'
-import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
 import { updateLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
+import { formatDateShort } from '../lib/format'
 
 interface LogCardProps {
   log: DailyLog
@@ -52,13 +51,7 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
     }
   }
 
-  const formattedDate = (() => {
-    try {
-      return format(new Date(log.date + 'T00:00:00'), 'yyyy年MM月dd日 EEEE', { locale: zhCN })
-    } catch {
-      return log.date
-    }
-  })()
+  const formattedDate = formatDateShort(log.date)
 
   const totalHours = log.subjects?.reduce((sum, s) => sum + (s.hours || 0), 0) ?? 0
 

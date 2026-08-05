@@ -11,6 +11,16 @@ export function formatDateCn(dateStr: string): string {
   return `${Number(m)}月${Number(d)}日`
 }
 
+/** yyyy-MM-dd → 2026.8.5 周二 */
+export function formatDateShort(dateStr: string): string {
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return dateStr
+  const d = new Date(dateStr + 'T00:00:00')
+  if (Number.isNaN(d.getTime())) return dateStr
+  const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
+  return `${Number(parts[0])}.${Number(parts[1])}.${Number(parts[2])} ${week}`
+}
+
 /** 秒数格式化为 HH:MM:SS */
 export function formatDuration(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600)
