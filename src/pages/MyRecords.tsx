@@ -54,7 +54,7 @@ export default function MyRecords() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">我的记录</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">记录</h1>
         <Link
           to={hasTodayLog ? `/my-records/${logs.find(l => l.date === todayStr())?.id}/edit` : '/my-records/new'}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${

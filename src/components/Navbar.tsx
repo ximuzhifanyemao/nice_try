@@ -23,9 +23,10 @@ export default function Navbar() {
             <>
               <span className="text-white/70 truncate max-w-[160px]">{user.email}</span>
               <Link to="/" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">🏠 首页</Link>
-              <Link to="/my-records" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">📝 我的记录</Link>
-              <Link to="/timer" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">⏱️ 学习计时</Link>
-              <Link to="/summary" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">📊 学习总结</Link>
+              <Link to="/my-records" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">📝 记录</Link>
+              <Link to="/timer" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">⏱️ 计时</Link>
+              <Link to="/summary" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">📊 总结</Link>
+              <Link to="/profile" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">👤 我的</Link>
               <button
                 onClick={handleSignOut}
                 className="rounded bg-white/15 px-3 py-1 hover:bg-white/25 transition-colors cursor-pointer"

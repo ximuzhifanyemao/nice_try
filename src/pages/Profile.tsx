@@ -17,9 +17,9 @@ export default function Profile() {
     : ''
 
   const quickLinks = [
-    { label: '我的记录', icon: '📝', path: '/my-records' },
-    { label: '学习总结', icon: '📊', path: '/summary' },
-    { label: '学习计时', icon: '⏱️', path: '/timer' },
+    { label: '记录', icon: '📝', path: '/my-records' },
+    { label: '总结', icon: '📊', path: '/summary' },
+    { label: '计时', icon: '⏱️', path: '/timer' },
   ]
 
   return (

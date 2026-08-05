@@ -66,7 +66,7 @@ export default function EditRecord() {
           onClick={() => navigate('/my-records')}
           className="text-blue-600 dark:text-blue-400 hover:underline"
         >
-          返回我的记录
+          返回记录
         </button>
       </div>
     )
@@ -74,7 +74,7 @@ export default function EditRecord() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-6">编辑学习记录</h1>
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-6">编辑记录</h1>
       <LogForm
         initialData={{ date: log.date, subjects: log.subjects, summary: log.summary }}
         availableSubjects={getAvailableSubjects()}
