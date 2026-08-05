@@ -13,7 +13,6 @@ const MyRecords = lazy(() => import('./pages/MyRecords'))
 const NewRecord = lazy(() => import('./pages/NewRecord'))
 const EditRecord = lazy(() => import('./pages/EditRecord'))
 const Summary = lazy(() => import('./pages/Summary'))
-const CheckIn = lazy(() => import('./pages/CheckIn'))
 const TimerPage = lazy(() => import('./pages/TimerPage'))
 const Profile = lazy(() => import('./pages/Profile'))
 
@@ -67,7 +66,6 @@ export default function App() {
                 <Route path="/my-records" element={<MyRecords />} />
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/summary" element={<Summary />} />
-                <Route path="/checkin" element={<CheckIn />} />
                 <Route path="/my-records/new" element={<NewRecord />} />
                 <Route path="/my-records/:id/edit" element={<EditRecord />} />
                 <Route path="/timer" element={<TimerPage />} />
