@@ -39,6 +39,11 @@ function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps) {
               今日 {totalHours.toFixed(2)}h
             </span>
           )}
+          {isOwner && !(log.summary ?? '').trim() && (
+            <span className="text-xs bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 px-2 py-0.5 rounded-full">
+              未写总结
+            </span>
+          )}
         </div>
       </div>
 

@@ -17,6 +17,7 @@ export default function BottomTab() {
     { key: 'home', label: '首页', icon: '🏠', path: '/' },
     { key: 'records', label: '记录', icon: '📝', path: '/my-records' },
     { key: 'timer', label: '计时', icon: '⏱️', path: '/timer' },
+    { key: 'checkin', label: '打卡', icon: '✅', path: '/checkin' },
     { key: 'summary', label: '总结', icon: '📊', path: '/summary' },
     { key: 'profile', label: user ? '我的' : '登录', icon: '👤', path: user ? '/profile' : '/login' },
   ]
@@ -26,6 +27,7 @@ export default function BottomTab() {
     if (pathname === '/') return 'home'
     if (pathname === '/my-records' || pathname === '/my-records/new' || /^\/my-records\/[^/]+\/edit$/.test(pathname)) return 'records'
     if (pathname === '/timer') return 'timer'
+    if (pathname === '/checkin') return 'checkin'
     if (pathname === '/summary') return 'summary'
     return 'profile'
   }
