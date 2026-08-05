@@ -4,6 +4,7 @@ import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
+import { formatDateShort } from '../lib/format'
 
 interface DaySubject {
   subjectId: string
@@ -270,7 +271,7 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
       <div className="border-t border-gray-100 dark:border-slate-700 pt-3 space-y-2">
         <div className="flex items-baseline gap-2">
           <p className="text-sm font-medium text-gray-700 dark:text-slate-300">
-            {format(selectedDay.date, 'M月d日 EEEE', { locale: zhCN })}
+            {formatDateShort(format(selectedDay.date, 'yyyy-MM-dd'))}
           </p>
           {selectedDay.totalHours > 0 ? (
             <span className="text-xs text-gray-500 dark:text-slate-400">

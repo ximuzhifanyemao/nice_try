@@ -16,6 +16,7 @@ import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
+import { formatDateShort } from '../lib/format'
 import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
 
@@ -158,7 +159,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
       {selectedDate && selectedLogs.length > 0 && (
         <div className="border-t border-gray-100 dark:border-slate-700 pt-2 space-y-2">
           <p className="text-[11px] font-medium text-gray-700 dark:text-slate-300">
-            {format(selectedDate, 'M月d日 EEEE', { locale: zhCN })} 的学习记录
+            {formatDateShort(format(selectedDate, 'yyyy-MM-dd'))} 的学习记录
           </p>
           {selectedLogs.map((log) => {
             const totalHours = log.subjects?.reduce((sum, s) => sum + (s.hours || 0), 0) ?? 0
@@ -214,7 +215,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
           {isToday(selectedDate) ? (
             <>
               <p className="text-[11px] font-medium text-gray-700 dark:text-slate-300">
-                {format(selectedDate, 'M月d日 EEEE', { locale: zhCN })} 的学习记录
+                {formatDateShort(format(selectedDate, 'yyyy-MM-dd'))} 的学习记录
               </p>
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 rounded-lg p-3 text-center space-y-2">
                 <p className="text-xs text-amber-700 dark:text-amber-300">

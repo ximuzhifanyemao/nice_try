@@ -7,6 +7,7 @@ import RangePicker from '../components/RangePicker'
 import WeeklyChart from '../components/WeeklyChart'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor, getBarColor } from '../lib/colors'
+import { formatDateShort } from '../lib/format'
 
 const Summary: React.FC = () => {
   const { user } = useAuth()
@@ -169,7 +170,7 @@ const Summary: React.FC = () => {
                   {summary.dailyTrend.map((item) => (
                     <div key={item.date} className="space-y-1.5">
                       <div className="flex justify-between items-center text-sm gap-2">
-                        <span className="font-mono text-gray-500 dark:text-slate-400 min-w-0 truncate">{item.date}</span>
+                        <span className="text-gray-500 dark:text-slate-400 min-w-0 truncate">{formatDateShort(item.date)}</span>
                         <span className="text-gray-700 dark:text-slate-200 flex-shrink-0">{item.totalHours.toFixed(1)}h</span>
                       </div>
                       <div className="h-3 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden">
