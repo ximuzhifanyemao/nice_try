@@ -133,6 +133,23 @@ export async function fetchTodayLog(userId: string): Promise<DailyLog | null> {
   return fetchLogByDate(userId, todayStr())
 }
 
+/** 查询指定日期之前最近的一条记录（用于打卡门槛：前一天总结未写则拦截） */
+export async function fetchLogBeforeDate(userId: string, date: string): Promise<DailyLog | null> {
+  const { data, error } = await supabase
+    .from('daily_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .lt('date', date)
+    .order('date', { ascending: false })
+    .limit(1)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return (data?.[0] as DailyLog | undefined) ?? null
+}
+
 export async function createLog(userId: string, logData: DailyLogInput): Promise<DailyLog> {
   const { data, error } = await supabase
     .from('daily_logs')

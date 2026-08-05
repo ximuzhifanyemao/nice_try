@@ -5,6 +5,12 @@ export function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
+/** yyyy-MM-dd → 8月5日 */
+export function formatDateCn(dateStr: string): string {
+  const [, m, d] = dateStr.split('-')
+  return `${Number(m)}月${Number(d)}日`
+}
+
 /** 秒数格式化为 HH:MM:SS */
 export function formatDuration(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600)

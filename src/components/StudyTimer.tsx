@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getAvailableSubjects, getSubjectById, getActivitiesForSubject } from '../lib/subjects'
 import { createLog, fetchLogByDate, isDuplicateDateError, mergeSubjects, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
-import { formatDuration, formatDurationShort } from '../lib/format'
+import { formatDateCn, formatDuration, formatDurationShort } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -69,12 +69,6 @@ function saveRunningTimer(state: TimerState | null) {
 /** 累计键：科目::学习内容 */
 function accumKey(subjectId: string, activity: string): string {
   return `${subjectId}::${activity}`
-}
-
-/** yyyy-MM-dd → 8月5日 */
-function formatDateCn(dateStr: string): string {
-  const [, m, d] = dateStr.split('-')
-  return `${Number(m)}月${Number(d)}日`
 }
 
 /* ── 组件 ── */
