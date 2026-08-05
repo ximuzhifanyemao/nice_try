@@ -5,6 +5,9 @@ import LogCard from '../components/LogCard'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchAllLogs } from '../lib/dailyLogs'
 
+/** 公开时间线不提供编辑/删除，用稳定引用避免列表项无谓重渲染 */
+const NOOP = () => {}
+
 export default function Home() {
   const [logs, setLogs] = useState<DailyLog[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,8 +72,8 @@ export default function Home() {
                 key={log.id}
                 log={log}
                 isOwner={false}
-                onEdit={() => {}}
-                onDelete={() => {}}
+                onEdit={NOOP}
+                onDelete={NOOP}
               />
             ))}
           </div>

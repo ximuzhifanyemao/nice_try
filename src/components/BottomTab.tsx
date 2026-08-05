@@ -38,6 +38,7 @@ export default function BottomTab() {
         <button
           key={tab.key}
           onClick={() => navigate(tab.path)}
+          aria-current={activeKey === tab.key ? 'page' : undefined}
           className={`flex-1 flex flex-col items-center justify-center py-2 text-xs transition-colors cursor-pointer ${
             activeKey === tab.key ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'
           }`}

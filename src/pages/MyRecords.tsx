@@ -34,7 +34,7 @@ export default function MyRecords() {
     loadLogs()
   }, [loadLogs])
 
-  const handleDelete = async (logId: string) => {
+  const handleDelete = useCallback(async (logId: string) => {
     try {
       await deleteLog(logId)
       setLogs((prev) => prev.filter((l) => l.id !== logId))
@@ -45,11 +45,11 @@ export default function MyRecords() {
     } catch {
       alert('删除失败，请重试')
     }
-  }
+  }, [user])
 
-  const handleEdit = (logId: string) => {
+  const handleEdit = useCallback((logId: string) => {
     navigate(`/my-records/${logId}/edit`)
-  }
+  }, [navigate])
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 space-y-6">

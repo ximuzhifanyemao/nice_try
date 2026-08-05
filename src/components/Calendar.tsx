@@ -15,15 +15,9 @@ import {
 import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
+import { getChipColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
-
-const CATEGORY_COLORS: Record<string, string> = {
-  math: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  english: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-  '408': 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
-  politics: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-}
 
 interface CalendarProps {
   logs: DailyLog[]
@@ -136,6 +130,8 @@ export default function Calendar({ logs, loading }: CalendarProps) {
               type="button"
               onClick={() => handleDayClick(day)}
               disabled={!hasLogs && !isToday(day)}
+              aria-label={`${format(day, 'yyyy年M月d日')}${hasLogs ? '，有学习记录' : ''}`}
+              aria-pressed={isSelected ?? false}
               className={`relative flex flex-col items-center justify-center h-8 rounded-lg text-xs transition-colors cursor-pointer
                 ${!inMonth ? 'text-gray-300 dark:text-slate-600' : 'text-gray-700 dark:text-slate-300'}
                 ${today ? 'font-bold text-blue-600 dark:text-blue-400' : ''}
@@ -186,8 +182,8 @@ export default function Calendar({ logs, loading }: CalendarProps) {
                       .map((s, index) => {
                         const subject = getSubjectById(s.id)
                         const colorClass = subject
-                          ? CATEGORY_COLORS[subject.category] ?? 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
-                          : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
+                          ? getChipColor(subject.category)
+                          : getChipColor()
                         return (
                           <span
                             key={`${s.id}-${s.activity ?? ''}-${index}`}

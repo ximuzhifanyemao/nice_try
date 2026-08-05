@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import type { Session, User } from '@supabase/supabase-js'
 
 interface AuthContextValue {
@@ -22,6 +22,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+
+    // 环境变量未配置时，跳过网络请求，直接给出友好错误（避免请求占位域名导致超时）
+    if (!isSupabaseConfigured) {
+      setError('后端服务未配置，请检查部署环境变量设置')
+      setLoading(false)
+      return () => {
+        cancelled = true
+      }
+    }
 
     // Get initial session
     supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {

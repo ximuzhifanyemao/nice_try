@@ -6,21 +6,7 @@ import { getWeekRange, filterLogsByRange, computeSummary, type SummaryRange, typ
 import RangePicker from '../components/RangePicker'
 import WeeklyChart from '../components/WeeklyChart'
 import { getSubjectById } from '../lib/subjects'
-
-const CATEGORY_COLORS: Record<string, string> = {
-  math: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  english: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-  '408': 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
-  politics: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-}
-
-const PROGRESS_BG: Record<string, string> = {
-  math: 'bg-blue-500 dark:bg-blue-400',
-  english: 'bg-green-500 dark:bg-green-400',
-  '408': 'bg-purple-500 dark:bg-purple-400',
-  politics: 'bg-red-500 dark:bg-red-400',
-  fallback: 'bg-gray-400 dark:bg-slate-500',
-}
+import { getChipColor, getBarColor } from '../lib/colors'
 
 const Summary: React.FC = () => {
   const { user } = useAuth()
@@ -148,8 +134,8 @@ const Summary: React.FC = () => {
                 <div className="space-y-4">
                   {summary.subjectBreakdown.map((subject) => {
                     const category = getSubjectById(subject.subjectId)?.category ?? ''
-                    const categoryColor = CATEGORY_COLORS[category] ?? 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
-                    const progressBg = PROGRESS_BG[category] ?? PROGRESS_BG.fallback
+                    const categoryColor = getChipColor(category)
+                    const progressBg = getBarColor(category)
                     return (
                       <div key={subject.subjectId} className="space-y-1.5">
                         <div className="flex justify-between items-center">
@@ -197,7 +183,7 @@ const Summary: React.FC = () => {
                           {item.subjects.map((subj) => {
                             const subjInfo = getSubjectById(subj.id)
                             const subjCategory = subjInfo?.category ?? ''
-                            const subjColor = CATEGORY_COLORS[subjCategory] ?? 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
+                            const subjColor = getChipColor(subjCategory)
                             return (
                               <span
                                 key={subj.id}
