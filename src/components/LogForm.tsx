@@ -137,7 +137,7 @@ export default function LogForm({
   return (
     <form onSubmit={handleSubmit} className="bg-white dark:bg-slate-800 dark:shadow-slate-900/20 rounded-lg shadow p-5 space-y-5">
       <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">
-        {isEditing ? '编辑学习记录' : '新建学习记录'}
+        {isEditing ? '编辑记录' : '新建记录'}
       </h3>
 
       {/* 记录日期 */}
