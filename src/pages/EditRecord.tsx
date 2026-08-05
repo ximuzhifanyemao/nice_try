@@ -4,7 +4,14 @@ import { useAuth } from '../contexts/AuthContext'
 import LogForm from '../components/LogForm'
 import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLog, DailyLogInput } from '../lib/dailyLogs'
-import { fetchLogById, updateLog, isDuplicateDateError } from '../lib/dailyLogs'
+import { fetchLogById, fetchLogByDate, updateLog, deleteLog, mergeSubjects, isDuplicateDateError } from '../lib/dailyLogs'
+
+/** 合并两段总结：都非空时换行拼接 */
+function combineSummary(a: string, b: string): string {
+  if (!a.trim()) return b
+  if (!b.trim()) return a
+  return `${a.trim()}\n${b.trim()}`
+}
 
 export default function EditRecord() {
   const { id } = useParams<{ id: string }>()
@@ -32,8 +39,22 @@ export default function EditRecord() {
   }, [user, id])
 
   const handleSubmit = async (data: DailyLogInput) => {
-    if (!id) return
+    if (!id || !user) return
     try {
+      // 改到已有记录的日期时，将编辑内容合并进该日记录，并删除原记录
+      if (log && data.date !== log.date) {
+        const target = await fetchLogByDate(user.id, data.date)
+        if (target) {
+          await updateLog(target.id, {
+            date: data.date,
+            subjects: mergeSubjects(target.subjects, data.subjects),
+            summary: combineSummary(target.summary, data.summary),
+          })
+          await deleteLog(id)
+          navigate('/my-records')
+          return
+        }
+      }
       await updateLog(id, data)
       navigate('/my-records')
     } catch (err) {

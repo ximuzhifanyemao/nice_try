@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getAvailableSubjects, getSubjectById, getActivitiesForSubject } from '../lib/subjects'
-import { createLog, fetchLogByDate, isDuplicateDateError, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
+import { createLog, fetchLogByDate, isDuplicateDateError, mergeSubjects, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
 import { formatDuration, formatDurationShort } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
@@ -188,22 +188,8 @@ export default function StudyTimer() {
           )
           if (!ok) return
         }
-        // 合并已有记录：按 (id, activity) 匹配
-        const mergedSubjects = [...existingLog.subjects]
-        for (const entry of subjectEntries) {
-          const idx = mergedSubjects.findIndex(
-            (s) => s.id === entry.id && (s.activity ?? '') === (entry.activity ?? '')
-          )
-          if (idx >= 0) {
-            // 相加后重新取整到两位小数，避免浮点误差（如 0.13+0.27 → 0.40000000000000005）
-            mergedSubjects[idx] = {
-              ...mergedSubjects[idx],
-              hours: Math.round((mergedSubjects[idx].hours + entry.hours) * 100) / 100,
-            }
-          } else {
-            mergedSubjects.push(entry)
-          }
-        }
+        // 合并已有记录：按 (id, activity) 匹配相加（含两位小数取整，避免浮点误差）
+        const mergedSubjects = mergeSubjects(existingLog.subjects, subjectEntries)
         await updateLog(existingLog.id, {
           date: targetDate,
           subjects: mergedSubjects,
