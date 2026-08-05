@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Navbar from './components/Navbar'
 import BottomTab from './components/BottomTab'
 import ProtectedRoute from './components/ProtectedRoute'
+import PwaBanner from './components/PwaBanner'
 
 // 路由级代码分割：按需加载页面，减少首屏 bundle 体积
 const Home = lazy(() => import('./pages/Home'))
@@ -55,6 +56,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
+          <PwaBanner />
           <ConfigBanner />
           <Navbar />
           <Suspense fallback={<PageLoading />}>
