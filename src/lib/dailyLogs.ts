@@ -48,6 +48,25 @@ export function isDuplicateDateError(err: unknown): boolean {
   return code === '23505' || (err instanceof Error && /duplicate key|already exists/i.test(err.message))
 }
 
+/** 合并科目时长：按 (id, activity) 匹配相加，保留 2 位小数避免浮点误差 */
+export function mergeSubjects(base: DailyLogSubject[], incoming: DailyLogSubject[]): DailyLogSubject[] {
+  const merged = [...base]
+  for (const entry of incoming) {
+    const idx = merged.findIndex(
+      (s) => s.id === entry.id && (s.activity ?? '') === (entry.activity ?? '')
+    )
+    if (idx >= 0) {
+      merged[idx] = {
+        ...merged[idx],
+        hours: Math.round((merged[idx].hours + entry.hours) * 100) / 100,
+      }
+    } else {
+      merged.push(entry)
+    }
+  }
+  return merged
+}
+
 /** 公开时间线：最近 N 条记录（防止全表拉取导致首屏膨胀） */
 const PUBLIC_TIMELINE_LIMIT = 50
 
