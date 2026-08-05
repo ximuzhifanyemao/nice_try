@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { fetchMyLogs, type DailyLog } from '../lib/dailyLogs'
 import { getWeekRange, filterLogsByRange, computeSummary, type SummaryRange, type SummaryResult } from '../lib/summary'
 import RangePicker from '../components/RangePicker'
+import WeeklyChart from '../components/WeeklyChart'
 import { getSubjectById } from '../lib/subjects'
 
 const CATEGORY_COLORS: Record<string, string> = {
@@ -111,6 +112,8 @@ const Summary: React.FC = () => {
 
       {!loading && !error && (
         <>
+          <WeeklyChart logs={logs} />
+
           {summary.totalHours === 0 ? (
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 text-center">
               <p className="text-gray-500 dark:text-slate-400">本时间段暂无学习记录</p>
