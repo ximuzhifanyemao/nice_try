@@ -36,7 +36,7 @@ function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps) {
         <div className="flex items-center gap-2">
           {totalHours > 0 && (
             <span className="text-xs bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-full">
-              今日 {totalHours}h
+              今日 {totalHours.toFixed(2)}h
             </span>
           )}
         </div>
@@ -59,7 +59,7 @@ function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps) {
                   >
                     {(subject?.name ?? s.id)}
                     {s.activity ? `·${s.activity}` : ''}
-                    <span className="opacity-65 text-xs">{s.hours}h</span>
+                    <span className="opacity-65 text-xs">{s.hours.toFixed(2)}h</span>
                   </span>
                   {s.summary && (
                     <p className="mt-1 ml-1 text-xs text-gray-500 dark:text-slate-400">{s.summary}</p>
