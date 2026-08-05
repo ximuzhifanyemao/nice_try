@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getAvailableSubjects, getSubjectById, getActivitiesForSubject } from '../lib/subjects'
-import { createLog, fetchTodayLog, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
+import { createLog, fetchLogByDate, isDuplicateDateError, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
 import { formatDuration, formatDurationShort } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
@@ -22,8 +22,7 @@ const ACCUM_DATE_KEY = 'kaoyan_timer_accum_date'
 const RUNNING_KEY = 'kaoyan_timer_running'
 
 function loadAccum(): AccumMap {
-  const date = localStorage.getItem(ACCUM_DATE_KEY)
-  if (date !== todayStr()) return {}
+  // 跨午夜不清空：保留累计数据，保存时归入开始学习的那天（补交）
   try {
     return JSON.parse(localStorage.getItem(ACCUM_KEY) || '{}')
   } catch {
@@ -32,8 +31,12 @@ function loadAccum(): AccumMap {
 }
 
 function saveAccum(accum: AccumMap) {
-  localStorage.setItem(ACCUM_DATE_KEY, todayStr())
   localStorage.setItem(ACCUM_KEY, JSON.stringify(accum))
+}
+
+/** 读取累计归属日期（这批学习时长属于哪一天），无累计时为 null */
+function loadAccumDate(): string | null {
+  return localStorage.getItem(ACCUM_DATE_KEY)
 }
 
 function loadRunningTimer(): TimerState | null {
@@ -68,6 +71,12 @@ function accumKey(subjectId: string, activity: string): string {
   return `${subjectId}::${activity}`
 }
 
+/** yyyy-MM-dd → 8月5日 */
+function formatDateCn(dateStr: string): string {
+  const [, m, d] = dateStr.split('-')
+  return `${Number(m)}月${Number(d)}日`
+}
+
 /* ── 组件 ── */
 export default function StudyTimer() {
   const { user } = useAuth()
@@ -84,6 +93,8 @@ export default function StudyTimer() {
   /* 保存状态 */
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  /* 累计归属日期（补交：计时开始那天），无累计时为今天 */
+  const [accumDate, setAccumDate] = useState<string>(() => loadAccumDate() ?? todayStr())
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -106,6 +117,12 @@ export default function StudyTimer() {
     const state: TimerState = { subjectId, activity, startTime: Date.now() }
     setRunning(state)
     saveRunningTimer(state)
+    // 若当前没有累计数据，将归属日期设为今天（本次学习会话开始的日期，
+    // 跨午夜后保存时仍归入今天，而不是保存时刻的新一天）
+    if (Object.keys(accum).length === 0) {
+      localStorage.setItem(ACCUM_DATE_KEY, todayStr())
+      setAccumDate(todayStr())
+    }
     setPendingSubject(null)
     setSaved(false)
   }
@@ -135,6 +152,9 @@ export default function StudyTimer() {
     if (!user || Object.keys(accum).length === 0) return
     setSaving(true)
     try {
+      // 归入日期：优先使用计时开始那天（跨午夜/补交），否则今天
+      const targetDate = loadAccumDate() || todayStr()
+
       // 将秒数转为小时（保留 2 位小数），按 科目::学习内容 分组
       // 过滤掉未知科目 id（localStorage 可被篡改，防止注入脏数据）
       const subjectEntries: DailyLogSubject[] = []
@@ -152,13 +172,22 @@ export default function StudyTimer() {
       if (subjectEntries.length === 0) {
         setAccum({})
         saveAccum({})
+        localStorage.removeItem(ACCUM_DATE_KEY)
+        setAccumDate(todayStr())
         setSaved(true)
         return
       }
 
-      const existingLog = await fetchTodayLog(user.id)
+      const existingLog = await fetchLogByDate(user.id, targetDate)
 
       if (existingLog) {
+        // 补交到已有记录的日期时，先告知用户本次时长将合并计入该日
+        if (targetDate !== todayStr()) {
+          const ok = window.confirm(
+            `${formatDateCn(targetDate)} 已有记录，本次学习时长将合并计入该日记录，是否继续？`
+          )
+          if (!ok) return
+        }
         // 合并已有记录：按 (id, activity) 匹配
         const mergedSubjects = [...existingLog.subjects]
         for (const entry of subjectEntries) {
@@ -176,13 +205,13 @@ export default function StudyTimer() {
           }
         }
         await updateLog(existingLog.id, {
-          date: todayStr(),
+          date: targetDate,
           subjects: mergedSubjects,
           summary: existingLog.summary,
         })
       } else {
         await createLog(user.id, {
-          date: todayStr(),
+          date: targetDate,
           subjects: subjectEntries,
           summary: '',
         })
@@ -191,9 +220,15 @@ export default function StudyTimer() {
       // 清空累计
       setAccum({})
       saveAccum({})
+      localStorage.removeItem(ACCUM_DATE_KEY)
+      setAccumDate(todayStr())
       setSaved(true)
     } catch (err) {
-      alert('保存失败：' + (err instanceof Error ? err.message : '未知错误'))
+      if (isDuplicateDateError(err)) {
+        alert('该日期已有记录，请刷新后重试')
+      } else {
+        alert('保存失败：' + (err instanceof Error ? err.message : '未知错误'))
+      }
     } finally {
       setSaving(false)
     }
@@ -203,9 +238,13 @@ export default function StudyTimer() {
   const handleClearAccum = () => {
     setAccum({})
     saveAccum({})
+    localStorage.removeItem(ACCUM_DATE_KEY)
+    setAccumDate(todayStr())
   }
 
   const totalSeconds = Object.values(accum).reduce((a, b) => a + b, 0)
+  /** 是否补交：累计归属日期不是今天（跨午夜/隔天保存） */
+  const isBackfill = accumDate !== todayStr()
   const currentSubject = running?.subjectId
     ? (getSubjectById(running.subjectId)?.name ?? running.subjectId) +
       (running.activity ? ` · ${running.activity}` : '')
@@ -321,7 +360,16 @@ export default function StudyTimer() {
       {Object.keys(accum).length > 0 && (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">今日累计</h3>
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+                {isBackfill ? `${formatDateCn(accumDate)}（补交）` : '今日累计'}
+              </h3>
+              {isBackfill && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                  跨过了零点，本次时长将归入 {formatDateCn(accumDate)}（计时开始的那天）
+                </p>
+              )}
+            </div>
             <span className="text-lg font-bold text-gray-900 dark:text-slate-100">
               {formatDuration(totalSeconds)}
             </span>
@@ -356,7 +404,7 @@ export default function StudyTimer() {
               disabled={saving || !user}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white rounded-lg text-sm font-medium transition-all cursor-pointer disabled:cursor-not-allowed"
             >
-              {saving ? '保存中...' : saved ? '✓ 已保存' : '保存到今日记录'}
+              {saving ? '保存中...' : saved ? '✓ 已保存' : isBackfill ? `保存到${formatDateCn(accumDate)}` : '保存到今日记录'}
             </button>
           </div>
         </div>
