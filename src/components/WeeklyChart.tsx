@@ -10,7 +10,7 @@ interface CategoryConfig {
   chip: string
 }
 
-/** 科目类别的柱状颜色与标签配色（与现有 CATEGORY_COLORS 保持一致） */
+/** 科目类别的配色（用于选中日期的学习内容标签） */
 const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
   math: {
     name: '数学',
@@ -63,16 +63,17 @@ interface WeeklyChartProps {
   logs: DailyLog[]
 }
 
+/** 按 getDay() 索引（0=周日）的星期名称 */
 const WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 
-/** 本周学习时长可视化：按天堆叠柱状图，展示每天学了多少、学了什么 */
+/** 本周学习时长可视化：折线图（周一~周日），点击数据点查看当天学了什么 */
 export default function WeeklyChart({ logs }: WeeklyChartProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
 
-  // 本周（周日 ~ 周六）的 7 天
+  // 本周（周一 ~ 周日）的 7 天
   const weekDays = useMemo(() => {
-    const start = startOfWeek(new Date(), { weekStartsOn: 0 })
-    const end = endOfWeek(new Date(), { weekStartsOn: 0 })
+    const start = startOfWeek(new Date(), { weekStartsOn: 1 })
+    const end = endOfWeek(new Date(), { weekStartsOn: 1 })
     return eachDayOfInterval({ start, end })
   }, [])
 
@@ -140,20 +141,22 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
     null
   )
 
-  const usedCategories = useMemo(() => {
-    const set = new Set<string>()
-    for (const day of days) {
-      for (const cat of day.categories) set.add(cat.category)
-    }
-    return Array.from(set)
-  }, [days])
-
   const selectedDay = useMemo(() => {
     const key = format(selectedDate, 'yyyy-MM-dd')
     return days.find((d) => format(d.date, 'yyyy-MM-dd') === key) ?? days[0]
   }, [days, selectedDate])
 
-  const gapClass = 'gap-1.5 sm:gap-2.5'
+  // 折线坐标（百分比坐标系）
+  const linePoints = useMemo(() => {
+    return days.map((day, i) => ({
+      date: day.date,
+      totalHours: day.totalHours,
+      x: ((i + 0.5) / 7) * 100,
+      y: max > 0 ? 100 - (day.totalHours / max) * 100 : 100,
+    }))
+  }, [days, max])
+
+  const selectedKey = format(selectedDate, 'yyyy-MM-dd')
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-4">
@@ -220,58 +223,62 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
               ))}
               <div className="absolute inset-x-0 bottom-0 border-t border-gray-200 dark:border-slate-600" />
 
-              {/* 堆叠柱 */}
-              <div className={`absolute inset-0 flex ${gapClass} items-end`}>
-                {days.map((day) => {
-                  const pct = max > 0 ? (day.totalHours / max) * 100 : 0
-                  const isSel = format(day.date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
-                  return (
-                    <button
-                      key={format(day.date, 'yyyy-MM-dd')}
-                      type="button"
-                      onClick={() => setSelectedDate(day.date)}
-                      className="relative h-full flex-1 flex items-end justify-center cursor-pointer"
-                      aria-label={format(day.date, 'M月d日 EEEE', { locale: zhCN })}
-                    >
-                      {day.totalHours > 0 && (
-                        <span
-                          className="absolute left-0 right-0 text-center text-[10px] font-semibold text-gray-600 dark:text-slate-300 leading-none"
-                          style={{ bottom: `calc(${pct}% + 4px)` }}
-                        >
-                          {day.totalHours.toFixed(1)}
-                        </span>
-                      )}
-                      {day.totalHours > 0 ? (
-                        <div
-                          className={`w-full rounded-t overflow-hidden transition-all ${isSel ? 'ring-2 ring-blue-400/80' : ''}`}
-                          style={{ height: `${pct}%` }}
-                        >
-                          {day.categories.map((cat) => {
-                            const cfg = CATEGORY_CONFIG[cat.category] ?? FALLBACK_CONFIG
-                            return (
-                              <div
-                                key={cat.category}
-                                className={`w-full ${cfg.bar}`}
-                                style={{ height: `${(cat.hours / day.totalHours) * 100}%` }}
-                              />
-                            )
-                          })}
-                        </div>
-                      ) : (
-                        <div
-                          className={`w-full h-[3px] rounded-full bg-gray-200 dark:bg-slate-700 ${
-                            isSel ? 'ring-1 ring-blue-400/80' : ''
-                          }`}
-                        />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
+              {/* 折线与面积填充 */}
+              <svg
+                className="absolute inset-0 w-full h-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <polygon
+                  points={`0,100 ${linePoints.map((p) => `${p.x},${p.y}`).join(' ')} 100,100`}
+                  className="fill-blue-500/10 dark:fill-blue-400/10"
+                />
+                <polyline
+                  points={linePoints.map((p) => `${p.x},${p.y}`).join(' ')}
+                  fill="none"
+                  strokeWidth={2}
+                  vectorEffect="non-scaling-stroke"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="stroke-blue-500 dark:stroke-blue-400"
+                />
+              </svg>
+
+              {/* 数据点 */}
+              {linePoints.map((p, i) => {
+                const day = days[i]
+                const dateKey = format(day.date, 'yyyy-MM-dd')
+                const isSel = dateKey === selectedKey
+                const today = isToday(day.date)
+                return (
+                  <button
+                    key={dateKey}
+                    type="button"
+                    onClick={() => setSelectedDate(day.date)}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
+                    style={{ left: `${p.x}%`, top: `${p.y}%` }}
+                    aria-label={format(day.date, 'M月d日 EEEE', { locale: zhCN })}
+                  >
+                    {p.totalHours > 0 && (
+                      <span className="absolute left-1/2 -translate-x-1/2 -top-4 text-[10px] font-semibold text-gray-600 dark:text-slate-300 leading-none whitespace-nowrap">
+                        {p.totalHours.toFixed(1)}
+                      </span>
+                    )}
+                    <span
+                      className={`block w-3 h-3 rounded-full border-2 border-white dark:border-slate-800 transition-all ${
+                        isSel
+                          ? 'bg-blue-600 dark:bg-blue-400 scale-125'
+                          : 'bg-blue-500 dark:bg-blue-400'
+                      } ${today ? 'ring-2 ring-blue-200 dark:ring-blue-900/60' : ''}`}
+                    />
+                  </button>
+                )
+              })}
             </div>
 
             {/* 日期标签 */}
-            <div className={`flex ${gapClass} mt-1.5`}>
+            <div className="flex mt-1.5">
               {days.map((day) => {
                 const today = isToday(day.date)
                 return (
@@ -292,21 +299,6 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
             </div>
           </div>
         </div>
-
-        {/* 图例 */}
-        {usedCategories.length > 0 && (
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
-            {usedCategories.map((cat) => {
-              const cfg = CATEGORY_CONFIG[cat] ?? FALLBACK_CONFIG
-              return (
-                <span key={cat} className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-slate-400">
-                  <span className={`w-2.5 h-2.5 rounded-sm ${cfg.bar}`} />
-                  {cfg.name}
-                </span>
-              )
-            })}
-          </div>
-        )}
       </div>
 
       {/* 选中日期的学习内容 */}
