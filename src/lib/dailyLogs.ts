@@ -94,13 +94,13 @@ export async function fetchLogById(logId: string): Promise<DailyLog | null> {
   return data as DailyLog | null
 }
 
-export async function fetchTodayLog(userId: string): Promise<DailyLog | null> {
-  const today = todayStr()
+/** 按日期查询某用户的记录（用于计时器按归属日期保存/补交） */
+export async function fetchLogByDate(userId: string, date: string): Promise<DailyLog | null> {
   const { data, error } = await supabase
     .from('daily_logs')
     .select('*')
     .eq('user_id', userId)
-    .eq('date', today)
+    .eq('date', date)
     .maybeSingle()
 
   if (error) {
@@ -108,6 +108,10 @@ export async function fetchTodayLog(userId: string): Promise<DailyLog | null> {
   }
 
   return data as DailyLog | null
+}
+
+export async function fetchTodayLog(userId: string): Promise<DailyLog | null> {
+  return fetchLogByDate(userId, todayStr())
 }
 
 export async function createLog(userId: string, logData: DailyLogInput): Promise<DailyLog> {
