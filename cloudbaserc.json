@@ -1,0 +1,15 @@
+{
+  "envId": "code-app-d3ggyfrxu0f39d17f",
+  "version": "2.0",
+  "frameworks": [
+    {
+      "name": "kaoyan-tracker",
+      "type": "static",
+      "config": {
+        "buildCommand": "npm install && npm run build:deploy",
+        "outputPath": "dist",
+        "installCommand": "npm install"
+      }
+    }
+  ]
+}
