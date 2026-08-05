@@ -18,7 +18,7 @@ export default function BottomTab() {
     { key: 'records', label: '记录', icon: '📝', path: '/my-records' },
     { key: 'timer', label: '计时', icon: '⏱️', path: '/timer' },
     { key: 'summary', label: '总结', icon: '📊', path: '/summary' },
-    { key: 'profile', label: user ? '我的' : '登录', icon: '👤', path: user ? '/my-records' : '/login' },
+    { key: 'profile', label: user ? '我的' : '登录', icon: '👤', path: user ? '/profile' : '/login' },
   ]
 
   const getActiveKey = (): string => {

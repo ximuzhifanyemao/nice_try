@@ -12,6 +12,7 @@ import NewRecord from './pages/NewRecord'
 import EditRecord from './pages/EditRecord'
 import Summary from './pages/Summary'
 import TimerPage from './pages/TimerPage'
+import Profile from './pages/Profile'
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
               <Route path="/register" element={<Register />} />
               <Route element={<ProtectedRoute />}>
                 <Route path="/my-records" element={<MyRecords />} />
+                <Route path="/profile" element={<Profile />} />
                 <Route path="/summary" element={<Summary />} />
                 <Route path="/my-records/new" element={<NewRecord />} />
                 <Route path="/my-records/:id/edit" element={<EditRecord />} />
