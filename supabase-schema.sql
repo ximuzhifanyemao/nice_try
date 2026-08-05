@@ -18,10 +18,11 @@ CREATE TABLE IF NOT EXISTS public.daily_logs (
 
 -- subjects JSONB 格式示例:
 -- [
---   { "id": "math", "hours": 2.5 },
---   { "id": "english", "hours": 1.5 },
+--   { "id": "math", "hours": 2.5, "activity": "练习" },
+--   { "id": "english", "hours": 1.5, "activity": "单词", "summary": "背了 100 个" },
 --   { "id": "ds", "hours": 2 }
 -- ]
+-- activity: 学习内容（做了什么），如 单词/听课/做题/练习/背诵/刷题，可省略
 
 -- 2. 创建索引
 CREATE INDEX IF NOT EXISTS idx_daily_logs_date ON public.daily_logs(date DESC);
