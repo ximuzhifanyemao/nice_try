@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { pad } from '../lib/format'
 
 const TARGET_DATE = new Date('2026-12-20T00:00:00')
 
@@ -21,10 +22,6 @@ function calcTimeLeft(): TimeLeft | null {
     minutes: Math.floor((diff / (1000 * 60)) % 60),
     seconds: Math.floor((diff / 1000) % 60),
   }
-}
-
-function pad(n: number): string {
-  return String(n).padStart(2, '0')
 }
 
 const TIME_UNITS = [

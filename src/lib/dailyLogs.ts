@@ -48,11 +48,15 @@ export function isDuplicateDateError(err: unknown): boolean {
   return code === '23505' || (err instanceof Error && /duplicate key|already exists/i.test(err.message))
 }
 
+/** 公开时间线：最近 N 条记录（防止全表拉取导致首屏膨胀） */
+const PUBLIC_TIMELINE_LIMIT = 50
+
 export async function fetchAllLogs(): Promise<DailyLog[]> {
   const { data, error } = await supabase
     .from('daily_logs')
     .select('*')
     .order('date', { ascending: false })
+    .limit(PUBLIC_TIMELINE_LIMIT)
 
   if (error) {
     throw new Error(error.message)
@@ -73,6 +77,21 @@ export async function fetchMyLogs(userId: string): Promise<DailyLog[]> {
   }
 
   return data as DailyLog[]
+}
+
+/** 按 id 查询单条记录（用于编辑页，避免拉取全部日志） */
+export async function fetchLogById(logId: string): Promise<DailyLog | null> {
+  const { data, error } = await supabase
+    .from('daily_logs')
+    .select('*')
+    .eq('id', logId)
+    .maybeSingle()
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data as DailyLog | null
 }
 
 export async function fetchTodayLog(userId: string): Promise<DailyLog | null> {

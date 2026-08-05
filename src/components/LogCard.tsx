@@ -1,14 +1,9 @@
+import { memo } from 'react'
 import { format } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
-
-const CATEGORY_COLORS: Record<string, string> = {
-  math: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  english: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-  '408': 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
-  politics: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-}
+import { getChipColor } from '../lib/colors'
 
 interface LogCardProps {
   log: DailyLog
@@ -17,7 +12,7 @@ interface LogCardProps {
   onDelete: () => void
 }
 
-export default function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps) {
+function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps) {
   const handleDelete = () => {
     if (window.confirm('确定要删除这条学习记录吗？')) {
       onDelete()
@@ -54,8 +49,8 @@ export default function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps
             .map((s, index) => {
               const subject = getSubjectById(s.id)
               const colorClass = subject
-                ? CATEGORY_COLORS[subject.category] ?? 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
-                : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
+                ? getChipColor(subject.category)
+                : getChipColor()
 
               return (
                 <div key={`${s.id}-${s.activity ?? ''}-${index}`}>
@@ -104,3 +99,6 @@ export default function LogCard({ log, isOwner, onEdit, onDelete }: LogCardProps
     </div>
   )
 }
+
+// memo：父组件 state 变化时避免无谓的列表项重渲染
+export default memo(LogCard)

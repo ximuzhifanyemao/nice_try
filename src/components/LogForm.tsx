@@ -3,13 +3,7 @@ import type { DailyLogInput, DailyLogSubject } from '../lib/dailyLogs'
 import { todayStr, yesterdayStr } from '../lib/dailyLogs'
 import type { Subject } from '../lib/subjects'
 import { getActivitiesForSubject } from '../lib/subjects'
-
-const CATEGORY_COLORS: Record<string, string> = {
-  math: 'bg-blue-50 border-blue-300 dark:bg-blue-900/20 dark:border-blue-700/50',
-  english: 'bg-green-50 border-green-300 dark:bg-green-900/20 dark:border-green-700/50',
-  '408': 'bg-purple-50 border-purple-300 dark:bg-purple-900/20 dark:border-purple-700/50',
-  politics: 'bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700/50',
-}
+import { getCardColor } from '../lib/colors'
 
 /** 表单中一行记录：一个科目 × 一个学习内容 */
 interface SubjectRow {
@@ -149,7 +143,7 @@ export default function LogForm({
           id="log-date"
           type="date"
           value={date}
-          min={yesterdayStr()}
+          min={isEditing ? undefined : yesterdayStr()}
           max={todayStr()}
           onChange={(e) => {
             setDate(e.target.value)
@@ -172,7 +166,7 @@ export default function LogForm({
         </label>
         <div className="space-y-3">
           {availableSubjects.map((subject) => {
-            const colorClass = CATEGORY_COLORS[subject.category] ?? 'bg-gray-50 border-gray-200 dark:bg-slate-700/30 dark:border-slate-600'
+            const colorClass = getCardColor(subject.category)
             const subjectRows = rows.filter((r) => r.subjectId === subject.id)
             const activities = getActivitiesForSubject(subject.id)
 

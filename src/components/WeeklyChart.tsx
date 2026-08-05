@@ -3,42 +3,7 @@ import { format, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from 'date
 import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
-
-interface CategoryConfig {
-  name: string
-  bar: string
-  chip: string
-}
-
-/** 科目类别的配色（用于选中日期的学习内容标签） */
-const CATEGORY_CONFIG: Record<string, CategoryConfig> = {
-  math: {
-    name: '数学',
-    bar: 'bg-blue-500 dark:bg-blue-400',
-    chip: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  },
-  english: {
-    name: '英语',
-    bar: 'bg-green-500 dark:bg-green-400',
-    chip: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-  },
-  '408': {
-    name: '408',
-    bar: 'bg-purple-500 dark:bg-purple-400',
-    chip: 'bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300',
-  },
-  politics: {
-    name: '政治',
-    bar: 'bg-red-500 dark:bg-red-400',
-    chip: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  },
-}
-
-const FALLBACK_CONFIG: CategoryConfig = {
-  name: '其他',
-  bar: 'bg-gray-400 dark:bg-slate-500',
-  chip: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300',
-}
+import { getChipColor } from '../lib/colors'
 
 interface DaySubject {
   subjectId: string
@@ -319,11 +284,10 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
           <div className="flex flex-wrap gap-1.5">
             {selectedDay.categories.flatMap((cat) =>
               cat.subjects.map((s) => {
-                const cfg = CATEGORY_CONFIG[cat.category] ?? FALLBACK_CONFIG
                 return (
                   <span
                     key={`${s.subjectId}-${s.activity ?? ''}`}
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.chip}`}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getChipColor(cat.category)}`}
                   >
                     {s.name}
                     {s.activity ? `·${s.activity}` : ''}

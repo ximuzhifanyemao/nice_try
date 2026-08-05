@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getAvailableSubjects, getSubjectById, getActivitiesForSubject } from '../lib/subjects'
 import { createLog, fetchTodayLog, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
+import { formatDuration, formatDurationShort } from '../lib/format'
+import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 
 
@@ -39,6 +41,12 @@ function loadRunningTimer(): TimerState | null {
     const raw = localStorage.getItem(RUNNING_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as TimerState
+    if (!parsed.startTime) return null
+    // 跨午夜修复：若计时开始于今天之前，丢弃（避免把昨天甚至更早的时长计入今日累计）
+    if (new Date(parsed.startTime).toDateString() !== new Date().toDateString()) {
+      localStorage.removeItem(RUNNING_KEY)
+      return null
+    }
     return { subjectId: parsed.subjectId ?? null, activity: parsed.activity ?? '', startTime: parsed.startTime }
   } catch {
     return null
@@ -54,40 +62,10 @@ function saveRunningTimer(state: TimerState | null) {
 }
 
 /* ── 工具 ── */
-function pad(n: number): string {
-  return String(n).padStart(2, '0')
-}
-
-function formatDuration(totalSeconds: number): string {
-  const h = Math.floor(totalSeconds / 3600)
-  const m = Math.floor((totalSeconds % 3600) / 60)
-  const s = totalSeconds % 60
-  return `${pad(h)}:${pad(m)}:${pad(s)}`
-}
-
-function formatDurationShort(totalSeconds: number): string {
-  const h = Math.floor(totalSeconds / 3600)
-  const m = Math.floor((totalSeconds % 3600) / 60)
-  if (h > 0) return `${h}h ${m}min`
-  return `${m}min`
-}
 
 /** 累计键：科目::学习内容 */
 function accumKey(subjectId: string, activity: string): string {
   return `${subjectId}::${activity}`
-}
-
-/* ── 科目颜色 ── */
-const SUBJECT_COLORS: Record<string, string> = {
-  math: 'border-blue-400 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700 dark:hover:bg-blue-900/40',
-  english: 'border-green-400 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-300 dark:border-green-700 dark:hover:bg-green-900/40',
-  '408': 'border-purple-400 bg-purple-50 text-purple-700 hover:bg-purple-100 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-700 dark:hover:bg-purple-900/40',
-  politics: 'border-red-400 bg-red-50 text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:border-red-700 dark:hover:bg-red-900/40',
-}
-
-function getSubjectColor(subjectId: string): string {
-  const cat = getSubjectById(subjectId)?.category
-  return cat ? SUBJECT_COLORS[cat] ?? SUBJECT_COLORS['408'] : SUBJECT_COLORS['408']
 }
 
 /* ── 组件 ── */
@@ -158,16 +136,24 @@ export default function StudyTimer() {
     setSaving(true)
     try {
       // 将秒数转为小时（保留 2 位小数），按 科目::学习内容 分组
+      // 过滤掉未知科目 id（localStorage 可被篡改，防止注入脏数据）
       const subjectEntries: DailyLogSubject[] = []
       for (const [key, sec] of Object.entries(accum)) {
         if (sec <= 0) continue
         const [id, activity] = key.split('::')
+        if (!getSubjectById(id)) continue
         const hours = Math.round((sec / 3600) * 100) / 100
         subjectEntries.push(
           activity
             ? { id, hours, activity }
             : { id, hours }
         )
+      }
+      if (subjectEntries.length === 0) {
+        setAccum({})
+        saveAccum({})
+        setSaved(true)
+        return
       }
 
       const existingLog = await fetchTodayLog(user.id)
@@ -255,12 +241,12 @@ export default function StudyTimer() {
                 disabled={isDisabled}
                 className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer
                   ${isActive
-                    ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-slate-900 scale-105 shadow-md ' + getSubjectColor(subj.id)
+                    ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-slate-900 scale-105 shadow-md ' + getButtonColor(getSubjectById(subj.id)?.category)
                     : isDisabled
                       ? 'opacity-40 cursor-not-allowed border-gray-200 dark:border-slate-700 text-gray-400 dark:text-slate-500'
                       : pendingSubject === subj.id
-                        ? 'ring-2 ring-offset-2 ring-blue-300 dark:ring-offset-slate-900 ' + getSubjectColor(subj.id)
-                        : getSubjectColor(subj.id)
+                        ? 'ring-2 ring-offset-2 ring-blue-300 dark:ring-offset-slate-900 ' + getButtonColor(getSubjectById(subj.id)?.category)
+                        : getButtonColor(getSubjectById(subj.id)?.category)
                   }`}
               >
                 {subj.name}

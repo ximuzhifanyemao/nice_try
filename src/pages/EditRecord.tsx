@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import LogForm from '../components/LogForm'
 import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLog, DailyLogInput } from '../lib/dailyLogs'
-import { fetchMyLogs, updateLog, isDuplicateDateError } from '../lib/dailyLogs'
+import { fetchLogById, updateLog, isDuplicateDateError } from '../lib/dailyLogs'
 
 export default function EditRecord() {
   const { id } = useParams<{ id: string }>()
@@ -17,9 +17,8 @@ export default function EditRecord() {
   useEffect(() => {
     if (!user || !id) return
     setLoading(true)
-    fetchMyLogs(user.id)
-      .then((logs) => {
-        const found = logs.find((l) => l.id === id)
+    fetchLogById(id)
+      .then((found) => {
         if (!found) {
           setError('记录不存在')
         } else if (found.user_id !== user.id) {
