@@ -63,13 +63,6 @@ export default function Profile() {
       >
         退出登录
       </button>
-
-      <div className="text-center text-xs text-gray-400 dark:text-slate-500 space-y-0.5">
-        <p>v{__APP_VERSION__}{__APP_GIT_HASH__ && ` (${__APP_GIT_HASH__})`}</p>
-        {__APP_GIT_MESSAGE__ && (
-          <p className="truncate px-4">{__APP_GIT_MESSAGE__}</p>
-        )}
-      </div>
     </div>
   )
 }
