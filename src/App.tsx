@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { HashRouter, Routes, Route, Link } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Navbar from './components/Navbar'
 import BottomTab from './components/BottomTab'
@@ -52,7 +52,7 @@ function ConfigBanner() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <AuthProvider>
         <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
           <ConfigBanner />
@@ -76,6 +76,6 @@ export default function App() {
           <BottomTab />
         </div>
       </AuthProvider>
-    </BrowserRouter>
+    </HashRouter>
   )
 }
