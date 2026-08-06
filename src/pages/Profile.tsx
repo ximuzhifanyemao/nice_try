@@ -1,5 +1,6 @@
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import AppVersion from '../components/AppVersion'
 
 export default function Profile() {
   const { user, signOut } = useAuth()
@@ -55,6 +56,9 @@ export default function Profile() {
           ))}
         </div>
       </section>
+
+      {/* 版本信息 */}
+      <AppVersion />
 
       {/* 退出登录 */}
       <button

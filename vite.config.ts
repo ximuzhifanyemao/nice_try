@@ -6,14 +6,20 @@ import tailwindcss from '@tailwindcss/vite'
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf-8'))
 
-// 获取当前 Git 提交信息：短哈希 + 提交备注
+// 获取当前 Git 提交信息：短哈希 + 提交备注 + 最近 5 条提交日志
 function getGitInfo() {
   try {
     const hash = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim()
     const message = execSync('git log -1 --pretty=%s', { encoding: 'utf-8' }).trim()
-    return { hash, message }
+    // 最近 5 条提交：短哈希 | 提交时间 | 提交备注
+    const log = execSync('git log -5 --pretty=%h|%cd|%s --date=short', { encoding: 'utf-8' }).trim()
+    const changelog = log.split('\n').map((line) => {
+      const [h, date, msg] = line.split('|')
+      return { hash: h, date, message: msg }
+    })
+    return { hash, message, changelog }
   } catch {
-    return { hash: '', message: '' }
+    return { hash: '', message: '', changelog: [] }
   }
 }
 
@@ -28,6 +34,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
     __APP_GIT_HASH__: JSON.stringify(gitInfo.hash),
     __APP_GIT_MESSAGE__: JSON.stringify(gitInfo.message),
+    __APP_GIT_CHANGELOG__: JSON.stringify(gitInfo.changelog),
   },
   build: {
     rollupOptions: {
