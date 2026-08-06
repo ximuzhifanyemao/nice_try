@@ -4,7 +4,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Navbar from './components/Navbar'
 import BottomTab from './components/BottomTab'
 import ProtectedRoute from './components/ProtectedRoute'
-import AppVersion from './components/AppVersion'
 
 // 路由级代码分割：按需加载页面，减少首屏 bundle 体积
 const Home = lazy(() => import('./pages/Home'))
@@ -75,9 +74,6 @@ export default function App() {
             </Routes>
           </Suspense>
           <BottomTab />
-          <footer className="pt-2 pb-4 sm:pb-4">
-            <AppVersion />
-          </footer>
         </div>
       </AuthProvider>
     </BrowserRouter>
