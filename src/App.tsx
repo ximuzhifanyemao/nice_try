@@ -15,6 +15,7 @@ const EditRecord = lazy(() => import('./pages/EditRecord'))
 const Summary = lazy(() => import('./pages/Summary'))
 const TimerPage = lazy(() => import('./pages/TimerPage'))
 const Profile = lazy(() => import('./pages/Profile'))
+const Trash = lazy(() => import('./pages/Trash'))
 
 function PageLoading() {
   return (
@@ -69,6 +70,7 @@ export default function App() {
                 <Route path="/my-records/new" element={<NewRecord />} />
                 <Route path="/my-records/:id/edit" element={<EditRecord />} />
                 <Route path="/timer" element={<TimerPage />} />
+                <Route path="/trash" element={<Trash />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

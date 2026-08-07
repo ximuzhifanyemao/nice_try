@@ -36,3 +36,14 @@ export function formatDurationShort(totalSeconds: number): string {
   if (h > 0) return `${h}h ${m}min`
   return `${m}min`
 }
+
+/** Date → HH:mm（本地时区） */
+export function toTimeStr(date: Date): string {
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+/** HH:mm 时间段 → "14:00-16:00"；缺任一时段返回 null */
+export function formatTimeRange(start?: string, end?: string): string | null {
+  if (!start || !end) return null
+  return `${start}-${end}`
+}

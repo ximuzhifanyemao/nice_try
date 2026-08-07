@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import LogForm from '../components/LogForm'
 import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLog, DailyLogInput } from '../lib/dailyLogs'
-import { fetchLogById, fetchLogByDate, updateLog, deleteLog, mergeSubjects, isDuplicateDateError } from '../lib/dailyLogs'
+import { fetchLogById, fetchLogByDate, updateLog, purgeLog, mergeSubjects, isDuplicateDateError } from '../lib/dailyLogs'
 
 /** 合并两段总结：都非空时换行拼接 */
 function combineSummary(a: string, b: string): string {
@@ -50,7 +50,8 @@ export default function EditRecord() {
             subjects: mergeSubjects(target.subjects, data.subjects),
             summary: combineSummary(target.summary, data.summary),
           })
-          await deleteLog(id)
+          // 内容已合并进目标记录，原记录彻底删除（不进回收站）
+          await purgeLog(id)
           navigate('/my-records')
           return
         }
