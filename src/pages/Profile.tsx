@@ -17,46 +17,31 @@ export default function Profile() {
     ? new Date(user.created_at).toLocaleDateString('zh-CN')
     : ''
 
-  const quickLinks = [
-    { label: '记录', icon: '📝', path: '/my-records' },
-    { label: '总结', icon: '📊', path: '/summary' },
-    { label: '计时', icon: '⏱️', path: '/timer' },
-    { label: '回收站', icon: '🗑️', path: '/trash' },
-  ]
-
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 space-y-6">
-      {/* 用户信息卡片 */}
-      <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm border border-gray-100 dark:border-slate-700 flex items-center gap-4">
-        <div className="h-16 w-16 rounded-full bg-blue-600 text-white flex items-center justify-center text-2xl font-bold shrink-0">
+    <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
+      {/* 用户信息 */}
+      <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700 flex items-center gap-3">
+        <div className="h-12 w-12 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg font-bold shrink-0">
           {avatarText}
         </div>
         <div className="min-w-0">
-          <p className="text-lg font-bold text-gray-800 dark:text-slate-100 truncate">{email}</p>
+          <p className="font-semibold text-gray-800 dark:text-slate-100 truncate">{email}</p>
           {createdAt && (
-            <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
               注册于 {createdAt}
             </p>
           )}
         </div>
       </div>
 
-      {/* 快捷入口 */}
-      <section>
-        <h2 className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-2">快捷入口</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {quickLinks.map((link) => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700 flex flex-col items-center gap-2 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700"
-            >
-              <span className="text-2xl leading-none">{link.icon}</span>
-              <span className="text-sm text-gray-700 dark:text-slate-200">{link.label}</span>
-            </Link>
-          ))}
-        </div>
-      </section>
+      {/* 回收站入口 */}
+      <Link
+        to="/trash"
+        className="flex items-center gap-3 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700"
+      >
+        <span className="text-xl leading-none">🗑️</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-slate-200">回收站</span>
+      </Link>
 
       {/* 版本信息 */}
       <AppVersion />
@@ -64,7 +49,7 @@ export default function Profile() {
       {/* 退出登录 */}
       <button
         onClick={handleSignOut}
-        className="w-full rounded-xl bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 py-3 font-medium transition-colors hover:bg-red-100 dark:hover:bg-red-900/50 cursor-pointer"
+        className="w-full rounded-xl bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400 py-3 font-medium transition-colors hover:bg-red-100 dark:hover:bg-red-900/50 cursor-pointer text-sm"
       >
         退出登录
       </button>
