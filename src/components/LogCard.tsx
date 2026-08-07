@@ -3,7 +3,8 @@ import type { DailyLog } from '../lib/dailyLogs'
 import { updateLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
-import { formatDateShort } from '../lib/format'
+import { formatDateShort, formatTimeRange } from '../lib/format'
+import ConfirmDialog from './ConfirmDialog'
 
 interface LogCardProps {
   log: DailyLog
@@ -18,13 +19,13 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
   const [editingSummary, setEditingSummary] = useState(false)
   const [summaryDraft, setSummaryDraft] = useState('')
   const [savingSummary, setSavingSummary] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   const hasSummary = !!(log.summary ?? '').trim()
 
   const handleDelete = () => {
-    if (window.confirm('确定要删除这条学习记录吗？')) {
-      onDelete()
-    }
+    setConfirmDelete(false)
+    onDelete()
   }
 
   const openSummaryEditor = () => {
@@ -90,7 +91,10 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
                   >
                     {(subject?.name ?? s.id)}
                     {s.activity ? `·${s.activity}` : ''}
-                    <span className="opacity-65 text-xs">{s.hours.toFixed(2)}h</span>
+                    <span className="opacity-65 text-xs">
+                      {s.hours.toFixed(2)}h
+                      {s.startTime && s.endTime ? ` · ${formatTimeRange(s.startTime, s.endTime)}` : ''}
+                    </span>
                   </span>
                   {s.summary && (
                     <p className="mt-1 ml-1 text-xs text-gray-500 dark:text-slate-400">{s.summary}</p>
@@ -164,13 +168,23 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
           </button>
           <button
             type="button"
-            onClick={handleDelete}
+            onClick={() => setConfirmDelete(true)}
             className="px-3 py-1.5 text-sm text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors cursor-pointer"
           >
             删除
           </button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="删除学习记录？"
+        message="删除后该记录将移入回收站，可在「我的 - 回收站」中随时恢复。确定要删除吗？"
+        confirmText="确认删除"
+        danger
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   )
 }

@@ -5,6 +5,9 @@ export interface DailyLogSubject {
   hours: number
   activity?: string
   summary?: string
+  // 学习时间段（HH:mm，零填充如 "14:05"），仅由计时器记录
+  startTime?: string
+  endTime?: string
 }
 
 export interface DailyLog {
@@ -15,6 +18,8 @@ export interface DailyLog {
   summary: string
   created_at: string
   updated_at: string
+  /** 软删除标记：NULL=正常记录，非 NULL=在回收站 */
+  deleted_at: string | null
 }
 
 export interface DailyLogInput {
@@ -56,10 +61,25 @@ export function mergeSubjects(base: DailyLogSubject[], incoming: DailyLogSubject
       (s) => s.id === entry.id && (s.activity ?? '') === (entry.activity ?? '')
     )
     if (idx >= 0) {
-      merged[idx] = {
-        ...merged[idx],
-        hours: Math.round((merged[idx].hours + entry.hours) * 100) / 100,
+      const existing = merged[idx]
+      const mergedEntry: DailyLogSubject = {
+        ...existing,
+        hours: Math.round((existing.hours + entry.hours) * 100) / 100,
       }
+      // 合并学习时间段：双方都有时取更早的开始时间、更晚的结束时间；仅一方有时保留该值；都没有时不包含时间字段
+      if (existing.startTime || entry.startTime) {
+        mergedEntry.startTime =
+          existing.startTime && entry.startTime
+            ? (existing.startTime <= entry.startTime ? existing.startTime : entry.startTime)
+            : (existing.startTime ?? entry.startTime)
+      }
+      if (existing.endTime || entry.endTime) {
+        mergedEntry.endTime =
+          existing.endTime && entry.endTime
+            ? (existing.endTime >= entry.endTime ? existing.endTime : entry.endTime)
+            : (existing.endTime ?? entry.endTime)
+      }
+      merged[idx] = mergedEntry
     } else {
       merged.push(entry)
     }
@@ -74,6 +94,7 @@ export async function fetchAllLogs(): Promise<DailyLog[]> {
   const { data, error } = await supabase
     .from('daily_logs')
     .select('*')
+    .is('deleted_at', null)
     .order('date', { ascending: false })
     .limit(PUBLIC_TIMELINE_LIMIT)
 
@@ -89,6 +110,7 @@ export async function fetchMyLogs(userId: string): Promise<DailyLog[]> {
     .from('daily_logs')
     .select('*')
     .eq('user_id', userId)
+    .is('deleted_at', null)
     .order('date', { ascending: false })
 
   if (error) {
@@ -98,12 +120,13 @@ export async function fetchMyLogs(userId: string): Promise<DailyLog[]> {
   return data as DailyLog[]
 }
 
-/** 按 id 查询单条记录（用于编辑页，避免拉取全部日志） */
+/** 按 id 查询单条记录（用于编辑页，避免拉取全部日志；回收站中的记录视为不存在） */
 export async function fetchLogById(logId: string): Promise<DailyLog | null> {
   const { data, error } = await supabase
     .from('daily_logs')
     .select('*')
     .eq('id', logId)
+    .is('deleted_at', null)
     .maybeSingle()
 
   if (error) {
@@ -113,13 +136,14 @@ export async function fetchLogById(logId: string): Promise<DailyLog | null> {
   return data as DailyLog | null
 }
 
-/** 按日期查询某用户的记录（用于计时器按归属日期保存/补交） */
+/** 按日期查询某用户的记录（用于计时器按归属日期保存/补交；回收站中的记录视为不存在） */
 export async function fetchLogByDate(userId: string, date: string): Promise<DailyLog | null> {
   const { data, error } = await supabase
     .from('daily_logs')
     .select('*')
     .eq('user_id', userId)
     .eq('date', date)
+    .is('deleted_at', null)
     .maybeSingle()
 
   if (error) {
@@ -140,6 +164,7 @@ export async function fetchLogBeforeDate(userId: string, date: string): Promise<
     .select('*')
     .eq('user_id', userId)
     .lt('date', date)
+    .is('deleted_at', null)
     .order('date', { ascending: false })
     .limit(1)
 
@@ -188,7 +213,48 @@ export async function updateLog(logId: string, logData: DailyLogInput): Promise<
   return data as DailyLog
 }
 
+/** 软删除（移入回收站）：设置 deleted_at 标记，不真正删除数据 */
 export async function deleteLog(logId: string): Promise<void> {
+  const { error } = await supabase
+    .from('daily_logs')
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('id', logId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+/** 回收站：查询某用户已删除（软删除）的记录，按删除时间倒序 */
+export async function fetchTrashedLogs(userId: string): Promise<DailyLog[]> {
+  const { data, error } = await supabase
+    .from('daily_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data as DailyLog[]
+}
+
+/** 从回收站恢复：清除 deleted_at 标记（若该日期已有记录，会触发唯一索引冲突） */
+export async function restoreLog(logId: string): Promise<void> {
+  const { error } = await supabase
+    .from('daily_logs')
+    .update({ deleted_at: null })
+    .eq('id', logId)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+}
+
+/** 彻底删除（不可恢复）：物理删除数据 */
+export async function purgeLog(logId: string): Promise<void> {
   const { error } = await supabase
     .from('daily_logs')
     .delete()

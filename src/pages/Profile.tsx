@@ -21,6 +21,7 @@ export default function Profile() {
     { label: '记录', icon: '📝', path: '/my-records' },
     { label: '总结', icon: '📊', path: '/summary' },
     { label: '计时', icon: '⏱️', path: '/timer' },
+    { label: '回收站', icon: '🗑️', path: '/trash' },
   ]
 
   return (
@@ -43,7 +44,7 @@ export default function Profile() {
       {/* 快捷入口 */}
       <section>
         <h2 className="text-sm font-medium text-gray-500 dark:text-slate-400 mb-2">快捷入口</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {quickLinks.map((link) => (
             <Link
               key={link.path}

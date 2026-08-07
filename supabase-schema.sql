@@ -12,31 +12,44 @@ CREATE TABLE IF NOT EXISTS public.daily_logs (
   summary TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now(),
-  -- 每人每天只能有一条记录
-  UNIQUE(user_id, date)
+  -- 软删除标记：NULL=正常记录，非 NULL=在回收站（见下方迁移说明）
+  deleted_at TIMESTAMPTZ
 );
+
+-- 注意：原 UNIQUE(user_id, date) 已改为"仅未删除记录"的部分唯一索引，
+-- 使同一天记录删除进回收站后仍可再新建当天记录。
+-- 若表已按旧结构创建，请执行 supabase-migration-trash.sql 迁移：
+--   1. ALTER TABLE public.daily_logs ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+--   2. ALTER TABLE public.daily_logs DROP CONSTRAINT IF EXISTS daily_logs_user_id_date_key;
+--   3. CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_logs_user_date_active
+--        ON public.daily_logs (user_id, date) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_logs_user_date_active
+  ON public.daily_logs (user_id, date)
+  WHERE deleted_at IS NULL;
 
 -- subjects JSONB 格式示例:
 -- [
---   { "id": "math", "hours": 2.5, "activity": "练习" },
+--   { "id": "math", "hours": 2.5, "activity": "练习", "startTime": "14:00", "endTime": "16:00" },
 --   { "id": "english", "hours": 1.5, "activity": "单词", "summary": "背了 100 个" },
 --   { "id": "ds", "hours": 2 }
 -- ]
 -- activity: 学习内容（做了什么），如 单词/听课/做题/练习/背诵/刷题，可省略
+-- startTime/endTime: 可选，学习时间段（HH:mm，计时器自动记录），如 "14:00" / "16:00"
 
 -- 2. 创建索引
 CREATE INDEX IF NOT EXISTS idx_daily_logs_date ON public.daily_logs(date DESC);
 CREATE INDEX IF NOT EXISTS idx_daily_logs_user_id ON public.daily_logs(user_id);
 CREATE INDEX IF NOT EXISTS idx_daily_logs_user_date ON public.daily_logs(user_id, date DESC);
+CREATE INDEX IF NOT EXISTS idx_daily_logs_user_deleted ON public.daily_logs(user_id, deleted_at DESC);
 
 -- 3. 启用 RLS
 ALTER TABLE public.daily_logs ENABLE ROW LEVEL SECURITY;
 
--- 4. RLS 策略：任何人可读（公开时间线）
-CREATE POLICY "Anyone can read daily_logs"
+-- 4. RLS 策略：正常记录任何人可读（公开时间线），回收站中的记录仅本人可见
+CREATE POLICY "Anyone can read active logs, owner can read trash"
   ON public.daily_logs
   FOR SELECT
-  USING (true);
+  USING (deleted_at IS NULL OR auth.uid() = user_id);
 
 -- 5. RLS 策略：仅认证用户可插入
 CREATE POLICY "Authenticated users can insert own logs"

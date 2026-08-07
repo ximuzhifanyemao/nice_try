@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getAvailableSubjects, getSubjectById, getActivitiesForSubject } from '../lib/subjects'
 import { createLog, fetchLogByDate, isDuplicateDateError, mergeSubjects, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
-import { formatDateCn, formatDuration, formatDurationShort } from '../lib/format'
+import { formatDateCn, formatDuration, formatDurationShort, toTimeStr } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -13,8 +13,19 @@ interface TimerState {
   startTime: number // Date.now()
 }
 
-/** 每个科目今日累计秒数 */
-type AccumMap = Record<string, number>
+/** 一次计时会话的时间段（HH:mm） */
+interface TimeRange {
+  start: string
+  end: string
+}
+
+/** 每个科目今日累计：总秒数 + 各次会话时间段 */
+interface AccumEntry {
+  seconds: number
+  ranges: TimeRange[]
+}
+
+type AccumMap = Record<string, AccumEntry>
 
 /* ── localStorage 持久化 ── */
 const ACCUM_KEY = 'kaoyan_timer_accum'
@@ -24,7 +35,24 @@ const RUNNING_KEY = 'kaoyan_timer_running'
 function loadAccum(): AccumMap {
   // 跨午夜不清空：保留累计数据，保存时归入开始学习的那天（补交）
   try {
-    return JSON.parse(localStorage.getItem(ACCUM_KEY) || '{}')
+    const raw: unknown = JSON.parse(localStorage.getItem(ACCUM_KEY) || '{}')
+    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
+    const migrated: AccumMap = {}
+    for (const [key, value] of Object.entries(raw)) {
+      // 旧格式：直接是数字秒数 → 迁移为 { seconds, ranges: [] }
+      if (typeof value === 'number') {
+        migrated[key] = { seconds: value, ranges: [] }
+      } else if (
+        typeof value === 'object' &&
+        value !== null &&
+        typeof (value as AccumEntry).seconds === 'number'
+      ) {
+        // 已是新格式
+        migrated[key] = value as AccumEntry
+      }
+      // 其他非法值跳过
+    }
+    return migrated
   } catch {
     return {}
   }
@@ -132,8 +160,16 @@ export default function StudyTimer() {
       return
     }
     const key = accumKey(running.subjectId!, running.activity ?? '')
+    const range: TimeRange = {
+      start: toTimeStr(new Date(running.startTime)),
+      end: toTimeStr(new Date()),
+    }
+    const prev = accum[key]
     const newAccum = { ...accum }
-    newAccum[key] = (newAccum[key] || 0) + seconds
+    newAccum[key] = {
+      seconds: (prev?.seconds ?? 0) + seconds,
+      ranges: [...(prev?.ranges ?? []), range],
+    }
     setAccum(newAccum)
     saveAccum(newAccum)
     setRunning(null)
@@ -152,16 +188,18 @@ export default function StudyTimer() {
       // 将秒数转为小时（保留 2 位小数），按 科目::学习内容 分组
       // 过滤掉未知科目 id（localStorage 可被篡改，防止注入脏数据）
       const subjectEntries: DailyLogSubject[] = []
-      for (const [key, sec] of Object.entries(accum)) {
-        if (sec <= 0) continue
+      for (const [key, entry] of Object.entries(accum)) {
+        if (entry.seconds <= 0) continue
         const [id, activity] = key.split('::')
         if (!getSubjectById(id)) continue
-        const hours = Math.round((sec / 3600) * 100) / 100
-        subjectEntries.push(
-          activity
-            ? { id, hours, activity }
-            : { id, hours }
-        )
+        const hours = Math.round((entry.seconds / 3600) * 100) / 100
+        const subjectEntry: DailyLogSubject = activity ? { id, hours, activity } : { id, hours }
+        // 时间段：取最早开始与最晚结束（HH:mm 零填充可直接字符串比较）
+        if (entry.ranges.length > 0) {
+          subjectEntry.startTime = entry.ranges.reduce((a, r) => (r.start <= a ? r.start : a), entry.ranges[0].start)
+          subjectEntry.endTime = entry.ranges.reduce((a, r) => (r.end >= a ? r.end : a), entry.ranges[0].end)
+        }
+        subjectEntries.push(subjectEntry)
       }
       if (subjectEntries.length === 0) {
         setAccum({})
@@ -222,7 +260,7 @@ export default function StudyTimer() {
     setAccumDate(todayStr())
   }
 
-  const totalSeconds = Object.values(accum).reduce((a, b) => a + b, 0)
+  const totalSeconds = Object.values(accum).reduce((a, b) => a + b.seconds, 0)
   /** 是否补交：累计归属日期不是今天（跨午夜/隔天保存） */
   const isBackfill = accumDate !== todayStr()
   const currentSubject = running?.subjectId
@@ -233,7 +271,7 @@ export default function StudyTimer() {
   const subjectTotal = (id: string): number =>
     Object.entries(accum)
       .filter(([key]) => key.startsWith(id + '::'))
-      .reduce((a, [, sec]) => a + sec, 0)
+      .reduce((a, [, entry]) => a + entry.seconds, 0)
 
   return (
     <div className="space-y-6">
@@ -272,10 +310,12 @@ export default function StudyTimer() {
                         : getButtonColor(getSubjectById(subj.id)?.category)
                   }`}
               >
-                {subj.name}
-                {subjectTotal(subj.id) > 0 && (
-                  <span className="ml-1.5 text-xs opacity-75">({formatDurationShort(subjectTotal(subj.id))})</span>
-                )}
+                <span className="flex flex-col items-center gap-0.5 leading-tight">
+                  <span>{subj.name}</span>
+                  {subjectTotal(subj.id) > 0 && (
+                    <span className="text-xs opacity-75">({formatDurationShort(subjectTotal(subj.id))})</span>
+                  )}
+                </span>
               </button>
             )
           })}
@@ -283,27 +323,31 @@ export default function StudyTimer() {
 
         {/* 选择学习内容 */}
         {pendingSubject && !running && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
-            <span className="text-sm text-gray-700 dark:text-slate-300">
-              {getSubjectById(pendingSubject)?.name} · 选择学习内容
-            </span>
-            {getActivitiesForSubject(pendingSubject).map((act) => (
+          <div className="mt-3 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm text-gray-700 dark:text-slate-300">
+                {getSubjectById(pendingSubject)?.name} · 选择学习内容
+              </span>
               <button
-                key={act}
                 type="button"
-                onClick={() => handleStart(pendingSubject, act)}
-                className="px-3 py-1 text-sm rounded-full bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-600 hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                onClick={() => setPendingSubject(null)}
+                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 cursor-pointer"
               >
-                {act}
+                取消
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setPendingSubject(null)}
-              className="ml-auto text-xs text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 cursor-pointer"
-            >
-              取消
-            </button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {getActivitiesForSubject(pendingSubject).map((act) => (
+                <button
+                  key={act}
+                  type="button"
+                  onClick={() => handleStart(pendingSubject, act)}
+                  className="px-3 py-1 text-sm rounded-full bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-600 hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                >
+                  {act}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -356,16 +400,16 @@ export default function StudyTimer() {
           </div>
           <div className="space-y-2">
             {Object.entries(accum)
-              .filter(([, sec]) => sec > 0)
-              .sort(([, a], [, b]) => b - a)
-              .map(([key, sec]) => {
+              .filter(([, entry]) => entry.seconds > 0)
+              .sort(([, a], [, b]) => b.seconds - a.seconds)
+              .map(([key, entry]) => {
                 const [id, activity] = key.split('::')
                 const subj = getSubjectById(id)
                 const label = (subj?.name ?? id) + (activity ? `·${activity}` : '')
                 return (
                   <div key={key} className="flex justify-between items-center text-sm">
                     <span className="text-gray-600 dark:text-slate-400">{label}</span>
-                    <span className="font-mono text-gray-800 dark:text-slate-200">{formatDurationShort(sec)}</span>
+                    <span className="font-mono text-gray-800 dark:text-slate-200">{formatDurationShort(entry.seconds)}</span>
                   </div>
                 )
               })}
