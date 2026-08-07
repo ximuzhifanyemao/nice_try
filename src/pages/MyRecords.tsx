@@ -3,21 +3,32 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import LogCard from '../components/LogCard'
 import type { DailyLog } from '../lib/dailyLogs'
-import { fetchMyLogs, deleteLog, todayStr } from '../lib/dailyLogs'
+import { fetchMyLogsPaginated, deleteLog, todayStr } from '../lib/dailyLogs'
+
+const PAGE_SIZE = 20
 
 export default function MyRecords() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [logs, setLogs] = useState<DailyLog[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(0)
+  const [totalCount, setTotalCount] = useState(0)
+
+  const hasMore = page * PAGE_SIZE < totalCount
 
   const loadLogs = useCallback(() => {
     if (!user) return
     setLoading(true)
     setError(null)
-    fetchMyLogs(user.id)
-      .then(setLogs)
+    fetchMyLogsPaginated(user.id, 1, PAGE_SIZE)
+      .then((result) => {
+        setLogs(result.data)
+        setTotalCount(result.total)
+        setPage(1)
+      })
       .catch((err) => setError(err instanceof Error ? err.message : '加载失败'))
       .finally(() => setLoading(false))
   }, [user])
@@ -25,6 +36,22 @@ export default function MyRecords() {
   useEffect(() => {
     loadLogs()
   }, [loadLogs])
+
+  const loadMore = useCallback(async () => {
+    if (!user || loadingMore) return
+    setLoadingMore(true)
+    try {
+      const nextPage = page + 1
+      const result = await fetchMyLogsPaginated(user.id, nextPage, PAGE_SIZE)
+      setLogs((prev) => [...prev, ...result.data])
+      setPage(nextPage)
+      setTotalCount(result.total)
+    } catch {
+      alert('加载更多失败')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [user, page, loadingMore])
 
   const today = todayStr()
   const todayLog = logs.find((l) => l.date === today) ?? null
@@ -35,6 +62,7 @@ export default function MyRecords() {
     try {
       await deleteLog(logId)
       setLogs((prev) => prev.filter((l) => l.id !== logId))
+      setTotalCount((prev) => Math.max(0, prev - 1))
     } catch {
       alert('删除失败，请重试')
     }
@@ -108,6 +136,24 @@ export default function MyRecords() {
               onSummarySaved={loadLogs}
             />
           ))}
+
+          {/* 加载更多 / 已全部加载 */}
+          <div className="text-center py-4">
+            {hasMore ? (
+              <button
+                type="button"
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="px-6 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {loadingMore ? '加载中...' : `加载更多（${logs.length}/${totalCount}）`}
+              </button>
+            ) : logs.length > 0 ? (
+              <p className="text-sm text-gray-400 dark:text-slate-500">
+                共 {totalCount} 条记录，已全部加载
+              </p>
+            ) : null}
+          </div>
         </div>
       )}
     </div>

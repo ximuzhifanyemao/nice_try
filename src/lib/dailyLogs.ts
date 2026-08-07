@@ -120,6 +120,35 @@ export async function fetchMyLogs(userId: string): Promise<DailyLog[]> {
   return data as DailyLog[]
 }
 
+export interface PaginatedResult {
+  data: DailyLog[]
+  total: number
+}
+
+/** 分页查询用户的学习记录，附带总数（用于记录页的「加载更多」） */
+export async function fetchMyLogsPaginated(
+  userId: string,
+  page: number,
+  pageSize: number = 20,
+): Promise<PaginatedResult> {
+  const from = (page - 1) * pageSize
+  const to = from + pageSize - 1
+
+  const { data, error, count } = await supabase
+    .from('daily_logs')
+    .select('*', { count: 'exact', head: false })
+    .eq('user_id', userId)
+    .is('deleted_at', null)
+    .order('date', { ascending: false })
+    .range(from, to)
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return { data: data as DailyLog[], total: count ?? 0 }
+}
+
 /** 按 id 查询单条记录（用于编辑页，避免拉取全部日志；回收站中的记录视为不存在） */
 export async function fetchLogById(logId: string): Promise<DailyLog | null> {
   const { data, error } = await supabase
