@@ -176,7 +176,7 @@ export default function GoalPage() {
               <button
                 onClick={handleRecharge}
                 disabled={busy}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                className="flex-shrink-0 whitespace-nowrap px-3 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors cursor-pointer"
               >
                 + 充值
               </button>
