@@ -48,7 +48,7 @@ export default function Countdown() {
   }, [])
 
   return (
-    <div className="flex flex-col items-center gap-3 py-4">
+    <div className="flex flex-col items-center gap-2 py-2">
 
       {timeLeft === null ? (
         <p className="text-3xl font-bold text-blue-700 dark:text-blue-400">考研已经结束！</p>
@@ -57,7 +57,7 @@ export default function Countdown() {
           {TIME_UNITS.map(({ key, label, color }) => (
             <div
               key={key}
-              className={`flex flex-col items-center justify-center bg-gradient-to-b ${color} text-white rounded-xl sm:rounded-2xl px-3 sm:px-5 py-3 sm:py-4 min-w-[60px] sm:min-w-[80px] shadow-lg`}
+              className={`flex flex-col items-center justify-center bg-gradient-to-b ${color} text-white rounded-xl sm:rounded-2xl px-3 sm:px-5 py-2.5 sm:py-4 min-w-[60px] sm:min-w-[80px] shadow-lg`}
             >
               <span className="text-2xl sm:text-4xl font-bold tabular-nums">
                 {pad(timeLeft[key])}

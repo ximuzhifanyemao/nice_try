@@ -7,7 +7,6 @@ import type { DailyLog } from '../lib/dailyLogs'
 import { fetchMyLogs, todayStr } from '../lib/dailyLogs'
 import { computeStreak } from '../lib/achievements'
 import { fetchCommitments, getWeekStartStr, getWeekEndStr, sumHoursInRange } from '../lib/commitments'
-import { formatDateShort } from '../lib/format'
 
 export default function Home() {
   const { user } = useAuth()
@@ -48,57 +47,48 @@ export default function Home() {
     <div className="mx-auto max-w-5xl px-4 py-4 space-y-4">
       {user && (
         <>
-          {/* 打卡提醒 */}
+          {/* 打卡提醒（单行紧凑） */}
           {!hasCheckedToday && (
             <Link
               to="/my-records/new"
-              className="block rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 px-4 py-3 text-sm text-amber-700 dark:text-amber-300 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/30"
+              className="block rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 transition-colors hover:bg-amber-100 dark:hover:bg-amber-900/30"
             >
               {hasAnyLog && streak.current === 0 ? '🔥 连续打卡已断签，今天重新开始吧' : '✍️ 今天还没打卡，别忘了记录学习'}
             </Link>
           )}
 
-          {/* 连续打卡 + 本周进度 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* 连续打卡 + 本周进度（移动端并排紧凑） */}
+          <div className="grid grid-cols-2 gap-2">
             <Link
               to="/achievements"
-              className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700"
+              className="rounded-xl bg-white dark:bg-slate-800 p-3 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700"
             >
               <div className="flex items-baseline justify-between">
-                <p className="text-xs text-gray-500 dark:text-slate-400">连续打卡</p>
-                <p className="text-xs text-gray-400 dark:text-slate-500">最长 {streak.longest} 天</p>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400">连续打卡</p>
+                <p className="text-[11px] text-gray-400 dark:text-slate-500">最长{streak.longest}天</p>
               </div>
-              <p className="text-2xl font-bold text-orange-500 dark:text-orange-400 mt-1">
-                🔥 {streak.current} 天
-              </p>
-              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">去查看成就 →</p>
+              <p className="text-lg font-bold text-orange-500 dark:text-orange-400 mt-0.5">🔥 {streak.current} 天</p>
             </Link>
 
             <Link
               to="/goal"
-              className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700"
+              className="rounded-xl bg-white dark:bg-slate-800 p-3 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700"
             >
               <div className="flex items-baseline justify-between">
-                <p className="text-xs text-gray-500 dark:text-slate-400">本周进度</p>
-                <p className="text-xs text-gray-400 dark:text-slate-500">{formatDateShort(weekStart)}</p>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400">本周进度</p>
+                <p className="text-[11px] text-gray-400 dark:text-slate-500">
+                  {weekTarget ? `${actualHours.toFixed(1)}/${weekTarget}h` : '未设定'}
+                </p>
               </div>
               {weekTarget ? (
-                <>
-                  <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-1">
-                    {actualHours.toFixed(1)}h <span className="text-sm font-normal text-gray-400">/ {weekTarget}h</span>
-                  </p>
-                  <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden mt-2">
-                    <div
-                      className={`h-full rounded-full transition-all ${progress >= 100 ? 'bg-green-500 dark:bg-green-400' : 'bg-blue-500 dark:bg-blue-400'}`}
-                      style={{ width: `${progress}%` }}
-                    />
-                  </div>
-                </>
+                <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden mt-2">
+                  <div
+                    className={`h-full rounded-full transition-all ${progress >= 100 ? 'bg-green-500 dark:bg-green-400' : 'bg-blue-500 dark:bg-blue-400'}`}
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
               ) : (
-                <>
-                  <p className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-1">未设定</p>
-                  <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">去设定本周目标 →</p>
-                </>
+                <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5">去设定目标 →</p>
               )}
             </Link>
           </div>
