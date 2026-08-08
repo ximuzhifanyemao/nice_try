@@ -83,3 +83,38 @@ CREATE TRIGGER update_daily_logs_updated_at
   BEFORE UPDATE ON public.daily_logs
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
+-- 虚拟承诺金 / 每周目标（成就系统全部在客户端由 daily_logs 计算，无需建表）
+-- 完整迁移见 supabase-migration-goals.sql（含 RLS、RPC 函数），此处仅列出核心表结构
+-- ============================================
+
+-- 虚拟钱包
+CREATE TABLE IF NOT EXISTS public.wallets (
+  user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 资金流水
+CREATE TABLE IF NOT EXISTS public.wallet_transactions (
+  id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('recharge', 'deposit', 'refund', 'forfeit')),
+  amount NUMERIC(12,2) NOT NULL,
+  note TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 每周承诺（目标 + 押金，week_start 为周起点周日）
+CREATE TABLE IF NOT EXISTS public.weekly_commitments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  week_start DATE NOT NULL,
+  target_hours NUMERIC(5,1) NOT NULL,
+  deposit_amount NUMERIC(12,2) NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'won', 'lost')),
+  settled_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (user_id, week_start)
+);
