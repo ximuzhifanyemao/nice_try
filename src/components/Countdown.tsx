@@ -48,27 +48,27 @@ export default function Countdown() {
   }, [])
 
   return (
-    <div className="flex flex-col items-center gap-2 py-2">
+    <div className="flex flex-col items-center gap-1.5 py-1.5 sm:gap-2 sm:py-2">
 
       {timeLeft === null ? (
         <p className="text-3xl font-bold text-blue-700 dark:text-blue-400">考研已经结束！</p>
       ) : (
-        <div className="grid grid-cols-4 gap-2 sm:gap-3">
+        <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
           {TIME_UNITS.map(({ key, label, color }) => (
             <div
               key={key}
-              className={`flex flex-col items-center justify-center bg-gradient-to-b ${color} text-white rounded-xl sm:rounded-2xl px-3 sm:px-5 py-2.5 sm:py-4 min-w-[60px] sm:min-w-[80px] shadow-lg`}
+              className={`flex flex-col items-center justify-center bg-gradient-to-b ${color} text-white rounded-lg sm:rounded-2xl px-2 sm:px-5 py-1.5 sm:py-4 min-w-[52px] sm:min-w-[80px] shadow sm:shadow-lg`}
             >
-              <span className="text-2xl sm:text-4xl font-bold tabular-nums">
+              <span className="text-lg sm:text-4xl font-bold tabular-nums leading-tight">
                 {pad(timeLeft[key])}
               </span>
-              <span className="text-xs sm:text-sm text-white/70 mt-1">{label}</span>
+              <span className="text-[10px] sm:text-sm text-white/70 mt-0.5 sm:mt-1">{label}</span>
             </div>
           ))}
         </div>
       )}
 
-      <p className="text-sm text-gray-400 dark:text-slate-500">2026年12月20日</p>
+      <p className="text-xs sm:text-sm text-gray-400 dark:text-slate-500">2026年12月20日</p>
     </div>
   )
 }
