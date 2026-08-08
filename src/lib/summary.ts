@@ -29,8 +29,8 @@ export interface SummaryResult {
 }
 
 export function getWeekRange(refDate: Date = new Date()): { startDate: string; endDate: string } {
-  const start = startOfWeek(refDate, { weekStartsOn: 0 })
-  const end = endOfWeek(refDate, { weekStartsOn: 0 })
+  const start = startOfWeek(refDate, { weekStartsOn: 1 })
+  const end = endOfWeek(refDate, { weekStartsOn: 1 })
   return {
     startDate: format(start, 'yyyy-MM-dd'),
     endDate: format(end, 'yyyy-MM-dd'),

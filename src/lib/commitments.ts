@@ -32,14 +32,14 @@ export interface WeeklyCommitment {
   created_at: string
 }
 
-/** 周起点（周日），与统计页 getWeekRange 保持一致 */
+/** 周起点（周一），与统计页 getWeekRange 保持一致 */
 export function getWeekStartStr(date: Date = new Date()): string {
-  return format(startOfWeek(date, { weekStartsOn: 0 }), 'yyyy-MM-dd')
+  return format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd')
 }
 
-/** 周终点（周六） */
+/** 周终点（周日） */
 export function getWeekEndStr(date: Date = new Date()): string {
-  return format(endOfWeek(date, { weekStartsOn: 0 }), 'yyyy-MM-dd')
+  return format(endOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd')
 }
 
 export const TX_TYPE_META: Record<WalletTxType, { label: string; sign: '+' | '-' }> = {
