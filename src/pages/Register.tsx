@@ -39,7 +39,7 @@ export default function Register() {
       return
     }
 
-    navigate('/my-records')
+    navigate('/')
   }
 
   return (

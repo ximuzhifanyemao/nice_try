@@ -38,7 +38,7 @@ export default function Login() {
       return
     }
 
-    navigate('/my-records')
+    navigate('/')
   }
 
   return (
