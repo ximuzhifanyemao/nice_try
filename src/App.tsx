@@ -16,6 +16,8 @@ const Summary = lazy(() => import('./pages/Summary'))
 const TimerPage = lazy(() => import('./pages/TimerPage'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Trash = lazy(() => import('./pages/Trash'))
+const Achievements = lazy(() => import('./pages/Achievements'))
+const GoalPage = lazy(() => import('./pages/GoalPage'))
 
 function PageLoading() {
   return (
@@ -71,6 +73,8 @@ export default function App() {
                 <Route path="/my-records/:id/edit" element={<EditRecord />} />
                 <Route path="/timer" element={<TimerPage />} />
                 <Route path="/trash" element={<Trash />} />
+                <Route path="/achievements" element={<Achievements />} />
+                <Route path="/goal" element={<GoalPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

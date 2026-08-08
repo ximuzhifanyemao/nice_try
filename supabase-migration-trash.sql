@@ -19,7 +19,9 @@ CREATE INDEX IF NOT EXISTS idx_daily_logs_user_deleted
   ON public.daily_logs (user_id, deleted_at DESC);
 
 -- 4. 调整读取策略：正常记录任何人可读（公开时间线），回收站中的记录仅本人可见
+--    注意：CREATE POLICY 不支持 IF NOT EXISTS，故先 DROP 同名 policy 再 CREATE
 DROP POLICY IF EXISTS "Anyone can read daily_logs" ON public.daily_logs;
+DROP POLICY IF EXISTS "Anyone can read active logs, owner can read trash" ON public.daily_logs;
 CREATE POLICY "Anyone can read active logs, owner can read trash"
   ON public.daily_logs
   FOR SELECT
