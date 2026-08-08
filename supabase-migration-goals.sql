@@ -48,7 +48,7 @@ CREATE POLICY "Users can insert own transactions"
   ON public.wallet_transactions FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
--- 3. 每周承诺：目标时长 + 押金，每周一条（week_start 为周起点，周日）
+-- 3. 每周承诺：目标时长 + 押金，每周一条（week_start 为周起点，周一）
 CREATE TABLE IF NOT EXISTS public.weekly_commitments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -186,7 +186,7 @@ END;
 $$;
 
 -- 7. RPC：结算已结束周（上周及更早）的活跃承诺
--- 按 daily_logs 中该周实际总时长判定：达标返还押金，未达标扣除
+-- 按 daily_logs 中该周（week_start ~ week_start+6，周一起点）实际总时长判定：达标返还押金，未达标扣除
 CREATE OR REPLACE FUNCTION public.settle_commitments(p_user_id UUID)
 RETURNS void
 LANGUAGE plpgsql

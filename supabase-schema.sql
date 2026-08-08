@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS public.wallet_transactions (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
--- 每周承诺（目标 + 押金，week_start 为周起点周日）
+-- 每周承诺（目标 + 押金，week_start 为周起点周一）
 CREATE TABLE IF NOT EXISTS public.weekly_commitments (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

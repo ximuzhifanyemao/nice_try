@@ -33,8 +33,8 @@ export default function Calendar({ logs, loading }: CalendarProps) {
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth)
     const monthEnd = endOfMonth(currentMonth)
-    const calStart = startOfWeek(monthStart, { weekStartsOn: 0 })
-    const calEnd = endOfWeek(monthEnd, { weekStartsOn: 0 })
+    const calStart = startOfWeek(monthStart, { weekStartsOn: 1 })
+    const calEnd = endOfWeek(monthEnd, { weekStartsOn: 1 })
     return eachDayOfInterval({ start: calStart, end: calEnd })
   }, [currentMonth])
 
@@ -56,7 +56,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
     return logsByDate.get(key) ?? []
   }, [selectedDate, logsByDate])
 
-  const weekDays = ['日', '一', '二', '三', '四', '五', '六']
+  const weekDays = ['一', '二', '三', '四', '五', '六', '日']
 
   const monthLabel = format(currentMonth, 'yyyy年M月', { locale: zhCN })
 
