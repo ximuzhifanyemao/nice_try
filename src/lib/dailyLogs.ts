@@ -53,38 +53,40 @@ export function isDuplicateDateError(err: unknown): boolean {
   return code === '23505' || (err instanceof Error && /duplicate key|already exists/i.test(err.message))
 }
 
-/** 合并科目时长：按 (id, activity) 匹配相加，保留 2 位小数避免浮点误差 */
+/** 合并科目时长：仅当 (科目, 学习内容, 时间段) 完全一致时合并相加，避免把多次独立学习会话压成「最早~最晚」 */
 export function mergeSubjects(base: DailyLogSubject[], incoming: DailyLogSubject[]): DailyLogSubject[] {
   const merged = [...base]
   for (const entry of incoming) {
     const idx = merged.findIndex(
-      (s) => s.id === entry.id && (s.activity ?? '') === (entry.activity ?? '')
+      (s) =>
+        s.id === entry.id &&
+        (s.activity ?? '') === (entry.activity ?? '') &&
+        (s.startTime ?? '') === (entry.startTime ?? '') &&
+        (s.endTime ?? '') === (entry.endTime ?? '')
     )
     if (idx >= 0) {
       const existing = merged[idx]
-      const mergedEntry: DailyLogSubject = {
+      merged[idx] = {
         ...existing,
         hours: Math.round((existing.hours + entry.hours) * 100) / 100,
       }
-      // 合并学习时间段：双方都有时取更早的开始时间、更晚的结束时间；仅一方有时保留该值；都没有时不包含时间字段
-      if (existing.startTime || entry.startTime) {
-        mergedEntry.startTime =
-          existing.startTime && entry.startTime
-            ? (existing.startTime <= entry.startTime ? existing.startTime : entry.startTime)
-            : (existing.startTime ?? entry.startTime)
-      }
-      if (existing.endTime || entry.endTime) {
-        mergedEntry.endTime =
-          existing.endTime && entry.endTime
-            ? (existing.endTime >= entry.endTime ? existing.endTime : entry.endTime)
-            : (existing.endTime ?? entry.endTime)
-      }
-      merged[idx] = mergedEntry
     } else {
       merged.push(entry)
     }
   }
   return merged
+}
+
+/** 记录/动态展示排序：按开始时间升序（无时间段的条目排最后，稳定排序） */
+export function sortSubjectsByStartTime(subjects: DailyLogSubject[]): DailyLogSubject[] {
+  return [...subjects].sort((a, b) => {
+    const aTime = a.startTime ?? ''
+    const bTime = b.startTime ?? ''
+    if (aTime && bTime) return aTime < bTime ? -1 : aTime > bTime ? 1 : 0
+    if (aTime) return -1
+    if (bTime) return 1
+    return 0
+  })
 }
 
 /** 公开时间线：最近 N 条记录（防止全表拉取导致首屏膨胀） */

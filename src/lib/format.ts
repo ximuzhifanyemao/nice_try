@@ -47,3 +47,13 @@ export function formatTimeRange(start?: string, end?: string): string | null {
   if (!start || !end) return null
   return `${start}-${end}`
 }
+
+/** HH:mm 时间段 → 学习小时数（保留 2 位小数；结束早于开始视为跨零点，按次日结束计算） */
+export function timeRangeHours(start: string, end: string): number {
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 0
+  let diffMinutes = eh * 60 + em - (sh * 60 + sm)
+  if (diffMinutes <= 0) diffMinutes += 24 * 60
+  return Math.round((diffMinutes / 60) * 100) / 100
+}

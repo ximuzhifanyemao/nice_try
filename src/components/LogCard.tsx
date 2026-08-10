@@ -1,6 +1,6 @@
 import { memo, useState } from 'react'
 import type { DailyLog } from '../lib/dailyLogs'
-import { updateLog } from '../lib/dailyLogs'
+import { sortSubjectsByStartTime, updateLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 import { formatDateShort, formatTimeRange } from '../lib/format'
@@ -76,8 +76,7 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
 
       {log.subjects && log.subjects.length > 0 ? (
         <div className="space-y-2">
-          {log.subjects
-            .filter((s) => s.hours > 0)
+          {sortSubjectsByStartTime(log.subjects.filter((s) => s.hours > 0))
             .map((s, index) => {
               const subject = getSubjectById(s.id)
               const colorClass = subject
