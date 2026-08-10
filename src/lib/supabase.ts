@@ -1,4 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
+import { Capacitor } from '@capacitor/core'
+import { Preferences } from '@capacitor/preferences'
 
 let supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? ''
 const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? ''
@@ -76,12 +78,37 @@ function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise
   }).finally(() => clearTimeout(timeoutId))
 }
 
+/**
+ * Capacitor 原生环境下的 Storage Adapter
+ * 将 Supabase session 持久化到原生 Preferences（SharedPreferences / NSUserDefaults），
+ * 比 WebView 的 localStorage 更可靠，App 升级或系统清理缓存后不会丢失登录态。
+ * Web 环境继续使用 Supabase 默认的 localStorage。
+ */
+const nativeStorageAdapter = {
+  getItem: async (key: string) => {
+    const { value } = await Preferences.get({ key })
+    return value ?? null
+  },
+  setItem: async (key: string, value: string) => {
+    await Preferences.set({ key, value })
+  },
+  removeItem: async (key: string) => {
+    await Preferences.remove({ key })
+  },
+}
+
 export const supabase = createClient(
   isSupabaseConfigured ? supabaseUrl : PLACEHOLDER_URL,
   isSupabaseConfigured ? supabaseAnonKey : PLACEHOLDER_KEY,
   {
     global: {
       fetch: fetchWithTimeout,
+    },
+    auth: {
+      // 原生环境用 Preferences 存储 session；Web 环境用默认 localStorage
+      storage: Capacitor.isNativePlatform() ? nativeStorageAdapter : undefined,
+      persistSession: true,
+      autoRefreshToken: true,
     },
   }
 )
