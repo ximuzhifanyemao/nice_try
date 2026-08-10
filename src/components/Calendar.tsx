@@ -14,6 +14,7 @@ import {
 } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
+import { sortSubjectsByStartTime } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
@@ -178,8 +179,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
                 </div>
                 {log.subjects && log.subjects.length > 0 && (
                   <div className="flex flex-wrap gap-1">
-                    {log.subjects
-                      .filter((s) => s.hours > 0)
+                    {sortSubjectsByStartTime(log.subjects.filter((s) => s.hours > 0))
                       .map((s, index) => {
                         const subject = getSubjectById(s.id)
                         const colorClass = subject

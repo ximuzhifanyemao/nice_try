@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getAvailableSubjects, getSubjectById, getActivitiesForSubject } from '../lib/subjects'
-import { createLog, fetchLogByDate, isDuplicateDateError, mergeSubjects, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
-import { formatDateCn, formatDuration, formatDurationShort, toTimeStr } from '../lib/format'
+import { createLog, fetchLogByDate, isDuplicateDateError, mergeSubjects, sortSubjectsByStartTime, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
+import { formatDateCn, formatDuration, formatDurationShort, timeRangeHours, toTimeStr } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -185,22 +185,35 @@ export default function StudyTimer() {
       // 归入日期：优先使用计时开始那天（跨午夜/补交），否则今天
       const targetDate = loadAccumDate() || todayStr()
 
-      // 将秒数转为小时（保留 2 位小数），按 科目::学习内容 分组
+      // 将秒数转为小时（保留 2 位小数）
       // 过滤掉未知科目 id（localStorage 可被篡改，防止注入脏数据）
       const subjectEntries: DailyLogSubject[] = []
       for (const [key, entry] of Object.entries(accum)) {
         if (entry.seconds <= 0) continue
         const [id, activity] = key.split('::')
         if (!getSubjectById(id)) continue
-        const hours = Math.round((entry.seconds / 3600) * 100) / 100
-        const subjectEntry: DailyLogSubject = activity ? { id, hours, activity } : { id, hours }
-        // 时间段：取最早开始与最晚结束（HH:mm 零填充可直接字符串比较）
         if (entry.ranges.length > 0) {
-          subjectEntry.startTime = entry.ranges.reduce((a, r) => (r.start <= a ? r.start : a), entry.ranges[0].start)
-          subjectEntry.endTime = entry.ranges.reduce((a, r) => (r.end >= a ? r.end : a), entry.ranges[0].end)
+          // 每次计时会话单独生成一条记录（保留各自时间段），
+          // 避免把 1-2 听课、5-6 听课合并成 1-6 听课
+          for (const range of entry.ranges) {
+            const hours = timeRangeHours(range.start, range.end)
+            if (hours <= 0) continue
+            const sessionEntry: DailyLogSubject = {
+              id,
+              hours,
+              ...(activity ? { activity } : {}),
+              startTime: range.start,
+              endTime: range.end,
+            }
+            subjectEntries.push(sessionEntry)
+          }
+        } else {
+          const hours = Math.round((entry.seconds / 3600) * 100) / 100
+          subjectEntries.push(activity ? { id, hours, activity } : { id, hours })
         }
-        subjectEntries.push(subjectEntry)
       }
+      // 动态按开始时间排序（无时间段的条目排后面）
+      sortSubjectsByStartTime(subjectEntries)
       if (subjectEntries.length === 0) {
         setAccum({})
         saveAccum({})
