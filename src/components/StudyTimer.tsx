@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { getAvailableSubjects, getSubjectById, getActivitiesForSubject } from '../lib/subjects'
 import { createLog, fetchLogByDate, isDuplicateDateError, mergeSubjects, sortSubjectsByStartTime, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
 import { formatDateCn, formatDuration, formatDurationShort, timeRangeHours, toTimeStr } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
+import { TimerForeground } from '../plugins/timer-foreground'
 
 
 /* ── 类型 ── */
@@ -120,33 +122,70 @@ export default function StudyTimer() {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  /* ── 监听通知栏"停止"按钮 ── */
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    let removed = false
+    const setup = async () => {
+      const handle = await TimerForeground.addListener('timerStopped', () => {
+        if (!removed && running) {
+          handleStop()
+        }
+      })
+      return handle
+    }
+    let handle: { remove: () => Promise<void> } | null = null
+    setup().then((h) => { if (!removed) handle = h })
+    return () => {
+      removed = true
+      if (handle) handle.remove()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [running])
+
   /* ── 实时更新 elapsed ── */
   useEffect(() => {
     if (!running?.startTime) {
       setElapsed(0)
       return
     }
-    const tick = () => setElapsed(Math.floor((Date.now() - running.startTime) / 1000))
+    const tick = () => {
+      const e = Math.floor((Date.now() - running.startTime) / 1000)
+      setElapsed(e)
+      // 原生端同步更新通知栏显示
+      if (Capacitor.isNativePlatform()) {
+        const subjectName = running.subjectId
+          ? (getSubjectById(running.subjectId)?.name ?? running.subjectId) +
+            (running.activity ? ` · ${running.activity}` : '')
+          : '学习中'
+        TimerForeground.updateTimer({ subject: subjectName, elapsedSec: e })
+      }
+    }
     tick()
     intervalRef.current = setInterval(tick, 1000)
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current)
     }
-  }, [running?.startTime, running?.subjectId])
+  }, [running?.startTime, running?.subjectId, running?.activity])
 
   /* ── 开始计时 ── */
   const handleStart = (subjectId: string, activity: string) => {
     const state: TimerState = { subjectId, activity, startTime: Date.now() }
     setRunning(state)
     saveRunningTimer(state)
-    // 若当前没有累计数据，将归属日期设为今天（本次学习会话开始的日期，
-    // 跨午夜后保存时仍归入今天，而不是保存时刻的新一天）
+    // 若当前没有累计数据，将归属日期设为今天
     if (Object.keys(accum).length === 0) {
       localStorage.setItem(ACCUM_DATE_KEY, todayStr())
       setAccumDate(todayStr())
     }
     setPendingSubject(null)
     setSaved(false)
+    // 原生端启动前台服务
+    if (Capacitor.isNativePlatform()) {
+      const subjectName = (getSubjectById(subjectId)?.name ?? subjectId) +
+        (activity ? ` · ${activity}` : '')
+      TimerForeground.startTimer({ subject: subjectName, startTimeMs: state.startTime })
+    }
   }
 
   /* ── 结束计时 ── */
@@ -175,6 +214,10 @@ export default function StudyTimer() {
     setRunning(null)
     saveRunningTimer(null)
     setSaved(false)
+    // 原生端停止前台服务
+    if (Capacitor.isNativePlatform()) {
+      TimerForeground.stopTimer()
+    }
   }, [running, accum])
 
   /* ── 保存到数据库 ── */
