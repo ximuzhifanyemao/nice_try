@@ -12,6 +12,7 @@ import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import androidx.core.app.NotificationCompat;
+import com.kaoyan.tracker.R;
 
 public class TimerForegroundService extends Service {
     public static final String CHANNEL_ID = "kaoyan_timer_channel";

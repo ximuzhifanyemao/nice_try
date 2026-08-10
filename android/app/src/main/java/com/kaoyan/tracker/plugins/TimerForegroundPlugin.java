@@ -61,7 +61,7 @@ public class TimerForegroundPlugin extends Plugin {
             if (ContextCompat.checkSelfPermission(getActivity(), Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
                 // 请求通知权限
-                requestPermission(Manifest.permission.POST_NOTIFICATIONS, 9999);
+                getActivity().requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 9999);
                 call.reject("需要通知权限才能后台计时，请授权后重试");
                 return;
             }
@@ -101,11 +101,5 @@ public class TimerForegroundPlugin extends Plugin {
     private void stopTimerService() {
         Intent serviceIntent = new Intent(getActivity(), TimerForegroundService.class);
         getActivity().stopService(serviceIntent);
-    }
-
-    @Override
-    protected void requestPermission(String perm, int requestCode) {
-        // 使用 Capacitor 的权限请求
-        super.requestPermission(perm, requestCode);
     }
 }
