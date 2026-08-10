@@ -13,13 +13,15 @@ export default function BottomTab() {
   const location = useLocation()
   const navigate = useNavigate()
 
-  const tabs: TabItem[] = [
+  const allTabs: TabItem[] = [
     { key: 'home', label: '首页', icon: '🏠', path: '/' },
     { key: 'records', label: '记录', icon: '📝', path: '/my-records' },
     { key: 'timer', label: '计时', icon: '⏱️', path: '/timer' },
     { key: 'summary', label: '统计', icon: '📊', path: '/summary' },
     { key: 'profile', label: user ? '我的' : '登录', icon: '👤', path: user ? '/profile' : '/login' },
   ]
+  // 未登录时只显示首页和登录，隐藏需要登录的功能入口
+  const tabs = user ? allTabs : allTabs.filter((t) => t.key === 'home' || t.key === 'profile')
 
   const getActiveKey = (): string => {
     const { pathname } = location
