@@ -29,6 +29,12 @@
             android:grantUriPermissions="true">
             <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- 后台计时前台服务 -->
+        <service
+            android:name=".plugins.TimerForegroundService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->
@@ -38,4 +44,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 保持屏幕常亮（计时页可选） -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- 前台服务（后台计时） -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 </manifest>
