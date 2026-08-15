@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { ENGLISH_DAILY, type EnglishDay, type DayAnalysisItem } from '../data/englishDaily'
+import { ENGLISH_DAILY, type EnglishDay } from '../data/englishDaily'
 import { fetchMyCheckins, createCheckin, deleteCheckin } from '../lib/englishCheckin'
 
 const TOTAL = 150
@@ -288,20 +288,6 @@ export default function EnglishCheckin() {
         <p className="mt-2 text-[15px] leading-relaxed text-gray-700 dark:text-slate-200">{dayData.zh}</p>
       </details>
 
-      {/* 长难句解析 */}
-      {dayData.analysis && dayData.analysis.length > 0 && (
-        <details className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
-          <summary className="cursor-pointer text-sm font-medium text-gray-600 dark:text-slate-300 select-none">
-            长难句解析（{dayData.analysis.length} 句）
-          </summary>
-          <div className="mt-3 space-y-4">
-            {dayData.analysis.map((a: DayAnalysisItem, ai: number) => (
-              <AnalysisCard key={ai} item={a} />
-            ))}
-          </div>
-        </details>
-      )}
-
       {/* 打卡按钮 */}
       <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700 space-y-3">
         <button
@@ -346,71 +332,6 @@ export default function EnglishCheckin() {
           })}
         </div>
       </div>
-    </div>
-  )
-}
-
-// ---------- 解析卡片子组件 ----------
-
-function AnalysisCard({ item }: { item: DayAnalysisItem }) {
-  return (
-    <div className="border border-gray-200 dark:border-slate-600 rounded-lg p-3 space-y-2">
-      <span className="text-xs font-bold text-green-600 dark:text-green-400">{item.sentNum}</span>
-
-      {/* 词汇 */}
-      {item.vocab.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">词汇</p>
-          <div className="flex flex-wrap gap-1.5">
-            {item.vocab.map((v, vi) => (
-              <span key={vi} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700/40 text-xs">
-                <b className="text-amber-800 dark:text-amber-300">{v.word}</b>
-                <span className="text-amber-600 dark:text-amber-400">{v.meaning}</span>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 断句 */}
-      {item.split && (
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">断句划分</p>
-          <p className="text-[13px] leading-relaxed text-gray-700 dark:text-slate-200 whitespace-pre-line">
-            {item.split.split('\n').map((line, li) => (
-              <span key={li}>
-                {line.split('//').map((seg, si) => (
-                  <span key={si} className={si % 2 === 1 ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}>
-                    {si > 0 && <span className="text-gray-300 dark:text-slate-600 mx-0.5">//</span>}
-                    {seg}
-                  </span>
-                ))}
-                {li < item.split.split('\n').length - 1 && <br />}
-              </span>
-            ))}
-          </p>
-        </div>
-      )}
-
-      {/* 语法分析 */}
-      {item.grammar.length > 0 && (
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">语法分析</p>
-          <ul className="list-disc list-inside space-y-0.5">
-            {item.grammar.map((g, gi) => (
-              <li key={gi} className="text-[13px] text-gray-600 dark:text-slate-300">{g}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* 参考译文（单句） */}
-      {item.ref && (
-        <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">单句译文</p>
-          <p className="text-[13px] leading-relaxed text-gray-600 dark:text-slate-300">{item.ref}</p>
-        </div>
-      )}
     </div>
   )
 }
