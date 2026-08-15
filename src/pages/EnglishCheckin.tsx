@@ -325,7 +325,7 @@ export default function EnglishCheckin() {
                         {aItem.split && (
                           <div>
                             <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">切分</p>
-                            <p className="text-xs leading-relaxed text-gray-600 dark:text-slate-300 font-mono">
+                            <p className="text-xs leading-relaxed text-gray-600 dark:text-slate-300 font-mono break-words">
                               {aItem.split.split('//').map((part, pi) => (
                                 <span key={pi}>
                                   {pi > 0 && <span className="text-red-400 dark:text-red-500 font-bold mx-0.5">//</span>}
@@ -348,7 +348,7 @@ export default function EnglishCheckin() {
                         {aItem.ref && (
                           <div>
                             <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">逐句译文</p>
-                            <p className="text-xs text-gray-600 dark:text-slate-300">{aItem.ref}</p>
+                            <p className="text-xs text-gray-600 dark:text-slate-300 break-words">{aItem.ref}</p>
                           </div>
                         )}
                       </div>
