@@ -3,8 +3,21 @@ import { useAuth } from '../contexts/AuthContext'
 import { ENGLISH_DAILY, type EnglishDay } from '../data/englishDaily'
 import { fetchMyCheckins, createCheckin, deleteCheckin } from '../lib/englishCheckin'
 import { loadMarkedWords, saveMarkedWords, addDayToVocabulary } from '../lib/vocabulary'
+import { supabase } from '../lib/supabase'
 
 const TOTAL = 150
+
+// ---------- AI 翻译批改 ----------
+
+interface AiCorrection {
+  score: number | null
+  corrected: string
+  issues: string[]
+  suggestions: string[]
+}
+
+// CloudBase 云函数 HTTP 地址（国内节点直连讯飞，稳定）；未配置时回退到 Supabase Edge Function
+const AI_CORRECT_URL = (import.meta.env.VITE_AI_CORRECT_URL as string | undefined)?.trim() || ''
 
 // ---------- 翻译相似度打分 ----------
 
@@ -138,6 +151,12 @@ export default function EnglishCheckin() {
   const [translations, setTranslations] = useState<Map<string, string>>(new Map())
   // 打分结果：Map<"dayIdx-sentIdx", number | null>
   const [scores, setScores] = useState<Map<string, number | null>>(new Map())
+  // AI 批改结果：Map<"dayIdx-sentIdx", AiCorrection | null>
+  const [aiResults, setAiResults] = useState<Map<string, AiCorrection | null>>(new Map())
+  // AI 批改进行中的句子：Set<"dayIdx-sentIdx">
+  const [aiLoading, setAiLoading] = useState<Set<string>>(new Set())
+  // AI 批改错误信息
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const completedDays = useMemo(() => new Set(checkins), [checkins])
   const nextDay = useMemo(() => {
@@ -229,6 +248,45 @@ export default function EnglishCheckin() {
     setScores(prev => { const next = new Map(prev); next.set(key, score); return next })
   }, [translations])
 
+  // 调用 Supabase Edge Function 完成 AI 翻译批改
+  const handleAiCorrect = useCallback(async (dayIdx: number, sentIdx: number) => {
+    const key = `${dayIdx}-${sentIdx}`
+    if (aiLoading.has(key)) return
+    const userText = translations.get(key) || ''
+    const day = ENGLISH_DAILY.find(d => d.day === dayIdx)
+    const refText = day?.zh || ''
+    const sentence = day?.sentences[sentIdx]?.en || ''
+
+    setAiLoading(prev => new Set(prev).add(key))
+    setAiError(null)
+    try {
+      let result: AiCorrection
+      if (AI_CORRECT_URL) {
+        // 走 CloudBase 云函数（国内节点直连讯飞）
+        const resp = await fetch(AI_CORRECT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ en: sentence, userTranslation: userText, refTranslation: refText }),
+        })
+        const json = await resp.json().catch(() => ({}))
+        if (!resp.ok || !json.ok) throw new Error(json.error || `AI 批改失败（${resp.status}）`)
+        result = json.data
+      } else {
+        // 回退：Supabase Edge Function
+        const { data, error } = await supabase.functions.invoke('ai-correct', {
+          body: { en: sentence, userTranslation: userText, refTranslation: refText },
+        })
+        if (error) throw new Error(error.message || 'AI 批改失败')
+        result = data as AiCorrection
+      }
+      setAiResults(prev => { const next = new Map(prev); next.set(key, result); return next })
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'AI 批改失败，请稍后重试')
+    } finally {
+      setAiLoading(prev => { const next = new Set(prev); next.delete(key); return next })
+    }
+  }, [translations, aiLoading])
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-4 space-y-4">
       {/* 进度条 */}
@@ -248,6 +306,10 @@ export default function EnglishCheckin() {
 
       {error && (
         <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 px-3 py-2 text-sm text-red-600 dark:text-red-300">{error}</div>
+      )}
+
+      {aiError && (
+        <div className="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">AI 批改失败：{aiError}</div>
       )}
 
       {/* 逐句翻译：原文 + 翻译输入框放在一起 */}
@@ -306,18 +368,78 @@ export default function EnglishCheckin() {
                     const v = e.target.value
                     setTranslations(prev => { const next = new Map(prev); next.set(tKey, v); return next })
                     setScores(prev => { const next = new Map(prev); next.delete(tKey); return next })
+                    setAiResults(prev => { const next = new Map(prev); next.delete(tKey); return next })
                   }}
                   placeholder="在此输入你的翻译..."
                   rows={2}
                   className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/50 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
                 />
-                <button
-                  onClick={() => handleScore(dayData.day, sentIdx)}
-                  disabled={!translations.get(tKey)?.trim()}
-                  className="mt-1.5 px-3 py-1 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
-                >
-                  打分
-                </button>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleScore(dayData.day, sentIdx)}
+                    disabled={!translations.get(tKey)?.trim()}
+                    className="px-3 py-1 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    打分
+                  </button>
+                  <button
+                    onClick={() => handleAiCorrect(dayData.day, sentIdx)}
+                    disabled={!translations.get(tKey)?.trim() || aiLoading.has(tKey)}
+                    className="px-3 py-1 rounded-lg bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
+                  >
+                    {aiLoading.has(tKey) ? (
+                      <>
+                        <span className="inline-block w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                        批改中...
+                      </>
+                    ) : (
+                      <>AI 纠正</>
+                    )}
+                  </button>
+                </div>
+
+                {/* AI 批改结果 */}
+                {aiResults.get(tKey) && (() => {
+                  const r = aiResults.get(tKey)!
+                  return (
+                    <div className="mt-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-purple-700 dark:text-purple-300">AI 批改</span>
+                        {r.score != null && (
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scoreBg(r.score)} ${scoreColor(r.score)}`}>
+                            AI 评分 {r.score}
+                          </span>
+                        )}
+                      </div>
+                      {r.corrected && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">修正译文</p>
+                          <p className="text-sm leading-relaxed text-gray-800 dark:text-slate-100 break-words">{r.corrected}</p>
+                        </div>
+                      )}
+                      {r.issues.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-red-500 dark:text-red-400 mb-1">存在的问题</p>
+                          <ul className="list-disc list-inside space-y-0.5">
+                            {r.issues.map((issue, i) => (
+                              <li key={i} className="text-xs text-gray-700 dark:text-slate-200 break-words">{issue}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {r.suggestions.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">改进建议</p>
+                          <ul className="list-disc list-inside space-y-0.5">
+                            {r.suggestions.map((sug, i) => (
+                              <li key={i} className="text-xs text-gray-700 dark:text-slate-200 break-words">{sug}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {/* 长难句解析 */}
                 {dayData.analysis && (() => {
