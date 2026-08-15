@@ -20,6 +20,7 @@ const Profile = lazy(() => import('./pages/Profile'))
 const Trash = lazy(() => import('./pages/Trash'))
 const Achievements = lazy(() => import('./pages/Achievements'))
 const GoalPage = lazy(() => import('./pages/GoalPage'))
+const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
 
 function PageLoading() {
   return (
@@ -68,7 +69,9 @@ function BackButtonHandler() {
         CapacitorApp.minimizeApp()
       }
     })
-    return () => handler.then((h) => h.remove())
+    return () => {
+      handler.then((h) => h.remove())
+    }
   }, [navigate])
   return null
 }
@@ -96,6 +99,7 @@ export default function App() {
                 <Route path="/trash" element={<Trash />} />
                 <Route path="/achievements" element={<Achievements />} />
                 <Route path="/goal" element={<GoalPage />} />
+                <Route path="/english-checkin" element={<EnglishCheckin />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
