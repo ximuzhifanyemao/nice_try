@@ -297,6 +297,73 @@ Supabase 服务器在海外（AWS），国内访问可能：
 
 ---
 
+## AI 翻译批改功能（讯飞星火 + 腾讯云 SCF 云函数）
+
+打卡页的「AI 纠正」按钮会调用大模型对学生的译文进行批改。为保证密钥安全，
+前端不直接访问讯飞接口，而是通过**云函数做中转代理**。
+
+### 架构说明（重要）
+
+- **推荐：腾讯云 SCF 云函数**（国内节点，直连讯飞，稳定快速，免费额度充足）
+  - Supabase Edge Function 跑在美国节点，跨境访问中国大陆的讯飞 API 会频繁超时（实测偶发 130 秒超时）
+  - CloudBase 云函数免费版**超时锁死 3 秒**，讯飞响应常超时，改 60 秒需付费，因此选用 **SCF 云函数**：
+  ```
+  打卡页 → fetch(SCF 函数URL) → SCF 云函数（国内） → 讯飞星火 HTTP API
+  ```
+- 兜底：未配置 SCF 地址时，前端会回退调用 Supabase Edge Function（不推荐，跨境不稳定）。
+
+### 一、部署腾讯云 SCF 云函数
+
+代码已就绪：`scf/functions/ai-correct/index.js`（Node.js 事件函数，入口 `exports.main_handler`，无需任何依赖）。
+
+1. 登录 [腾讯云云函数控制台](https://console.cloud.tencent.com/scf) → 「新建」
+2. 选择「从头开始/自定义创建」：
+   - 函数类型：**事件函数**（不要选「Web 函数」，Web 函数需填启动命令）
+   - 函数名称：`ai-correct`，地域选上海或广州
+   - 运行环境：**Nodejs 18.13** 或 **Nodejs 20**
+   - 提交方式：本地上传 zip（把 index.js 打包）或在线编辑粘贴完整代码
+3. 展开「高级配置」：
+   - 内存：256MB；**执行超时时间：60 秒**（免费可调，上限 900 秒）
+   - 环境变量添加：
+     | 变量名 | 值 |
+     |---|---|
+     | `SPARK_API_KEY` | 讯飞应用的 APIKey |
+     | `SPARK_API_SECRET` | 讯飞应用的 APISecret |
+     | `SPARK_MODEL` | `spark-x`（Spark X 走 `/v2`）；`lite` / `generalv3.5` 走 `/v1` |
+4. 点「完成」创建，然后把 [index.js](scf/functions/ai-correct/index.js) 的完整内容粘贴进「函数代码」，点「部署」
+5. 「触发管理」→「创建触发器」：
+   - 触发方式：**函数URL（HTTP 触发器）**（API 网关已停服，不要用「API 网关触发器」）
+   - 认证方式：**免鉴权**；触发路径：`/ai-correct`
+   - 若有「允许跨域 CORS」开关则打开（代码也已内置 `Access-Control-Allow-Origin: *` 响应头）
+   - 创建后得到公网地址，形如 `https://1317742320-xxxx.ap-shanghai.tencentscf.com`
+
+### 二、前端接入
+
+1. 把上面拿到的完整地址填到 `.env.production`：
+   ```
+   VITE_AI_CORRECT_URL=https://1317742320-xxxx.ap-shanghai.tencentscf.com
+   ```
+2. 重新构建部署前端（CloudBase / Vercel 均需读取该环境变量）。
+
+### 三、申请讯飞星火密钥
+
+注册 [讯飞开放平台](https://console.xfyun.cn/) → 创建应用 → 在「服务管控」领取模型的 `APIKey` 与 `APISecret`（新用户有免费 token）。
+- Spark X1.5（推荐）：[console.xfyun.cn/services/bmx1](https://console.xfyun.cn/services/bmx1)，`SPARK_MODEL=spark-x`（走 `/v2` 接口，需**关闭深度思考**，代码已内置 `thinking: {type:'disabled'}` 加快响应）
+- Spark Lite（实名后无限量）：`SPARK_MODEL=lite`（走 `/v1` 接口，最快）
+- Spark Max：`SPARK_MODEL=generalv3.5`（走 `/v1` 接口）
+
+### 验证
+
+登录后在打卡页输入一句译文，点击「AI 纠正」，应显示修正译文、问题与建议。
+
+### 注意事项
+
+- 每个句子独立调用一次，连续批改多句会消耗较多 token，建议按需使用。
+- 若提示「服务器未配置讯飞密钥」：说明云函数环境变量未配置，请检查 `SPARK_API_KEY` / `SPARK_API_SECRET`。
+- 若本地开发想走 SCF，可在 `.env.local` 中同样配置 `VITE_AI_CORRECT_URL`。
+
+---
+
 ## 部署后的日常维护
 
 ### 更新部署流程
