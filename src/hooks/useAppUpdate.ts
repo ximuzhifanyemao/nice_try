@@ -54,17 +54,19 @@ export function useAppUpdate() {
       const currentVersion = await getCurrentVersion()
       console.log('[OTA] 当前版本:', currentVersion, '| 平台:', isNative ? '原生' : 'Web')
 
-      // 从 Supabase 获取最新版本
+      // 从 Supabase 获取最新版本（用数组返回，避免空表报 PGRST116）
       const { data, error: dbError } = await supabase
         .from('app_versions')
         .select('*')
         .eq('is_active', true)
         .order('version_code', { ascending: false })
         .limit(1)
-        .single()
 
       if (dbError) {
-        const msg = dbError.code === 'PGRST116' || dbError.message?.includes('does not exist')
+        const isTableMissing =
+          dbError.code === '42P01' ||
+          (dbError.message?.includes('does not exist') && dbError.message?.includes('app_versions'))
+        const msg = isTableMissing
           ? `app_versions 表不存在，请在 Supabase 执行 SQL 初始化`
           : `查询 Supabase 失败: ${dbError.message}`
         console.warn('[OTA]', msg)
@@ -73,14 +75,15 @@ export function useAppUpdate() {
         return null
       }
 
-      if (!data) {
+      const row = data?.[0]
+      if (!row) {
         console.log('[OTA] 无可用版本')
         setStatus('up_to_date')
         return null
       }
 
       // 比较版本号
-      const latestVersion = data.version
+      const latestVersion = row.version
       console.log('[OTA] 最新版本:', latestVersion, '| 当前版本:', currentVersion)
       if (compareVersions(latestVersion, currentVersion) <= 0) {
         console.log('[OTA] 已是最新版本')
@@ -89,12 +92,12 @@ export function useAppUpdate() {
       }
 
       const info: UpdateInfo = {
-        version: data.version,
-        versionCode: data.version_code,
-        bundleUrl: data.bundle_url,
-        checksum: data.checksum,
-        releaseNotes: data.release_notes,
-        fileSize: data.file_size,
+        version: row.version,
+        versionCode: row.version_code,
+        bundleUrl: row.bundle_url,
+        checksum: row.checksum,
+        releaseNotes: row.release_notes,
+        fileSize: row.file_size,
       }
 
       console.log('[OTA] 发现新版本:', info.version)

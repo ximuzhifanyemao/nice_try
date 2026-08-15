@@ -132,6 +132,22 @@ export default function Home() {
         </Link>
       )}
 
+      {/* 手机 App 下载入口 */}
+      <a
+        href="/kaoyan-tracker.apk"
+        download
+        className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 p-3 border border-blue-200 dark:border-blue-800/50 transition-colors hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-950/60 dark:hover:to-indigo-950/60"
+      >
+        <div className="h-9 w-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 text-base">
+          📱
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-blue-700 dark:text-blue-300">下载手机 App</p>
+          <p className="text-[11px] text-blue-500/70 dark:text-blue-400/60">Android 原生体验 · 离线可用 · 消息提醒</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-blue-600 text-white text-xs font-medium px-3 py-1">下载</span>
+      </a>
+
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 items-start">
         <div>
           <Countdown />
