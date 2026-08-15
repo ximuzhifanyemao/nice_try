@@ -1,6 +1,6 @@
 import { useAppUpdate } from '../hooks/useAppUpdate'
 import { Capacitor } from '@capacitor/core'
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 
 export default function UpdateChecker() {
   const {
