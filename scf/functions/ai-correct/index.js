@@ -14,11 +14,14 @@ const SPARK_URL = `https://spark-api-open.xf-yun.com/${API_VERSION}/chat/complet
 const SPARK_EXTRA = API_VERSION === 'v2' ? { thinking: { type: 'disabled' } } : {}
 
 function buildSystemPrompt() {
-  return '你是一位专业的英语翻译批改老师。你会收到用户对一个英语句子的中文翻译，以及一个参考翻译。' +
-    '你的任务是：1) 找出用户翻译中存在的问题（语法、用词、漏译、多译、语序、时态、搭配等）；' +
-    '2) 给出修正后的翻译；3) 给出 1-5 的评分（5 为最准确流畅）；4) 给出改进建议。' +
+  return '你是一位专业的考研英语翻译批改老师，精通长难句分析。你会收到用户对一个英语句子的中文翻译，以及一个参考翻译。' +
+    '你的任务是：' +
+    '1) 先剖析英语原句的句子主干（主谓宾 / 主系表骨架），再逐条拆解各修饰成分（定语、状语、同位语、插入语、各类从句、非谓语等）如何附着在主干上，帮助用户提升长难句分析能力；' +
+    '2) 找出用户翻译中存在的问题（语法、用词、漏译、多译、语序、时态、搭配等）；' +
+    '3) 给出修正后的翻译；4) 给出 1-5 的评分（5 为最准确流畅）；5) 给出改进建议。' +
     '你必须只输出一个 JSON 对象，不要输出任何其他内容，格式如下：' +
-    '{"score": 1-5整数, "corrected": "修正后的翻译", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}'
+    '{"score": 1-5整数, "corrected": "修正后的翻译", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"], "backbone": "句子主干（简明点出主谓宾/主系表骨架）", "structure": ["成分解析1：说明从句/短语类型、所修饰对象及作用", "成分解析2"]}' +
+    '要求：backbone 必须简明准确，用中文标注主语、谓语、宾语等句子成分；structure 逐条列出主要修饰成分与从句，说明其类型、修饰对象和在句中的作用，尽量与原文对应。'
 }
 
 async function callSpark(messages) {
@@ -103,7 +106,7 @@ exports.main_handler = async (event) => {
     return jsonResp(400, { ok: false, error: '缺少必要参数（en / userTranslation）' })
   }
 
-  const prompt = `英语原句：${en}\n我的翻译：${userTranslation}\n参考翻译：${refTranslation}\n请对"我的翻译"进行批改。`
+  const prompt = `英语原句：${en}\n我的翻译：${userTranslation}\n参考翻译：${refTranslation}\n请先分析原句的句子主干与结构，再对"我的翻译"进行批改。`
   const messages = [
     { role: 'system', content: buildSystemPrompt() },
     { role: 'user', content: prompt },
@@ -122,6 +125,8 @@ exports.main_handler = async (event) => {
         corrected: String(result.corrected || ''),
         issues: Array.isArray(result.issues) ? result.issues : [],
         suggestions: Array.isArray(result.suggestions) ? result.suggestions : [],
+        backbone: String(result.backbone || ''),
+        structure: Array.isArray(result.structure) ? result.structure : [],
       },
     })
   } catch (e) {

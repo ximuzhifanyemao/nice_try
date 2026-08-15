@@ -28,8 +28,8 @@ const corsHeaders = {
 
 /** 构造批改提示词，要求模型输出严格 JSON */
 function buildPrompt(en: string, userTranslation: string, refTranslation: string): string {
-  return `你是一位专业的英语考研翻译批改老师，帮助考生精准定位并改进译文。请基于参考译文，对 "学生的译文" 进行批改。
-
+  return `你是一位专业的考研英语翻译批改老师，精通长难句分析，帮助考生精准定位并改进译文。请先剖析英语原句的句子主干与结构，再基于参考译文对 "学生的译文" 进行批改。
+  
 【原文（英文）】
 ${en}
 
@@ -40,13 +40,14 @@ ${userTranslation}
 ${refTranslation}
 
 批改要求：
-1. 判断学生译文在准确性、通顺度、对长难句结构与固定搭配的把握上是否到位。
-2. 给出修正后的完整译文，尽量贴近原文含义又符合中文表达习惯。
-3. 逐条指出学生译文的突出问题（用词、语序、漏译、赘译、语法等）。
-4. 给出可执行的改进建议。
+1. 先分析英语原句的句子主干（主谓宾 / 主系表骨架），用中文标注主语、谓语、宾语等成分；再逐条拆解主要修饰成分与从句（定语、状语、同位语、插入语、非谓语、各类从句等），说明其类型、所修饰的对象和在句中的作用，帮助用户提升长难句分析能力。
+2. 判断学生译文在准确性、通顺度、对长难句结构与固定搭配的把握上是否到位。
+3. 给出修正后的完整译文，尽量贴近原文含义又符合中文表达习惯。
+4. 逐条指出学生译文的突出问题（用词、语序、漏译、赘译、语法等）。
+5. 给出可执行的改进建议。
 
 请只输出一个 JSON 对象，禁止输出任何其他文字或 Markdown 代码块标记，格式严格如下：
-{"score": 0, "corrected": "修正后的完整译文", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}`;
+{"score": 0, "corrected": "修正后的完整译文", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"], "backbone": "句子主干（简明点出主谓宾/主系表骨架）", "structure": ["成分解析1：说明从句/短语类型、所修饰对象及作用", "成分解析2"]}`;
 }
 
 /** 清洗模型返回的 JSON：去除可能包裹的 ```json ``` 代码块与首尾空白 */
@@ -62,7 +63,7 @@ function parseResult(raw: string) {
   try {
     return JSON.parse(extractJson(raw))
   } catch {
-    return { score: null, corrected: raw, issues: [], suggestions: [] }
+    return { score: null, corrected: raw, issues: [], suggestions: [], backbone: '', structure: [] }
   }
 }
 

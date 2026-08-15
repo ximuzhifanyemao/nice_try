@@ -14,6 +14,8 @@ interface AiCorrection {
   corrected: string
   issues: string[]
   suggestions: string[]
+  backbone: string
+  structure: string[]
 }
 
 // CloudBase 云函数 HTTP 地址（国内节点直连讯飞，稳定）；未配置时回退到 Supabase Edge Function
@@ -411,6 +413,22 @@ export default function EnglishCheckin() {
                           </span>
                         )}
                       </div>
+                      {r.backbone && (
+                        <div className="rounded-md border border-purple-200 dark:border-purple-700/50 bg-white/60 dark:bg-slate-900/40 px-3 py-2">
+                          <p className="text-xs font-bold text-purple-700 dark:text-purple-300 mb-1">句子主干</p>
+                          <p className="text-sm leading-relaxed text-gray-800 dark:text-slate-100 break-words">{r.backbone}</p>
+                        </div>
+                      )}
+                      {r.structure.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">结构解析</p>
+                          <ul className="list-disc list-inside space-y-0.5">
+                            {r.structure.map((item, i) => (
+                              <li key={i} className="text-xs text-gray-700 dark:text-slate-200 break-words">{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       {r.corrected && (
                         <div>
                           <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">修正译文</p>
