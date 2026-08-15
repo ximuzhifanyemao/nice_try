@@ -35,3 +35,10 @@ android/.gradle/
 assets/
 # PWA icons (not used, kept for reference)
 icons/
+
+# PDF 文件（软著材料等，不入库）
+*.pdf
+
+# 软著相关（脚本与源材料，不入库）
+scripts/export-copyright-*.mjs
+软著源材料/
