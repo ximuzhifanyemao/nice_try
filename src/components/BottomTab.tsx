@@ -15,6 +15,7 @@ export default function BottomTab() {
 
   const allTabs: TabItem[] = [
     { key: 'home', label: '首页', icon: '🏠', path: '/' },
+    { key: 'checkin', label: '打卡', icon: '📖', path: '/english-checkin' },
     { key: 'records', label: '记录', icon: '📝', path: '/my-records' },
     { key: 'timer', label: '计时', icon: '⏱️', path: '/timer' },
     { key: 'summary', label: '统计', icon: '📊', path: '/summary' },
@@ -26,6 +27,7 @@ export default function BottomTab() {
   const getActiveKey = (): string => {
     const { pathname } = location
     if (pathname === '/') return 'home'
+    if (pathname === '/english-checkin') return 'checkin'
     if (pathname === '/my-records' || pathname === '/my-records/new' || /^\/my-records\/[^/]+\/edit$/.test(pathname)) return 'records'
     if (pathname === '/timer') return 'timer'
     if (pathname === '/summary') return 'summary'

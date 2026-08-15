@@ -7,17 +7,20 @@ import type { DailyLog } from '../lib/dailyLogs'
 import { fetchMyLogs, todayStr } from '../lib/dailyLogs'
 import { computeStreak } from '../lib/achievements'
 import { fetchCommitments, getWeekStartStr, getWeekEndStr, sumHoursInRange } from '../lib/commitments'
+import { fetchMyCheckins } from '../lib/englishCheckin'
 
 export default function Home() {
   const { user } = useAuth()
   const [logs, setLogs] = useState<DailyLog[]>([])
   const [loading, setLoading] = useState(true)
   const [weekTarget, setWeekTarget] = useState<number | null>(null)
+  const [checkinCount, setCheckinCount] = useState(0)
 
   useEffect(() => {
     if (!user) {
       setLogs([])
       setWeekTarget(null)
+      setCheckinCount(0)
       setLoading(false)
       return
     }
@@ -32,6 +35,10 @@ export default function Home() {
         setWeekTarget(current && current.status === 'active' ? current.target_hours : null)
       })
       .catch(() => setWeekTarget(null))
+    // 英语打卡进度
+    fetchMyCheckins(user.id)
+      .then((list) => setCheckinCount(list.length))
+      .catch(() => setCheckinCount(0))
   }, [user])
 
   const streak = useMemo(() => computeStreak(logs.map((l) => l.date)), [logs])
@@ -93,6 +100,36 @@ export default function Home() {
             </Link>
           </div>
         </>
+      )}
+
+      {/* 英语长难句打卡入口 */}
+      {user && (
+        <Link
+          to="/english-checkin"
+          className="block rounded-xl bg-white dark:bg-slate-800 p-3 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">📖</span>
+              <div>
+                <p className="text-sm font-medium text-gray-800 dark:text-slate-100">英语长难句打卡</p>
+                <p className="text-[11px] text-gray-500 dark:text-slate-400">柴荣老师 150 天 · 逐句翻译打分</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-slate-400">{checkinCount}/150 天</span>
+              <span className="text-gray-400 dark:text-slate-500">→</span>
+            </div>
+          </div>
+          {checkinCount > 0 && (
+            <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden mt-2">
+              <div
+                className="h-full rounded-full bg-green-500 dark:bg-green-400 transition-all"
+                style={{ width: `${(checkinCount / 150) * 100}%` }}
+              />
+            </div>
+          )}
+        </Link>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 items-start">
