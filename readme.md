@@ -1,6 +1,6 @@
 # 考研追踪
 
-备考学习追踪应用，支持每日学习记录、计时器、数据统计、每周目标承诺等功能。
+备考学习追踪应用，支持每日学习记录、计时器、数据统计、每周目标承诺等功能。提供 Web 和 Android 双端。
 
 ## 技术栈
 
@@ -11,7 +11,8 @@
 | 样式 | Tailwind CSS 4 |
 | 路由 | React Router 7 |
 | 后端 | Supabase (Auth + Database) |
-| 部署 | Vercel |
+| Web 部署 | Vercel |
+| 移动端 | Capacitor 8 (Android) |
 
 ## 分支结构
 
@@ -20,7 +21,7 @@
 | `main` | Web 应用 | Vercel 自动部署 |
 | `feat/capacitor-android` | Android App | 本地构建 APK |
 
-## 快速开始
+## 快速开始（Web）
 
 ```bash
 git clone https://github.com/ximuzhifanyemao/nice_try.git
@@ -83,7 +84,71 @@ VITE_SUPABASE_ANON_KEY=<your-anon-key>
 
 > **重要**：URL 末尾不要加斜杠，不要包含 `/rest/v1` 等路径。直接从 Supabase Settings → API 复制 **Project URL** 字段。
 
+## Android App 构建
+
+### 环境要求
+
+- Java 21（仓库根目录 `jdk-21.0.12+8/` 已包含，Gradle 自动引用）
+- Android Studio（用于安装 Android SDK）
+- Android SDK Platform 36
+
+### 构建步骤
+
+```bash
+# 切换到 Android 分支
+git checkout feat/capacitor-android
+
+# 安装依赖
+npm install
+
+# 构建 Web 资源并同步到 Android 项目
+npm run cap:sync
+
+# 方式一：用 Android Studio 打开并构建
+npm run cap:android
+# 在 Android Studio 中点击 Build → Build Bundle(s) / APK(s) → Build APK(s)
+
+# 方式二：命令行构建签名 APK
+cd android
+./gradlew assembleRelease
+```
+
+APK 输出路径：`android/app/build/outputs/apk/release/app-release.apk`
+
+### 签名配置
+
+签名信息存储在 `android/keystore.properties`（已加入 `.gitignore`）：
+
+```properties
+storeFile=../kaoyan-tracker.keystore
+storePassword=<your-store-password>
+keyAlias=<your-key-alias>
+keyPassword=<your-key-password>
+```
+
+生成 Keystore：
+
+```bash
+keytool -genkey -v -keystore android/kaoyan-tracker.keystore \
+  -alias <alias> -keyalg RSA -keysize 2048 -validity 10000
+```
+
+### 插件说明
+
+| 插件 | 用途 |
+|------|------|
+| `@capacitor/app` | App 生命周期管理 |
+| `@capacitor/preferences` | 替代 localStorage 的持久化存储 |
+| `@capacitor/local-notifications` | 计时器后台本地通知 |
+
+### 原生模块
+
+- `TimerForegroundPlugin` — 前台服务插件，控制计时器在后台持续运行
+- `TimerForegroundService` — Android Foreground Service，在通知栏显示计时状态
+
 ## Vercel 部署
+
+仅适用于 `main` 分支，此分支为 Android 构建分支，不部署到 Vercel。
 
 ### 配置
 
@@ -96,10 +161,6 @@ VITE_SUPABASE_ANON_KEY=<your-anon-key>
 
 `vercel.json` 已配置 SPA 回退规则，所有路由重写到 `index.html`。
 
-### 分支策略
-
-Vercel 仅将 `main` 分支部署到生产环境，其他分支推送不影响线上站点。
-
 ## 项目结构
 
 ```
@@ -109,6 +170,14 @@ src/
 ├── pages/          # 页面组件
 ├── hooks/          # 自定义 Hooks
 └── App.tsx         # 路由配置
+
+android/
+├── app/src/main/java/com/kaoyan/tracker/
+│   ├── MainActivity.java          # Capacitor 入口 Activity
+│   └── plugins/
+│       ├── TimerForegroundPlugin.java    # 前台计时插件
+│       └── TimerForegroundService.java   # 前台通知 Service
+└── app/src/main/res/              # Android 资源文件
 ```
 
 ## 数据库 Schema

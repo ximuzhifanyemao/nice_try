@@ -8,9 +8,17 @@
     "build": "tsc -b && vite build",
     "build:deploy": "vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:sync": "npm run build:deploy && npx cap sync",
+    "cap:android": "npm run build:deploy && npx cap sync android && npx cap open android",
+    "cap:run:android": "npm run build:deploy && npx cap sync android && npx cap run android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/local-notifications": "^8.2.1",
+    "@capacitor/preferences": "^8.0.1",
     "@supabase/supabase-js": "^2.112.0",
     "date-fns": "^4.4.0",
     "react": "^19.2.8",
@@ -18,6 +26,8 @@
     "react-router-dom": "^7.18.2"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.0",
     "@tailwindcss/vite": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.17",

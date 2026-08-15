@@ -1,9 +1,11 @@
-import { lazy, Suspense } from 'react'
-import { HashRouter, Routes, Route, Link } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { HashRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Navbar from './components/Navbar'
 import BottomTab from './components/BottomTab'
 import ProtectedRoute from './components/ProtectedRoute'
+import { Capacitor } from '@capacitor/core'
+import { App as CapacitorApp } from '@capacitor/app'
 
 // 路由级代码分割：按需加载页面，减少首屏 bundle 体积
 const Home = lazy(() => import('./pages/Home'))
@@ -53,9 +55,28 @@ function ConfigBanner() {
   )
 }
 
+/** Capacitor 原生返回按钮处理：在 App 内导航回退，而非直接退出应用 */
+function BackButtonHandler() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    const handler = CapacitorApp.addListener('backButton', () => {
+      // 如果当前页面不是首页，则导航回退；否则最小化应用
+      if (window.location.hash !== '#/') {
+        navigate(-1)
+      } else {
+        CapacitorApp.minimizeApp()
+      }
+    })
+    return () => handler.then((h) => h.remove())
+  }, [navigate])
+  return null
+}
+
 export default function App() {
   return (
     <HashRouter>
+      <BackButtonHandler />
       <AuthProvider>
         <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
           <ConfigBanner />
