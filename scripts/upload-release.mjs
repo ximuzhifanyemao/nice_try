@@ -42,6 +42,7 @@ const TAG = `v${VERSION}`
 const APK_PATH = join(__dirname, '..', 'apk', 'kaoyan-tracker.apk')
 const ASSET_NAME = 'kaoyan-tracker.apk'
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`
+const UPLOAD_API = `https://uploads.github.com/repos/${OWNER}/${REPO}`
 const WEB = `https://github.com/${OWNER}/${REPO}`
 
 // ========== 获取 GitHub 令牌 ==========
@@ -62,8 +63,8 @@ function getToken() {
 }
 
 // ========== GitHub API 封装 ==========
-async function ghApi(path, options = {}, token) {
-  const res = await fetch(`${API}${path}`, {
+async function ghApi(path, options = {}, token, base = API) {
+  const res = await fetch(`${base}${path}`, {
     method: options.method || 'GET',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -142,7 +143,7 @@ export async function uploadApkToGithubRelease({ apkPath = APK_PATH } = {}) {
       'Content-Type': 'application/vnd.android.package-archive',
     },
     body: apk,
-  }, token)
+  }, token, UPLOAD_API)
   console.log(`   已上传 asset: ${ASSET_NAME}`)
 
   const downloadUrl = asset.browser_download_url || `${WEB}/releases/download/${TAG}/${ASSET_NAME}`
