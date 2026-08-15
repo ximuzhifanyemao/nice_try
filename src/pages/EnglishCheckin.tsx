@@ -208,27 +208,35 @@ export default function EnglishCheckin() {
         <div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 px-3 py-2 text-sm text-red-600 dark:text-red-300">{error}</div>
       )}
 
-      {/* 原文 */}
+      {/* 逐句翻译：原文 + 翻译输入框放在一起 */}
       <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <h2 className="text-lg font-bold">Day {dayData.day}</h2>
-          <div className="flex items-center gap-2">
-            <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 text-xs">{dayData.type}</span>
-            <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300 text-xs">{dayData.source}</span>
-            {isDone && <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 text-xs">已打卡</span>}
-          </div>
+        <h2 className="text-lg font-bold mb-1">Day {dayData.day}</h2>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300 text-xs">{dayData.type}</span>
+          <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300 text-xs">{dayData.source}</span>
+          {isDone && <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 text-xs">已打卡</span>}
         </div>
+        <p className="text-xs text-gray-400 dark:text-slate-500 mb-3">点击单词标记生词 · 逐句翻译后点击「打分」</p>
 
-        <p className="text-xs text-gray-400 dark:text-slate-500 mt-2 mb-1">点击单词标记不认识的词（标红），方便对照翻译时定位</p>
-
-        <div className="mt-3 space-y-4">
+        <div className="space-y-5">
           {dayData.sentences.map((s, sentIdx) => {
             const tokens = tokenizeSentence(s.en)
+            const tKey = `${dayData.day}-${sentIdx}`
+            const scoreVal = scores.get(tKey)
             const markedCount = tokens.filter(t => t.isWord && markedWords.has(`${dayData.day}-${sentIdx}-${t.idx}`)).length
+
             return (
-              <div key={sentIdx} className="border-l-2 border-green-400 dark:border-green-500 pl-3">
-                {s.num && <span className="text-green-600 dark:text-green-400 font-semibold">{s.num} </span>}
-                <p className="text-[15px] leading-relaxed text-gray-800 dark:text-slate-100 select-none">
+              <div key={sentIdx} className="border border-gray-100 dark:border-slate-700 rounded-lg p-3">
+                {/* 原文 */}
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-green-600 dark:text-green-400">{s.num}</span>
+                  {scoreVal != null && (
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scoreBg(scoreVal)} ${scoreColor(scoreVal)}`}>
+                      相似度 {scoreVal}%
+                    </span>
+                  )}
+                </div>
+                <p className="text-[15px] leading-relaxed text-gray-800 dark:text-slate-100 mb-2 select-none">
                   {tokens.map((t, i) =>
                     t.isWord ? (
                       <span
@@ -239,7 +247,6 @@ export default function EnglishCheckin() {
                             ? 'bg-red-200 text-red-700 dark:bg-red-900/50 dark:text-red-400 font-medium'
                             : 'hover:bg-gray-200 dark:hover:bg-slate-600'
                         }`}
-                        title="点击标记为不认识的词"
                       >{t.text}</span>
                     ) : (
                       <span key={i}>{t.text}</span>
@@ -247,52 +254,32 @@ export default function EnglishCheckin() {
                   )}
                 </p>
                 {markedCount > 0 && (
-                  <p className="text-xs text-red-500 dark:text-red-400 mt-1">{markedCount} 个生词已标记</p>
+                  <p className="text-xs text-red-500 dark:text-red-400 mb-2">{markedCount} 个生词已标记</p>
                 )}
+
+                {/* 翻译输入 */}
+                <textarea
+                  value={translations.get(tKey) || ''}
+                  onChange={e => {
+                    const v = e.target.value
+                    setTranslations(prev => { const next = new Map(prev); next.set(tKey, v); return next })
+                    setScores(prev => { const next = new Map(prev); next.delete(tKey); return next })
+                  }}
+                  placeholder="在此输入你的翻译..."
+                  rows={2}
+                  className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/50 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
+                />
+                <button
+                  onClick={() => handleScore(dayData.day, sentIdx)}
+                  disabled={!translations.get(tKey)?.trim()}
+                  className="mt-1.5 px-3 py-1 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
+                >
+                  打分
+                </button>
               </div>
             )
           })}
         </div>
-      </div>
-
-      {/* 逐句翻译 + 打分 */}
-      <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
-        <h3 className="text-sm font-bold text-gray-700 dark:text-slate-200 mb-2">我的翻译</h3>
-        <p className="text-xs text-gray-400 dark:text-slate-500 mb-3">逐句翻译后点击「打分」对比参考译文</p>
-        {dayData.sentences.map((s, sentIdx) => {
-          const tKey = `${dayData.day}-${sentIdx}`
-          const scoreVal = scores.get(tKey)
-          return (
-            <div key={sentIdx} className="mb-4 last:mb-0">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium text-gray-500 dark:text-slate-400">{s.num} 句</span>
-                {scoreVal != null && (
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scoreBg(scoreVal)} ${scoreColor(scoreVal)}`}>
-                    相似度 {scoreVal}%
-                  </span>
-                )}
-              </div>
-              <textarea
-                value={translations.get(tKey) || ''}
-                onChange={e => {
-                  const v = e.target.value
-                  setTranslations(prev => { const next = new Map(prev); next.set(tKey, v); return next })
-                  setScores(prev => { const next = new Map(prev); next.delete(tKey); return next })
-                }}
-                placeholder="在此输入你的翻译..."
-                rows={2}
-                className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-700/50 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-green-400 focus:border-transparent"
-              />
-              <button
-                onClick={() => handleScore(dayData.day, sentIdx)}
-                disabled={!translations.get(tKey)?.trim()}
-                className="mt-1 px-3 py-1 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
-              >
-                打分
-              </button>
-            </div>
-          )
-        })}
       </div>
 
       {/* 参考译文 */}

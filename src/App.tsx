@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { HashRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { UpdateProvider } from './contexts/UpdateContext'
 import Navbar from './components/Navbar'
 import BottomTab from './components/BottomTab'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -80,6 +81,7 @@ export default function App() {
   return (
     <HashRouter>
       <BackButtonHandler />
+      <UpdateProvider>
       <AuthProvider>
         <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
           <ConfigBanner />
@@ -107,6 +109,7 @@ export default function App() {
           <BottomTab />
         </div>
       </AuthProvider>
+      </UpdateProvider>
     </HashRouter>
   )
 }
