@@ -4,8 +4,8 @@
 // 部署前需在 Supabase 控制台为该函数配置 Secrets：
 //   SPARK_API_KEY   讯飞开放平台应用 APIKey
 //   SPARK_API_SECRET讯飞开放平台应用 APISecret
-//   SPARK_MODEL     （可选）模型。默认 spark-x（深度推理 X1.5，走 /v2 接口）；
-//                   也可用 lite（Spark Lite）、generalv3.5（Spark Max）等（走 /v1 接口）
+//   SPARK_MODEL     （可选）模型。默认 lite（Spark Lite，走 /v1 接口，最快）；
+//                   也可用 spark-x（深度推理 X1.5，走 /v2 接口）、generalv3.5（Spark Max）等
 //
 // 部署命令（本机装 supabase CLI 后执行）：
 //   supabase functions deploy ai-correct --no-verify-jwt
@@ -13,7 +13,7 @@
 
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 
-const SPARK_MODEL = Deno.env.get('SPARK_MODEL') || 'spark-x'
+const SPARK_MODEL = Deno.env.get('SPARK_MODEL') || 'lite'
 // 注意：Spark X 系列走 /v2 接口，Lite/Pro/Max 等走 /v1 接口，需按模型自动切换
 const API_VERSION = SPARK_MODEL === 'spark-x' || SPARK_MODEL === 'x1' ? 'v2' : 'v1'
 const SPARK_URL = `https://spark-api-open.xf-yun.com/${API_VERSION}/chat/completions`
