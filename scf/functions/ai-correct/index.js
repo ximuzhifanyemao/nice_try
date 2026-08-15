@@ -24,6 +24,50 @@ function buildSystemPrompt() {
     '要求：backbone 必须简明准确，用中文标注主语、谓语、宾语等句子成分；structure 逐条列出主要修饰成分与从句，说明其类型、修饰对象和在句中的作用，尽量与原文对应。'
 }
 
+// ---------- 考研词汇查词（action: 'lookup'） ----------
+
+function buildLookupSystemPrompt() {
+  return '你是一位专业的考研英语词汇讲师，精通词根词缀与联想记忆法，熟知考研英语高频词汇、常用搭配与考点。' +
+    '用户会给你一个考研词汇。你的任务是：' +
+    '1) 给出该词在考研语境下的核心释义，逐条列出词性与释义，优先覆盖考研高频义项（含熟词僻义）；' +
+    '2) 用词根词缀拆解或联想记忆等方法给出简明助记；' +
+    '3) 列出考研英语中最常用的搭配（词组 + 中文释义）；' +
+    '4) 给出一句贴合考研语境（阅读/写作/翻译）的例句并附中文翻译；' +
+    '5) 如有考研考点（熟词僻义、易混词辨析、真题考法等）简要说明。' +
+    '你必须只输出一个 JSON 对象，不要输出任何其他内容，格式如下：' +
+    '{"word": "单词", "phonetic": "音标", "meanings": ["词性. 释义1", "词性. 释义2"], "mnemonic": "助记", "collocations": ["搭配1（中文释义）", "搭配2（中文释义）"], "example": "例句（中文翻译）", "examNote": "考研考点说明"}' +
+    '要求：全部使用简体中文；meanings 优先考研高频义项；collocations 聚焦考研常用搭配并给出中文释义；example 尽量贴近考研真题语境。'
+}
+
+async function handleLookup(word) {
+  const prompt = `请查询考研词汇「${word}」的释义、助记、考研常用搭配、例句与考点。`
+  const messages = [
+    { role: 'system', content: buildLookupSystemPrompt() },
+    { role: 'user', content: prompt },
+  ]
+  try {
+    const content = await callSpark(messages)
+    const result = extractJson(content)
+    if (!result) {
+      return jsonResp(500, { ok: false, error: 'AI 输出格式异常' })
+    }
+    return jsonResp(200, {
+      ok: true,
+      data: {
+        word: String(result.word || word),
+        phonetic: String(result.phonetic || ''),
+        meanings: Array.isArray(result.meanings) ? result.meanings.map(String) : [],
+        mnemonic: String(result.mnemonic || ''),
+        collocations: Array.isArray(result.collocations) ? result.collocations.map(String) : [],
+        example: String(result.example || ''),
+        examNote: String(result.examNote || ''),
+      },
+    })
+  } catch (e) {
+    return jsonResp(502, { ok: false, error: e.message || 'AI 查词失败' })
+  }
+}
+
 async function callSpark(messages) {
   const resp = await fetch(SPARK_URL, {
     method: 'POST',
@@ -95,13 +139,25 @@ exports.main_handler = async (event) => {
   const { options, body } = parseEvent(event || {})
   if (options) return jsonResp(200, { ok: true })
 
-  const en = String(body.en || '').trim()
-  const userTranslation = String(body.userTranslation || '').trim()
-  const refTranslation = String(body.refTranslation || '').trim()
+  const action = String(body.action || 'correct').trim()
 
   if (!API_KEY || !API_SECRET) {
     return jsonResp(500, { ok: false, error: '服务器未配置讯飞密钥' })
   }
+
+  // 查词：AI 查询考研单词释义/助记/搭配（action: 'lookup'）
+  if (action === 'lookup') {
+    const word = String(body.word || '').trim()
+    if (!word) {
+      return jsonResp(400, { ok: false, error: '缺少必要参数（word）' })
+    }
+    return handleLookup(word)
+  }
+
+  // 默认：翻译批改
+  const en = String(body.en || '').trim()
+  const userTranslation = String(body.userTranslation || '').trim()
+  const refTranslation = String(body.refTranslation || '').trim()
   if (!en || !userTranslation) {
     return jsonResp(400, { ok: false, error: '缺少必要参数（en / userTranslation）' })
   }

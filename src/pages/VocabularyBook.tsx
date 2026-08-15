@@ -1,13 +1,73 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loadVocabulary, removeWordFromVocabulary, clearVocabulary, type VocabDay } from '../lib/vocabulary'
 import { ENGLISH_DAILY } from '../data/englishDaily'
+import { lookupWord, getCachedLookup, type WordLookup } from '../lib/wordLookup'
+
+// AI 查词结果卡片
+function LookupResultCard({ data }: { data: WordLookup }) {
+  return (
+    <div className="mt-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 p-3 space-y-2">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className="text-[15px] font-bold text-purple-700 dark:text-purple-300">{data.word}</span>
+        {data.phonetic && <span className="text-xs text-purple-400 dark:text-purple-400/70">{data.phonetic}</span>}
+      </div>
+
+      {data.meanings.length > 0 && (
+        <div>
+          <p className="text-[11px] font-medium text-purple-400 dark:text-purple-400/70 mb-1">释义</p>
+          <ul className="space-y-0.5">
+            {data.meanings.map((m, i) => (
+              <li key={i} className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">{m}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {data.mnemonic && (
+        <div>
+          <p className="text-[11px] font-medium text-purple-400 dark:text-purple-400/70 mb-0.5">助记</p>
+          <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">{data.mnemonic}</p>
+        </div>
+      )}
+
+      {data.collocations.length > 0 && (
+        <div>
+          <p className="text-[11px] font-medium text-purple-400 dark:text-purple-400/70 mb-1">考研常用搭配</p>
+          <ul className="space-y-0.5">
+            {data.collocations.map((c, i) => (
+              <li key={i} className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">· {c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {data.example && (
+        <div>
+          <p className="text-[11px] font-medium text-purple-400 dark:text-purple-400/70 mb-0.5">例句</p>
+          <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">{data.example}</p>
+        </div>
+      )}
+
+      {data.examNote && (
+        <div>
+          <p className="text-[11px] font-medium text-purple-400 dark:text-purple-400/70 mb-0.5">考研考点</p>
+          <p className="text-xs text-gray-700 dark:text-slate-200 leading-relaxed">{data.examNote}</p>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function VocabularyBook() {
   const navigate = useNavigate()
   const [vocab, setVocab] = useState<VocabDay[]>([])
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set())
   const [confirmClear, setConfirmClear] = useState(false)
+  // AI 查词状态：结果 Map<单词小写, 结果>、加载中 Set、错误信息
+  const [lookupResults, setLookupResults] = useState<Map<string, WordLookup>>(new Map())
+  const [lookupLoading, setLookupLoading] = useState<Set<string>>(new Set())
+  const [lookupError, setLookupError] = useState<string | null>(null)
 
   const refresh = () => setVocab(loadVocabulary())
 
@@ -29,6 +89,27 @@ export default function VocabularyBook() {
     setVocab([])
     setConfirmClear(false)
   }
+
+  // AI 查词：命中缓存直接展示，否则调用后端
+  const handleLookup = useCallback(async (word: string) => {
+    const key = word.toLowerCase()
+    if (lookupLoading.has(key) || lookupResults.has(key)) return
+    const cached = getCachedLookup(word)
+    if (cached) {
+      setLookupResults(prev => { const next = new Map(prev); next.set(key, cached); return next })
+      return
+    }
+    setLookupLoading(prev => new Set(prev).add(key))
+    setLookupError(null)
+    try {
+      const result = await lookupWord(word)
+      setLookupResults(prev => { const next = new Map(prev); next.set(key, result); return next })
+    } catch (e) {
+      setLookupError(e instanceof Error ? e.message : 'AI 查词失败，请稍后重试')
+    } finally {
+      setLookupLoading(prev => { const next = new Set(prev); next.delete(key); return next })
+    }
+  }, [lookupLoading, lookupResults])
 
   const toggleExpand = (day: number) => {
     setExpandedDays(prev => {
@@ -91,6 +172,10 @@ export default function VocabularyBook() {
         </div>
       </div>
 
+      {lookupError && (
+        <div className="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">AI 查词失败：{lookupError}</div>
+      )}
+
       {/* 按天分组展示 */}
       {vocab.map((dayEntry) => {
         const isExpanded = expandedDays.has(dayEntry.day)
@@ -131,14 +216,27 @@ export default function VocabularyBook() {
                           {w.sentence}
                         </p>
                       </div>
-                      <button
-                        onClick={() => handleRemove(dayEntry.day, w.word, w.sentence)}
-                        className="shrink-0 text-gray-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 transition-colors cursor-pointer text-lg leading-none mt-0.5"
-                        title="移除"
-                      >
-                        ✕
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => handleLookup(w.word)}
+                          disabled={lookupLoading.has(w.word.toLowerCase())}
+                          className="px-2.5 py-1 rounded-md bg-purple-500 hover:bg-purple-600 disabled:opacity-50 text-white text-xs font-medium transition-colors cursor-pointer"
+                          title="AI 查词"
+                        >
+                          {lookupLoading.has(w.word.toLowerCase()) ? '查词中…' : 'AI 查词'}
+                        </button>
+                        <button
+                          onClick={() => handleRemove(dayEntry.day, w.word, w.sentence)}
+                          className="text-gray-300 dark:text-slate-600 hover:text-red-500 dark:hover:text-red-400 transition-colors cursor-pointer text-lg leading-none mt-0.5"
+                          title="移除"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
+                    {lookupResults.get(w.word.toLowerCase()) && (
+                      <LookupResultCard data={lookupResults.get(w.word.toLowerCase())!} />
+                    )}
                   </div>
                 ))}
 
