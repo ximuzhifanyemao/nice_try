@@ -1,6 +1,6 @@
 # 考研追踪
 
-备考学习追踪应用，支持每日学习记录、计时器、数据统计、每周目标承诺等功能。提供 Web 和 Android 双端。
+备考学习追踪应用，支持每日学习记录、计时器、数据统计、每周目标承诺、英语长难句打卡等功能。提供 Web 和 Android 双端。
 
 ## 技术栈
 
@@ -11,7 +11,7 @@
 | 样式 | Tailwind CSS 4 |
 | 路由 | React Router 7 |
 | 后端 | Supabase (Auth + Database) |
-| Web 部署 | Vercel |
+| Web 部署 | Vercel / CloudBase |
 | 移动端 | Capacitor 8 (Android) |
 
 ## 分支结构
@@ -20,6 +20,21 @@
 |------|------|----------|
 | `main` | Web 应用 | Vercel 自动部署 |
 | `feat/capacitor-android` | Android App | 本地构建 APK |
+| `feat/150-day-english-checkin` | 英语长难句打卡 | Web 预览 + 待合并 |
+
+## 功能概览
+
+- **首页**：倒计时、日历热力图、连续打卡统计、本周进度
+- **记录**：每日学习记录（科目、时长、活动内容）
+- **计时**：正计时 / 倒计时学习计时器
+- **统计**：学习时长趋势图、科目分布
+- **目标**：每周目标承诺 + 押金系统
+- **📖 英语长难句打卡**：柴荣老师 150 天打卡计划
+  - 点击单词标记生词（标红）
+  - 逐句翻译 + AI 相似度打分
+  - 长难句解析（词汇、断句划分、语法分析）
+  - 顺序打卡 + 撤销功能
+  - 150 天进度网格
 
 ## 快速开始（Web）
 
@@ -66,6 +81,12 @@ npm run dev
 - 为 `daily_logs` 添加 `deleted_at` 列
 - 将原 UNIQUE 约束改为部分唯一索引（仅对未删除记录生效）
 - 更新 SELECT 策略：公开记录任何人可读，回收站记录仅本人可见
+
+**Step 4: `supabase-migration-english-checkin.sql`**
+
+英语长难句打卡表迁移：
+- `english_checkin` 表（user_id + day 唯一约束）
+- RLS 策略：仅本人可读写自己的打卡记录
 
 ### 3. 配置 Authentication
 
@@ -206,6 +227,16 @@ android/
 | deposit_amount | NUMERIC | 押金金额 |
 | status | TEXT | active / won / lost |
 | settled_at | TIMESTAMPTZ | 结算时间 |
+
+### english_checkin
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| id | UUID | 主键 |
+| user_id | UUID | 关联 auth.users |
+| day | INTEGER | 打卡天数（1-150） |
+| completed_at | TIMESTAMPTZ | 完成时间 |
+| created_at | TIMESTAMPTZ | 创建时间 |
 
 ## License
 
