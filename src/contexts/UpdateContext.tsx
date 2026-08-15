@@ -8,7 +8,6 @@ interface UpdateContextType {
   error: string | null
   checkForUpdate: () => Promise<UpdateInfo | null>
   downloadAndInstall: (info: UpdateInfo) => Promise<any>
-  applyNow: (bundleId: string) => Promise<void>
 }
 
 const UpdateContext = createContext<UpdateContextType | null>(null)

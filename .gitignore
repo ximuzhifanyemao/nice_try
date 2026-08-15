@@ -35,3 +35,13 @@ android/.gradle/
 assets/
 # PWA icons (not used, kept for reference)
 icons/
+
+# OTA 上传配置（含 service_role key，不能提交）
+.env.ota
+
+# APK 构建产物（放 apk/ 目录，不进 git，避免被嵌入 App 资产导致体积膨胀）
+apk/
+*.apk
+
+# 本地 JDK（构建用，不进 git）
+jdk-*/

@@ -8,6 +8,7 @@ import { fetchMyLogs, todayStr } from '../lib/dailyLogs'
 import { computeStreak } from '../lib/achievements'
 import { fetchCommitments, getWeekStartStr, getWeekEndStr, sumHoursInRange } from '../lib/commitments'
 import { fetchMyCheckins } from '../lib/englishCheckin'
+import { apkDownloadUrl } from '../lib/supabase'
 
 export default function Home() {
   const { user } = useAuth()
@@ -134,8 +135,9 @@ export default function Home() {
 
       {/* 手机 App 下载入口 */}
       <a
-        href="/kaoyan-tracker.apk"
-        download
+        href={apkDownloadUrl}
+        target="_blank"
+        rel="noopener noreferrer"
         className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/40 dark:to-indigo-950/40 p-3 border border-blue-200 dark:border-blue-800/50 transition-colors hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-950/60 dark:hover:to-indigo-950/60"
       >
         <div className="h-9 w-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 text-base">

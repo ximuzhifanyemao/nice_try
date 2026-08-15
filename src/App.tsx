@@ -23,6 +23,7 @@ const Trash = lazy(() => import('./pages/Trash'))
 const Achievements = lazy(() => import('./pages/Achievements'))
 const GoalPage = lazy(() => import('./pages/GoalPage'))
 const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
+const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
 
 function PageLoading() {
   return (
@@ -104,6 +105,7 @@ export default function App() {
                 <Route path="/achievements" element={<Achievements />} />
                 <Route path="/goal" element={<GoalPage />} />
                 <Route path="/english-checkin" element={<EnglishCheckin />} />
+                <Route path="/vocabulary" element={<VocabularyBook />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>
