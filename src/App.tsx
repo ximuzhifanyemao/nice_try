@@ -5,6 +5,7 @@ import { UpdateProvider } from './contexts/UpdateContext'
 import Navbar from './components/Navbar'
 import BottomTab from './components/BottomTab'
 import ProtectedRoute from './components/ProtectedRoute'
+import UpdateChecker from './components/UpdateChecker'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 
@@ -85,6 +86,7 @@ export default function App() {
       <AuthProvider>
         <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
           <ConfigBanner />
+          <UpdateChecker />
           <Navbar />
           <Suspense fallback={<PageLoading />}>
             <Routes>
