@@ -50,6 +50,23 @@ ${refTranslation}
 {"score": 0, "corrected": "修正后的完整译文", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"], "backbone": "句子主干（简明点出主谓宾/主系表骨架）", "structure": ["成分解析1：说明从句/短语类型、所修饰对象及作用", "成分解析2"]}`;
 }
 
+/** 构造查词提示词（action: 'lookup'），要求模型输出严格 JSON */
+function buildLookupPrompt(word: string): string {
+  return `你是一位专业的考研英语词汇讲师，精通词根词缀与联想记忆法，熟知考研英语高频词汇、常用搭配与考点。请查询考研词汇「${word}」。
+
+查询要求：
+1. 给出该词在考研语境下的核心释义，逐条列出词性与释义，优先覆盖考研高频义项（含熟词僻义）。
+2. 用词根词缀拆解或联想记忆等方法给出简明助记。
+3. 列出考研英语中最常用的搭配（词组 + 中文释义）。
+4. 给出一句贴合考研语境（阅读/写作/翻译）的例句并附中文翻译。
+5. 如有考研考点（熟词僻义、易混词辨析、真题考法等）简要说明。
+
+请只输出一个 JSON 对象，禁止输出任何其他文字或 Markdown 代码块标记，格式严格如下：
+{"word": "单词", "phonetic": "音标", "meanings": ["词性. 释义1", "词性. 释义2"], "mnemonic": "助记", "collocations": ["搭配1（中文释义）", "搭配2（中文释义）"], "example": "例句（中文翻译）", "examNote": "考研考点说明"}
+
+要求：全部使用简体中文；meanings 优先考研高频义项；collocations 聚焦考研常用搭配并给出中文释义；example 尽量贴近考研真题语境。`;
+}
+
 /** 清洗模型返回的 JSON：去除可能包裹的 ```json ``` 代码块与首尾空白 */
 function extractJson(text: string): string {
   return text
@@ -89,6 +106,70 @@ serve(async (req) => {
     }
 
     const body = await req.json()
+    const action = String(body.action || 'correct').trim()
+
+    // 查词分支：AI 查询考研单词释义/助记/搭配（action: 'lookup'）
+    if (action === 'lookup') {
+      const word = String(body.word || '').trim()
+      if (!word) {
+        return new Response(JSON.stringify({ error: '缺少 word 参数' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      const messages = [
+        { role: 'system', content: '你是一个严谨、细致的考研英语词汇讲师。' },
+        { role: 'user', content: buildLookupPrompt(word) },
+      ]
+
+      const sparkResp = await fetch(SPARK_URL, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SPARK_API_KEY}:${SPARK_API_SECRET}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: SPARK_MODEL,
+          temperature: 0.3,
+          max_tokens: 2000,
+          messages,
+          ...(API_VERSION === 'v2' ? { thinking: { type: 'disabled' } } : {}),
+        }),
+      })
+
+      if (!sparkResp.ok) {
+        const errText = await sparkResp.text()
+        return new Response(
+          JSON.stringify({ error: `星火接口返回 ${sparkResp.status}: ${errText}` }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const data = await sparkResp.json()
+      const content: string = data?.choices?.[0]?.message?.content ?? ''
+      let result: Record<string, unknown>
+      try {
+        result = JSON.parse(extractJson(content))
+      } catch {
+        result = {}
+      }
+
+      return new Response(
+        JSON.stringify({
+          word: String(result.word || word),
+          phonetic: String(result.phonetic || ''),
+          meanings: Array.isArray(result.meanings) ? result.meanings.map(String) : [],
+          mnemonic: String(result.mnemonic || ''),
+          collocations: Array.isArray(result.collocations) ? result.collocations.map(String) : [],
+          example: String(result.example || ''),
+          examNote: String(result.examNote || ''),
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // 默认：翻译批改
     const en = String(body.en || '').trim()
     const userTranslation = String(body.userTranslation || '').trim()
     const refTranslation = String(body.refTranslation || '').trim()
