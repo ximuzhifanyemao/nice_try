@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { CapacitorUpdater } from '@capgo/capacitor-updater'
+import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { supabase } from '../lib/supabase'
 
@@ -33,10 +33,10 @@ export function useAppUpdate() {
   const getCurrentVersion = useCallback(async (): Promise<{ version: string; versionCode: number }> => {
     try {
       if (Capacitor.isNativePlatform()) {
-        const builtin = await CapacitorUpdater.getBuiltinVersion()
+        const info = await App.getInfo()
         return {
-          version: builtin.version,
-          versionCode: (builtin as any).version_code ?? 0,
+          version: info.version,
+          versionCode: 0, // App.getInfo() 不提供 versionCode，用 0 回退
         }
       }
     } catch {
@@ -122,59 +122,29 @@ export function useAppUpdate() {
     }
   }, [getCurrentVersion])
 
-  // 下载并安装更新
+  // 下载更新（APK 模式）：打开系统浏览器下载 APK，用户手动安装
   const downloadAndInstall = useCallback(async (info: UpdateInfo) => {
-    if (!Capacitor.isNativePlatform()) return
-
     setStatus('downloading')
-    setDownloadProgress(0)
     setError(null)
 
     try {
-      // 监听下载进度
-      const listener = await CapacitorUpdater.addListener('download', (state) => {
-        if (state.percent !== undefined) {
-          setDownloadProgress(state.percent)
-        }
-      })
+      if (Capacitor.isNativePlatform()) {
+        // Android 原生：使用 window.open 打开 APK 下载链接
+        // 系统浏览器/下载管理器会自动下载 APK，用户点击通知即可安装
+        window.open(info.bundleUrl, '_system')
+      } else {
+        // Web 端：直接在新标签页打开下载链接
+        window.open(info.bundleUrl, '_blank')
+      }
 
-      // 下载 bundle
-      const bundle = await CapacitorUpdater.download({
-        url: info.bundleUrl,
-        version: info.version,
-      })
-
-      listener.remove()
-
-      setStatus('downloaded')
       setDownloadProgress(100)
-
-      // 设为下次启动时加载
-      await CapacitorUpdater.next({ id: bundle.id })
-
-      setStatus('installing')
-
-      // 通知用户重启
-      return bundle
+      setStatus('downloaded')
+      return true
     } catch (err) {
       const message = err instanceof Error ? err.message : '下载更新失败'
       setError(message)
       setStatus('error')
       return null
-    }
-  }, [])
-
-  // 立即应用更新（重启 App）
-  const applyNow = useCallback(async (bundleId: string) => {
-    if (!Capacitor.isNativePlatform()) return
-    try {
-      // 必须先通知 ready
-      await CapacitorUpdater.notifyAppReady()
-      await CapacitorUpdater.set({ id: bundleId })
-    } catch (err) {
-      const message = err instanceof Error ? err.message : '安装更新失败'
-      setError(message)
-      setStatus('error')
     }
   }, [])
 
@@ -198,7 +168,6 @@ export function useAppUpdate() {
     error,
     checkForUpdate,
     downloadAndInstall,
-    applyNow,
   }
 }
 

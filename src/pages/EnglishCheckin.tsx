@@ -86,6 +86,28 @@ function tokenizeSentence(text: string): Token[] {
   return tokens
 }
 
+// ---------- 长难句切分还原 ----------
+
+/** 切分片段是无空格的粘连文本，对照原句 en 还原出空格，让单词可读 */
+function restoreChunkSpaces(chunk: string, orig: string): string {
+  if (!chunk) return chunk
+  // 去掉原句空格，建立「去空格索引 -> 原句索引」映射
+  let stripped = ''
+  const map: number[] = []
+  for (let i = 0; i < orig.length; i++) {
+    if (/\s/.test(orig[i])) continue
+    stripped += orig[i]
+    map.push(i)
+  }
+  // 片段也去掉空格再匹配，避免数据里残留的空格导致匹配失败
+  const needle = chunk.replace(/\s+/g, '')
+  if (!needle) return chunk
+  const start = stripped.indexOf(needle)
+  if (start === -1) return chunk // 无法匹配则原样显示
+  const end = start + needle.length - 1
+  return orig.slice(map[start], map[end] + 1)
+}
+
 // ---------- 颜色工具 ----------
 
 function scoreColor(score: number): string {
@@ -322,19 +344,24 @@ export default function EnglishCheckin() {
                             </div>
                           </div>
                         )}
-                        {aItem.split && (
-                          <div>
-                            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">切分</p>
-                            <p className="text-xs leading-relaxed text-gray-600 dark:text-slate-300 font-mono break-words">
-                              {aItem.split.split('//').map((part, pi) => (
-                                <span key={pi}>
-                                  {pi > 0 && <span className="text-red-400 dark:text-red-500 font-bold mx-0.5">//</span>}
-                                  {part}
-                                </span>
-                              ))}
-                            </p>
-                          </div>
-                        )}
+                        {aItem.split && (() => {
+                          // 用 / 分隔各切分段，并对照原句还原空格使单词可读
+                          const parts = aItem.split.split('//').map((p) => p.trim())
+                          const restored = parts.map((p) => restoreChunkSpaces(p, s.en))
+                          return (
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">切分</p>
+                              <p className="text-xs leading-relaxed text-gray-600 dark:text-slate-300 font-mono break-words">
+                                {restored.map((part, pi) => (
+                                  <span key={pi}>
+                                    {pi > 0 && <span className="text-red-400 dark:text-red-500 font-bold mx-0.5">/</span>}
+                                    {part}
+                                  </span>
+                                ))}
+                              </p>
+                            </div>
+                          )
+                        })()}
                         {aItem.grammar.length > 0 && (
                           <div>
                             <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">语法</p>

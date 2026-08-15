@@ -1,11 +1,12 @@
 // ============================================================
-// OTA 热更新上传脚本
+// OTA 更新上传脚本（APK 模式）
 // 用法：node scripts/upload-ota.mjs
 // 前提：设置环境变量 SUPABASE_URL 和 SUPABASE_SERVICE_KEY
+//       APK 文件需已构建到 apk/kaoyan-tracker.apk
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js'
-import { readFileSync, createReadStream, existsSync, mkdirSync } from 'fs'
+import { readFileSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
@@ -17,11 +18,30 @@ const __dirname = dirname(__filename)
 const require = createRequire(import.meta.url)
 const pkg = require('../package.json')
 
+// ========== 从 .env.ota 加载环境变量（无需每次手动 export）==========
+const envPath = join(__dirname, '..', '.env.ota')
+if (existsSync(envPath)) {
+  const envContent = readFileSync(envPath, 'utf-8')
+  for (const line of envContent.split('\n')) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith('#')) continue
+    const eqIdx = trimmed.indexOf('=')
+    if (eqIdx === -1) continue
+    const key = trimmed.slice(0, eqIdx).trim()
+    const val = trimmed.slice(eqIdx + 1).trim()
+    if (!process.env[key]) {
+      process.env[key] = val
+    }
+  }
+}
+
 // ========== 配置 ==========
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY // 需要 service_role key（非 anon key）
 const BUCKET_NAME = 'ota-bundles'
 const VERSION = pkg.version
+const APK_PATH = join(__dirname, '..', 'apk', 'kaoyan-tracker.apk')
+const APK_STORAGE_NAME = 'kaoyan-tracker.apk' // bucket 中使用固定文件名
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error('❌ 请设置环境变量 SUPABASE_URL 和 SUPABASE_SERVICE_KEY')
@@ -29,61 +49,128 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   process.exit(1)
 }
 
+if (!existsSync(APK_PATH)) {
+  console.error(`❌ APK 文件不存在: ${APK_PATH}`)
+  console.error('   请先构建 APK（npm run cap:android 后手动构建）')
+  process.exit(1)
+}
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 // ========== 主流程 ==========
 async function main() {
-  console.log(`\n📦 考研追踪 OTA 更新上传 - v${VERSION}\n`)
+  console.log(`\n📦 考研追踪 OTA 更新上传（APK 模式） - v${VERSION}\n`)
 
-  // 1. 构建项目
-  console.log('🔨 构建项目...')
+  // 1. 构建项目（用于网站）
+  console.log('🔨 构建 Web 项目...')
   execSync('npm run build:deploy', { cwd: join(__dirname, '..'), stdio: 'inherit' })
 
-  // 2. 打包 dist 为 zip
-  const distDir = join(__dirname, '..', 'dist')
-  const zipPath = join(__dirname, '..', `ota-${VERSION}.zip`)
-
-  console.log(`📦 打包 ${distDir} → ${zipPath}`)
-  // 使用 PowerShell 压缩（Windows 兼容）
-  if (process.platform === 'win32') {
-    execSync(
-      `powershell -Command "Compress-Archive -Path '${distDir}\\*' -DestinationPath '${zipPath}' -Force"`,
-      { stdio: 'inherit' }
-    )
-  } else {
-    execSync(`cd "${distDir}" && zip -r "${zipPath}" .`, { stdio: 'inherit' })
-  }
-
-  // 3. 计算文件哈希和大小
-  const zipBuffer = readFileSync(zipPath)
-  const checksum = createHash('sha256').update(zipBuffer).digest('hex')
-  const fileSize = zipBuffer.length
+  // 2. 读取 APK 文件
+  console.log(`📦 读取 APK: ${APK_PATH}`)
+  const apkBuffer = readFileSync(APK_PATH)
+  const checksum = createHash('sha256').update(apkBuffer).digest('hex')
+  const fileSize = apkBuffer.length
   console.log(`   SHA256: ${checksum}`)
   console.log(`   大小: ${(fileSize / 1024).toFixed(1)} KB`)
 
-  // 4. 上传到 Supabase Storage
-  const storagePath = `v${VERSION}.zip`
-  console.log(`\n☁️  上传到 Supabase Storage: ${BUCKET_NAME}/${storagePath}`)
+  // 3. 上传 APK 到 Supabase Storage（REST API 直接上传，避免客户端超时）
+  //    先检查云端是否已有相同大小的 APK，有则跳过上传（避免重复传大文件）
+  console.log(`\n☁️  上传 APK 到 Supabase Storage: ${BUCKET_NAME}/${APK_STORAGE_NAME}`)
 
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(storagePath, zipBuffer, {
-      contentType: 'application/zip',
-      upsert: true,
-    })
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${APK_STORAGE_NAME}`
 
-  if (uploadError) {
-    console.error('❌ 上传失败:', uploadError.message)
-    process.exit(1)
+  // 查询云端当前 APK 大小
+  const { data: fileList } = await supabase.storage.from(BUCKET_NAME).list()
+  const remoteApk = fileList?.find((f) => f.name === APK_STORAGE_NAME)
+  const remoteSize = remoteApk?.metadata?.size ?? 0
+  console.log(`   本地 APK 大小: ${fileSize} bytes | 云端已有: ${remoteSize} bytes`)
+
+  let uploadError = null
+  if (remoteSize === fileSize) {
+    console.log('   ✅ 云端已有相同大小的 APK，跳过上传')
+  } else {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      console.log(`   第 ${attempt} 次尝试...`)
+      try {
+        const response = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
+            'Content-Type': 'application/vnd.android.package-archive',
+            'x-upsert': 'true',
+          },
+          body: apkBuffer,
+          // 不设置 signal，让 Node.js 自行管理超时（默认无限制）
+        })
+
+        if (!response.ok) {
+          const errText = await response.text().catch(() => '')
+          uploadError = new Error(`HTTP ${response.status}: ${errText || response.statusText}`)
+        } else {
+          uploadError = null
+          break
+        }
+      } catch (err) {
+        uploadError = err
+      }
+      if (uploadError) {
+        console.warn(`   ⚠️ 失败: ${uploadError.message}`)
+      }
+      if (!uploadError) break
+      if (attempt < 3) {
+        const wait = attempt * 2000
+        console.log(`   等待 ${wait / 1000}s 后重试...`)
+        await new Promise(r => setTimeout(r, wait))
+      }
+    }
   }
 
-  // 5. 获取公开 URL
+  // 上传失败时：核对云端是否已存在相同大小文件（响应丢失但服务端已接收）
+  if (uploadError) {
+    const { data: recheckList } = await supabase.storage.from(BUCKET_NAME).list()
+    const recheckApk = recheckList?.find((f) => f.name === APK_STORAGE_NAME)
+    if (recheckApk?.metadata?.size === fileSize) {
+      console.log('   ⚠️ 上传响应丢失，但云端已存在相同大小的 APK，视为上传成功')
+      uploadError = null
+    } else {
+      console.error('❌ 上传失败（已重试 3 次）:', uploadError.message)
+      process.exit(1)
+    }
+  }
+
+  // 4. 获取公开 URL
   const { data: urlData } = supabase.storage
     .from(BUCKET_NAME)
-    .getPublicUrl(storagePath)
+    .getPublicUrl(APK_STORAGE_NAME)
 
   const bundleUrl = urlData.publicUrl
   console.log(`   URL: ${bundleUrl}`)
+
+  // 5. 清理旧文件（只保留固定文件名的 APK）
+  //    旧 ZIP 包 + 上传测试残留（__t*.bin）+ 旧版本命名的文件都删掉，避免撑爆 50MB 免费额度
+  console.log(`\n🧹 清理旧文件（保留 ${APK_STORAGE_NAME}）...`)
+  const { data: cleanupList, error: listError } = await supabase.storage
+    .from(BUCKET_NAME)
+    .list()
+
+  if (!listError && cleanupList) {
+    const staleFiles = cleanupList.filter(
+      (f) => f.name !== APK_STORAGE_NAME && f.name !== '.emptyFolderPlaceholder'
+    )
+    if (staleFiles.length > 0) {
+      const pathsToRemove = staleFiles.map((f) => f.name)
+      const { error: removeError } = await supabase.storage
+        .from(BUCKET_NAME)
+        .remove(pathsToRemove)
+      if (removeError) {
+        console.warn(`   ⚠️ 清理失败: ${removeError.message}`)
+      } else {
+        console.log(`   已删除 ${pathsToRemove.length} 个旧文件: ${pathsToRemove.join(', ')}`)
+      }
+    } else {
+      console.log('   无旧文件需要清理')
+    }
+  }
 
   // 6. 写入/更新数据库版本记录
   console.log(`\n📝 写入版本记录到 app_versions 表...`)
@@ -118,21 +205,10 @@ async function main() {
     process.exit(1)
   }
 
-  // 7. 清理本地 zip
-  try {
-    if (process.platform === 'win32') {
-      execSync(`del "${zipPath}"`, { stdio: 'ignore' })
-    } else {
-      execSync(`rm "${zipPath}"`, { stdio: 'ignore' })
-    }
-  } catch {
-    // 忽略清理失败
-  }
-
   console.log(`\n✅ OTA 更新 v${VERSION} 已成功发布！`)
   console.log(`   版本号: ${VERSION} (code: ${versionCode})`)
   console.log(`   SHA256: ${checksum}`)
-  console.log(`   下载链接: ${bundleUrl}\n`)
+  console.log(`   APK 下载链接: ${bundleUrl}\n`)
 }
 
 main().catch((err) => {
