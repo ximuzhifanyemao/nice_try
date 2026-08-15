@@ -42,3 +42,10 @@ icons/
 # 软著相关（脚本与源材料，不入库）
 scripts/export-copyright-*.mjs
 软著源材料/
+
+# 大体积文件不入库（构建产物 / 运行时环境）
+# JDK（Android 构建环境，本地使用即可）
+jdk-21.0.12+8/
+jdk-21.zip
+# APK 构建产物（App 更新走 OTA，不入库）
+*.apk

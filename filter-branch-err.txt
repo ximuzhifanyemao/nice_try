@@ -1,0 +1,8 @@
+﻿git : Cannot rewrite branches: You have unstaged changes.
+At C:\Users\13238\AppData\Local\Temp\trae-agent-toolhost\jobs\job-620a228b5d8340dcb9b9b8d469d6e0a3\command.ps1:15 char:
+6543
++ ... ARNING='1'; git filter-branch --index-filter "sh .git-filter-clean.sh ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Cannot rewrite ...staged changes.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
