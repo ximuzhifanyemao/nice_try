@@ -6,7 +6,6 @@ export default function UpdateChecker() {
   const {
     status,
     updateInfo,
-    downloadProgress,
     error,
     checkForUpdate,
     downloadAndInstall,
