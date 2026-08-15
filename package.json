@@ -1,7 +1,7 @@
 {
   "name": "kaoyan-tracker",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,9 @@
     "preview": "vite preview",
     "cap:sync": "npm run build:deploy && npx cap sync",
     "cap:android": "npm run build:deploy && npx cap sync android && npx cap open android",
-    "cap:run:android": "npm run build:deploy && npx cap sync android && npx cap run android"
+    "cap:run:android": "npm run build:deploy && npx cap sync android && npx cap run android",
+    "ota:upload": "node scripts/upload-ota.mjs",
+    "ota:version": "node -e \"const p=require('./package.json');console.log('v'+p.version)\""
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -19,6 +21,7 @@
     "@capacitor/core": "^8.5.0",
     "@capacitor/local-notifications": "^8.2.1",
     "@capacitor/preferences": "^8.0.1",
+    "@capgo/capacitor-updater": "^8.51.8",
     "@supabase/supabase-js": "^2.112.0",
     "date-fns": "^4.4.0",
     "react": "^19.2.8",
