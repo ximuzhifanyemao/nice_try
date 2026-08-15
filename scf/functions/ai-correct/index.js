@@ -7,7 +7,7 @@
 const API_KEY = process.env.SPARK_API_KEY || ''
 const API_SECRET = process.env.SPARK_API_SECRET || ''
 // spark-x 系列（X1.5 深度推理）走 v2 接口，其余星火模型（Lite/Max 等）走 v1
-const SPARK_MODEL = process.env.SPARK_MODEL || 'spark-x'
+const SPARK_MODEL = process.env.SPARK_MODEL || 'lite'
 const API_VERSION = SPARK_MODEL.startsWith('spark-x') ? 'v2' : 'v1'
 const SPARK_URL = `https://spark-api-open.xf-yun.com/${API_VERSION}/chat/completions`
 // 关闭 Spark X 深度思考，大幅缩短响应时间
