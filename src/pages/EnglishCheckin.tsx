@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { ENGLISH_DAILY, type EnglishDay } from '../data/englishDaily'
 import { fetchMyCheckins, createCheckin, deleteCheckin } from '../lib/englishCheckin'
+import { loadMarkedWords, saveMarkedWords, addDayToVocabulary } from '../lib/vocabulary'
 
 const TOTAL = 150
 
@@ -69,8 +70,8 @@ interface Token {
 function tokenizeSentence(text: string): Token[] {
   const tokens: Token[] = []
   let wordIdx = 0
-  // 匹配单词（含缩写如 don't, it's）+ 非单词字符
-  const re = /([a-zA-Z]+(?:'[a-zA-Z]+)?)|([^a-zA-Z]+)/g
+  // 匹配单词（含缩写 don't, it's 和连字符词 co-operative, state-of-the-art）
+  const re = /([a-zA-Z]+(?:[-'][a-zA-Z]+)*)|([^a-zA-Z]+)/g
   let m
   while ((m = re.exec(text)) !== null) {
     if (m[1]) {
@@ -109,8 +110,8 @@ export default function EnglishCheckin() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // 标记单词：Set<"dayIdx-sentIdx-wordIdx">
-  const [markedWords, setMarkedWords] = useState<Set<string>>(new Set())
+  // 标记单词：Set<"dayIdx-sentIdx-wordIdx">，从 localStorage 初始化
+  const [markedWords, setMarkedWords] = useState<Set<string>>(() => loadMarkedWords())
   // 翻译输入：Map<"dayIdx-sentIdx", string>
   const [translations, setTranslations] = useState<Map<string, string>>(new Map())
   // 打分结果：Map<"dayIdx-sentIdx", number | null>
@@ -149,6 +150,24 @@ export default function EnglishCheckin() {
     setBusy(true); setError(null)
     try {
       await createCheckin(user.id, nextDay)
+
+      // 收集当天标记的生词，存入生词本
+      const dayVocabWords: { word: string; sentence: string; sentIdx: number; wordIdx: number }[] = []
+      const dayData = ENGLISH_DAILY.find((d) => d.day === nextDay)
+      if (dayData) {
+        for (let si = 0; si < dayData.sentences.length; si++) {
+          const tokens = tokenizeSentence(dayData.sentences[si].en)
+          for (const t of tokens) {
+            if (t.isWord && markedWords.has(`${nextDay}-${si}-${t.idx}`)) {
+              dayVocabWords.push({ word: t.text, sentence: dayData.sentences[si].en, sentIdx: si, wordIdx: t.idx })
+            }
+          }
+        }
+        if (dayVocabWords.length > 0) {
+          addDayToVocabulary(nextDay, dayVocabWords)
+        }
+      }
+
       const set = new Set(checkins); set.add(nextDay); setCheckins(set)
       setSelectedDay(nextDay + 1 > TOTAL ? TOTAL : nextDay + 1)
     } catch (e) {
@@ -174,6 +193,7 @@ export default function EnglishCheckin() {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
       else next.add(key)
+      saveMarkedWords(next)
       return next
     })
   }, [])
@@ -276,6 +296,65 @@ export default function EnglishCheckin() {
                 >
                   打分
                 </button>
+
+                {/* 长难句解析 */}
+                {dayData.analysis && (() => {
+                  const aItem = dayData.analysis.find(a => a.sentNum === s.num)
+                  if (!aItem) return null
+                  const hasContent = aItem.vocab.length > 0 || aItem.split || aItem.grammar.length > 0 || aItem.ref
+                  if (!hasContent) return null
+                  return (
+                    <details className="mt-2 group">
+                      <summary className="cursor-pointer text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 select-none font-medium">
+                        长难句解析
+                      </summary>
+                      <div className="mt-2 space-y-2 pl-1">
+                        {aItem.vocab.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">单词</p>
+                            <div className="flex flex-wrap gap-1">
+                              {aItem.vocab.map((v, vi) => (
+                                <span key={vi} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/20 text-xs">
+                                  <span className="font-medium text-purple-700 dark:text-purple-300">{v.word}</span>
+                                  <span className="text-gray-500 dark:text-slate-400">{v.meaning}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {aItem.split && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">切分</p>
+                            <p className="text-xs leading-relaxed text-gray-600 dark:text-slate-300 font-mono">
+                              {aItem.split.split('//').map((part, pi) => (
+                                <span key={pi}>
+                                  {pi > 0 && <span className="text-red-400 dark:text-red-500 font-bold mx-0.5">//</span>}
+                                  {part}
+                                </span>
+                              ))}
+                            </p>
+                          </div>
+                        )}
+                        {aItem.grammar.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">语法</p>
+                            <ul className="list-disc list-inside space-y-0.5">
+                              {aItem.grammar.map((g, gi) => (
+                                <li key={gi} className="text-xs text-gray-600 dark:text-slate-300">{g}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {aItem.ref && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">逐句译文</p>
+                            <p className="text-xs text-gray-600 dark:text-slate-300">{aItem.ref}</p>
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  )
+                })()}
               </div>
             )
           })}
