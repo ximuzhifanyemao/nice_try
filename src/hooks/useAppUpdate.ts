@@ -30,17 +30,23 @@ export function useAppUpdate() {
   const hasChecked = useRef(false)
 
   // 获取当前运行的版本
-  const getCurrentVersion = useCallback(async (): Promise<string> => {
+  const getCurrentVersion = useCallback(async (): Promise<{ version: string; versionCode: number }> => {
     try {
       if (Capacitor.isNativePlatform()) {
         const builtin = await CapacitorUpdater.getBuiltinVersion()
-        return builtin.version
+        return {
+          version: builtin.version,
+          versionCode: (builtin as any).version_code ?? 0,
+        }
       }
     } catch {
       // 非原生环境或插件未加载
     }
     // 回退到全局版本常量（由 Vite define 注入）
-    return (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0') as string
+    return {
+      version: (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0') as string,
+      versionCode: 0,
+    }
   }, [])
 
   // 检查是否有新版本
@@ -51,8 +57,8 @@ export function useAppUpdate() {
     setError(null)
 
     try {
-      const currentVersion = await getCurrentVersion()
-      console.log('[OTA] 当前版本:', currentVersion, '| 平台:', isNative ? '原生' : 'Web')
+      const current = await getCurrentVersion()
+      console.log('[OTA] 当前版本:', current.version, '| code:', current.versionCode, '| 平台:', isNative ? '原生' : 'Web')
 
       // 从 Supabase 获取最新版本（用数组返回，避免空表报 PGRST116）
       const { data, error: dbError } = await supabase
@@ -82,10 +88,13 @@ export function useAppUpdate() {
         return null
       }
 
-      // 比较版本号
+      // 比较版本：先用语义化版本号，相同则比较 version_code
       const latestVersion = row.version
-      console.log('[OTA] 最新版本:', latestVersion, '| 当前版本:', currentVersion)
-      if (compareVersions(latestVersion, currentVersion) <= 0) {
+      const latestVersionCode = row.version_code
+      console.log('[OTA] 最新版本:', latestVersion, '| code:', latestVersionCode, '| 当前版本:', current.version, '| code:', current.versionCode)
+
+      const semverResult = compareVersions(latestVersion, current.version)
+      if (semverResult < 0 || (semverResult === 0 && latestVersionCode <= current.versionCode)) {
         console.log('[OTA] 已是最新版本')
         setStatus('up_to_date')
         return null
