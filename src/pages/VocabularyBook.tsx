@@ -105,7 +105,12 @@ export default function VocabularyBook() {
       const result = await lookupWord(word)
       setLookupResults(prev => { const next = new Map(prev); next.set(key, result); return next })
     } catch (e) {
-      setLookupError(e instanceof Error ? e.message : 'AI 查词失败，请稍后重试')
+      const aborted = e instanceof Error && e.name === 'AbortError'
+      setLookupError(
+        aborted
+          ? 'AI 查词超时，请检查网络后重试'
+          : e instanceof Error ? e.message : 'AI 查词失败，请稍后重试'
+      )
     } finally {
       setLookupLoading(prev => { const next = new Set(prev); next.delete(key); return next })
     }

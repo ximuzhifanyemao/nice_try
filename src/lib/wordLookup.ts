@@ -51,15 +51,22 @@ export async function lookupWord(word: string): Promise<WordLookup> {
 
   let result: WordLookup
   if (AI_CORRECT_URL) {
-    // 腾讯云 SCF 云函数
-    const resp = await fetch(AI_CORRECT_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'lookup', word }),
-    })
-    const json = await resp.json().catch(() => ({}))
-    if (!resp.ok || !json.ok) throw new Error(json.error || `AI 查词失败（${resp.status}）`)
-    result = json.data
+    // 腾讯云 SCF 云函数；加超时防止 WebView 长时间挂起导致黑屏
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 30000)
+    try {
+      const resp = await fetch(AI_CORRECT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'lookup', word }),
+        signal: controller.signal,
+      })
+      const json = await resp.json().catch(() => ({}))
+      if (!resp.ok || !json.ok) throw new Error(json.error || `AI 查词失败（${resp.status}）`)
+      result = json.data
+    } finally {
+      clearTimeout(timer)
+    }
   } else {
     // 兜底：Supabase Edge Function
     const { data, error } = await supabase.functions.invoke('ai-correct', {

@@ -264,15 +264,22 @@ export default function EnglishCheckin() {
     try {
       let result: AiCorrection
       if (AI_CORRECT_URL) {
-        // 走 CloudBase 云函数（国内节点直连讯飞）
-        const resp = await fetch(AI_CORRECT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ en: sentence, userTranslation: userText, refTranslation: refText }),
-        })
-        const json = await resp.json().catch(() => ({}))
-        if (!resp.ok || !json.ok) throw new Error(json.error || `AI 批改失败（${resp.status}）`)
-        result = json.data
+        // 走腾讯云 SCF 云函数（国内节点直连讯飞）；加超时防止 WebView 长时间挂起导致黑屏
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), 30000)
+        try {
+          const resp = await fetch(AI_CORRECT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ en: sentence, userTranslation: userText, refTranslation: refText }),
+            signal: controller.signal,
+          })
+          const json = await resp.json().catch(() => ({}))
+          if (!resp.ok || !json.ok) throw new Error(json.error || `AI 批改失败（${resp.status}）`)
+          result = json.data
+        } finally {
+          clearTimeout(timer)
+        }
       } else {
         // 回退：Supabase Edge Function
         const { data, error } = await supabase.functions.invoke('ai-correct', {
@@ -283,7 +290,12 @@ export default function EnglishCheckin() {
       }
       setAiResults(prev => { const next = new Map(prev); next.set(key, result); return next })
     } catch (e) {
-      setAiError(e instanceof Error ? e.message : 'AI 批改失败，请稍后重试')
+      const aborted = e instanceof Error && e.name === 'AbortError'
+      setAiError(
+        aborted
+          ? 'AI 批改超时，请检查网络后重试'
+          : e instanceof Error ? e.message : 'AI 批改失败，请稍后重试'
+      )
     } finally {
       setAiLoading(prev => { const next = new Set(prev); next.delete(key); return next })
     }
