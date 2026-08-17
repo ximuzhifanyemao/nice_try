@@ -1,5 +1,6 @@
 // 生词本 AI 查词：调用 AI 翻译批改云函数（腾讯云 SCF / Supabase Edge Function）查询考研单词释义
 import { supabase } from './supabase'
+import { postJson } from './httpRequest'
 
 export interface WordLookup {
   word: string
@@ -51,22 +52,10 @@ export async function lookupWord(word: string): Promise<WordLookup> {
 
   let result: WordLookup
   if (AI_CORRECT_URL) {
-    // 腾讯云 SCF 云函数；加超时防止 WebView 长时间挂起导致黑屏
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 30000)
-    try {
-      const resp = await fetch(AI_CORRECT_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'lookup', word }),
-        signal: controller.signal,
-      })
-      const json = await resp.json().catch(() => ({}))
-      if (!resp.ok || !json.ok) throw new Error(json.error || `AI 查词失败（${resp.status}）`)
-      result = json.data
-    } finally {
-      clearTimeout(timer)
-    }
+    // 腾讯云 SCF 云函数；原生平台用原生网络栈，绕开 WebView fetch 崩溃黑屏
+    const { ok, status, body } = await postJson(AI_CORRECT_URL, { action: 'lookup', word })
+    if (!ok || !body?.ok) throw new Error(body?.error || `AI 查词失败（${status}）`)
+    result = body.data
   } else {
     // 兜底：Supabase Edge Function
     const { data, error } = await supabase.functions.invoke('ai-correct', {

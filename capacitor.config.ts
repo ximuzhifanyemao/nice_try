@@ -9,6 +9,10 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
   },
   plugins: {
+    // AI 请求走原生网络栈，绕开 WebView fetch 在部分 ROM 上的崩溃/黑屏
+    CapacitorHttp: {
+      enabled: true,
+    },
     LocalNotifications: {
       // 计时到点提醒使用本地通知（无需服务器推送）
       smallIcon: 'ic_stat_icon',

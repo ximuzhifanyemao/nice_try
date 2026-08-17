@@ -4,6 +4,7 @@ import { ENGLISH_DAILY, type EnglishDay } from '../data/englishDaily'
 import { fetchMyCheckins, createCheckin, deleteCheckin } from '../lib/englishCheckin'
 import { loadMarkedWords, saveMarkedWords, addDayToVocabulary } from '../lib/vocabulary'
 import { supabase } from '../lib/supabase'
+import { postJson } from '../lib/httpRequest'
 
 const TOTAL = 150
 
@@ -264,22 +265,14 @@ export default function EnglishCheckin() {
     try {
       let result: AiCorrection
       if (AI_CORRECT_URL) {
-        // 走腾讯云 SCF 云函数（国内节点直连讯飞）；加超时防止 WebView 长时间挂起导致黑屏
-        const controller = new AbortController()
-        const timer = setTimeout(() => controller.abort(), 30000)
-        try {
-          const resp = await fetch(AI_CORRECT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ en: sentence, userTranslation: userText, refTranslation: refText }),
-            signal: controller.signal,
-          })
-          const json = await resp.json().catch(() => ({}))
-          if (!resp.ok || !json.ok) throw new Error(json.error || `AI 批改失败（${resp.status}）`)
-          result = json.data
-        } finally {
-          clearTimeout(timer)
-        }
+        // 走腾讯云 SCF 云函数；原生平台用原生网络栈，绕开 WebView fetch 崩溃黑屏
+        const { ok, status, body } = await postJson(AI_CORRECT_URL, {
+          en: sentence,
+          userTranslation: userText,
+          refTranslation: refText,
+        })
+        if (!ok || !body?.ok) throw new Error(body?.error || `AI 批改失败（${status}）`)
+        result = body.data
       } else {
         // 回退：Supabase Edge Function
         const { data, error } = await supabase.functions.invoke('ai-correct', {
