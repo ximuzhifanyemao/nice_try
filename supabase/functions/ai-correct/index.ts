@@ -67,12 +67,45 @@ function buildLookupPrompt(word: string): string {
 要求：全部使用简体中文；meanings 优先考研高频义项；collocations 聚焦考研常用搭配并给出中文释义；example 尽量贴近考研真题语境。`;
 }
 
-/** 清洗模型返回的 JSON：去除可能包裹的 ```json ``` 代码块与首尾空白 */
+/** 清洗并容错提取模型返回中的 JSON：去除 ```json 围栏与首尾空白；
+ *  直接解析失败则用平衡花括号精确提取最外层对象并清理尾随逗号后再解析 */
 function extractJson(text: string): string {
-  return text
+  let t = String(text)
+    .replace(/```json/gi, '')
+    .replace(/```/g, '')
     .trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/\s*```$/, '')
+  const tryParse = (s: string) => {
+    try { return JSON.parse(s) } catch { return null }
+  }
+  try {
+    const parsed = tryParse(t)
+    if (parsed) return JSON.stringify(parsed)
+  } catch { /* 继续向下提取 */ }
+
+  const start = t.indexOf('{')
+  if (start !== -1) {
+    let depth = 0, inStr = false, esc = false
+    for (let i = start; i < t.length; i++) {
+      const ch = t[i]
+      if (esc) { esc = false; continue }
+      if (inStr) {
+        if (ch === '\\') esc = true
+        else if (ch === '"') inStr = false
+        continue
+      }
+      if (ch === '"') { inStr = true; continue }
+      if (ch === '{') { depth++; continue }
+      if (ch === '}') {
+        depth--
+        if (depth === 0) {
+          const candidate = t.slice(start, i + 1).replace(/,\s*([}\]])/g, '$1')
+          const parsed = tryParse(candidate)
+          if (parsed) return JSON.stringify(parsed)
+        }
+      }
+    }
+  }
+  return t
 }
 
 /** 解析模型输出为结构化结果，解析失败时兜底返回原始文本 */

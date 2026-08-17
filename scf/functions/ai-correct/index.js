@@ -49,7 +49,19 @@ async function handleLookup(word) {
     const content = await callSpark(messages)
     const result = extractJson(content)
     if (!result) {
-      return jsonResp(500, { ok: false, error: 'AI 输出格式异常' })
+      // 解析失败不报错，兜底返回 AI 原始内容，保证用户至少能看到结果
+      return jsonResp(200, {
+        ok: true,
+        data: {
+          word: word,
+          phonetic: '',
+          meanings: [],
+          mnemonic: `（未获取结构化词条，以下是 AI 原始输出）\n\n${String(content || '')}`,
+          collocations: [],
+          example: '',
+          examNote: '',
+        },
+      })
     }
     return jsonResp(200, {
       ok: true,
@@ -95,13 +107,38 @@ async function callSpark(messages) {
 }
 
 // 容错解析 AI 输出中的 JSON
+// 讯飞模型偶尔会在 JSON 前后多带说明文字、含尾随逗号或被截断，
+// 这里依次：1) 整段解析 2) 用平衡花括号精确提取最外层对象，并清理尾随逗号后再解析
 function extractJson(text) {
   let t = String(text).replace(/```json/gi, '').replace(/```/g, '').trim()
-  try { return JSON.parse(t) } catch (_) { /* 继续尝试截取 */ }
+  const tryParse = (s) => {
+    try { return JSON.parse(s) } catch (_) { return null }
+  }
+  let obj = tryParse(t)
+  if (obj) return obj
   const start = t.indexOf('{')
-  const end = t.lastIndexOf('}')
-  if (start !== -1 && end > start) {
-    try { return JSON.parse(t.slice(start, end + 1)) } catch (_) { /* 无法解析 */ }
+  if (start !== -1) {
+    let depth = 0, inStr = false, esc = false
+    for (let i = start; i < t.length; i++) {
+      const ch = t[i]
+      if (esc) { esc = false; continue }
+      if (inStr) {
+        if (ch === '\\') esc = true
+        else if (ch === '"') inStr = false
+        continue
+      }
+      if (ch === '"') { inStr = true; continue }
+      if (ch === '{') { depth++; continue }
+      if (ch === '}') {
+        depth--
+        if (depth === 0) {
+          // 到达最外层闭合括号，清理尾随逗号（如 "a":1, }）后尝试解析
+          const candidate = t.slice(start, i + 1).replace(/,\s*([}\]])/g, '$1')
+          obj = tryParse(candidate)
+          if (obj) return obj
+        }
+      }
+    }
   }
   return null
 }
@@ -172,7 +209,18 @@ exports.main_handler = async (event) => {
     const content = await callSpark(messages)
     const result = extractJson(content)
     if (!result) {
-      return jsonResp(500, { ok: false, error: 'AI 输出格式异常' })
+      // 解析失败不报错，兜底返回 AI 原始批改文本，保证用户至少能看到结果
+      return jsonResp(200, {
+        ok: true,
+        data: {
+          score: 3,
+          corrected: String(content || ''),
+          issues: [],
+          suggestions: [],
+          backbone: '',
+          structure: [],
+        },
+      })
     }
     return jsonResp(200, {
       ok: true,
