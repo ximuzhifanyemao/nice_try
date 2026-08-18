@@ -14,9 +14,11 @@
 import { serve } from 'https://deno.land/std@0.208.0/http/server.ts'
 
 const SPARK_MODEL = Deno.env.get('SPARK_MODEL') || 'lite'
-// 注意：Spark X 系列走 /v2 接口，Lite/Pro/Max 等走 /v1 接口，需按模型自动切换
-const API_VERSION = SPARK_MODEL === 'spark-x' || SPARK_MODEL === 'x1' ? 'v2' : 'v1'
-const SPARK_URL = `https://spark-api-open.xf-yun.com/${API_VERSION}/chat/completions`
+// 注意：Spark X（X2）走 OpenAI 兼容的 agent 接口，Lite/Pro/Max 等走 /v1 接口，需按模型自动切换
+const IS_X = SPARK_MODEL === 'spark-x' || SPARK_MODEL === 'x1'
+const SPARK_URL = IS_X
+  ? 'https://spark-api-open.xf-yun.com/agent/v1/chat/completions'
+  : 'https://spark-api-open.xf-yun.com/v1/chat/completions'
 const SPARK_API_KEY = Deno.env.get('SPARK_API_KEY') || ''
 const SPARK_API_SECRET = Deno.env.get('SPARK_API_SECRET') || ''
 
@@ -192,7 +194,7 @@ serve(async (req) => {
           temperature: 0.3,
           max_tokens: 2000,
           messages,
-          ...(API_VERSION === 'v2' ? { thinking: { type: 'disabled' } } : {}),
+          ...(IS_X ? { thinking: { type: 'disabled' } } : {}),
         }),
       })
 

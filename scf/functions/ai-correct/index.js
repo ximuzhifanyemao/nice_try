@@ -6,12 +6,14 @@
 
 const API_KEY = process.env.SPARK_API_KEY || ''
 const API_SECRET = process.env.SPARK_API_SECRET || ''
-// spark-x 系列（X1.5 深度推理）走 v2 接口，其余星火模型（Lite/Max 等）走 v1
+// spark-x 系列（星火 X2 深度推理）走 OpenAI 兼容的 agent 接口，其余星火模型（Lite 等）走 /v1
 const SPARK_MODEL = process.env.SPARK_MODEL || 'lite'
-const API_VERSION = SPARK_MODEL.startsWith('spark-x') ? 'v2' : 'v1'
-const SPARK_URL = `https://spark-api-open.xf-yun.com/${API_VERSION}/chat/completions`
+const IS_X = SPARK_MODEL.startsWith('spark-x')
+const SPARK_URL = IS_X
+  ? 'https://spark-api-open.xf-yun.com/agent/v1/chat/completions'
+  : 'https://spark-api-open.xf-yun.com/v1/chat/completions'
 // 关闭 Spark X 深度思考，大幅缩短响应时间
-const SPARK_EXTRA = API_VERSION === 'v2' ? { thinking: { type: 'disabled' } } : {}
+const SPARK_EXTRA = IS_X ? { thinking: { type: 'disabled' } } : {}
 
 function buildSystemPrompt() {
   return '你是一位专业的考研英语翻译批改老师，精通长难句分析。你会收到用户对一个英语句子的中文翻译，以及一个参考翻译。' +
