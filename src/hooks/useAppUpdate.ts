@@ -36,13 +36,13 @@ export function useAppUpdate() {
         const info = await App.getInfo()
         return {
           version: info.version,
-          versionCode: 0, // App.getInfo() 不提供 versionCode，用 0 回退
+          // Android 上 App.getInfo().build 即 versionCode（字符串），与上传到 app_versions 的 version_code 对齐
+          versionCode: Number(info.build) || 0,
         }
       }
     } catch {
       // 非原生环境或插件未加载
     }
-    // 回退到全局版本常量（由 Vite define 注入）
     return {
       version: (typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.0.0') as string,
       versionCode: 0,
@@ -88,13 +88,16 @@ export function useAppUpdate() {
         return null
       }
 
-      // 比较版本：先用语义化版本号，相同则比较 version_code
+      // 优先按 versionCode 数值比较（Android 单调递增，最可靠）；versionName 的语义化比较仅作兜底
       const latestVersion = row.version
-      const latestVersionCode = row.version_code
-      console.log('[OTA] 最新版本:', latestVersion, '| code:', latestVersionCode, '| 当前版本:', current.version, '| code:', current.versionCode)
+      const latestCode = Number(row.version_code) || 0
+      const currentCode = Number(current.versionCode) || 0
+      console.log('[OTA] 最新版本:', latestVersion, '| code:', latestCode, '| 当前版本:', current.version, '| code:', currentCode)
 
-      const semverResult = compareVersions(latestVersion, current.version)
-      if (semverResult < 0 || (semverResult === 0 && latestVersionCode <= current.versionCode)) {
+      const newerByCode = latestCode > currentCode
+      const newerByVersion = compareVersions(latestVersion, current.version) > 0
+
+      if (!newerByCode && !newerByVersion) {
         console.log('[OTA] 已是最新版本')
         setStatus('up_to_date')
         return null

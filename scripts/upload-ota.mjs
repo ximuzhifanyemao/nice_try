@@ -74,21 +74,28 @@ async function main() {
   console.log(`   大小: ${(fileSize / 1024).toFixed(1)} KB`)
 
   // 3. 上传 APK 到 Supabase Storage（REST API 直接上传，避免客户端超时）
-  //    先检查云端是否已有相同大小的 APK，有则跳过上传（避免重复传大文件）
+  //    对比 app_versions 表最新记录的 checksum，相同则跳过（避免重复传大文件）
+  //    注意：不能按文件大小判断——不同版本只改 versionName 时 APK 大小可能完全相同
+  const force = process.argv.includes('--force')
   console.log(`\n☁️  上传 APK 到 Supabase Storage: ${BUCKET_NAME}/${APK_STORAGE_NAME}`)
 
   const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${APK_STORAGE_NAME}`
 
-  // 查询云端当前 APK 大小
-  const { data: fileList } = await supabase.storage.from(BUCKET_NAME).list()
-  const remoteApk = fileList?.find((f) => f.name === APK_STORAGE_NAME)
-  const remoteSize = remoteApk?.metadata?.size ?? 0
-  console.log(`   本地 APK 大小: ${fileSize} bytes | 云端已有: ${remoteSize} bytes`)
+  // 查询 app_versions 表最新记录的 checksum（与本地对比决定是否上传）
+  const { data: latestVer } = await supabase
+    .from('app_versions')
+    .select('checksum')
+    .order('version_code', { ascending: false })
+    .limit(1)
+  const remoteChecksum = latestVer?.[0]?.checksum
+  console.log(`   本地 SHA256: ${checksum}`)
+  console.log(`   云端最新记录 SHA256: ${remoteChecksum ?? '(无记录)'}`)
 
   let uploadError = null
-  if (remoteSize === fileSize) {
-    console.log('   ✅ 云端已有相同大小的 APK，跳过上传')
+  if (!force && remoteChecksum === checksum) {
+    console.log('   ✅ 云端已存在相同 SHA256 的 APK，跳过上传')
   } else {
+    if (force) console.log('   ⚠️ --force 强制上传')
     for (let attempt = 1; attempt <= 3; attempt++) {
       console.log(`   第 ${attempt} 次尝试...`)
       try {
@@ -175,16 +182,11 @@ async function main() {
   // 6. 写入/更新数据库版本记录
   console.log(`\n📝 写入版本记录到 app_versions 表...`)
 
-  // 获取当前最大 version_code
-  const { data: existing } = await supabase
-    .from('app_versions')
-    .select('version_code')
-    .order('version_code', { ascending: false })
-    .limit(1)
-
-  const versionCode = existing && existing.length > 0
-    ? existing[0].version_code + 1
-    : 1
+  // 从 build.gradle 读取 versionCode（与 APK 真实版本一致，避免与数据库最大值脱节）
+  const gradlePath = join(__dirname, '..', 'android', 'app', 'build.gradle')
+  const gradleContent = readFileSync(gradlePath, 'utf-8')
+  const gradleMatch = gradleContent.match(/versionCode\s+(\d+)/)
+  const versionCode = gradleMatch ? parseInt(gradleMatch[1], 10) : 1
 
   const { error: dbError } = await supabase
     .from('app_versions')
