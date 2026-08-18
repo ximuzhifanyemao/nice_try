@@ -367,6 +367,30 @@ Supabase 服务器在海外（AWS），国内访问可能：
 
 ---
 
+## App 在线更新（OTA）与数据库 RLS 配置
+
+App 的「检查更新」功能依赖 Supabase 的 `app_versions` 表读取最新版本记录。该表开启了 RLS（Row Level Security），需手动添加一条**公开读策略**，否则登录用户（`authenticated` 角色）会因无读权限、查询返回空，导致 App 永远误判「已是最新版本」。
+
+### 执行 SQL（Supabase → SQL Editor）
+
+```sql
+alter table public.app_versions enable row level security;
+
+drop policy if exists "app_versions_public_read" on public.app_versions;
+create policy "app_versions_public_read"
+  on public.app_versions
+  for select
+  to public
+  using ( is_active = true );
+```
+
+- `to public` 同时覆盖匿名（`anon`）与登录（`authenticated`）角色，保证未登录/已登录都能读到最新版本。
+- 策略仅允许 `select` 且 `is_active = true` 的记录，安全可控。
+
+> 每次更换 Supabase 项目或新建数据库时，需重新执行上述 SQL，否则 App 会再次出现「检查更新一直显示已是最新」的问题。
+
+---
+
 ## 部署后的日常维护
 
 ### 更新部署流程
