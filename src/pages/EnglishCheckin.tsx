@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from 'react'
+import { useEffect, useMemo, useState, useCallback, Component } from 'react'
+import type { ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { ENGLISH_DAILY, type EnglishDay } from '../data/englishDaily'
 import { fetchMyCheckins, createCheckin, deleteCheckin } from '../lib/englishCheckin'
@@ -17,6 +18,35 @@ interface AiCorrection {
   suggestions: string[]
   backbone: string
   structure: string[]
+}
+
+// 兜底归一化 AI 返回：强制所有字段为字符串/字符串数组/数字，杜绝畸形结构导致 React 渲染崩溃
+function normalizeAiCorrection(raw: any): AiCorrection {
+  const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v))
+  const strArr = (v: unknown) => (Array.isArray(v) ? v.map(str) : [])
+  const num = (v: unknown) =>
+    typeof v === 'number' && Number.isFinite(v) ? v : v == null ? null : (Number(v) as number) || null
+  return {
+    score: num(raw?.score),
+    corrected: str(raw?.corrected),
+    issues: strArr(raw?.issues),
+    suggestions: strArr(raw?.suggestions),
+    backbone: str(raw?.backbone),
+    structure: strArr(raw?.structure),
+  }
+}
+
+// 局部错误边界：AI 卡片渲染异常时只显示错误提示，避免整个页面崩溃变黑屏
+interface EBState { hasError: boolean }
+class AiResultBoundary extends Component<{ children: ReactNode }, EBState> {
+  state: EBState = { hasError: false }
+  static getDerivedStateFromError(): EBState { return { hasError: true } }
+  render() {
+    if (this.state.hasError) {
+      return <p className="text-xs text-red-500">AI 结果渲染异常，请重新点击批改</p>
+    }
+    return this.props.children
+  }
 }
 
 // CloudBase 云函数 HTTP 地址（国内节点直连讯飞，稳定）；未配置时回退到 Supabase Edge Function
@@ -272,14 +302,14 @@ export default function EnglishCheckin() {
           refTranslation: refText,
         })
         if (!ok || !body?.ok) throw new Error(body?.error || `AI 批改失败（${status}）`)
-        result = body.data
+        result = normalizeAiCorrection(body.data)
       } else {
         // 回退：Supabase Edge Function
         const { data, error } = await supabase.functions.invoke('ai-correct', {
           body: { en: sentence, userTranslation: userText, refTranslation: refText },
         })
         if (error) throw new Error(error.message || 'AI 批改失败')
-        result = data as AiCorrection
+        result = normalizeAiCorrection(data)
       }
       setAiResults(prev => { const next = new Map(prev); next.set(key, result); return next })
     } catch (e) {
@@ -406,7 +436,9 @@ export default function EnglishCheckin() {
                 </div>
 
                 {/* AI 批改结果 */}
-                {aiResults.get(tKey) && (() => {
+                {aiResults.get(tKey) && (
+                  <AiResultBoundary>
+                    {(() => {
                   const r = aiResults.get(tKey)!
                   return (
                     <div className="mt-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 p-3 space-y-2">
@@ -462,7 +494,9 @@ export default function EnglishCheckin() {
                       )}
                     </div>
                   )
-                })()}
+                    })()}
+                  </AiResultBoundary>
+                )}
 
                 {/* 长难句解析 */}
                 {dayData.analysis && (() => {
