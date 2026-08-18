@@ -21,7 +21,8 @@ function buildSystemPrompt() {
     '3) 给出修正后的翻译；4) 给出 1-5 的评分（5 为最准确流畅）；5) 给出改进建议。' +
     '你必须只输出一个 JSON 对象，不要输出任何其他内容，格式如下：' +
     '{"score": 1-5整数, "corrected": "修正后的翻译", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"], "backbone": "句子主干（简明点出主谓宾/主系表骨架）", "structure": ["成分解析1：说明从句/短语类型、所修饰对象及作用", "成分解析2"]}' +
-    '要求：backbone 必须简明准确，用中文标注主语、谓语、宾语等句子成分；structure 逐条列出主要修饰成分与从句，说明其类型、修饰对象和在句中的作用，尽量与原文对应。'
+    '要求：backbone 必须简明准确，用中文标注主语、谓语、宾语等句子成分；structure 逐条列出主要修饰成分与从句，说明其类型、修饰对象和在句中的作用，尽量与原文对应。' +
+    '重要：corrected 必须只对应给定的这一个英语句子，严禁输出整段或整篇译文的参考译文。'
 }
 
 // ---------- 考研词汇查词（action: 'lookup'） ----------
@@ -157,6 +158,23 @@ function jsonResp(statusCode, obj) {
   }
 }
 
+// 模型偶发把 issues/suggestions/structure 返回成对象列表（如 {问题, 建议}），
+// 统一转成字符串数组：优先取对象内的首个字符串字段，避免前端渲染成 [object Object]
+function toStrArr(arr) {
+  if (!Array.isArray(arr)) return []
+  return arr
+    .map((item) => {
+      if (typeof item === 'string') return item
+      if (item && typeof item === 'object') {
+        const vals = Object.values(item)
+        const firstStr = vals.find((v) => typeof v === 'string')
+        return firstStr != null ? firstStr : JSON.stringify(item)
+      }
+      return item == null ? '' : String(item)
+    })
+    .filter((s) => s !== '')
+}
+
 // 解析触发器传入的 event，兼容「函数 URL」和「API 网关」两种 HTTP 触发
 function parseEvent(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -199,7 +217,8 @@ exports.main_handler = async (event) => {
     return jsonResp(400, { ok: false, error: '缺少必要参数（en / userTranslation）' })
   }
 
-  const prompt = `英语原句：${en}\n我的翻译：${userTranslation}\n参考翻译：${refTranslation}\n请先分析原句的句子主干与结构，再对"我的翻译"进行批改。`
+  const refLine = refTranslation ? `\n参考翻译：${refTranslation}` : ''
+  const prompt = `英语原句：${en}\n我的翻译：${userTranslation}${refLine}\n请先分析原句的句子主干与结构，再对"我的翻译"进行批改。注意：修正后的译文必须只对应这一个英语句子，不要输出整段或整篇译文。`
   const messages = [
     { role: 'system', content: buildSystemPrompt() },
     { role: 'user', content: prompt },
@@ -227,10 +246,10 @@ exports.main_handler = async (event) => {
       data: {
         score: typeof result.score === 'number' ? result.score : 3,
         corrected: String(result.corrected || ''),
-        issues: Array.isArray(result.issues) ? result.issues : [],
-        suggestions: Array.isArray(result.suggestions) ? result.suggestions : [],
+        issues: toStrArr(result.issues),
+        suggestions: toStrArr(result.suggestions),
         backbone: String(result.backbone || ''),
-        structure: Array.isArray(result.structure) ? result.structure : [],
+        structure: toStrArr(result.structure),
       },
     })
   } catch (e) {

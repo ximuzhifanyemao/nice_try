@@ -23,7 +23,17 @@ interface AiCorrection {
 // 兜底归一化 AI 返回：强制所有字段为字符串/字符串数组/数字，杜绝畸形结构导致 React 渲染崩溃
 function normalizeAiCorrection(raw: any): AiCorrection {
   const str = (v: unknown) => (typeof v === 'string' ? v : v == null ? '' : String(v))
-  const strArr = (v: unknown) => (Array.isArray(v) ? v.map(str) : [])
+  // 模型偶发把 issues/suggestions/structure 返回成对象列表（如 {问题, 建议}），
+  // 这里提取首个字符串字段，避免前端渲染成 [object Object]
+  const itemStr = (v: unknown): string => {
+    if (typeof v === 'string') return v
+    if (v && typeof v === 'object') {
+      const first = Object.values(v as Record<string, unknown>).find(x => typeof x === 'string')
+      return first != null ? String(first) : JSON.stringify(v)
+    }
+    return v == null ? '' : String(v)
+  }
+  const strArr = (v: unknown) => (Array.isArray(v) ? v.map(itemStr).filter(Boolean) : [])
   const num = (v: unknown) =>
     typeof v === 'number' && Number.isFinite(v) ? v : v == null ? null : (Number(v) as number) || null
   return {
@@ -287,8 +297,11 @@ export default function EnglishCheckin() {
     if (aiLoading.has(key)) return
     const userText = translations.get(key) || ''
     const day = ENGLISH_DAILY.find(d => d.day === dayIdx)
-    const refText = day?.zh || ''
     const sentence = day?.sentences[sentIdx]?.en || ''
+    // 参考译文只取当前这一句的（来自逐句解析），不要传整段译文，
+    // 否则模型会把"修正译文"直接输出成整段参考译文
+    const sentNum = day?.sentences[sentIdx]?.num
+    const refText = day?.analysis?.find(a => a.sentNum === sentNum)?.ref || ''
 
     setAiLoading(prev => new Set(prev).add(key))
     setAiError(null)
