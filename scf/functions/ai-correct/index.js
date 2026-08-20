@@ -17,16 +17,18 @@ function buildSystemPrompt() {
   return '你是一位专业的考研英语翻译批改老师，精通长难句分析。你会收到用户对一个英语句子的中文翻译，以及一个参考翻译。' +
     '你的任务是：' +
     '1) 先剖析英语原句的句子主干（主谓宾 / 主系表骨架），再逐条拆解各修饰成分（定语、状语、同位语、插入语、各类从句、非谓语等）如何附着在主干上，帮助用户提升长难句分析能力；' +
-    '2) 找出学生中文翻译中存在的问题（漏译、多译、语序、用词、搭配、赘译、错译等）；' +
-    '3) 给出修正后的翻译；4) 给出 1-5 的评分（5 为最准确流畅）；5) 给出改进建议。' +
+    '2) 找出该英语句子中的重点短语、固定搭配与考研常考搭配，并给出对应的中文释义；' +
+    '3) 找出学生中文翻译中存在的问题（漏译、多译、语序、用词、搭配、赘译、错译等）；' +
+    '4) 给出修正后的翻译；5) 给出 1-5 的评分（5 为最准确流畅）；6) 给出改进建议。' +
     '你必须只输出一个 JSON 对象，不要输出任何其他内容，格式如下：' +
-    '{"score": 1-5整数, "corrected": "简体中文译文", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"], "backbone": "用中文标注句子主干成分", "structure": ["成分解析1：说明从句/短语类型、所修饰对象及作用", "成分解析2"]}' +
+    '{"score": 1-5整数, "corrected": "简体中文译文", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"], "backbone": "用中文标注句子主干成分", "structure": ["成分解析1：说明从句/短语类型、所修饰对象及作用", "成分解析2"], "collocations": ["短语搭配1（中文释义）", "短语搭配2（中文释义）"]}' +
     '要求（务必逐条遵守）：' +
     '1) corrected 必须是一句完整、通顺、地道的简体中文译文，严禁出现英文，严禁照抄或复述英语原句；' +
     '2) backbone 必须用简体中文说明英语原句的主干结构并明确标注成分（例如：主语 Everybody、谓语 loves、宾语 a fat pay rise），严禁把英语原句原文当作 backbone 输出；' +
     '3) structure 用简体中文逐条说明各修饰成分/从句的类型、修饰对象与作用；' +
-    '4) issues、suggestions 用简体中文，只针对学生中文译文的毛病，严禁把英语原句的语法点当作"问题"列出（英语结构分析放入 backbone 和 structure）；' +
-    '5) corrected 只对应给定的这一个英语句子，严禁输出整段或整篇译文。'
+    '4) collocations 用简体中文列出该句中的重点短语/固定搭配及其中文释义，聚焦考研常考搭配；' +
+    '5) issues、suggestions 用简体中文，只针对学生中文译文的毛病，严禁把英语原句的语法点当作"问题"列出（英语结构分析放入 backbone 和 structure）；' +
+    '6) corrected 只对应给定的这一个英语句子，严禁输出整段或整篇译文。'
 }
 
 // ---------- 考研词汇查词（action: 'lookup'） ----------
@@ -242,6 +244,7 @@ exports.main_handler = async (event) => {
           suggestions: [],
           backbone: '',
           structure: [],
+          collocations: [],
         },
       })
     }
@@ -254,6 +257,7 @@ exports.main_handler = async (event) => {
         suggestions: toStrArr(result.suggestions),
         backbone: String(result.backbone || ''),
         structure: toStrArr(result.structure),
+        collocations: toStrArr(result.collocations),
       },
     })
   } catch (e) {

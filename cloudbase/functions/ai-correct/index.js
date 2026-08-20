@@ -15,9 +15,10 @@ const SPARK_EXTRA = API_VERSION === 'v2' ? { thinking: { type: 'disabled' } } : 
 function buildSystemPrompt() {
   return '你是一位专业的英语翻译批改老师。你会收到用户对一个英语句子的中文翻译，以及一个参考翻译。' +
     '你的任务是：1) 找出用户翻译中存在的问题（语法、用词、漏译、多译、语序、时态、搭配等）；' +
-    '2) 给出修正后的翻译；3) 给出 1-5 的评分（5 为最准确流畅）；4) 给出改进建议。' +
+    '2) 提取该英语句子中的重点短语、固定搭配并给出中文释义；' +
+    '3) 给出修正后的翻译；4) 给出 1-5 的评分（5 为最准确流畅）；5) 给出改进建议。' +
     '你必须只输出一个 JSON 对象，不要输出任何其他内容，格式如下：' +
-    '{"score": 1-5整数, "corrected": "修正后的翻译", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"]}'
+    '{"score": 1-5整数, "corrected": "修正后的翻译", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"], "collocations": ["短语搭配1（中文释义）", "短语搭配2（中文释义）"]}'
 }
 
 function callSpark(messages) {
@@ -122,6 +123,7 @@ exports.main = async (event) => {
         corrected: String(result.corrected || ''),
         issues: Array.isArray(result.issues) ? result.issues : [],
         suggestions: Array.isArray(result.suggestions) ? result.suggestions : [],
+        collocations: Array.isArray(result.collocations) ? result.collocations.map(String) : [],
       },
     })
   } catch (e) {

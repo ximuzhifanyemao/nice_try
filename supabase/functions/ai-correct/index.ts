@@ -41,13 +41,14 @@ ${userTranslation}
 ${refBlock}
 批改要求：
 1. 先分析英语原句的句子主干（主谓宾 / 主系表骨架），用简体中文明确标注主语、谓语、宾语等成分（例如：主语 Everybody、谓语 loves、宾语 a fat pay rise），严禁把英语原句原文当作主干输出；再逐条拆解主要修饰成分与从句（定语、状语、同位语、插入语、非谓语、各类从句等），说明其类型、所修饰的对象和在句中的作用，帮助用户提升长难句分析能力。
-2. 判断学生译文在准确性、通顺度、对长难句结构与固定搭配的把握上是否到位。
-3. 给出修正后的完整简体中文译文，尽量贴近原文含义又符合中文表达习惯。严禁在 corrected 中出现英文或照抄英语原句。注意：修正译文必须只对应这一个英语句子，严禁输出整段或整篇译文的参考译文。
-4. 逐条指出学生中文译文的突出问题（用词、语序、漏译、赘译、语法等）。注意：只评价学生的中文译文，严禁把英语原句本身的语法点当作"问题"列出，英语原句的结构分析放在 backbone 和 structure。
-5. 给出可执行的改进建议。
+2. 提取该英语句子中的重点短语、固定搭配与考研常考搭配，并给出对应的中文释义。
+3. 判断学生译文在准确性、通顺度、对长难句结构与固定搭配的把握上是否到位。
+4. 给出修正后的完整简体中文译文，尽量贴近原文含义又符合中文表达习惯。严禁在 corrected 中出现英文或照抄英语原句。注意：修正译文必须只对应这一个英语句子，严禁输出整段或整篇译文的参考译文。
+5. 逐条指出学生中文译文的突出问题（用词、语序、漏译、赘译、语法等）。注意：只评价学生的中文译文，严禁把英语原句本身的语法点当作"问题"列出，英语原句的结构分析放在 backbone 和 structure。
+6. 给出可执行的改进建议。
 
 请只输出一个 JSON 对象，禁止输出任何其他文字或 Markdown 代码块标记，格式严格如下：
-{"score": 0, "corrected": "简体中文译文（严禁英文）", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"], "backbone": "用中文标注句子主干成分", "structure": ["成分解析1：说明从句/短语类型、所修饰对象及作用", "成分解析2"]}`;
+{"score": 0, "corrected": "简体中文译文（严禁英文）", "issues": ["问题1", "问题2"], "suggestions": ["建议1", "建议2"], "backbone": "用中文标注句子主干成分", "structure": ["成分解析1：说明从句/短语类型、所修饰对象及作用", "成分解析2"], "collocations": ["短语搭配1（中文释义）", "短语搭配2（中文释义）"]}`;
 }
 
 /** 构造查词提示词（action: 'lookup'），要求模型输出严格 JSON */
@@ -136,9 +137,10 @@ function parseResult(raw: string) {
       suggestions: toStrArr(r.suggestions),
       backbone: typeof r.backbone === 'string' ? r.backbone : String(r.backbone || ''),
       structure: toStrArr(r.structure),
+      collocations: toStrArr(r.collocations),
     }
   } catch {
-    return { score: null, corrected: raw, issues: [], suggestions: [], backbone: '', structure: [] }
+    return { score: null, corrected: raw, issues: [], suggestions: [], backbone: '', structure: [], collocations: [] }
   }
 }
 

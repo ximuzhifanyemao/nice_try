@@ -18,6 +18,7 @@ interface AiCorrection {
   suggestions: string[]
   backbone: string
   structure: string[]
+  collocations: string[]
 }
 
 // 兜底归一化 AI 返回：强制所有字段为字符串/字符串数组/数字，杜绝畸形结构导致 React 渲染崩溃
@@ -43,6 +44,7 @@ function normalizeAiCorrection(raw: any): AiCorrection {
     suggestions: strArr(raw?.suggestions),
     backbone: str(raw?.backbone),
     structure: strArr(raw?.structure),
+    collocations: strArr(raw?.collocations),
   }
 }
 
@@ -53,7 +55,7 @@ class AiResultBoundary extends Component<{ children: ReactNode }, EBState> {
   static getDerivedStateFromError(): EBState { return { hasError: true } }
   render() {
     if (this.state.hasError) {
-      return <p className="text-xs text-red-500">AI 结果渲染异常，请重新点击批改</p>
+      return <p className="text-xs text-red-500">AI 结果渲染异常，请重新点击解析</p>
     }
     return this.props.children
   }
@@ -144,24 +146,83 @@ function tokenizeSentence(text: string): Token[] {
 
 // ---------- 长难句切分还原 ----------
 
-/** 切分片段是无空格的粘连文本，对照原句 en 还原出空格，让单词可读 */
+/** 切分片段是无空格的粘连文本，对照原句 en 还原出空格，让单词可读。
+ * 数据里可能存在三种噪音：① 单词粘连；② 讲解性括号注释（如 (that)、(at least)，
+ * 括号或括号内的词在原句中并不存在）；③ 连字符/撇号/引号被 PDF 抽取改写（-- vs -、’ vs '）。
+ * 这里通过「标点折叠 + 多候选匹配」尽可能把片段还原成原句中的连续子串。 */
 function restoreChunkSpaces(chunk: string, orig: string): string {
   if (!chunk) return chunk
-  // 去掉原句空格，建立「去空格索引 -> 原句索引」映射
-  let stripped = ''
-  const map: number[] = []
+  const needleRaw = chunk.replace(/\s+/g, '')
+  if (!needleRaw) return chunk
+
+  // 原句去掉空格，并记录「去空格下标 -> 原句下标」映射
+  const origMap: number[] = []
+  let strippedBuilder = ''
   for (let i = 0; i < orig.length; i++) {
     if (/\s/.test(orig[i])) continue
-    stripped += orig[i]
-    map.push(i)
+    strippedBuilder += orig[i]
+    origMap.push(i)
   }
-  // 片段也去掉空格再匹配，避免数据里残留的空格导致匹配失败
-  const needle = chunk.replace(/\s+/g, '')
-  if (!needle) return chunk
-  const start = stripped.indexOf(needle)
-  if (start === -1) return chunk // 无法匹配则原样显示
-  const end = start + needle.length - 1
-  return orig.slice(map[start], map[end] + 1)
+
+  // 标点折叠：连字符/破折号统一为 '-'（连续多个合并成一个）、撇号统一为 "'"、引号统一为 '"'
+  const foldChar = (c: string): { out: string; skip: boolean } => {
+    if (/[\u002D\u2010-\u2015]/.test(c)) return { out: '-', skip: false }
+    if (/[\u0027\u2018\u2019\u201A\u201B]/.test(c)) return { out: "'", skip: false }
+    if (/[\u0022\u201C\u201D\u201E\u201F]/.test(c)) return { out: '"', skip: false }
+    return { out: c, skip: false }
+  }
+
+  // 从「去空格字符串」折叠，同时记录折叠下标 -> 去空格下标
+  let folded = ''
+  const foldMap: number[] = []
+  let prevDash = false
+  for (let i = 0; i < strippedBuilder.length; i++) {
+    const { out, skip } = foldChar(strippedBuilder[i])
+    if (skip) continue
+    if (out === '-') {
+      if (prevDash) continue // 合并连续连字符
+      prevDash = true
+      folded += '-'
+      foldMap.push(i)
+      continue
+    }
+    prevDash = false
+    folded += out
+    foldMap.push(i)
+  }
+
+  // 片段同样折叠
+  const foldChunk = (s: string): string =>
+    s
+      .replace(/[\u002D\u2010-\u2015]+/g, '-')
+      .replace(/[\u0027\u2018\u2019\u201A\u201B]+/g, "'")
+      .replace(/[\u0022\u201C\u201D\u201E\u201F]+/g, '"')
+
+  const F = foldChunk(needleRaw)
+  // 候选片段（按优先级生成，最终取「最长命中」以保留最多原文信息）：
+  // 1) 原样 2) 去掉括号保留内容 3) 去掉整组括号 4) 先整组再去残留括号
+  const candidates = [
+    F,
+    F.replace(/[()]/g, ''),
+    F.replace(/\([^()]*\)/g, ''),
+    F.replace(/\([^()]*\)/g, '').replace(/[()]/g, ''),
+  ]
+
+  let bestStart = -1
+  let bestLen = 0
+  for (const cand of candidates) {
+    if (!cand) continue
+    const idx = folded.indexOf(cand)
+    if (idx !== -1 && cand.length > bestLen) {
+      bestStart = idx
+      bestLen = cand.length
+    }
+  }
+
+  if (bestStart === -1) return chunk // 无法匹配则原样显示
+  const startOrig = origMap[foldMap[bestStart]]
+  const endOrig = origMap[foldMap[bestStart + bestLen - 1]]
+  return orig.slice(startOrig, endOrig + 1)
 }
 
 // ---------- 颜色工具 ----------
@@ -286,7 +347,7 @@ export default function EnglishCheckin() {
     const key = `${dayIdx}-${sentIdx}`
     const userText = translations.get(key) || ''
     const day = ENGLISH_DAILY.find(d => d.day === dayIdx)
-    const refText = day?.zh || ''
+    const refText = day?.sentences[sentIdx]?.ref || ''
     const score = calcTranslationScore(userText, refText)
     setScores(prev => { const next = new Map(prev); next.set(key, score); return next })
   }, [translations])
@@ -298,10 +359,9 @@ export default function EnglishCheckin() {
     const userText = translations.get(key) || ''
     const day = ENGLISH_DAILY.find(d => d.day === dayIdx)
     const sentence = day?.sentences[sentIdx]?.en || ''
-    // 参考译文只取当前这一句的（来自逐句解析），不要传整段译文，
+    // 参考译文只取当前这一句的（来自逐句译文 ref），不要传整段译文，
     // 否则模型会把"修正译文"直接输出成整段参考译文
-    const sentNum = day?.sentences[sentIdx]?.num
-    const refText = day?.analysis?.find(a => a.sentNum === sentNum)?.ref || ''
+    const refText = day?.sentences[sentIdx]?.ref || ''
 
     setAiLoading(prev => new Set(prev).add(key))
     setAiError(null)
@@ -314,14 +374,14 @@ export default function EnglishCheckin() {
           userTranslation: userText,
           refTranslation: refText,
         })
-        if (!ok || !body?.ok) throw new Error(body?.error || `AI 批改失败（${status}）`)
+        if (!ok || !body?.ok) throw new Error(body?.error || `AI 解析失败（${status}）`)
         result = normalizeAiCorrection(body.data)
       } else {
         // 回退：Supabase Edge Function
         const { data, error } = await supabase.functions.invoke('ai-correct', {
           body: { en: sentence, userTranslation: userText, refTranslation: refText },
         })
-        if (error) throw new Error(error.message || 'AI 批改失败')
+        if (error) throw new Error(error.message || 'AI 解析失败')
         result = normalizeAiCorrection(data)
       }
       setAiResults(prev => { const next = new Map(prev); next.set(key, result); return next })
@@ -329,8 +389,8 @@ export default function EnglishCheckin() {
       const aborted = e instanceof Error && e.name === 'AbortError'
       setAiError(
         aborted
-          ? 'AI 批改超时，请检查网络后重试'
-          : e instanceof Error ? e.message : 'AI 批改失败，请稍后重试'
+          ? 'AI 解析超时，请检查网络后重试'
+          : e instanceof Error ? e.message : 'AI 解析失败，请稍后重试'
       )
     } finally {
       setAiLoading(prev => { const next = new Set(prev); next.delete(key); return next })
@@ -359,7 +419,7 @@ export default function EnglishCheckin() {
       )}
 
       {aiError && (
-        <div className="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">AI 批改失败：{aiError}</div>
+        <div className="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">AI 解析失败：{aiError}</div>
       )}
 
       {/* 逐句翻译：原文 + 翻译输入框放在一起 */}
@@ -440,10 +500,10 @@ export default function EnglishCheckin() {
                     {aiLoading.has(tKey) ? (
                       <>
                         <span className="inline-block w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                        批改中...
+                        解析中...
                       </>
                     ) : (
-                      <>AI 纠正</>
+                      <>AI 解析</>
                     )}
                   </button>
                 </div>
@@ -456,7 +516,7 @@ export default function EnglishCheckin() {
                   return (
                     <div className="mt-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-purple-700 dark:text-purple-300">AI 批改</span>
+                        <span className="text-xs font-bold text-purple-700 dark:text-purple-300">AI 解析</span>
                         {r.score != null && (
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scoreBg(r.score)} ${scoreColor(r.score)}`}>
                             AI 评分 {r.score}
@@ -474,6 +534,16 @@ export default function EnglishCheckin() {
                           <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">结构解析</p>
                           <ul className="list-disc list-inside space-y-0.5">
                             {r.structure.map((item, i) => (
+                              <li key={i} className="text-xs text-gray-700 dark:text-slate-200 break-words">{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {r.collocations.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">短语搭配</p>
+                          <ul className="list-disc list-inside space-y-0.5">
+                            {r.collocations.map((item, i) => (
                               <li key={i} className="text-xs text-gray-700 dark:text-slate-200 break-words">{item}</li>
                             ))}
                           </ul>
@@ -574,6 +644,16 @@ export default function EnglishCheckin() {
                     </details>
                   )
                 })()}
+
+                {/* 逐句参考译文 */}
+                {s.ref && (
+                  <details className="mt-2">
+                    <summary className="cursor-pointer text-xs text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 select-none font-medium">
+                      参考译文
+                    </summary>
+                    <p className="mt-1 text-sm leading-relaxed text-gray-700 dark:text-slate-200 break-words">{s.ref}</p>
+                  </details>
+                )}
               </div>
             )
           })}
