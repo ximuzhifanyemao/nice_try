@@ -31,6 +31,46 @@ function buildSystemPrompt() {
     '6) corrected 只对应给定的这一个英语句子，严禁输出整段或整篇译文。'
 }
 
+// ---------- 长难句纯解析（action: 'analyze'） ----------
+// 用于离线批量预生成解析内容（句子主干/结构/短语搭配），前端不再实时调用，避免 token 消耗
+
+function buildAnalyzeSystemPrompt() {
+  return '你是一位专业的考研英语长难句解析老师。你会收到一个英语句子，请对它做三件事：' +
+    '1) 剖析句子主干（主谓宾 / 主系表骨架），用简体中文明确标注主语、谓语、宾语等成分；' +
+    '2) 逐条拆解各修饰成分（定语、状语、同位语、插入语、各类从句、非谓语等），说明其类型、所修饰对象与在句中的作用；' +
+    '3) 列出该句中的重点短语、固定搭配与考研常考搭配，必须给出至少 2 条，每条必须附中文释义。' +
+    '你必须只输出一个 JSON 对象，不要输出任何其他内容，格式如下：' +
+    '{"backbone": "用中文标注句子主干成分", "structure": ["成分解析1：说明从句/短语类型、所修饰对象及作用", "成分解析2"], "collocations": ["短语搭配1（中文释义）", "短语搭配2（中文释义）"]}' +
+    '要求（务必逐条遵守，宁可少写也要写透）：' +
+    '1) backbone 必须用简体中文说明主干并标注成分，严禁照抄英语原句；' +
+    '2) structure 的每一项必须是一条完整的解析说明（如「时间状语从句 when...：修饰谓语 argued，说明争论发生的时间」），严禁只罗列英语单词或短语本身；若句子简单没有明显修饰成分，可写 1 条简短的"该句结构简单，无明显修饰成分"说明；' +
+    '3) collocations 必须给出真实的固定搭配/常考短语，每条形如「take... for granted（认为……理所当然）」，严禁把"主语+谓语"这类普通句子成分当搭配，严禁只列单词；' +
+    '4) 全部使用简体中文；若句子确实找不到 2 条搭配，允许给出 1 条，但必须是真实搭配。'
+}
+
+async function handleAnalyze(en) {
+  const messages = [
+    { role: 'system', content: buildAnalyzeSystemPrompt() },
+    { role: 'user', content: `英语原句：${en}\n请分析该句的句子主干、结构与重点短语搭配。` },
+  ]
+  const content = await callSpark(messages)
+  const result = extractJson(content)
+  if (!result) {
+    return {
+      ok: true,
+      data: { backbone: String(content || ''), structure: [], collocations: [] },
+    }
+  }
+  return {
+    ok: true,
+    data: {
+      backbone: String(result.backbone || ''),
+      structure: toStrArr(result.structure),
+      collocations: toStrArr(result.collocations),
+    },
+  }
+}
+
 // ---------- 考研词汇查词（action: 'lookup'） ----------
 
 function buildLookupSystemPrompt() {
@@ -204,6 +244,15 @@ exports.main_handler = async (event) => {
 
   if (!API_KEY || !API_SECRET) {
     return jsonResp(500, { ok: false, error: '服务器未配置讯飞密钥' })
+  }
+
+  // 长难句纯解析（action: 'analyze'）：仅输出主干/结构/搭配，供离线批量预生成，避免运行时消耗 token
+  if (action === 'analyze') {
+    const en = String(body.en || '').trim()
+    if (!en) {
+      return jsonResp(400, { ok: false, error: '缺少必要参数（en）' })
+    }
+    return handleAnalyze(en)
   }
 
   // 查词：AI 查询考研单词释义/助记/搭配（action: 'lookup'）

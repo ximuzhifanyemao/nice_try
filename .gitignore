@@ -45,3 +45,6 @@ apk/
 
 # 本地 JDK（构建用，不进 git）
 jdk-*/
+
+# AI 解析批量生成缓存（scripts/gen-ai-analysis.cjs 断点续跑用，体积大不进 git）
+scripts/_ai-results.json

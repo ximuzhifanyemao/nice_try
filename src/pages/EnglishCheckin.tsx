@@ -261,6 +261,8 @@ export default function EnglishCheckin() {
   const [aiLoading, setAiLoading] = useState<Set<string>>(new Set())
   // AI 批改错误信息
   const [aiError, setAiError] = useState<string | null>(null)
+  // 预生成「解析」卡片展开状态：Set<"dayIdx-sentIdx">
+  const [showAnalysis, setShowAnalysis] = useState<Set<string>>(new Set())
 
   const completedDays = useMemo(() => new Set(checkins), [checkins])
   const nextDay = useMemo(() => {
@@ -352,6 +354,17 @@ export default function EnglishCheckin() {
     setScores(prev => { const next = new Map(prev); next.set(key, score); return next })
   }, [translations])
 
+  // 展开/收起预生成「解析」卡片（本地数据，不消耗 AI token）
+  const toggleAnalysis = useCallback((dayIdx: number, sentIdx: number) => {
+    const key = `${dayIdx}-${sentIdx}`
+    setShowAnalysis(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
   // 调用 Supabase Edge Function 完成 AI 翻译批改
   const handleAiCorrect = useCallback(async (dayIdx: number, sentIdx: number) => {
     const key = `${dayIdx}-${sentIdx}`
@@ -374,14 +387,14 @@ export default function EnglishCheckin() {
           userTranslation: userText,
           refTranslation: refText,
         })
-        if (!ok || !body?.ok) throw new Error(body?.error || `AI 解析失败（${status}）`)
+        if (!ok || !body?.ok) throw new Error(body?.error || `AI 批改失败（${status}）`)
         result = normalizeAiCorrection(body.data)
       } else {
         // 回退：Supabase Edge Function
         const { data, error } = await supabase.functions.invoke('ai-correct', {
           body: { en: sentence, userTranslation: userText, refTranslation: refText },
         })
-        if (error) throw new Error(error.message || 'AI 解析失败')
+        if (error) throw new Error(error.message || 'AI 批改失败')
         result = normalizeAiCorrection(data)
       }
       setAiResults(prev => { const next = new Map(prev); next.set(key, result); return next })
@@ -389,8 +402,8 @@ export default function EnglishCheckin() {
       const aborted = e instanceof Error && e.name === 'AbortError'
       setAiError(
         aborted
-          ? 'AI 解析超时，请检查网络后重试'
-          : e instanceof Error ? e.message : 'AI 解析失败，请稍后重试'
+          ? 'AI 批改超时，请检查网络后重试'
+          : e instanceof Error ? e.message : 'AI 批改失败，请稍后重试'
       )
     } finally {
       setAiLoading(prev => { const next = new Set(prev); next.delete(key); return next })
@@ -419,7 +432,7 @@ export default function EnglishCheckin() {
       )}
 
       {aiError && (
-        <div className="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">AI 解析失败：{aiError}</div>
+        <div className="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">AI 批改失败：{aiError}</div>
       )}
 
       {/* 逐句翻译：原文 + 翻译输入框放在一起 */}
@@ -493,20 +506,64 @@ export default function EnglishCheckin() {
                     打分
                   </button>
                   <button
+                    onClick={() => toggleAnalysis(dayData.day, sentIdx)}
+                    disabled={!s.ai}
+                    title={s.ai ? '查看句子主干/结构/搭配解析' : '该句暂无预生成解析'}
+                    className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
+                  >
+                    解析
+                  </button>
+                  <button
                     onClick={() => handleAiCorrect(dayData.day, sentIdx)}
                     disabled={!translations.get(tKey)?.trim() || aiLoading.has(tKey)}
+                    title="AI 批改会消耗 AI 调用额度，仅在需要时点击"
                     className="px-3 py-1 rounded-lg bg-purple-500 hover:bg-purple-600 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
                   >
                     {aiLoading.has(tKey) ? (
                       <>
                         <span className="inline-block w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                        解析中...
+                        批改中...
                       </>
                     ) : (
-                      <>AI 解析</>
+                      <>AI 批改</>
                     )}
                   </button>
                 </div>
+
+                {/* 预生成解析（本地数据，不消耗 AI token） */}
+                {showAnalysis.has(tKey) && s.ai && (
+                  <div className="mt-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/40 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">句子解析</span>
+                    </div>
+                    {s.ai.backbone && (
+                      <div className="rounded-md border border-emerald-200 dark:border-emerald-700/50 bg-white/60 dark:bg-slate-900/40 px-3 py-2">
+                        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 mb-1">句子主干</p>
+                        <p className="text-sm leading-relaxed text-gray-800 dark:text-slate-100 break-words">{s.ai.backbone}</p>
+                      </div>
+                    )}
+                    {s.ai.structure.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mb-1">结构解析</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          {s.ai.structure.map((item, i) => (
+                            <li key={i} className="text-xs text-gray-700 dark:text-slate-200 break-words">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {s.ai.collocations.length > 0 && (
+                      <div>
+                        <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 mb-1">短语搭配</p>
+                        <ul className="list-disc list-inside space-y-0.5">
+                          {s.ai.collocations.map((item, i) => (
+                            <li key={i} className="text-xs text-gray-700 dark:text-slate-200 break-words">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* AI 批改结果 */}
                 {aiResults.get(tKey) && (
@@ -516,39 +573,13 @@ export default function EnglishCheckin() {
                   return (
                     <div className="mt-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800/40 p-3 space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-purple-700 dark:text-purple-300">AI 解析</span>
+                        <span className="text-xs font-bold text-purple-700 dark:text-purple-300">AI 批改</span>
                         {r.score != null && (
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scoreBg(r.score)} ${scoreColor(r.score)}`}>
                             AI 评分 {r.score}
                           </span>
                         )}
                       </div>
-                      {r.backbone && (
-                        <div className="rounded-md border border-purple-200 dark:border-purple-700/50 bg-white/60 dark:bg-slate-900/40 px-3 py-2">
-                          <p className="text-xs font-bold text-purple-700 dark:text-purple-300 mb-1">句子主干</p>
-                          <p className="text-sm leading-relaxed text-gray-800 dark:text-slate-100 break-words">{r.backbone}</p>
-                        </div>
-                      )}
-                      {r.structure.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">结构解析</p>
-                          <ul className="list-disc list-inside space-y-0.5">
-                            {r.structure.map((item, i) => (
-                              <li key={i} className="text-xs text-gray-700 dark:text-slate-200 break-words">{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {r.collocations.length > 0 && (
-                        <div>
-                          <p className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">短语搭配</p>
-                          <ul className="list-disc list-inside space-y-0.5">
-                            {r.collocations.map((item, i) => (
-                              <li key={i} className="text-xs text-gray-700 dark:text-slate-200 break-words">{item}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
                       {r.corrected && (
                         <div>
                           <p className="text-xs font-medium text-gray-500 dark:text-slate-400 mb-1">修正译文</p>

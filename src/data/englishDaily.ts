@@ -5,6 +5,12 @@ export interface EnglishDaySentence {
   num: string
   en: string
   ref: string
+  // 预生成的 AI 解析内容（句子主干/结构/搭配），由 scripts/gen-ai-analysis.cjs 批量生成，避免运行时消耗 AI token
+  ai?: {
+    backbone: string
+    structure: string[]
+    collocations: string[]
+  }
 }
 
 export interface VocabItem {
@@ -37,11 +43,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 1",
     zh: "人人都爱丰厚加薪。然而假如你得知一位同事加薪比你更丰厚，那你的快乐可能会骤然消失。事实上,如果他还有懒散的名声，那你甚至可能会变得震怒。这样的行为被认为是“人之常情”，其潜在假设是其他动物不具有这种高度发达的委屈意识。但由佐治亚州亚特兰大市埃默里大学的萨拉·布鲁斯南和弗兰斯·德·瓦尔完成的一项刚刚发表于《自然》上的研究表明，这也是“猴之常情”。",
     sentences: [
-    { num: "①", en: "Everybody loves a fat pay rise.", ref: "人人都爱丰厚加薪。" },
-    { num: "②", en: "Yet pleasure at your own can vanish if you learn that a colleague has been given a bigger one.", ref: "然而假如你得知一位同事加薪比你更丰厚，那你的快乐可能会骤然消失。" },
-    { num: "③", en: "Indeed, if he has a reputation for slacking, you might even be outraged.", ref: "事实上,如果他还有懒散的名声，那你甚至可能会变得震怒。" },
-    { num: "④", en: "Such behaviour is regarded as “all too human”, with the underlying assumption that other animals would not be capable of this finely developed sense of grievance.", ref: "这样的行为被认为是“人之常情”，其潜在假设是其他动物不具有这种高度发达的委屈意识。" },
-    { num: "⑤", en: "But a study by Sarah Brosnan and Frans de Waal of Emory University in Atlanta, Georgia, which has just been published in Nature, suggests that it is all too monkey, as well.", ref: "但由佐治亚州亚特兰大市埃默里大学的萨拉·布鲁斯南和弗兰斯·德·瓦尔完成的一项刚刚发表于《自然》上的研究表明，这也是“猴之常情”。" }
+    { num: "①", en: "Everybody loves a fat pay rise.", ref: "人人都爱丰厚加薪。",
+      ai: { backbone: "主语 Everybody、谓语 loves、宾语 a fat pay rise", structure: ["形容词短语 a fat：作定语，修饰宾语 pay rise，用于说明加薪的额度特征，意为“丰厚的”"], collocations: ["fat pay rise（丰厚加薪）"] }},
+    { num: "②", en: "Yet pleasure at your own can vanish if you learn that a colleague has been given a bigger one.", ref: "然而假如你得知一位同事加薪比你更丰厚，那你的快乐可能会骤然消失。",
+      ai: { backbone: "主语 pleasure at your own（你自身的喜悦）、谓语 can vanish（可能会消失），整体为主谓结构，后接条件状语从句。", structure: ["条件状语从句：if you learn that a colleague has been given a bigger one，修饰主句，说明主句中“快乐消失”的触发条件。","宾语从句：that a colleague has been given a bigger one，作learn的宾语，补充说明“得知”的具体内容，其中bigger one指代前文提及的加薪。"], collocations: ["pleasure at（对……的喜悦）","vanish（消失，常指突然消失）","learn that（得知……，后接宾语从句）"] }},
+    { num: "③", en: "Indeed, if he has a reputation for slacking, you might even be outraged.", ref: "事实上,如果他还有懒散的名声，那你甚至可能会变得震怒。",
+      ai: { backbone: "主语 you、谓语 might be outraged；条件状语从句中，主语 he、谓语 has、宾语 a reputation", structure: ["条件状语从句：由 if 引导，修饰主句谓语 might be outraged，说明产生“震怒”情绪的条件","介词短语作后置定语：for slacking 修饰 reputation，说明名声的具体内容是“懒散”"], collocations: ["have a reputation for（有……的名声）"] }},
+    { num: "④", en: "Such behaviour is regarded as “all too human”, with the underlying assumption that other animals would not be capable of this finely developed sense of grievance.", ref: "这样的行为被认为是“人之常情”，其潜在假设是其他动物不具有这种高度发达的委屈意识。",
+      ai: { backbone: "主语 Such behaviour、谓语 is regarded as、表语 “all too human”", structure: ["介词短语作伴随状语：with the underlying assumption，修饰主句，引出后续的补充说明内容","同位语从句：that other animals would not be capable of this finely developed sense of grievance，修饰 assumption，具体解释“潜在假设”的具体内容"], collocations: ["be regarded as（被认为是，被视作）","underlying assumption（潜在假设，隐含前提）","be capable of（具有……的能力，能够）","sense of grievance（委屈感，不满意识）"] }},
+    { num: "⑤", en: "But a study by Sarah Brosnan and Frans de Waal of Emory University in Atlanta, Georgia, which has just been published in Nature, suggests that it is all too monkey, as well.", ref: "但由佐治亚州亚特兰大市埃默里大学的萨拉·布鲁斯南和弗兰斯·德·瓦尔完成的一项刚刚发表于《自然》上的研究表明，这也是“猴之常情”。",
+      ai: { backbone: "主语是 a study（一项研究），谓语是 suggests（表明），宾语是由that引导的宾语从句（it is all too monkey, as well）。", structure: ["介词短语作后置定语：by Sarah Brosnan and Frans de Waal of Emory University in Atlanta, Georgia，修饰主语a study，说明研究的执行者及所属机构，明确研究的来源主体","非限制性定语从句：which has just been published in Nature，修饰先行词a study，补充说明研究的发表情况，丰富主语的附加信息","宾语从句：that it is all too monkey, as well，作谓语动词suggests的宾语，完整呈现研究得出的核心结论，是句子的核心内容载体"], collocations: ["be published in（发表于……，指研究成果在刊物上刊载，考研常考的学术场景搭配）","all too（太……、过于……，强调程度之深，考研阅读中常用于表达带有感慨的语气，此处引申为“常态、常情”）"] }}
     ]
   },
   {
@@ -50,10 +61,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 1",
     zh: "研究者们研究了雌性棕色卷尾猴的习性。这些猴子看起来很可爱。它们是生性温和，乐于合作的动物，且愿意分享食物。最重要的是,像人类女性一样,它们往往比雄性更注重“物品与服务”的价值。",
     sentences: [
-    { num: "①", en: "The researchers studied the behaviour of female brown capuchin monkeys.", ref: "研究者们研究了雌性棕色卷尾猴的习性。" },
-    { num: "②", en: "They look cute.", ref: "这些猴子看起来很可爱。" },
-    { num: "③", en: "They are good-natured, co-operative creatures, and they share their food readily.", ref: "它们是生性温和，乐于合作的动物，且愿意分享食物。" },
-    { num: "④", en: "Above all, like their female human counterparts, they tend to pay much closer attention to the value of “goods and services” than males.", ref: "最重要的是,像人类女性一样,它们往往比雄性更注重“物品与服务”的价值。" }
+    { num: "①", en: "The researchers studied the behaviour of female brown capuchin monkeys.", ref: "研究者们研究了雌性棕色卷尾猴的习性。",
+      ai: { backbone: "主语 The researchers、谓语 studied、宾语 the behaviour", structure: ["后置定语 of female brown capuchin monkeys：修饰宾语 the behaviour，限定行为的主体是雌性棕色卷尾猴，使宾语范围更具体。"], collocations: ["study the behaviour（研究行为）","brown capuchin monkeys（棕色卷尾猴）"] }},
+    { num: "②", en: "They look cute.", ref: "这些猴子看起来很可爱。",
+      ai: { backbone: "主语 They（指代猴子）、系动词 look、表语 cute", structure: ["无其他修饰成分，该句为简单句，主系表结构完整，无需额外修饰即可表达完整语义。"], collocations: ["look cute（看起来很可爱）"] }},
+    { num: "③", en: "They are good-natured, co-operative creatures, and they share their food readily.", ref: "它们是生性温和，乐于合作的动物，且愿意分享食物。",
+      ai: { backbone: "主语They、系动词are、表语good-natured, co-operative creatures；并列连词and连接第二个主谓结构，主语They、谓语share、宾语their food", structure: ["并列主系表结构：good-natured, co-operative为并列形容词作定语，修饰表语creatures，说明主语They的特征","并列谓宾结构：状语readily修饰谓语动词share，说明分享食物的方式，补充动作的状态"], collocations: ["good-natured（生性温和的）","co-operative（乐于合作的）","share sth.（分享某物）","readily（乐意地、主动地）"] }},
+    { num: "④", en: "Above all, like their female human counterparts, they tend to pay much closer attention to the value of “goods and services” than males.", ref: "最重要的是,像人类女性一样,它们往往比雄性更注重“物品与服务”的价值。",
+      ai: { backbone: "主语：they；谓语：tend to pay；宾语：much closer attention；状语：Above all（程度状语）、like their female human counterparts（方式状语）、to the value of 'goods and services'（对象状语）、than males（比较状语）。", structure: ["Above all：程度状语，修饰整个句子，突出强调核心程度，意为‘最重要的是’","like their female human counterparts：介词短语作方式状语，修饰谓语tend to pay，说明比较的方式，意为‘像人类女性一样’","to the value of 'goods and services'：介词短语作对象状语，修饰谓语pay attention，明确关注的具体对象，意为‘对‘商品与服务’的价值’","than males：比较状语，修饰谓语中的核心短语pay much closer attention，构成比较关系，意为‘比雄性’"], collocations: ["Above all（最重要的是，表强调程度的常用短语）","pay attention to（关注，考研高频固定搭配）","goods and services（商品与服务，常用经济类固定搭配）"] }}
     ]
   },
   {
@@ -62,10 +77,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 1",
     zh: "这些特征使它们成为布鲁斯南博士和德·瓦尔博士研究的理想对象。研究人员花费了两年的时间教猴子用代币换取食物。通常情况下，猴子很乐意用石块换取黄瓜片。然而，当两只猴子被安置在隔开但相邻的房间里，以便它们能够看到彼此用石块换取的东西时，它们的行为就会变得明显不同了。",
     sentences: [
-    { num: "①", en: "Such characteristics make them perfect candidates for Dr. Brosnan’s and Dr. de Waal’s study.", ref: "这些特征使它们成为布鲁斯南博士和德·瓦尔博士研究的理想对象。" },
-    { num: "②", en: "The researchers spent two years teaching their monkeys to exchange tokens for food.", ref: "研究人员花费了两年的时间教猴子用代币换取食物。" },
-    { num: "③", en: "Normally, the monkeys were happy enough to exchange pieces of rock for slices of cucumber.", ref: "通常情况下，猴子很乐意用石块换取黄瓜片。" },
-    { num: "④", en: "However, when two monkeys were placed in separate but adjoining chambers, so that each could observe what the other was getting in return for its rock, their behaviour became markedly different.", ref: "然而，当两只猴子被安置在隔开但相邻的房间里，以便它们能够看到彼此用石块换取的东西时，它们的行为就会变得明显不同了。" }
+    { num: "①", en: "Such characteristics make them perfect candidates for Dr. Brosnan’s and Dr. de Waal’s study.", ref: "这些特征使它们成为布鲁斯南博士和德·瓦尔博士研究的理想对象。",
+      ai: { backbone: "主语 Such characteristics、谓语 make、宾语 them、宾语补足语 perfect candidates", structure: ["介词短语 for Dr. Brosnan’s and Dr. de Waal’s study：作后置定语，修饰宾语补足语 perfect candidates，说明成为理想对象的所属研究领域"], collocations: ["make sb. sth.（使某人成为某事，此处指使它们成为理想对象）","perfect candidates（理想对象/完美候选人，此处指符合研究要求的合适对象）"] }},
+    { num: "②", en: "The researchers spent two years teaching their monkeys to exchange tokens for food.", ref: "研究人员花费了两年的时间教猴子用代币换取食物。",
+      ai: { backbone: "主语 The researchers、谓语 spent、宾语 two years", structure: ["非谓语结构（teaching their monkeys to exchange tokens for food）：作宾语补足语，补充说明谓语动词 spent 的具体内容，即“花费两年时间所做的动作”，其中包含宾语 their monkeys 和不定式宾语补足语 to exchange tokens for food，进一步明确教猴子的具体内容。","不定式短语（to exchange tokens for food）：作宾语补足语，修饰 teaching，补充说明教猴子的具体行为，即“教猴子做什么”。"], collocations: ["spend time (in) doing sth.（花费时间做某事）","exchange...for...（用……换取……）"] }},
+    { num: "③", en: "Normally, the monkeys were happy enough to exchange pieces of rock for slices of cucumber.", ref: "通常情况下，猴子很乐意用石块换取黄瓜片。",
+      ai: { backbone: "主语 the monkeys，谓语 were，表语 happy，构成主系表结构，核心表达猴子的状态。", structure: ["Normally（副词作状语）：修饰整个句子，说明动作发生的频率，意为“通常情况下”。","to exchange pieces of rock for slices of cucumber（不定式短语作原因状语）：修饰表语happy，解释猴子“开心乐意”的具体原因，即“用石块换取黄瓜片”。"], collocations: ["be happy to do sth.（乐意做某事）","exchange A for B（用A换取B）"] }},
+    { num: "④", en: "However, when two monkeys were placed in separate but adjoining chambers, so that each could observe what the other was getting in return for its rock, their behaviour became markedly different.", ref: "然而，当两只猴子被安置在隔开但相邻的房间里，以便它们能够看到彼此用石块换取的东西时，它们的行为就会变得明显不同了。",
+      ai: { backbone: "主语 their behaviour、谓语 became、表语 markedly different", structure: ["让步状语从句：when two monkeys were placed in separate but adjoining chambers，修饰主句，说明行为发生变化的时间背景，从句主语为two monkeys，谓语为were placed，in separate but adjoining chambers为介词短语作地点状语","目的状语从句：so that each could observe what the other was getting in return for its rock，修饰前面的时间状语从句，说明猴子被安置的目的，从句主语为each，谓语为could observe，宾语为what引导的宾语从句what the other was getting in return for its rock，该宾语从句中主语为the other，谓语为was getting，in return for its rock为介词短语作状语，说明换取的回报"], collocations: ["in separate but adjoining chambers（被安置在隔开但相邻的房间里）","in return for（作为……的回报）","markedly different（明显不同）"] }}
     ],
     analysis: [
       {
@@ -91,10 +110,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 1",
     zh: "在卷尾猴的世界里，葡萄是奢侈品（且比黄瓜要受欢迎得多）。所以当一只猴子用一个代币换到一颗葡萄时，第二只猴子就不愿意用自己的代币只换取一片黄瓜了。 如果一只猴子根本无需用代币作为交换就得到一颗葡萄，那么另一只猴子就会把代币砸向研究人员或者扔出房间外，或者拒绝接受那片黄瓜。事实上，只要在另一个房间出现了葡萄（根本没有猴子吃它），就足以引起雌性卷尾猴的愤恨了。",
     sentences: [
-    { num: "①", en: "In the world of capuchins grapes are luxury goods (and much preferable to cucumbers).", ref: "在卷尾猴的世界里，葡萄是奢侈品（且比黄瓜要受欢迎得多）。" },
-    { num: "②", en: "So when one monkey was handed a grape in exchange for her token, the second was reluctant to hand hers over for a mere piece of cucumber.", ref: "所以当一只猴子用一个代币换到一颗葡萄时，第二只猴子就不愿意用自己的代币只换取一片黄瓜了。" },
-    { num: "③", en: "And if one received a grape without having to provide her token in exchange at all, the other either tossed her own token at the researcher or out of the chamber, or refused to accept the slice of cucumber.", ref: "如果一只猴子根本无需用代币作为交换就得到一颗葡萄，那么另一只猴子就会把代币砸向研究人员或者扔出房间外，或者拒绝接受那片黄瓜。" },
-    { num: "④", en: "Indeed, the mere presence of a grape in the other chamber (without an actual monkey to eat it) was enough to induce resentment in a female capuchin.", ref: "事实上，只要在另一个房间出现了葡萄（根本没有猴子吃它），就足以引起雌性卷尾猴的愤恨了。" }
+    { num: "①", en: "In the world of capuchins grapes are luxury goods (and much preferable to cucumbers).", ref: "在卷尾猴的世界里，葡萄是奢侈品（且比黄瓜要受欢迎得多）。",
+      ai: { backbone: "主语是 grapes（葡萄），谓语是 are，表语是 luxury goods（奢侈品），状语是 In the world of capuchins（在卷尾猴的世界里）。", structure: ["介词短语作状语：In the world of capuchins，修饰整个句子，表明事件发生的背景范围，即‘在卷尾猴的世界里’。","括号内并列句作补充说明：(and much preferable to cucumbers)，用并列连词 and 连接，对前文的 luxury goods 进行补充，说明葡萄相较于黄瓜更受青睐，起到补充解释的作用。"], collocations: ["preferable to（比……更受欢迎、更受青睐）"] }},
+    { num: "②", en: "So when one monkey was handed a grape in exchange for her token, the second was reluctant to hand hers over for a mere piece of cucumber.", ref: "所以当一只猴子用一个代币换到一颗葡萄时，第二只猴子就不愿意用自己的代币只换取一片黄瓜了。",
+      ai: { backbone: "主干为复合句，主句是“the second was reluctant to hand hers over for a mere piece of cucumber”（主语the second，系动词was，表语reluctant，不定式短语to hand hers over for a mere piece of cucumber作表语补足语）；从句是“when one monkey was handed a grape in exchange for her token”（时间状语从句，从句主语one monkey，谓语was handed，宾语a grape，状语in exchange for her token）。", structure: ["时间状语从句：when引导，修饰主句，说明主句动作发生的时间背景，从句中“in exchange for her token”是介词短语作状语，修饰从句谓语“was handed”，表示交换的方式。","主句表语补足语：不定式短语“to hand hers over for a mere piece of cucumber”，修饰表语“reluctant”，说明“不情愿”的具体行为，其中“for a mere piece of cucumber”是介词短语作状语，修饰不定式短语中的动词“hand over”，表示交换的代价。"], collocations: ["in exchange for（作为……的交换）","be reluctant to do sth.（不情愿做某事）","hand over（交出，移交）"] }},
+    { num: "③", en: "And if one received a grape without having to provide her token in exchange at all, the other either tossed her own token at the researcher or out of the chamber, or refused to accept the slice of cucumber.", ref: "如果一只猴子根本无需用代币作为交换就得到一颗葡萄，那么另一只猴子就会把代币砸向研究人员或者扔出房间外，或者拒绝接受那片黄瓜。",
+      ai: { backbone: "主语为并列的 the other（另一只猴子），谓语为 either tossed...or out of..., or refused...，其中 tossed 的宾语为 her own token，refused 的宾语为 to accept the slice of cucumber。", structure: ["条件状语从句：if one received a grape without having to provide her token in exchange at all，修饰主句，表明主句动作发生的前提条件","方式状语：without having to provide her token in exchange at all，修饰从句谓语 received，说明得到葡萄无需提供代币交换的方式","并列谓语结构：either tossed her own token at the researcher or out of the chamber, or refused to accept the slice of cucumber，以 either...or...结构连接两个并列谓语，明确另一只猴子的两种行为"], collocations: ["provide...in exchange（用……作为交换）","either...or...（要么……要么……；或者……或者……）","refuse to accept（拒绝接受）"] }},
+    { num: "④", en: "Indeed, the mere presence of a grape in the other chamber (without an actual monkey to eat it) was enough to induce resentment in a female capuchin.", ref: "事实上，只要在另一个房间出现了葡萄（根本没有猴子吃它），就足以引起雌性卷尾猴的愤恨了。",
+      ai: { backbone: "主语：the mere presence of a grape in the other chamber（另一个房间里单单有一颗葡萄）；谓语：was enough（就足以）；宾语：to induce resentment in a female capuchin（引发雌性卷尾猴的怨恨）。", structure: ["插入语：(without an actual monkey to eat it)，对主语中“葡萄存在”的情境进行补充说明，排除有猴子吃葡萄的情况，使语义更完整。","不定式短语作结果状语：to induce resentment in a female capuchin，修饰谓语“was enough”，说明“足以”达成的具体结果，即引发怨恨。"], collocations: ["mere presence（仅仅存在，单单出现）","be enough to do（足以做某事，足够做某事）","induce resentment（引发怨恨，激起愤恨）"] }}
     ]
   },
   {
@@ -103,12 +126,18 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 1",
     zh: "研究人员指出，正如人类一样，卷尾猴也受到社会情感的支配。在野外，它们是协作、群居的物种。只有当每只猴子都感到自己没有遭受不公时，这种协作才可能稳定。义愤感似乎不只是人类的专利。拒绝一份较少的酬劳可以完全将这些情绪十分明确地传达给组内其他成员。但是这种公平感是从卷尾猴和人类身上各自演化而来，还是来源于三千五百万年以前他们共同的祖先，至今仍是个有待回答的问题。",
     sentences: [
-    { num: "①", en: "The researchers suggest that capuchin monkeys, like humans, are guided by social emotions.", ref: "研究人员指出，正如人类一样，卷尾猴也受到社会情感的支配。" },
-    { num: "②", en: "In the wild, they are a co-operative, group-living species.", ref: "在野外，它们是协作、群居的物种。" },
-    { num: "③", en: "Such co-operation is likely to be stable only when each animal feels it is not being cheated.", ref: "只有当每只猴子都感到自己没有遭受不公时，这种协作才可能稳定。" },
-    { num: "④", en: "Feelings of righteous indignation, it seems, are not the preserve of people alone.", ref: "义愤感似乎不只是人类的专利。" },
-    { num: "⑤", en: "Refusing a lesser reward completely makes these feelings abundantly clear to other members of the group.", ref: "拒绝一份较少的酬劳可以完全将这些情绪十分明确地传达给组内其他成员。" },
-    { num: "⑥", en: "However, whether such a sense of fairness evolved independently in capuchins and humans, or whether it stems from the common ancestor that the species had 35 million years ago, is, as yet, an unanswered question.", ref: "但是这种公平感是从卷尾猴和人类身上各自演化而来，还是来源于三千五百万年以前他们共同的祖先，至今仍是个有待回答的问题。" }
+    { num: "①", en: "The researchers suggest that capuchin monkeys, like humans, are guided by social emotions.", ref: "研究人员指出，正如人类一样，卷尾猴也受到社会情感的支配。",
+      ai: { backbone: "主语 The researchers、谓语 suggest、宾语从句（that 引导）that capuchin monkeys are guided by social emotions", structure: ["同位语/插入语：like humans，插入在主语 capuchin monkeys 后，补充说明卷尾猴和人类的相似性，起补充修饰作用","宾语从句：that capuchin monkeys are guided by social emotions，作谓语动词 suggest 的宾语，完整表达研究人员提出的核心观点"], collocations: ["suggest that...（提出……；表明……，后接宾语从句，用于引出观点或结论）","be guided by（受到……的引导/支配，强调被某种力量或因素引导）"] }},
+    { num: "②", en: "In the wild, they are a co-operative, group-living species.", ref: "在野外，它们是协作、群居的物种。",
+      ai: { backbone: "主语 they、系动词 are、表语 a co-operative, group-living species（主系表结构）", structure: ["状语 In the wild：介词短语作地点状语，修饰整个句子，说明这种属性的适用环境","并列定语 co-operative、group-living：两个形容词共同修饰表语 species，说明物种的习性与特征"], collocations: ["in the wild（在野外）","group-living species（群居物种）","co-operative（协作的）"] }},
+    { num: "③", en: "Such co-operation is likely to be stable only when each animal feels it is not being cheated.", ref: "只有当每只猴子都感到自己没有遭受不公时，这种协作才可能稳定。",
+      ai: { backbone: "主语 Such co-operation、系动词 is、表语 likely to be stable", structure: ["条件状语从句：由'when'引导，修饰主句的谓语部分，说明'这种合作可能稳定'的唯一条件。","宾语从句：'it is not being cheated'作'feels'的宾语，从句中'it'指代前文的'each animal'，说明动物所感知的具体内容。"], collocations: ["be likely to（有可能）","be stable（保持稳定）","feel + 宾语从句（感到……）"] }},
+    { num: "④", en: "Feelings of righteous indignation, it seems, are not the preserve of people alone.", ref: "义愤感似乎不只是人类的专利。",
+      ai: { backbone: "主语是 Feelings of righteous indignation（义愤感），谓语是 are（是），表语是 not the preserve of people alone（不只是人类的专利）。", structure: ["插入语成分：it seems，插入在主语和谓语之间，用于表达说话人对句子内容的判断语气，意为“似乎”，起到缓和语气、补充说明的作用","介词短语作后置定语：of righteous indignation，修饰主语核心词 Feelings，明确“义愤感”的具体情感属性，限定主语的语义范围","介词短语作表语后置修饰成分：of people alone，修饰表语核心词 preserve，说明“专利”的归属对象，强调“仅属于人类”这一限定含义"], collocations: ["feelings of...（……的感觉/情绪）","righteous indignation（义愤）","not...alone（不只是……）","the preserve of...（……的专属/专利）"] }},
+    { num: "⑤", en: "Refusing a lesser reward completely makes these feelings abundantly clear to other members of the group.", ref: "拒绝一份较少的酬劳可以完全将这些情绪十分明确地传达给组内其他成员。",
+      ai: { backbone: "主语是动名词短语Refusing a lesser reward（拒绝一份较少的酬劳），谓语是makes，宾语是these feelings（这些情绪），宾语补足语是abundantly clear（十分清晰地）", structure: ["动名词短语作主语：Refusing a lesser reward，整体充当句子主语，表达“拒绝一份较少的酬劳”这一行为，是动作的发出者","程度副词作状语：completely，修饰谓语动词makes，强调动作的程度，意为“完全地”","副词作宾语补足语的修饰成分：abundantly，修饰宾语补足语clear，补充说明清晰的程度，意为“十分地、充分地”","介词短语作对象状语：to other members of the group，修饰谓语动词makes，明确动作的对象，意为“给群体中的其他成员”"], collocations: ["refuse a reward（拒绝一份酬劳）","make sth. clear to sb.（让某事对某人来说十分清晰，向某人明确展现某事）"] }},
+    { num: "⑥", en: "However, whether such a sense of fairness evolved independently in capuchins and humans, or whether it stems from the common ancestor that the species had 35 million years ago, is, as yet, an unanswered question.", ref: "但是这种公平感是从卷尾猴和人类身上各自演化而来，还是来源于三千五百万年以前他们共同的祖先，至今仍是个有待回答的问题。",
+      ai: { backbone: "主语为并列主语从句‘whether such a sense of fairness evolved independently in capuchins and humans, or whether it stems from the common ancestor that the species had 35 million years ago’，谓语是系动词‘is’，表语是‘an unanswered question’。", structure: ["并列主语从句1：whether such a sense of fairness evolved independently in capuchins and humans，修饰主语，说明第一种可能的演化情况，即公平感在卷尾猴和人类身上独立演化","并列主语从句2：or whether it stems from the common ancestor that the species had 35 million years ago，与第一个主语从句并列，共同作主语，说明第二种可能的来源，即公平感源于共同祖先，其中包含定语从句that the species had 35 million years ago，修饰先行词the common ancestor，明确共同祖先的时间属性","插入语：as yet，位于系动词is后，修饰整个句子，表时间状态，意为‘到目前为止’","表语：an unanswered question，承接系动词is，说明主语所指代的两种情况共同构成的核心结论，即尚未有答案的问题"], collocations: ["sense of fairness（公平感）","evolve independently（独立演化）","stem from（源于；来自）","common ancestor（共同祖先）","as yet（到目前为止；至今）"] }}
     ],
     analysis: [
       {
@@ -128,11 +157,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 6,
     type: "英一",
     source: "2005 Text 2",
-    zh: "还记得那些年吗？科学家们提出吸烟会使我们丧命，而怀疑者们却坚称我们对此无法定论；他们坚称证据不确凿，科学不确定；他们坚称反对吸烟的游说者企图破坏我们的生活方式，而政府应该置身事外。许多美国人听信了那些谬论，结果过去三十年间，大约一千万烟民过早地进了坟墓。",
+    zh: "还记得那些年吗？科学家们提出吸烟会使我们丧命，而怀疑者们却坚称我们对此无法定论？他们坚称证据不确凿，科学不确定；他们坚称反对吸烟的游说者企图破坏我们的生活方式，而政府应该置身事外。许多美国人听信了那些谬论，结果过去三十年间，大约一千万烟民过早地进了坟墓。",
     sentences: [
-    { num: "①", en: "Do you remember all those years when scientists argued that smoking would kill us but the doubters insisted that we didn’t know for sure?", ref: "还记得那些年吗？" },
-    { num: "②", en: "That the evidence was inconclusive, the science uncertain? That the antismoking lobby was out to destroy our way of life and the government should stay out of the way?", ref: "科学家们提出吸烟会使我们丧命，而怀疑者们却坚称我们对此无法定论；他们坚称证据不确凿，科学不确定；他们坚称反对吸烟的游说者企图破坏我们的生活方式，而政府应该置身事外。" },
-    { num: "③", en: "Lots of Americans bought that nonsense, and over three decades, some 10 million smokers went to early graves.", ref: "许多美国人听信了那些谬论，结果过去三十年间，大约一千万烟民过早地进了坟墓。" }
+    { num: "①", en: "Do you remember all those years when scientists argued that smoking would kill us but the doubters insisted that we didn’t know for sure?", ref: "还记得那些年吗？科学家们提出吸烟会使我们丧命，而怀疑者们却坚称我们对此无法定论？",
+      ai: { backbone: "主语为You，谓语为remember，宾语为all those years（Do you remember all those years?构成主谓宾结构，为主干句）", structure: ["成分解析1：when引导定语从句，修饰先行词all those years，在从句中作时间状语，补充说明“那些年”里发生的具体情况","成分解析2：that引导宾语从句（smoking would kill us），作argued的宾语，说明科学家所主张的核心内容","成分解析3：that引导宾语从句（we didn’t know for sure），作insisted的宾语，说明怀疑者所坚持的核心观点","成分解析4：but为并列连词，连接两个并列分句（scientists argued...和the doubters insisted...），表转折关系，衔接科学家与怀疑者的不同立场"], collocations: ["argue that（认为；主张，常接宾语从句表达观点）","insist that（坚持认为；坚称，常接宾语从句强调立场）","for sure（确定地；无疑地，常作状语修饰动词或整个句子）"] }},
+    { num: "②", en: "That the evidence was inconclusive, the science uncertain? That the antismoking lobby was out to destroy our way of life and the government should stay out of the way?", ref: "他们坚称证据不确凿，科学不确定；他们坚称反对吸烟的游说者企图破坏我们的生活方式，而政府应该置身事外。",
+      ai: { backbone: "主语they + 谓语claimed + 宾语从句（证据不确凿，科学不确定）+ 并列宾语从句（反对吸烟的游说者企图破坏我们的生活方式，而政府应该置身事外）", structure: ["成分解析1：that引导的第一个宾语从句，修饰动词claimed，说明他们坚称的内容"], collocations: ["antismoking lobby（反对吸烟的游说者）","out to destroy our way of life（企图破坏我们的生活方式）"] }},
+    { num: "③", en: "Lots of Americans bought that nonsense, and over three decades, some 10 million smokers went to early graves.", ref: "许多美国人听信了那些谬论，结果过去三十年间，大约一千万烟民过早地进了坟墓。",
+      ai: { backbone: "主语 Lots of Americans、谓语 bought、宾语 that nonsense；并列句后句主语 some 10 million smokers、谓语 went to、宾语 early graves。", structure: ["并列连词 and：连接两个独立分句，构成并列关系，前句表原因，后句表结果，使两句逻辑衔接自然","状语 over three decades：时间状语，修饰后句谓语 went to，明确动作发生的时间跨度","状语结果词 over：在此处表结果，承接前句“听信谬论”带来的后果，衔接前后句的因果逻辑"], collocations: ["buy nonsense（听信谬论）","go to early graves（过早离世/过早进坟墓）"] }}
     ]
   },
   {
@@ -141,11 +173,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 2",
     zh: "如今，在科学家们前赴后继努力唤醒我们关注全球变暖这一与日俱增的威胁之时令人不安的类似情形再次出现。最新一轮（的科学家努力）是，受白宫邀请成立的国家科学院专家小组告诉我们，地球气候毫无疑问正在变暖，而且这一问题主要是人为造成的。（他们传达的）明确信息是我们应该立刻着手保护自己。国家科学院院长布鲁斯·阿尔伯特在专家小组报告的前言中加上了这一重要观点：“科学从来都不能解答所有问题。但科学确实为我们提供了关于未来的最好的可行性指导，我们国家和整个世界在做重要决策时，应该以科学能够提供的关于人类当前行为对未来影响的最佳判断为依据，这一点至关重要。”",
     sentences: [
-    { num: "①", en: "There are upsetting parallels today, as scientists in one wave after another try to awaken us to the growing threat of global warming.", ref: "如今，在科学家们前赴后继努力唤醒我们关注全球变暖这一与日俱增的威胁之时令人不安的类似情形再次出现。" },
-    { num: "②", en: "The latest was a panel from the National Academy of Sciences, enlisted by the White House, to tell us that the Earth’s atmosphere is definitely warming and that the problem is largely man-made.", ref: "最新一轮（的科学家努力）是，受白宫邀请成立的国家科学院专家小组告诉我们，地球气候毫无疑问正在变暖，而且这一问题主要是人为造成的。" },
-    { num: "③", en: "The clear message is that we should get moving to protect ourselves.", ref: "（他们传达的）明确信息是我们应该立刻着手保护自己。" },
-    { num: "④", en: "The president of the National Academy, Bruce Alberts, added this key point in the preface to the panel’s report: “Science never has all the answers.", ref: "国家科学院院长布鲁斯·阿尔伯特在专家小组报告的前言中加上了这一重要观点：“科学从来都不能解答所有问题。" },
-    { num: "⑤", en: "But science does provide us with the best available guide to the future, and it is critical that our nation and the world base important policies on the best judgments that science can provide concerning the future consequences of present actions.”", ref: "但科学确实为我们提供了关于未来的最好的可行性指导，我们国家和整个世界在做重要决策时，应该以科学能够提供的关于人类当前行为对未来影响的最佳判断为依据，这一点至关重要。”" }
+    { num: "①", en: "There are upsetting parallels today, as scientists in one wave after another try to awaken us to the growing threat of global warming.", ref: "如今，在科学家们前赴后继努力唤醒我们关注全球变暖这一与日俱增的威胁之时令人不安的类似情形再次出现。",
+      ai: { backbone: "主干为there be句型：存在（谓语）令人不安的类似情形（主语），核心结构为“There are upsetting parallels”，表示“存在令人不安的类似情形”。", structure: ["状语成分：today，作时间状语，修饰整个主句，表明事件发生的时间背景","定语从句：as scientists in one wave after another try to awaken us to the growing threat of global warming，as引导定语从句，修饰先行词parallels，说明“令人不安的类似情形”产生的伴随情境","介词短语：in one wave after another，作方式状语，修饰从句谓语动词try，说明科学家行动的方式，意为“一波接一波地”","非谓语结构：to awaken us to the growing threat of global warming，不定式短语作目的状语，修饰从句谓语动词try，表明科学家努力的目的"], collocations: ["upsetting parallels（令人不安的类似情形）","in one wave after another（一波接一波地）","awaken sb to sth（唤醒某人关注某事）","global warming（全球变暖）"] }},
+    { num: "②", en: "The latest was a panel from the National Academy of Sciences, enlisted by the White House, to tell us that the Earth’s atmosphere is definitely warming and that the problem is largely man-made.", ref: "最新一轮（的科学家努力）是，受白宫邀请成立的国家科学院专家小组告诉我们，地球气候毫无疑问正在变暖，而且这一问题主要是人为造成的。",
+      ai: { backbone: "主语 The latest、系动词 was、表语 a panel from the National Academy of Sciences", structure: ["过去分词短语作后置定语：enlisted by the White House，修饰表语 a panel，说明专家小组的来源与委托关系，即“被白宫委托的”。","不定式短语作目的状语：to tell us，修饰主干谓语系动词 was，表明专家小组的存在目的，即“为了告知我们”。","并列宾语从句：that the Earth’s atmosphere is definitely warming and that the problem is largely man-made，作动词 tell 的直接宾语，明确告知的具体内容，两个 that 从句并列，分别说明大气变暖的事实和问题的成因。"], collocations: ["National Academy of Sciences（国家科学院）","be enlisted by（被……委托/委派）","definitely warming（无疑正在变暖）","largely man-made（在很大程度上是人为造成的）"] }},
+    { num: "③", en: "The clear message is that we should get moving to protect ourselves.", ref: "（他们传达的）明确信息是我们应该立刻着手保护自己。",
+      ai: { backbone: "主语 The clear message、系动词 is、表语从句 that we should get moving to protect ourselves", structure: ["表语从句：that we should get moving to protect ourselves，作系动词 is 的表语，说明主语‘明确信息’的具体内容","目的状语：to protect ourselves，修饰表语从句中的谓语 get moving，表明行动的目的"], collocations: ["clear message（明确的信息）","get moving（立刻行动；着手行动）"] }},
+    { num: "④", en: "The president of the National Academy, Bruce Alberts, added this key point in the preface to the panel’s report: “Science never has all the answers.", ref: "国家科学院院长布鲁斯·阿尔伯特在专家小组报告的前言中加上了这一重要观点：“科学从来都不能解答所有问题。",
+      ai: { backbone: "主语：The president of the National Academy, Bruce Alberts（国家科学院院长布鲁斯·阿尔伯特）；谓语：added（加上了）；宾语：this key point（这一重要观点）；状语：in the preface to the panel's report（在专家小组报告的前言中）", structure: ["同位语：Bruce Alberts，补充说明主语The president of the National Academy的具体所指，明确人物身份","介词短语作状语：in the preface to the panel's report，修饰谓语动词added，说明动作发生的地点范围，即“在专家小组报告的前言中”"], collocations: ["president of...（……的院长/主席）：表示机构负责人，此处指国家科学院院长","add...point（加上……观点）：表示补充、添加某一观点，此处指加上重要观点","preface to...（……的前言）：表示某份文件的前言部分，此处指专家小组报告的前言"] }},
+    { num: "⑤", en: "But science does provide us with the best available guide to the future, and it is critical that our nation and the world base important policies on the best judgments that science can provide concerning the future consequences of present actions.”", ref: "但科学确实为我们提供了关于未来的最好的可行性指导，我们国家和整个世界在做重要决策时，应该以科学能够提供的关于人类当前行为对未来影响的最佳判断为依据，这一点至关重要。”",
+      ai: { backbone: "主语 science、谓语 does provide、间接宾语 us、直接宾语 the best available guide；并列句主语 it、系动词 is、表语 critical", structure: ["并列连词 and 连接的两个并列分句：第一个分句为主谓双宾结构，第二个分句为 it 作形式主语、that 引导的主语从句作真正主语的结构","介词短语 to the future：作后置定语，修饰 guide，说明指导的指向","主语从句 that our nation and the world base important policies on the best judgments：作第二个分句的真正主语，其中 base...on...为谓语结构，our nation and the world 为主语，important policies 为宾语，the best judgments 为介词 on 的宾语","定语从句 that science can provide：修饰 judgments，限定判断的来源","现在分词短语 concerning the future consequences of present actions：作后置定语，修饰 judgments，说明判断所针对的具体内容"], collocations: ["provide sb. with sth.（为某人提供某物）","base...on...（以……为依据）","be critical that...（……至关重要）"] }}
     ],
     analysis: [
       {
@@ -165,9 +202,12 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 2",
     zh: "就像在吸烟问题上一样，现在来自多方面的声音坚持认为有关全球变暖的科学研究还不完善，在我们证实这件事之前可以继续向大气中排放废气。这是一个危险的游戏：到证据百分之百确凿的时候，可能就太晚了。随着风险日益明显并加剧，明智谨慎的民族现在就应该采取防范措施了。",
     sentences: [
-    { num: "①", en: "Just as on smoking, voices now come from many quarters insisting that the science about global warming is incomplete, that it’s OK to keep pouring fumes into the air until we know for sure.", ref: "就像在吸烟问题上一样，现在来自多方面的声音坚持认为有关全球变暖的科学研究还不完善，在我们证实这件事之前可以继续向大气中排放废气。" },
-    { num: "②", en: "This is a dangerous game: by the time 100 percent of the evidence is in, it may be too late.", ref: "这是一个危险的游戏：到证据百分之百确凿的时候，可能就太晚了。" },
-    { num: "③", en: "With the risks obvious and growing, a prudent people would take out an insurance policy now.", ref: "随着风险日益明显并加剧，明智谨慎的民族现在就应该采取防范措施了。" }
+    { num: "①", en: "Just as on smoking, voices now come from many quarters insisting that the science about global warming is incomplete, that it’s OK to keep pouring fumes into the air until we know for sure.", ref: "就像在吸烟问题上一样，现在来自多方面的声音坚持认为有关全球变暖的科学研究还不完善，在我们证实这件事之前可以继续向大气中排放废气。",
+      ai: { backbone: "主语：voices（声音）；谓语：come（出现）、insisting（坚持认为）；宾语：that the science about global warming is incomplete、that it’s OK to keep pouring fumes into the air until we know for sure（两个that引导的宾语从句，作insisting的宾语）。", structure: ["成分解析1：Just as on smoking（方式状语），修饰整个主句，说明后续情况与“吸烟问题上的情况”类似。","成分解析2：now（时间状语），修饰谓语come，表明声音出现的时间。","成分解析3：from many quarters（介词短语作后置定语），修饰主语voices，说明声音的来源。","成分解析4：insisting that...（现在分词短语作后置定语），修饰主语voices，说明声音所表达的核心内容，后接两个that引导的宾语从句补充说明insisting的具体内容。","成分解析5：that the science about global warming is incomplete（同位语从句，与insisting后的that并列），具体说明insisting的第一个观点，即“全球变暖的科学研究不完善”。","成分解析6：that it’s OK to keep pouring fumes into the air until we know for sure（同位语从句，与第一个that并列），具体说明insisting的第二个观点，即“在确切知晓前继续排放废气是可行的”，其中to keep pouring fumes into the air（不定式短语）作真正主语，until we know for sure（时间状语从句）修饰“排放废气”的时间条件。"], collocations: ["come from（来自）","many quarters（各方；多个领域）","insist that（坚持认为）","science about（关于……的科学研究）","keep doing sth（持续做某事）","pour...into...（向……排放/倾倒……）","for sure（确切地；肯定地）"] }},
+    { num: "②", en: "This is a dangerous game: by the time 100 percent of the evidence is in, it may be too late.", ref: "这是一个危险的游戏：到证据百分之百确凿的时候，可能就太晚了。",
+      ai: { backbone: "主语 This、系动词 is、表语 a dangerous game（主系表结构）", structure: ["冒号引导解释说明成分：对主干内容进行补充阐释，引出后续具体情况，说明为何这是‘危险的游戏’","时间状语从句：by the time 100 percent of the evidence is in，修饰从句主句 it may be too late，明确主句动作发生的时间节点，说明‘太晚’的前提","主句（从句中的主句）：it may be too late，是时间状语从句的核心内容，承接前文解释‘危险’的具体表现"], collocations: ["by the time（到……的时候；待到……时，用于引导时间状语从句，强调某一时间点之后的情况）","100 percent of（百分之一百的；全部的，用于修饰名词，表示数量的完全性）","be in（到位；完备，此处指证据收集齐全，是固定搭配的引申用法）"] }},
+    { num: "③", en: "With the risks obvious and growing, a prudent people would take out an insurance policy now.", ref: "随着风险日益明显并加剧，明智谨慎的民族现在就应该采取防范措施了。",
+      ai: { backbone: "主语：a prudent people（一个明智谨慎的民族）；谓语：would take out（会采取）；宾语：an insurance policy（一项防范措施）", structure: ["独立主格结构：With the risks obvious and growing（由with+名词+形容词构成，作伴随状语，说明动作发生的背景，即风险处于明显且加剧的状态）"], collocations: ["take out an insurance policy（采取防范措施，字面为“购买保险单”，此处引申为采取保障性措施，是考研常考的引申义搭配）","prudent people（明智谨慎的民族，prudent为考研高频形容词，意为谨慎的、审慎的）"] }}
     ],
     analysis: [
       {
@@ -196,9 +236,12 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 2",
     zh: "幸运的是，白宫开始关注此事。但很显然，大多数总统顾问仍旧没有严肃看待全球变暖这个问题。他们没有出台行动计划，相反，只是继续敦促进行更多研究——典型的分析导致“瘫痪”的案例。",
     sentences: [
-    { num: "①", en: "Fortunately, the White House is starting to pay attention.", ref: "幸运的是，白宫开始关注此事。" },
-    { num: "②", en: "But it’s obvious that a majority of the president’s advisers still don’t take global warming seriously.", ref: "但很显然，大多数总统顾问仍旧没有严肃看待全球变暖这个问题。" },
-    { num: "③", en: "Instead of a plan of action, they continue to press for more research—a classic case of “paralysis by analysis”.", ref: "他们没有出台行动计划，相反，只是继续敦促进行更多研究——典型的分析导致“瘫痪”的案例。" }
+    { num: "①", en: "Fortunately, the White House is starting to pay attention.", ref: "幸运的是，白宫开始关注此事。",
+      ai: { backbone: "主语：the White House（白宫）；谓语：is starting（开始）；宾语：to pay attention（关注）", structure: ["插入语：Fortunately（幸运的是），独立于句子主干之外，表达说话者的态度，起到引出下文、舒缓语气的作用","不定式短语：to pay attention，作宾语，承接谓语动词is starting，说明白宫开始实施的具体动作"], collocations: ["pay attention（关注，留意）"] }},
+    { num: "②", en: "But it’s obvious that a majority of the president’s advisers still don’t take global warming seriously.", ref: "但很显然，大多数总统顾问仍旧没有严肃看待全球变暖这个问题。",
+      ai: { backbone: "主语 it（形式主语）、谓语 is、表语 obvious，真正的主语是that引导的主语从句（a majority of the president’s advisers为主语，don’t take为谓语，global warming为宾语，seriously为宾语补足语）", structure: ["主语从句：由that引导，作整个句子的真正主语，说明obvious的具体内容，从句中a majority of the president’s advisers作主语，don’t take作谓语，global warming作宾语，seriously作宾语补足语，补充说明对待宾语的态度","形式主语it：置于句首，替代后面的that主语从句，使句子结构平衡，避免头重脚轻"], collocations: ["take...seriously（严肃对待……，认真看待……）"] }},
+    { num: "③", en: "Instead of a plan of action, they continue to press for more research—a classic case of “paralysis by analysis”.", ref: "他们没有出台行动计划，相反，只是继续敦促进行更多研究——典型的分析导致“瘫痪”的案例。",
+      ai: { backbone: "主语 they、谓语 continue to press for、宾语 more research", structure: ["介词短语作状语：Instead of a plan of action，修饰整个主句，表示与主句动作形成对比的前提条件，体现“没有行动计划，反而……”的逻辑关系；","同位语：a classic case of “paralysis by analysis”，对前文“继续敦促更多研究”的行为进行补充说明，明确该行为属于“分析导致瘫痪”的典型实例，补充核心评价信息。"], collocations: ["instead of（代替；而不是）","plan of action（行动计划）","press for（敦促；强烈要求）","paralysis by analysis（分析导致瘫痪，指过度分析而无法做出决策的情况）"] }}
     ]
   },
   {
@@ -207,12 +250,18 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 2",
     zh: "为了担负好地球保护者的责任，我们必须加紧推进对于大气和海洋的深入研究。但仅有研究还不够。如果政府不行使立法动议权，国会应当开始帮助制定保护措施。西弗吉尼亚的民主党参议员罗伯特 · 伯德提出的一项议案——为私企提供财政奖励——就是一个很有希望的开端。许多人看到我们国家正准备修建许多新发电厂，以满足我们的能源需求。如果我们想要保护大气，那么关键是要让这些新发电厂对环境无害。",
     sentences: [
-    { num: "①", en: "To serve as responsible stewards of the planet, we must press forward on deeper atmospheric and oceanic research.", ref: "为了担负好地球保护者的责任，我们必须加紧推进对于大气和海洋的深入研究。" },
-    { num: "②", en: "But research alone is inadequate.", ref: "但仅有研究还不够。" },
-    { num: "③", en: "If the Administration won’t take the legislative initiative, Congress should help to begin fashioning conservation measures.", ref: "如果政府不行使立法动议权，国会应当开始帮助制定保护措施。" },
-    { num: "④", en: "A bill by Democratic Senator Robert Byrd of West Virginia, which would offer financial incentives for private industry, is a promising start.", ref: "西弗吉尼亚的民主党参议员罗伯特 · 伯德提出的一项议案——为私企提供财政奖励——就是一个很有希望的开端。" },
-    { num: "⑤", en: "Many see that the country is getting ready to build lots of new power plants to meet our energy needs.", ref: "许多人看到我们国家正准备修建许多新发电厂，以满足我们的能源需求。" },
-    { num: "⑥", en: "If we are ever going to protect the atmosphere, it is crucial that those new plants be environmentally sound.", ref: "如果我们想要保护大气，那么关键是要让这些新发电厂对环境无害。" }
+    { num: "①", en: "To serve as responsible stewards of the planet, we must press forward on deeper atmospheric and oceanic research.", ref: "为了担负好地球保护者的责任，我们必须加紧推进对于大气和海洋的深入研究。",
+      ai: { backbone: "主语 we、谓语 must press forward on、宾语 deeper atmospheric and oceanic research", structure: ["成分解析1：不定式短语 To serve as responsible stewards of the planet，作目的状语，修饰主干动作，说明推进研究的目的"], collocations: ["serve as（担任；充当）","press forward on（加紧推进；持续推进）"] }},
+    { num: "②", en: "But research alone is inadequate.", ref: "但仅有研究还不够。",
+      ai: { backbone: "主语 research、系动词 is、表语 inadequate", structure: ["修饰成分：alone（副词作后置定语，修饰主语research，表‘仅仅、只有’，强调研究这一单一要素的局限性）","修饰成分：But（并列连词，引导转折关系，连接上下文，体现句子与前文的逻辑对立）"], collocations: ["alone（副词，单独使用，常置于名词或代词后，表‘仅仅、只有’，强调唯一性或排他性）","be inadequate（系表结构，固定搭配，表‘不够、不足、不充分’，多用于说明某事物无法满足需求或达到标准）"] }},
+    { num: "③", en: "If the Administration won’t take the legislative initiative, Congress should help to begin fashioning conservation measures.", ref: "如果政府不行使立法动议权，国会应当开始帮助制定保护措施。",
+      ai: { backbone: "主句主干为：Congress（主语）should help（谓语）to begin fashioning conservation measures（宾语，不定式短语作宾语）。条件状语从句为：If the Administration won’t take the legislative initiative（从句主语为the Administration，谓语为won’t take，宾语为the legislative initiative）。", structure: ["条件状语从句：If the Administration won’t take the legislative initiative，修饰主句，表明主句动作发生的前提条件，说明'国会采取行动'的触发条件是'政府不行使立法倡议权'。","不定式短语作宾语：to begin fashioning conservation measures，作动词help的宾语，其中begin后接动名词短语fashioning conservation measures作宾语，整体表达'开始着手制定保护措施'的具体动作内容，补充说明国会'帮助'的具体事项。"], collocations: ["take the legislative initiative（行使立法倡议权，指主动提出并推动立法相关工作，考研英语中常见于政策与权力类语境）","fashioning conservation measures（制定保护措施，fashion在此处意为'制定、形成'，常与措施、政策类名词搭配，为考研常考动词搭配）"] }},
+    { num: "④", en: "A bill by Democratic Senator Robert Byrd of West Virginia, which would offer financial incentives for private industry, is a promising start.", ref: "西弗吉尼亚的民主党参议员罗伯特 · 伯德提出的一项议案——为私企提供财政奖励——就是一个很有希望的开端。",
+      ai: { backbone: "主语：A bill by Democratic Senator Robert Byrd of West Virginia（西弗吉尼亚的民主党参议员罗伯特·伯德提出的一项议案）；谓语：is；表语：a promising start（一个很有希望的开端）", structure: ["成分解析1：介词短语by Democratic Senator Robert Byrd of West Virginia，作后置定语，修饰主语A bill，明确议案的提出者","成分解析2：非限制性定语从句which would offer financial incentives for private industry，修饰主语A bill，补充说明议案的具体内容"], collocations: ["financial incentives（财政奖励/财政激励措施）","private industry（私营企业/私企）","promising start（有希望的开端/良好的开端）"] }},
+    { num: "⑤", en: "Many see that the country is getting ready to build lots of new power plants to meet our energy needs.", ref: "许多人看到我们国家正准备修建许多新发电厂，以满足我们的能源需求。",
+      ai: { backbone: "主语 Many、谓语 see、宾语从句 that the country is getting ready to build lots of new power plants", structure: ["宾语从句 that the country is getting ready...：作 see 的宾语，具体说明“许多人看到”的内容","不定式短语 to build lots of new power plants：作 get ready 后的目的性补足成分，说明准备去做的事","不定式 to meet our energy needs：作目的状语，说明修建新发电厂的目的"], collocations: ["get ready to do sth（准备好做某事）","meet one's energy needs（满足能源需求）","power plants（发电厂）"] }},
+    { num: "⑥", en: "If we are ever going to protect the atmosphere, it is crucial that those new plants be environmentally sound.", ref: "如果我们想要保护大气，那么关键是要让这些新发电厂对环境无害。",
+      ai: { backbone: "主句：形式主语 it、系动词 is、表语 crucial，真正主语为 that 引导的主语从句；句首为 if 引导的条件状语从句", structure: ["条件状语从句 If we are ever going to protect the atmosphere：修饰主句，说明“新电厂必须无害”的前提条件","主语从句 that those new plants be environmentally sound：作句子的真正主语，谓语用虚拟式 be（it is crucial that...）"], collocations: ["protect the atmosphere（保护大气）","it is crucial that（……至关重要）","environmentally sound（对环境无害的）"] }}
     ]
   },
   {
@@ -221,13 +270,20 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 3",
     zh: "在一夜好眠的所有因素中，梦似乎是最无法控制的。在梦中，有一扇窗通向逻辑暂时失效、死人开口说话的世界。一个世纪前弗洛伊德创立了他的革命性理论——梦是人们无意识的欲望和恐惧所伪装的影子；到了 20 世纪 70 年代末，神经学家们转而认为梦仅仅是“精神噪音”——睡眠期间持续进行的神经修复活动的随机副产品。现在，研究者觉察到梦是大脑情绪自动调节系统的组成部分，当大脑处于“离线”状态时对情绪进行调整。一位有影响力的权威人士认为，这种异常重要的精神活动不仅能被利用，事实上还可以将其置于有意识的控制之下，以使得我们的睡眠质量更高、心情更好。芝加哥医疗中心心理部主任罗莎琳德·卡特赖特说：“这是你的梦。若不喜欢它，就改变它”",
     sentences: [
-    { num: "①", en: "Of all the components of a good night’s sleep, dreams seem to be least within our control.", ref: "在一夜好眠的所有因素中，梦似乎是最无法控制的。" },
-    { num: "②", en: "In dreams, a window opens into a world where logic is suspended and dead people speak.", ref: "在梦中，有一扇窗通向逻辑暂时失效、死人开口说话的世界。" },
-    { num: "③", en: "A century ago, Freud formulated his revolutionary theory that dreams were the disguised shadows of our unconscious desires and fears; by the late 1970s, neurologists had switched to thinking of them as just “mental noise”—the random byproducts of the neural-repair work that goes on during sleep.", ref: "一个世纪前弗洛伊德创立了他的革命性理论——梦是人们无意识的欲望和恐惧所伪装的影子；到了 20 世纪 70 年代末，神经学家们转而认为梦仅仅是“精神噪音”——睡眠期间持续进行的神经修复活动的随机副产品。" },
-    { num: "④", en: "Now researchers suspect that dreams are part of the mind’s emotional thermostat, regulating moods while the brain is “off-line.”", ref: "现在，研究者觉察到梦是大脑情绪自动调节系统的组成部分，当大脑处于“离线”状态时对情绪进行调整。" },
-    { num: "⑤", en: "And one leading authority says that these intensely powerful mental events can be not only harnessed but actually brought under conscious control, to help us sleep and feel better.", ref: "一位有影响力的权威人士认为，这种异常重要的精神活动不仅能被利用，事实上还可以将其置于有意识的控制之下，以使得我们的睡眠质量更高、心情更好。" },
-    { num: "⑥", en: "“It’s your dream,” says Rosalind Cartwright, chair of psychology at Chicago’s Medical Center.", ref: "芝加哥医疗中心心理部主任罗莎琳德·卡特赖特说：“这是你的梦。" },
-    { num: "⑦", en: "“If you don’t like it, change it.”", ref: "若不喜欢它，就改变它”" }
+    { num: "①", en: "Of all the components of a good night’s sleep, dreams seem to be least within our control.", ref: "在一夜好眠的所有因素中，梦似乎是最无法控制的。",
+      ai: { backbone: "主语 dreams、谓语 seem to be、表语 least within our control（主系表结构）", structure: ["介词短语 Of all the components of a good night's sleep：作状语，限定比较范围，说明“在所有因素中”"], collocations: ["within one's control（在某人掌控之内）","a good night's sleep（一夜好眠）"] }},
+    { num: "②", en: "In dreams, a window opens into a world where logic is suspended and dead people speak.", ref: "在梦中，有一扇窗通向逻辑暂时失效、死人开口说话的世界。",
+      ai: { backbone: "主语 a window、谓语 opens、介词短语 into a world 作状语表方向", structure: ["定语从句 where logic is suspended and dead people speak：修饰 a world，说明这个世界里逻辑失效、死者开口的奇幻特征"], collocations: ["open into（通向）","be suspended（被暂时中止）"] }},
+    { num: "③", en: "A century ago, Freud formulated his revolutionary theory that dreams were the disguised shadows of our unconscious desires and fears; by the late 1970s, neurologists had switched to thinking of them as just “mental noise”—the random byproducts of the neural-repair work that goes on during sleep.", ref: "一个世纪前弗洛伊德创立了他的革命性理论——梦是人们无意识的欲望和恐惧所伪装的影子；到了 20 世纪 70 年代末，神经学家们转而认为梦仅仅是“精神噪音”——睡眠期间持续进行的神经修复活动的随机副产品。",
+      ai: { backbone: "分号连接两个并列分句：分句1 主语 Freud、谓语 formulated、宾语 his revolutionary theory；分句2 主语 neurologists、谓语 had switched to thinking of them as just “mental noise”", structure: ["同位语从句 that dreams were the disguised shadows of our unconscious desires and fears：解释说明 theory 的具体内容","破折号后 the random byproducts of the neural-repair work：作 mental noise 的同位语，对其补充解释","定语从句 that goes on during sleep：修饰 work，说明该神经修复活动发生于睡眠期间"], collocations: ["formulate a theory（提出理论）","switch to doing sth（转而做某事）","unconscious desires（无意识欲望）"] }},
+    { num: "④", en: "Now researchers suspect that dreams are part of the mind’s emotional thermostat, regulating moods while the brain is “off-line.”", ref: "现在，研究者觉察到梦是大脑情绪自动调节系统的组成部分，当大脑处于“离线”状态时对情绪进行调整。",
+      ai: { backbone: "主语 researchers、谓语 suspect、宾语从句 that dreams are part of the mind's emotional thermostat", structure: ["宾语从句 that dreams are part of...：作 suspect 的宾语，说明研究者所怀疑的内容","现在分词短语 regulating moods while the brain is “off-line”：作伴随状语，修饰主干，补充说明梦的调节功能","时间状语从句 while the brain is “off-line”：修饰 regulating，说明情绪调节发生的时段"], collocations: ["emotional thermostat（情绪自动调节器）","regulate mood（调节情绪）","be off-line（处于离线状态）"] }},
+    { num: "⑤", en: "And one leading authority says that these intensely powerful mental events can be not only harnessed but actually brought under conscious control, to help us sleep and feel better.", ref: "一位有影响力的权威人士认为，这种异常重要的精神活动不仅能被利用，事实上还可以将其置于有意识的控制之下，以使得我们的睡眠质量更高、心情更好。",
+      ai: { backbone: "主语 one leading authority、谓语 says、宾语从句 that these intensely powerful mental events can be not only harnessed but actually brought under conscious control", structure: ["宾语从句 that these...：作 says 的宾语，转述权威人士的观点","并列结构 not only harnessed but actually brought under conscious control：not only...but 连接两个被动分词短语，说明精神活动既可利用又可受控","不定式 to help us sleep and feel better：作目的状语，说明受控后的目的"], collocations: ["not only...but（不仅……而且）","bring sth under control（把……置于控制之下）","conscious control（有意识的控制）"] }},
+    { num: "⑥", en: "“It’s your dream,” says Rosalind Cartwright, chair of psychology at Chicago’s Medical Center.", ref: "芝加哥医疗中心心理部主任罗莎琳德·卡特赖特说：“这是你的梦。",
+      ai: { backbone: "引语 It's your dream 作宾语前置，主语 Rosalind Cartwright、谓语 says（引述句采用倒装语序）", structure: ["同位语 chair of psychology at Chicago's Medical Center：修饰 Rosalind Cartwright，说明其身份与任职机构"], collocations: ["chair of psychology（心理学系主任）","medical center（医疗中心）"] }},
+    { num: "⑦", en: "“If you don’t like it, change it.”", ref: "若不喜欢它，就改变它”",
+      ai: { backbone: "主句为祈使句 change it（省略主语 you），前接 if 引导的条件状语从句", structure: ["条件状语从句 If you don't like it：修饰主句祈使句，说明“改变它”的前提条件"], collocations: ["change it（改变它）","if you don't like it（如果你不喜欢）"] }}
     ]
   },
   {
@@ -236,10 +292,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 3",
     zh: "来自大脑成像的证据证实了这个观点。匹兹堡大学的埃里克博士说，大脑在快速动眼睡眠中——大多数清晰梦境出现的时刻——和完全清醒时一样活跃。但并非大脑的所有部分都同等活跃，脑边缘系统（“情绪脑”）异常活跃，而前额皮层（思维和推理的中心地带）则相对平静。斯坦福睡眠研究员威廉 · 迪蒙特博士说：“我们从梦中醒来，无论是高兴还是沮丧这些情绪都会伴随我们一整天。”",
     sentences: [
-    { num: "①", en: "Evidence from brain imaging supports this view.", ref: "来自大脑成像的证据证实了这个观点。" },
-    { num: "②", en: "The brain is as active during REM (rapid eye movement) sleep—when most vivid dreams occur—as it is when fully awake, says Dr. Eric Nofzinger at the University of Pittsburgh.", ref: "匹兹堡大学的埃里克博士说，大脑在快速动眼睡眠中——大多数清晰梦境出现的时刻——和完全清醒时一样活跃。" },
-    { num: "③", en: "But not all parts of the brain are equally involved; the limbic system (the “emotional brain”) is especially active, while the prefrontal cortex (the center of intellect and reasoning) is relatively quiet.", ref: "但并非大脑的所有部分都同等活跃，脑边缘系统（“情绪脑”）异常活跃，而前额皮层（思维和推理的中心地带）则相对平静。" },
-    { num: "④", en: "“We wake up from dreams happy or depressed, and those feelings can stay with us all day.” says Stanford sleep researcher Dr. William Dement.", ref: "斯坦福睡眠研究员威廉 · 迪蒙特博士说：“我们从梦中醒来，无论是高兴还是沮丧这些情绪都会伴随我们一整天。”" }
+    { num: "①", en: "Evidence from brain imaging supports this view.", ref: "来自大脑成像的证据证实了这个观点。",
+      ai: { backbone: "主语 Evidence、谓语 supports、宾语 this view", structure: ["后置定语 from brain imaging：修饰主语 Evidence，说明证据的来源"], collocations: ["brain imaging（脑成像）","support a view（支持某观点）"] }},
+    { num: "②", en: "The brain is as active during REM (rapid eye movement) sleep—when most vivid dreams occur—as it is when fully awake, says Dr. Eric Nofzinger at the University of Pittsburgh.", ref: "匹兹堡大学的埃里克博士说，大脑在快速动眼睡眠中——大多数清晰梦境出现的时刻——和完全清醒时一样活跃。",
+      ai: { backbone: "主语 The brain、系动词 is、表语 as active，构成 as...as 比较结构；末尾 says Dr. Eric Nofzinger at the University of Pittsburgh 为引述", structure: ["比较结构 as active...as it is when fully awake：将大脑在 REM 睡眠期与完全清醒时的活跃程度进行对比","插入语 when most vivid dreams occur：解释说明 REM sleep 的特征，即最生动的梦发生之时","引述句 says Dr. Eric Nofzinger：交代观点的出处与作者"], collocations: ["rapid eye movement（快速眼动）","be fully awake（完全清醒）","most vivid dreams（最生动的梦）"] }},
+    { num: "③", en: "But not all parts of the brain are equally involved; the limbic system (the “emotional brain”) is especially active, while the prefrontal cortex (the center of intellect and reasoning) is relatively quiet.", ref: "但并非大脑的所有部分都同等活跃，脑边缘系统（“情绪脑”）异常活跃，而前额皮层（思维和推理的中心地带）则相对平静。",
+      ai: { backbone: "分号连接两个分句：分句1 主语 not all parts of the brain、谓语 are equally involved；分句2 主语 the limbic system、系动词 is、表语 especially active；while 引导对比分句", structure: ["插入语 the “emotional brain”：解释说明 limbic system，说明其别称与功能定位","插入语 the center of intellect and reasoning：解释说明 prefrontal cortex，说明其功能","对比状语从句 while the prefrontal cortex is relatively quiet：与前半句形成对照，说明两部分活跃程度的差异"], collocations: ["limbic system（边缘系统）","prefrontal cortex（前额叶皮层）","be equally involved（同样参与）"] }},
+    { num: "④", en: "“We wake up from dreams happy or depressed, and those feelings can stay with us all day.” says Stanford sleep researcher Dr. William Dement.", ref: "斯坦福睡眠研究员威廉 · 迪蒙特博士说：“我们从梦中醒来，无论是高兴还是沮丧这些情绪都会伴随我们一整天。”",
+      ai: { backbone: "引语作宾语：We wake up（主语 We、谓语 wake up）与 and those feelings can stay（并列分句）；引述 says Dr. William Dement", structure: ["形容词短语 happy or depressed：作伴随状语（主补），说明醒来时的心情状态","介词短语 all day：修饰 stay，说明情绪持续时间"], collocations: ["wake up from（从……中醒来）","stay with sb（伴随某人）","sleep researcher（睡眠研究员）"] }}
     ],
     analysis: [
       {
@@ -260,9 +320,12 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 3",
     zh: "梦和情绪的关联在卡特赖特诊所的病人身上显露出来。大多数人似乎在晚上入睡早期做更多不好的梦，而在醒来前会逐渐做开心一些的梦，这说明人们在梦里逐渐化解白天所产生的负面情绪。因为我们有意识的大脑被日常事务占据，所以并不总能思考白天所发生的重大事件的情感意义——似乎直到开始做梦时才会。",
     sentences: [
-    { num: "①", en: "The link between dreams and emotions shows up among the patients in Cartwright’s clinic.", ref: "梦和情绪的关联在卡特赖特诊所的病人身上显露出来。" },
-    { num: "②", en: "Most people seem to have more bad dreams early in the night, progressing toward happier ones before awakening, suggesting that they are working through negative feelings generated during the day.", ref: "大多数人似乎在晚上入睡早期做更多不好的梦，而在醒来前会逐渐做开心一些的梦，这说明人们在梦里逐渐化解白天所产生的负面情绪。" },
-    { num: "③", en: "Because our conscious mind is occupied with daily life we don’t always think about the emotional significance of the day’s events—until, it appears, we begin to dream.", ref: "因为我们有意识的大脑被日常事务占据，所以并不总能思考白天所发生的重大事件的情感意义——似乎直到开始做梦时才会。" }
+    { num: "①", en: "The link between dreams and emotions shows up among the patients in Cartwright’s clinic.", ref: "梦和情绪的关联在卡特赖特诊所的病人身上显露出来。",
+      ai: { backbone: "主语 The link、谓语 shows up、介词短语 among the patients 作状语", structure: ["后置定语 between dreams and emotions：修饰主语 The link，明确联系的双方","介词短语 among the patients in Cartwright's clinic：作地点状语，说明现象出现的范围"], collocations: ["show up（显现、显露）","the link between A and B（A 与 B 之间的联系）"] }},
+    { num: "②", en: "Most people seem to have more bad dreams early in the night, progressing toward happier ones before awakening, suggesting that they are working through negative feelings generated during the day.", ref: "大多数人似乎在晚上入睡早期做更多不好的梦，而在醒来前会逐渐做开心一些的梦，这说明人们在梦里逐渐化解白天所产生的负面情绪。",
+      ai: { backbone: "主语 Most people、谓语 seem to have、宾语 more bad dreams", structure: ["时间状语 early in the night：说明做噩梦多发的时段","现在分词短语 progressing toward happier ones before awakening：作伴随状语，说明梦境发展的趋势","现在分词短语 suggesting that they are working through negative feelings：作结果状语，补充说明这种现象的含义","后置定语 generated during the day：修饰 negative feelings，说明负面情绪来源"], collocations: ["work through（化解、克服）","negative feelings（负面情绪）","early in the night（夜晚初期）"] }},
+    { num: "③", en: "Because our conscious mind is occupied with daily life we don’t always think about the emotional significance of the day’s events—until, it appears, we begin to dream.", ref: "因为我们有意识的大脑被日常事务占据，所以并不总能思考白天所发生的重大事件的情感意义——似乎直到开始做梦时才会。",
+      ai: { backbone: "主句：主语 we、谓语 don't always think about、宾语 the emotional significance；句首为 Because 引导的原因状语从句", structure: ["原因状语从句 Because our conscious mind is occupied with daily life：说明主句不思考情感意义的原因","插入语 it appears：表示“看起来、似乎”，使语气更委婉","时间状语从句 until we begin to dream：修饰主句，说明思考行为发生的时机"], collocations: ["be occupied with（被……所占据）","think about（思考）","emotional significance（情感意义）"] }}
     ],
     analysis: [
       {
@@ -283,11 +346,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 3",
     zh: "这一过程未必是无意识的。卡特赖特认为人们可以对不断重现的噩梦施加有意识的控制。一醒来，立刻确定梦中是什么在困扰你。想象一下你想要它如何结束；下次再做同样的梦时，尽量及时醒来以控制它的进程。多加练习，人们真的可以学会在梦中这样做。",
     sentences: [
-    { num: "①", en: "And this process need not be left to the unconscious.", ref: "这一过程未必是无意识的。" },
-    { num: "②", en: "Cartwright believes one can exercise conscious control over recurring bad dreams.", ref: "卡特赖特认为人们可以对不断重现的噩梦施加有意识的控制。" },
-    { num: "③", en: "As soon as you awaken, identify what is upsetting about the dream.", ref: "一醒来，立刻确定梦中是什么在困扰你。" },
-    { num: "④", en: "Visualize how you would like it to end instead; the next time it occurs, try to wake up just enough to control its course.", ref: "想象一下你想要它如何结束；下次再做同样的梦时，尽量及时醒来以控制它的进程。" },
-    { num: "⑤", en: "With much practice people can learn to, literally, do it in their sleep.", ref: "多加练习，人们真的可以学会在梦中这样做。" }
+    { num: "①", en: "And this process need not be left to the unconscious.", ref: "这一过程未必是无意识的。",
+      ai: { backbone: "主语 this process、谓语 need not be left、介词短语 to the unconscious 作状语", structure: ["该句结构简单，无明显修饰成分。"], collocations: ["leave sth to（把……交给）","need not（不必）"] }},
+    { num: "②", en: "Cartwright believes one can exercise conscious control over recurring bad dreams.", ref: "卡特赖特认为人们可以对不断重现的噩梦施加有意识的控制。",
+      ai: { backbone: "主语 Cartwright、谓语 believes、宾语从句 one can exercise conscious control", structure: ["宾语从句（省略 that）：作 believes 的宾语，转述其观点","介词短语 over recurring bad dreams：修饰 control，说明控制的对象"], collocations: ["exercise control over（对……实施控制）","recurring bad dreams（反复出现的噩梦）","conscious control（有意识的控制）"] }},
+    { num: "③", en: "As soon as you awaken, identify what is upsetting about the dream.", ref: "一醒来，立刻确定梦中是什么在困扰你。",
+      ai: { backbone: "主句为祈使句 identify（省略主语 you），后接宾语从句；句首 As soon as 引导时间状语从句", structure: ["时间状语从句 As soon as you awaken：说明识别梦中困扰的时机","宾语从句 what is upsetting about the dream：作 identify 的宾语，说明识别的具体内容"], collocations: ["as soon as（一……就……）","identify what is upsetting（确定令人不安之处）"] }},
+    { num: "④", en: "Visualize how you would like it to end instead; the next time it occurs, try to wake up just enough to control its course.", ref: "想象一下你想要它如何结束；下次再做同样的梦时，尽量及时醒来以控制它的进程。",
+      ai: { backbone: "分号连接两个祈使句：分句1 Visualize（后接 how 宾语从句）；分句2 try to wake up", structure: ["宾语从句 how you would like it to end：作 Visualize 的宾语，说明所想象的内容","时间状语 the next time it occurs：说明再次做梦的时机","不定式 to control its course：作目的状语，说明及时醒来所要达到的目的"], collocations: ["visualize how（想象如何）","wake up just enough（及时醒来）","control the course（控制进程）"] }},
+    { num: "⑤", en: "With much practice people can learn to, literally, do it in their sleep.", ref: "多加练习，人们真的可以学会在梦中这样做。",
+      ai: { backbone: "主语 people、谓语 can learn to do、宾语 it", structure: ["介词短语 With much practice：作方式状语，说明实现途径","插入语 literally：加强语气，强调“真的、确实”"], collocations: ["with much practice（经过大量练习）","in one's sleep（在睡梦中）"] }}
     ]
   },
   {
@@ -296,11 +364,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 3",
     zh: "总的来说，我们几乎没有理由在意所做的梦，除非它们使我们无法安睡或“从惊恐中醒来”卡特赖特认为。恐怖主义、经济不确定及常见的不安全感都增加了人们的焦虑。那些长期遭受梦魇折磨的人应该寻求治疗专家帮助。对其他人来说，大脑有其化解不良情绪的方法。枕着忧虑睡觉甚至入梦，早上醒来时你会感觉好多了。",
     sentences: [
-    { num: "①", en: "At the end of the day, there’s probably little reason to pay attention to our dreams at all unless they keep us from sleeping or “we wake up in a panic,” Cartwright says.", ref: "总的来说，我们几乎没有理由在意所做的梦，除非它们使我们无法安睡或“从惊恐中醒来”卡特赖特认为。" },
-    { num: "②", en: "Terrorism, economic uncertainties and general feelings of insecurity have increased people’s anxiety.", ref: "恐怖主义、经济不确定及常见的不安全感都增加了人们的焦虑。" },
-    { num: "③", en: "Those suffering from persistent nightmares should seek help from a therapist.", ref: "那些长期遭受梦魇折磨的人应该寻求治疗专家帮助。" },
-    { num: "④", en: "For the rest of us, the brain has its ways of working through bad feelings.", ref: "对其他人来说，大脑有其化解不良情绪的方法。" },
-    { num: "⑤", en: "Sleep—or rather dream—on it and you’ll feel better in the morning.", ref: "枕着忧虑睡觉甚至入梦，早上醒来时你会感觉好多了。" }
+    { num: "①", en: "At the end of the day, there’s probably little reason to pay attention to our dreams at all unless they keep us from sleeping or “we wake up in a panic,” Cartwright says.", ref: "总的来说，我们几乎没有理由在意所做的梦，除非它们使我们无法安睡或“从惊恐中醒来”卡特赖特认为。",
+      ai: { backbone: "there be 句型（There's probably little reason）；Cartwright says 为引述成分", structure: ["不定式 to pay attention to our dreams at all：修饰 reason，说明不关注的原因内容","条件状语从句 unless they keep us from sleeping or we wake up in a panic：说明例外情况"], collocations: ["at the end of the day（归根到底）","pay attention to（注意）","wake up in a panic（惊恐地醒来）"] }},
+    { num: "②", en: "Terrorism, economic uncertainties and general feelings of insecurity have increased people’s anxiety.", ref: "恐怖主义、经济不确定及常见的不安全感都增加了人们的焦虑。",
+      ai: { backbone: "并列主语 Terrorism, economic uncertainties and general feelings of insecurity、谓语 have increased、宾语 people's anxiety", structure: ["后置定语 of insecurity：修饰 feelings，说明不安全感的具体指向"], collocations: ["economic uncertainties（经济不确定性）","general feelings of insecurity（普遍的不安全感）"] }},
+    { num: "③", en: "Those suffering from persistent nightmares should seek help from a therapist.", ref: "那些长期遭受梦魇折磨的人应该寻求治疗专家帮助。",
+      ai: { backbone: "主语 Those、谓语 should seek、宾语 help", structure: ["现在分词短语 suffering from persistent nightmares：作后置定语，修饰主语 Those，限定人群范围","介词短语 from a therapist：说明求助的对象"], collocations: ["suffer from（遭受）","persistent nightmares（持续不断的噩梦）","seek help from（向……寻求帮助）"] }},
+    { num: "④", en: "For the rest of us, the brain has its ways of working through bad feelings.", ref: "对其他人来说，大脑有其化解不良情绪的方法。",
+      ai: { backbone: "主语 the brain、谓语 has、宾语 its ways", structure: ["介词短语 For the rest of us：作状语，限定对象范围","介词短语 of working through bad feelings：修饰 ways，说明方式的具体内容"], collocations: ["for the rest of us（对我们其余人而言）","work through（化解、排解）","bad feelings（不良情绪）"] }},
+    { num: "⑤", en: "Sleep—or rather dream—on it and you’ll feel better in the morning.", ref: "枕着忧虑睡觉甚至入梦，早上醒来时你会感觉好多了。",
+      ai: { backbone: "祈使句 Sleep on it 加 and 连接结果句 you'll feel better（祈使句 + and 结构）", structure: ["插入语 or rather dream：对 sleep 作补充纠正，强调“甚至入梦”","介词短语 in the morning：作时间状语，说明感觉变好的时间"], collocations: ["sleep on it（带着问题去睡/留待次日再决断）","or rather（更确切地说）","feel better（感觉好转）"] }}
     ]
   },
   {
@@ -309,8 +382,10 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 4",
     zh: "无论在演讲还是在写作上，美国人都不再期望公众人物在英语语言的使用上展现出技能与天赋：而公众人物自身也不渴求有这种语言驾驭能力。约翰·麦荷特——不仅是语言学家，而且是一位混杂着自由派与保守派观点的善辩者——在其新书《做我们自己的事：语言和音乐的退化，以及为什么我们应该，呃，在意》中认为，20 世纪 60 年代反文化运动的胜利是导致正式英语衰落的主要原因。",
     sentences: [
-    { num: "①", en: "Americans no longer expect public figures, whether in speech or in writing, to command the English language with skill and gift. Nor do they aspire to such command themselves.", ref: "无论在演讲还是在写作上，美国人都不再期望公众人物在英语语言的使用上展现出技能与天赋：而公众人物自身也不渴求有这种语言驾驭能力。" },
-    { num: "②", en: "In his latest book, Doing Our Own Thing: The Degradation of language and Music and Why We Should Like, Care, John McWhorter, a linguist and controversialist of mixed liberal and conservative views, sees the triumph of 1960s counter-culture as responsible for the decline of formal English.", ref: "约翰·麦荷特——不仅是语言学家，而且是一位混杂着自由派与保守派观点的善辩者——在其新书《做我们自己的事：语言和音乐的退化，以及为什么我们应该，呃，在意》中认为，20 世纪 60 年代反文化运动的胜利是导致正式英语衰落的主要原因。" }
+    { num: "①", en: "Americans no longer expect public figures, whether in speech or in writing, to command the English language with skill and gift. Nor do they aspire to such command themselves.", ref: "无论在演讲还是在写作上，美国人都不再期望公众人物在英语语言的使用上展现出技能与天赋：而公众人物自身也不渴求有这种语言驾驭能力。",
+      ai: { backbone: "分句1：主语 Americans、谓语 no longer expect、宾语 public figures、宾语补足语 to command the English language；分句2：Nor 引导部分倒装，主语 they、谓语 aspire to", structure: ["让步状语 whether in speech or in writing（省略形式）：说明无论场合如何","介词短语 with skill and gift：修饰 command，说明驾驭英语的方式","倒装结构 Nor do they aspire to such command themselves：表示与前句相同的否定，说明公众人物自身也不再渴求"], collocations: ["no longer（不再）","public figures（公众人物）","command the English language（驾驭英语语言）","aspire to（渴望）"] }},
+    { num: "②", en: "In his latest book, Doing Our Own Thing: The Degradation of language and Music and Why We Should Like, Care, John McWhorter, a linguist and controversialist of mixed liberal and conservative views, sees the triumph of 1960s counter-culture as responsible for the decline of formal English.", ref: "约翰·麦荷特——不仅是语言学家，而且是一位混杂着自由派与保守派观点的善辩者——在其新书《做我们自己的事：语言和音乐的退化，以及为什么我们应该，呃，在意》中认为，20 世纪 60 年代反文化运动的胜利是导致正式英语衰落的主要原因。",
+      ai: { backbone: "主语 John McWhorter、谓语 sees、宾语 the triumph of 1960s counter-culture、宾语补足语 as responsible for the decline of formal English", structure: ["状语 In his latest book：交代观点的出处","同位语 Doing Our Own Thing: ...：解释书名，说明著作内容","同位语 a linguist and controversialist of mixed liberal and conservative views：修饰 John McWhorter，说明其身份","see...as... 结构：把……视为……，构成宾语与宾补"], collocations: ["see...as（把……视为）","counter-culture（反主流文化）","be responsible for（是……的原因）","the decline of（……的衰落）"] }}
     ]
   },
   {
@@ -319,8 +394,10 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 4",
     zh: "责怪纵容放任的 20 世纪 60 年代并不新鲜，但这次却不是对教育退步的又一场批判。麦荷特先生的学术专长是语言的历史与变迁。举例来说，他认为“whom”一词的逐渐消失是自然的，和古英语中词格尾缀的消失一样根本没什么可遗憾的。",
     sentences: [
-    { num: "①", en: "Blaming the permissive 1960s is nothing new, but this is not yet another criticism against the decline in education.", ref: "责怪纵容放任的 20 世纪 60 年代并不新鲜，但这次却不是对教育退步的又一场批判。" },
-    { num: "②", en: "Mr. McWhorter’s academic speciality is language history and change, and he sees the gradual disappearance of “whom”, for example, to be natural and no more regrettable than the loss of the case-endings of Old English.", ref: "麦荷特先生的学术专长是语言的历史与变迁。举例来说，他认为“whom”一词的逐渐消失是自然的，和古英语中词格尾缀的消失一样根本没什么可遗憾的。" }
+    { num: "①", en: "Blaming the permissive 1960s is nothing new, but this is not yet another criticism against the decline in education.", ref: "责怪纵容放任的 20 世纪 60 年代并不新鲜，但这次却不是对教育退步的又一场批判。",
+      ai: { backbone: "并列句：分句1 动名词短语 Blaming the permissive 1960s 作主语、系动词 is、表语 nothing new；分句2 主语 this、系动词 is not、表语 yet another criticism", structure: ["动名词短语 Blaming the permissive 1960s：作主语，将“责备六十年代”这一行为名词化","后置定语 against the decline in education：修饰 criticism，说明批评的对象"], collocations: ["nothing new（不是什么新鲜事）","criticism against（对……的批评）","the decline in education（教育退步）"] }},
+    { num: "②", en: "Mr. McWhorter’s academic speciality is language history and change, and he sees the gradual disappearance of “whom”, for example, to be natural and no more regrettable than the loss of the case-endings of Old English.", ref: "麦荷特先生的学术专长是语言的历史与变迁。举例来说，他认为“whom”一词的逐渐消失是自然的，和古英语中词格尾缀的消失一样根本没什么可遗憾的。",
+      ai: { backbone: "并列句：分句1 主语 Mr. McWhorter's academic speciality、系动词 is、表语 language history and change；分句2 主语 he、谓语 sees、宾语 the gradual disappearance of “whom”、宾语补足语 to be natural", structure: ["插入语 for example：举例说明","see...to be... 结构：认为……是……","比较结构 no more regrettable than the loss of the case-endings of Old English：与古英语词格尾缀的消失作比较"], collocations: ["academic speciality（学术专长）","see...to be（认为……是）","no more...than（与……同样不……）","case-endings（词格尾缀）"] }}
     ],
     analysis: [
       {
@@ -342,10 +419,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 4",
     zh: "然而，对真实和个性的狂热推崇，即“做我们自己的事”，已经招致了正式的演讲、写作、诗歌及音乐的消亡。在 20 世纪 60 年代以前，就算是受教育不太多的人在下笔时都会寻求一种高格调；而在那之后,即使是最受好评的文章也力求在书面上体现口语化。同样，在诗歌方面，极具个性化与表现力的风格是唯一能够体现真实生动的形式。无论是在口语还是书面语中，随意言谈胜过了正式讲话，即兴发挥也胜过了精雕细琢。",
     sentences: [
-    { num: "①", en: "But the cult of the authentic and the personal, “doing our own thing”, has spelt the death of formal speech, writing, poetry and music.", ref: "然而，对真实和个性的狂热推崇，即“做我们自己的事”，已经招致了正式的演讲、写作、诗歌及音乐的消亡。" },
-    { num: "②", en: "While even the modestly educated sought an elevated tone when they put pen to paper before the 1960s, even the most well regarded writing since then has sought to capture spoken English on the page.", ref: "在 20 世纪 60 年代以前，就算是受教育不太多的人在下笔时都会寻求一种高格调；而在那之后,即使是最受好评的文章也力求在书面上体现口语化。" },
-    { num: "③", en: "Equally, in poetry, the highly personal, performative genre is the only form that could claim real liveliness.", ref: "同样，在诗歌方面，极具个性化与表现力的风格是唯一能够体现真实生动的形式。" },
-    { num: "④", en: "In both oral and written English, talking is triumphing over speaking, spontaneity over craft.", ref: "无论是在口语还是书面语中，随意言谈胜过了正式讲话，即兴发挥也胜过了精雕细琢。" }
+    { num: "①", en: "But the cult of the authentic and the personal, “doing our own thing”, has spelt the death of formal speech, writing, poetry and music.", ref: "然而，对真实和个性的狂热推崇，即“做我们自己的事”，已经招致了正式的演讲、写作、诗歌及音乐的消亡。",
+      ai: { backbone: "主语 the cult of the authentic and the personal、谓语 has spelt、宾语 the death of formal speech, writing, poetry and music", structure: ["同位语 “doing our own thing”：解释 the cult 的具体含义，即“做自己的事”","介词短语 of formal speech, writing, poetry and music：修饰 death，列举消亡的对象"], collocations: ["the cult of（对……的狂热追捧）","spell the death of（招致……的灭亡）"] }},
+    { num: "②", en: "While even the modestly educated sought an elevated tone when they put pen to paper before the 1960s, even the most well regarded writing since then has sought to capture spoken English on the page.", ref: "在 20 世纪 60 年代以前，就算是受教育不太多的人在下笔时都会寻求一种高格调；而在那之后,即使是最受好评的文章也力求在书面上体现口语化。",
+      ai: { backbone: "主句：主语 even the most well regarded writing、谓语 has sought to capture、宾语 spoken English；句首 While 引导让步状语从句", structure: ["让步状语从句 While even the modestly educated sought an elevated tone：与主句形成对比，说明时代差异","时间状语从句 when they put pen to paper：修饰 sought，说明下笔写作之时","时间状语 since then：说明二十世纪六十年代之后"], collocations: ["put pen to paper（动笔写作）","an elevated tone（高格调）","capture spoken English（体现口语特征）","the well regarded writing（备受好评的文章）"] }},
+    { num: "③", en: "Equally, in poetry, the highly personal, performative genre is the only form that could claim real liveliness.", ref: "同样，在诗歌方面，极具个性化与表现力的风格是唯一能够体现真实生动的形式。",
+      ai: { backbone: "主语 the highly personal, performative genre、系动词 is、表语 the only form", structure: ["定语从句 that could claim real liveliness：修饰 form，限定其能力","状语 in poetry：限定论述范围"], collocations: ["the only form（唯一的形式）","claim real liveliness（体现真正的生动）"] }},
+    { num: "④", en: "In both oral and written English, talking is triumphing over speaking, spontaneity over craft.", ref: "无论是在口语还是书面语中，随意言谈胜过了正式讲话，即兴发挥也胜过了精雕细琢。",
+      ai: { backbone: "并列句：分句1 主语 talking、谓语 is triumphing over、宾语 speaking；分句2 主语 spontaneity、省略谓语，接 over craft", structure: ["状语 In both oral and written English：限定范围","省略结构 spontaneity over craft：承前省略 is triumphing，使句式凝练"], collocations: ["oral and written English（口语和书面英语）","triumph over（战胜、胜过）"] }}
     ]
   },
   {
@@ -354,10 +435,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 4",
     zh: "麦荷特先生从雅俗文化中列举了大量有趣的例子，从而说明他所记录的趋势是确凿无疑的。但就书中副标题提出的问题“为什么我们应该，呃，在意”，答案却不够明确。作为语言学家，麦荷特承认人类各种各样的语言，包括像黑人英语这样的非标准语言，都具有强大的表达力——世上没有传达不了复杂思想的语言或方言。与其他大多数人不同，麦荷特先生并没有坚持认为“我们说话方式不规范就会让我们无法准确地思考”。",
     sentences: [
-    { num: "①", en: "Illustrated with an entertaining array of examples from both high and low culture, the trend that Mr. McWhorter documents is unmistakable.", ref: "麦荷特先生从雅俗文化中列举了大量有趣的例子，从而说明他所记录的趋势是确凿无疑的。" },
-    { num: "②", en: "But it is less clear, to take the question of his subtitle, why we should, like, care.", ref: "但就书中副标题提出的问题“为什么我们应该，呃，在意”，答案却不够明确。" },
-    { num: "③", en: "As a linguist, he acknowledges that all varieties of human language, including non-standard ones like Black English, can be powerfully expressive—there exists no language or dialect in the world that cannot convey complex ideas.", ref: "作为语言学家，麦荷特承认人类各种各样的语言，包括像黑人英语这样的非标准语言，都具有强大的表达力——世上没有传达不了复杂思想的语言或方言。" },
-    { num: "④", en: "He is not arguing, as many do, that we can no longer think straight because we do not talk proper.", ref: "与其他大多数人不同，麦荷特先生并没有坚持认为“我们说话方式不规范就会让我们无法准确地思考”。" }
+    { num: "①", en: "Illustrated with an entertaining array of examples from both high and low culture, the trend that Mr. McWhorter documents is unmistakable.", ref: "麦荷特先生从雅俗文化中列举了大量有趣的例子，从而说明他所记录的趋势是确凿无疑的。",
+      ai: { backbone: "主语 the trend、系动词 is、表语 unmistakable", structure: ["过去分词短语 Illustrated with an entertaining array of examples...：作方式状语，说明趋势之所以确凿的依据","定语从句 that Mr. McWhorter documents：修饰 the trend，说明趋势的记录者"], collocations: ["an array of（一系列）","high and low culture（雅俗文化）","be unmistakable（确凿无疑）"] }},
+    { num: "②", en: "But it is less clear, to take the question of his subtitle, why we should, like, care.", ref: "但就书中副标题提出的问题“为什么我们应该，呃，在意”，答案却不够明确。",
+      ai: { backbone: "形式主语 it、系动词 is、表语 less clear、真正主语为 why 引导的主语从句", structure: ["插入语 to take the question of his subtitle：交代论述切入的角度","主语从句 why we should, like, care：作句子的真正主语"], collocations: ["less clear（不那么明确）","take the question of（就……问题进行探讨）"] }},
+    { num: "③", en: "As a linguist, he acknowledges that all varieties of human language, including non-standard ones like Black English, can be powerfully expressive—there exists no language or dialect in the world that cannot convey complex ideas.", ref: "作为语言学家，麦荷特承认人类各种各样的语言，包括像黑人英语这样的非标准语言，都具有强大的表达力——世上没有传达不了复杂思想的语言或方言。",
+      ai: { backbone: "主句：主语 he、谓语 acknowledges、宾语从句 that all varieties of human language can be powerfully expressive；破折号后为 there be 句型作补充", structure: ["状语 As a linguist：说明作者的专业视角","插入语 including non-standard ones like Black English：举例说明所谓“各种语言”的范围","定语从句 that cannot convey complex ideas：修饰 no language or dialect，强调不存在例外"], collocations: ["acknowledge that（承认）","varieties of（各种各样的）","convey complex ideas（传达复杂的思想）"] }},
+    { num: "④", en: "He is not arguing, as many do, that we can no longer think straight because we do not talk proper.", ref: "与其他大多数人不同，麦荷特先生并没有坚持认为“我们说话方式不规范就会让我们无法准确地思考”。",
+      ai: { backbone: "主语 He、谓语 is not arguing、宾语从句 that we can no longer think straight", structure: ["插入语 as many do：与其他人的观点作对照","原因状语从句 because we do not talk proper：说明无法思考的原因"], collocations: ["argue that（主张、坚持认为）","think straight（思路清晰）","no longer（不再）"] }}
     ],
     analysis: [
       {
@@ -390,10 +475,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2005 Text 4",
     zh: "俄罗斯人深爱自己的语言，他们的脑海中深印着大段大段的诗歌；而意大利的政客们则往往精心准备演讲，尽管这在大多数讲英语的人们看来已经过时了。麦荷特先生承认正式语言并非绝对的不可或缺，他也没有提议要进行彻底的教育改革——他其实只是为那些美好多过实用的事物的消逝而哀叹。我们现在用“纸盘”而非“瓷盘”盛着我们的英语大餐。这或许令人遗憾,但也许又是不可避免的。",
     sentences: [
-    { num: "①", en: "Russians have a deep love for their own language and carry large chunks of memorized poetry in their heads, while Italian politicians tend to elaborate speech that would seem old-fashioned to most English-speakers.", ref: "俄罗斯人深爱自己的语言，他们的脑海中深印着大段大段的诗歌；而意大利的政客们则往往精心准备演讲，尽管这在大多数讲英语的人们看来已经过时了。" },
-    { num: "②", en: "Mr. McWhorter acknowledges that formal language is not strictly necessary, and proposes no radical education reforms—he is really grieving over the loss of something beautiful more than useful.", ref: "麦荷特先生承认正式语言并非绝对的不可或缺，他也没有提议要进行彻底的教育改革——他其实只是为那些美好多过实用的事物的消逝而哀叹。" },
-    { num: "③", en: "We now take our English “on paper plates instead of china”.", ref: "我们现在用“纸盘”而非“瓷盘”盛着我们的英语大餐。" },
-    { num: "④", en: "A shame, perhaps, but probably an inevitable one.", ref: "这或许令人遗憾,但也许又是不可避免的。" }
+    { num: "①", en: "Russians have a deep love for their own language and carry large chunks of memorized poetry in their heads, while Italian politicians tend to elaborate speech that would seem old-fashioned to most English-speakers.", ref: "俄罗斯人深爱自己的语言，他们的脑海中深印着大段大段的诗歌；而意大利的政客们则往往精心准备演讲，尽管这在大多数讲英语的人们看来已经过时了。",
+      ai: { backbone: "并列句：分句1 主语 Russians、并列谓语 have a deep love 和 carry large chunks；分句2 主语 Italian politicians、谓语 tend to elaborate、宾语 speech", structure: ["定语从句 that would seem old-fashioned to most English-speakers：修饰 speech，说明演讲给英语母语者的观感"], collocations: ["have a deep love for（深爱）","large chunks of（大段大段的）","tend to（倾向于）"] }},
+    { num: "②", en: "Mr. McWhorter acknowledges that formal language is not strictly necessary, and proposes no radical education reforms—he is really grieving over the loss of something beautiful more than useful.", ref: "麦荷特先生承认正式语言并非绝对的不可或缺，他也没有提议要进行彻底的教育改革——他其实只是为那些美好多过实用的事物的消逝而哀叹。",
+      ai: { backbone: "主语 Mr. McWhorter、并列谓语 acknowledges 和 proposes；破折号后为独立分句 he is really grieving over...", structure: ["宾语从句 that formal language is not strictly necessary：作 acknowledges 的宾语","比较结构 something beautiful more than useful：修饰 the loss 的对象，说明消逝之物“美好多过实用”"], collocations: ["strictly necessary（绝对必要）","radical education reforms（激进的教育改革）","grieve over（为……而哀叹）"] }},
+    { num: "③", en: "We now take our English “on paper plates instead of china”.", ref: "我们现在用“纸盘”而非“瓷盘”盛着我们的英语大餐。",
+      ai: { backbone: "主语 We、谓语 take、宾语 our English、状语 on paper plates instead of china", structure: ["该句为比喻用法：以“纸盘代替瓷盘”喻指随意、粗糙的语言习惯，结构上无复杂修饰"], collocations: ["on paper plates（用纸盘，喻随意）","instead of（而不是）"] }},
+    { num: "④", en: "A shame, perhaps, but probably an inevitable one.", ref: "这或许令人遗憾,但也许又是不可避免的。",
+      ai: { backbone: "省略句：完整形式为 It is a shame... but it is probably an inevitable one（主语 it、系动词 is、表语 a shame / an inevitable one）", structure: ["插入语 perhaps：使语气委婉","省略结构：a shame 与 an inevitable one 并列作表语"], collocations: ["a shame（一件憾事）","inevitable（不可避免的）"] }}
     ]
   },
   {
@@ -402,12 +491,18 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 1",
     zh: "尽管“无休止地谈论差异”，美国社会却是一部使人们同化的惊人机器。大众文化有着“服饰和言语上大众化的一致，以及随意和不拘礼节”的特征。人们被一种由 19 世纪的百货商场掀起的“消费文化”所同化，这些商店“在体面的环境中供应琳琅满目的商品”。这些不是迎合知识精英的私密商店，而是“不论阶级或背景，任何人都可以进入的百货商店。这使得购物转变为一种公共和大众的行为”。大众传媒、广告和体育赛事是同化的其他推动力。",
     sentences: [
-    { num: "①", en: "In spite of “endless talk of difference,” American society is an amazing machine for homogenizing people.", ref: "尽管“无休止地谈论差异”，美国社会却是一部使人们同化的惊人机器。" },
-    { num: "②", en: "There is “the democratizing uniformity of dress and discourse, and the casualness and absence of deference” characteristic of popular culture.", ref: "大众文化有着“服饰和言语上大众化的一致，以及随意和不拘礼节”的特征。" },
-    { num: "③", en: "People are absorbed into “a culture of consumption” launched by the 19th-century department stores that offered “vast arrays of goods in an elegant atmosphere.", ref: "人们被一种由 19 世纪的百货商场掀起的“消费文化”所同化，这些商店“在体面的环境中供应琳琅满目的商品”。" },
-    { num: "④", en: "Instead of intimate shops catering to a knowledgeable elite” these were stores “anyone could enter, regardless of class or background.", ref: "这些不是迎合知识精英的私密商店，而是“不论阶级或背景，任何人都可以进入的百货商店。" },
-    { num: "⑤", en: "This turned shopping into a public and democratic act.”", ref: "这使得购物转变为一种公共和大众的行为”。" },
-    { num: "⑥", en: "The mass media, advertising and sports are other forces for homogenization.", ref: "大众传媒、广告和体育赛事是同化的其他推动力。" }
+    { num: "①", en: "In spite of “endless talk of difference,” American society is an amazing machine for homogenizing people.", ref: "尽管“无休止地谈论差异”，美国社会却是一部使人们同化的惊人机器。",
+      ai: { backbone: "主语 American society、系动词 is、表语 an amazing machine", structure: ["让步状语 In spite of “endless talk of difference”：与主句形成转折","介词短语 for homogenizing people：修饰 machine，说明机器的功能"], collocations: ["in spite of（尽管）","endless talk of（无休止地谈论）","homogenize people（使人们同质化）"] }},
+    { num: "②", en: "There is “the democratizing uniformity of dress and discourse, and the casualness and absence of deference” characteristic of popular culture.", ref: "大众文化有着“服饰和言语上大众化的一致，以及随意和不拘礼节”的特征。",
+      ai: { backbone: "There be 结构，表语为并列名词短语 the democratizing uniformity of dress and discourse, and the casualness and absence of deference", structure: ["后置定语 characteristic of popular culture：修饰前面的并列名词短语，说明这些特征为大众文化所特有","并列名词短语 the democratizing uniformity of dress and discourse...and the casualness and absence of deference：由 and 连接的两个并列成分，共同作表语，从正面与负面两个角度描述大众文化的特征"], collocations: ["be characteristic of（是……的特征）","popular culture（大众文化）","absence of deference（缺乏恭敬）"] }},
+    { num: "③", en: "People are absorbed into “a culture of consumption” launched by the 19th-century department stores that offered “vast arrays of goods in an elegant atmosphere.", ref: "人们被一种由 19 世纪的百货商场掀起的“消费文化”所同化，这些商店“在体面的环境中供应琳琅满目的商品”。",
+      ai: { backbone: "主语 People、谓语 are absorbed、介词短语 into “a culture of consumption” 作状语", structure: ["过去分词短语 launched by the 19th-century department stores：作后置定语，修饰 a culture of consumption，说明消费文化由 19 世纪百货商店开启","定语从句 that offered “vast arrays of goods in an elegant atmosphere”：修饰 department stores，说明百货商店提供海量商品及优雅环境"], collocations: ["be absorbed into（被……吸收/融入）","a culture of consumption（消费文化）","department stores（百货商店）","vast arrays of（大量的）"] }},
+    { num: "④", en: "Instead of intimate shops catering to a knowledgeable elite” these were stores “anyone could enter, regardless of class or background.", ref: "这些不是迎合知识精英的私密商店，而是“不论阶级或背景，任何人都可以进入的百货商店。",
+      ai: { backbone: "主语 these、系动词 were、表语 stores；句首 Instead of... 作状语", structure: ["介词短语 Instead of intimate shops：作比较状语，说明这些商店与旧式精品店形成对比","现在分词短语 catering to a knowledgeable elite：作后置定语，修饰 intimate shops，说明精品店的服务对象","省略引导词的定语从句 anyone could enter：修饰 stores，说明任何人都能进入","介词短语 regardless of class or background：作让步状语，强调进入不受阶层与背景限制"], collocations: ["instead of（而不是）","cater to（迎合，满足……的需求）","regardless of（不论，不管）"] }},
+    { num: "⑤", en: "This turned shopping into a public and democratic act.”", ref: "这使得购物转变为一种公共和大众的行为”。",
+      ai: { backbone: "主语 This、谓语 turned、宾语 shopping、介词短语 into a public and democratic act 作宾补", structure: ["介词短语 into a public and democratic act：作宾语补足语，说明购物被转变为何种性质的行为"], collocations: ["turn sth into（把……变成）","a public and democratic act（公开而民主的行为）"] }},
+    { num: "⑥", en: "The mass media, advertising and sports are other forces for homogenization.", ref: "大众传媒、广告和体育赛事是同化的其他推动力。",
+      ai: { backbone: "主语 The mass media, advertising and sports、系动词 are、表语 other forces", structure: ["介词短语 for homogenization：作后置定语，修饰 forces，说明这些力量是促成同质化的力量"], collocations: ["mass media（大众传媒）","forces for（促进……的力量）","homogenization（同质化）"] }}
     ],
     analysis: [
       {
@@ -430,24 +525,34 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 1",
     zh: "移民正在快速融入这种共同文化，这也许不太具有提升作用，但也几乎不可能有什么害处。在为“国家移民论坛”撰稿时，格雷戈里·罗德里格兹写道，如今的移民既未达到前所未有的水平也没有拒斥同化。1998 年移民占人口总数的 9.8%，1900 年占 13.6%。在 1990 年之前的 10 年中，每有 1000 个居民，便有 3.1 个移民初次来到（美国）；在 1890 年之前的 10年中，二者比值为 9.2 :1000。现在，考虑一下同化的三个指标——语言、住房自有和异族通婚。",
     sentences: [
-    { num: "①", en: "Immigrants are quickly fitting into this common culture, which may not be altogether elevating but is hardly poisonous.", ref: "移民正在快速融入这种共同文化，这也许不太具有提升作用，但也几乎不可能有什么害处。" },
-    { num: "②", en: "Writing for the National Immigration Forum, Gregory Rodriguez reports that today’s immigration is neither at unprecedented levels nor resistant to assimilation.", ref: "在为“国家移民论坛”撰稿时，格雷戈里·罗德里格兹写道，如今的移民既未达到前所未有的水平也没有拒斥同化。" },
-    { num: "③", en: "In 1998 immigrants were 9.8 percent of the population; in 1900, 13.6 percent.", ref: "1998 年移民占人口总数的 9.8%，1900 年占 13.6%。" },
-    { num: "④", en: "In the 10 years prior to 1990, 3.1 immigrants arrived for every 1,000 residents; in the 10 years prior to 1890, 9.2 for every 1,000.", ref: "在 1990 年之前的 10 年中，每有 1000 个居民，便有 3.1 个移民初次来到（美国）；在 1890 年之前的 10年中，二者比值为 9.2 :1000。" },
-    { num: "⑤", en: "Now, consider three indices of assimilation—language, home ownership and intermarriage.", ref: "现在，考虑一下同化的三个指标——语言、住房自有和异族通婚。" }
+    { num: "①", en: "Immigrants are quickly fitting into this common culture, which may not be altogether elevating but is hardly poisonous.", ref: "移民正在快速融入这种共同文化，这也许不太具有提升作用，但也几乎不可能有什么害处。",
+      ai: { backbone: "主语 Immigrants、谓语 are fitting into、宾语 this common culture", structure: ["非限制性定语从句 which may not be altogether elevating but is hardly poisonous：修饰 this common culture，补充说明该文化的性质","并列表语 not...but...：may not be...but is... 说明这种文化虽谈不上提升性，但也几乎无害"], collocations: ["fit into（融入）","common culture（共同文化）","not...but（不是……而是）"] }},
+    { num: "②", en: "Writing for the National Immigration Forum, Gregory Rodriguez reports that today’s immigration is neither at unprecedented levels nor resistant to assimilation.", ref: "在为“国家移民论坛”撰稿时，格雷戈里·罗德里格兹写道，如今的移民既未达到前所未有的水平也没有拒斥同化。",
+      ai: { backbone: "主语 Gregory Rodriguez、谓语 reports、宾语从句 that today's immigration is neither at unprecedented levels nor resistant to assimilation", structure: ["现在分词短语 Writing for the National Immigration Forum：作状语，说明作者为谁撰稿的身份背景","宾语从句 that today's immigration is neither...nor...：作 reports 的宾语，说明其报道的核心内容","并列结构 neither...nor...：连接两个表语，双重否定两种情形"], collocations: ["write for（为……撰稿）","at unprecedented levels（处于空前水平）","neither...nor（既不……也不……）","resistant to（对……有抵抗力的）"] }},
+    { num: "③", en: "In 1998 immigrants were 9.8 percent of the population; in 1900, 13.6 percent.", ref: "1998 年移民占人口总数的 9.8%，1900 年占 13.6%。",
+      ai: { backbone: "分号连接两个并列分句：分句1 主语 immigrants、系动词 were、表语 9.8 percent of the population；分句2 为省略结构", structure: ["时间状语 In 1998 / in 1900：分别修饰两个分句，说明对比的时间点","省略结构 in 1900, 13.6 percent：分句2 省略了主语与系动词，使表达简洁并与前文形成对比"], collocations: ["percent of the population（占总人口的百分比）"] }},
+    { num: "④", en: "In the 10 years prior to 1990, 3.1 immigrants arrived for every 1,000 residents; in the 10 years prior to 1890, 9.2 for every 1,000.", ref: "在 1990 年之前的 10 年中，每有 1000 个居民，便有 3.1 个移民初次来到（美国）；在 1890 年之前的 10年中，二者比值为 9.2 :1000。",
+      ai: { backbone: "分号连接两个并列分句：分句1 主语 3.1 immigrants、谓语 arrived；分句2 为省略结构", structure: ["时间状语 In the 10 years prior to 1990 / prior to 1890：分别修饰两个分句，说明对比的时间段","省略结构 9.2 for every 1,000：分句2 省略了 immigrants arrived，保持并列简洁"], collocations: ["prior to（在……之前）","for every 1,000 residents（每 1000 名居民中）"] }},
+    { num: "⑤", en: "Now, consider three indices of assimilation—language, home ownership and intermarriage.", ref: "现在，考虑一下同化的三个指标——语言、住房自有和异族通婚。",
+      ai: { backbone: "祈使句，谓语 consider、宾语 three indices of assimilation", structure: ["破折号后的并列成分 language, home ownership and intermarriage：作 indices 的同位语，具体列举三个同化指标"], collocations: ["home ownership（住房自有率）","indices of assimilation（同化指标）"] }}
     ]
   },
   {
     day: 23,
     type: "英一",
     source: "2006 Text 1",
-    zh: "1990 年人口普查结果显示，“来自于 15 个最常见原籍国的大多数移民在居住十年后英语都讲得‘不错’或‘非常好’”。移民的子女往往通晓双语并精通英语。“到了第三代，族裔语言在大部分移民家庭中已经消失。”因此美国被形容为语言的“墓地”。到 1996 年止，1970年前到达的、外国出生的移民住房自有率达 75.6%，高于本国出生的美国人 69.8%的比例。",
+    zh: "1990 年人口普查结果显示，“来自于 15 个最常见原籍国的大多数移民在居住十年后英语都讲得‘不错’或‘非常好’”。移民的子女往往通晓双语并精通英语。“到了第三代，族裔语言在大部分移民家庭中已经消失。因此美国被形容为语言的“墓地”。到 1996 年止，1970年前到达的、外国出生的移民住房自有率达 75.6%，高于本国出生的美国人 69.8%的比例。",
     sentences: [
-    { num: "①", en: "The 1990 Census revealed that “a majority of immigrants from each of the fifteen most common countries of origin spoke English ‘well’ or ‘very well’ after ten years of residence.”", ref: "1990 年人口普查结果显示，“来自于 15 个最常见原籍国的大多数移民在居住十年后英语都讲得‘不错’或‘非常好’”。" },
-    { num: "②", en: "The children of immigrants tend to be bilingual and proficient in English.", ref: "移民的子女往往通晓双语并精通英语。" },
-    { num: "③", en: "“By the third generation, the original language is lost in the majority of immigrant families.”", ref: "“到了第三代，族裔语言在大部分移民家庭中已经消失。" },
-    { num: "④", en: "Hence the description of America as a “graveyard” for languages.", ref: "因此美国被形容为语言的“墓地”。" },
-    { num: "⑤", en: "By 1996 foreign-born immigrants who had arrived before 1970 had a home ownership rate of 75.6 percent, higher than the 69.8 percent rate among native-born Americans.", ref: "到 1996 年止，1970年前到达的、外国出生的移民住房自有率达 75.6%，高于本国出生的美国人 69.8%的比例。" }
+    { num: "①", en: "The 1990 Census revealed that “a majority of immigrants from each of the fifteen most common countries of origin spoke English ‘well’ or ‘very well’ after ten years of residence.”", ref: "1990 年人口普查结果显示，“来自于 15 个最常见原籍国的大多数移民在居住十年后英语都讲得‘不错’或‘非常好’”。",
+      ai: { backbone: "主语 The 1990 Census、谓语 revealed、宾语从句 that a majority of immigrants spoke English", structure: ["宾语从句 that a majority of immigrants...spoke English “well” or “very well”：作 revealed 的宾语，说明普查揭示的内容","后置定语 from each of the fifteen most common countries of origin：修饰 immigrants，限定移民来源国","时间状语 after ten years of residence：修饰 spoke，说明掌握英语的时间条件"], collocations: ["countries of origin（原籍国）","after ten years of residence（居住十年之后）","a majority of（大多数）"] }},
+    { num: "②", en: "The children of immigrants tend to be bilingual and proficient in English.", ref: "移民的子女往往通晓双语并精通英语。",
+      ai: { backbone: "主语 The children of immigrants、谓语 tend to be、表语 bilingual and proficient", structure: ["不定式短语 to be bilingual and proficient in English：作 tend 的宾语，说明移民子女的普遍状态","介词短语 in English：修饰 proficient，说明精通的具体领域"], collocations: ["tend to（往往，倾向于）","be proficient in（精通……）"] }},
+    { num: "③", en: "“By the third generation, the original language is lost in the majority of immigrant families.”", ref: "“到了第三代，族裔语言在大部分移民家庭中已经消失。",
+      ai: { backbone: "主语 the original language、谓语 is lost；句首 By the third generation 为时间状语", structure: ["时间状语 By the third generation：修饰整个句子，说明到第三代时的情况","介词短语 in the majority of immigrant families：作状语，限定范围"], collocations: ["by the third generation（到第三代时）","the majority of（大多数）"] }},
+    { num: "④", en: "Hence the description of America as a “graveyard” for languages.", ref: "因此美国被形容为语言的“墓地”。",
+      ai: { backbone: "省略句：省略主谓，仅保留名词短语 the description of America as a “graveyard” for languages，Hence 承上启下", structure: ["介词短语 as a “graveyard” for languages：作 America 的补足说明，把美国比作语言的“坟墓”"], collocations: ["hence（因此，由此）","the description of...as（把……描述为）"] }},
+    { num: "⑤", en: "By 1996 foreign-born immigrants who had arrived before 1970 had a home ownership rate of 75.6 percent, higher than the 69.8 percent rate among native-born Americans.", ref: "到 1996 年止，1970年前到达的、外国出生的移民住房自有率达 75.6%，高于本国出生的美国人 69.8%的比例。",
+      ai: { backbone: "主语 foreign-born immigrants、谓语 had、宾语 a home ownership rate of 75.6 percent", structure: ["时间状语 By 1996：修饰整个句子，说明时间界限","定语从句 who had arrived before 1970：修饰 immigrants，限定对象为 1970 年前抵达者","比较结构 higher than the 69.8 percent rate among native-born Americans：与本土出生美国人的自有住房率作对比"], collocations: ["home ownership rate（住房自有率）","native-born Americans（本土出生的美国人）","higher than（高于）"] }}
     ],
     analysis: [
       {
@@ -470,8 +575,10 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 1",
     zh: "外国出生的亚裔和西班牙裔移民的异族通婚率比美国本土出生的黑人和白人的异族通婚率要高”。到了第三代，三分之一的西班牙裔女性嫁给了非西班牙裔，41%的亚裔美国女性嫁给了非亚裔。",
     sentences: [
-    { num: "①", en: "Foreign-born Asians and Hispanics “have higher rates of intermarriage than do U.S.-born whites and blacks.”", ref: "外国出生的亚裔和西班牙裔移民的异族通婚率比美国本土出生的黑人和白人的异族通婚率要高”。" },
-    { num: "②", en: "By the third generation, one third of Hispanic women are married to non-Hispanics, and 41 percent of Asian-American women are married to non-Asians.", ref: "到了第三代，三分之一的西班牙裔女性嫁给了非西班牙裔，41%的亚裔美国女性嫁给了非亚裔。" }
+    { num: "①", en: "Foreign-born Asians and Hispanics “have higher rates of intermarriage than do U.S.-born whites and blacks.”", ref: "外国出生的亚裔和西班牙裔移民的异族通婚率比美国本土出生的黑人和白人的异族通婚率要高”。",
+      ai: { backbone: "主语 Foreign-born Asians and Hispanics、谓语 have、宾语 higher rates of intermarriage", structure: ["比较结构 than do U.S.-born whites and blacks：than 后采用倒装语序，与主语进行比较，说明外裔亚裔与西裔通婚率更高","后置定语 of intermarriage：修饰 rates，说明是通婚比率"], collocations: ["rates of intermarriage（通婚率）","foreign-born（在国外出生的）","higher than（高于）"] }},
+    { num: "②", en: "By the third generation, one third of Hispanic women are married to non-Hispanics, and 41 percent of Asian-American women are married to non-Asians.", ref: "到了第三代，三分之一的西班牙裔女性嫁给了非西班牙裔，41%的亚裔美国女性嫁给了非亚裔。",
+      ai: { backbone: "and 连接两个并列分句：分句1 主语 one third of Hispanic women、谓语 are married to、宾语 non-Hispanics；分句2 主语 41 percent of Asian-American women、谓语 are married to、宾语 non-Asians", structure: ["时间状语 By the third generation：修饰整个句子，说明到第三代时的情况","并列连词 and：连接两个结构相同的分句，形成对仗","介词短语 to non-Hispanics / to non-Asians：作 married 的补足，说明通婚对象"], collocations: ["be married to（与……结婚）","by the third generation（到第三代时）"] }}
     ]
   },
   {
@@ -480,10 +587,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 1",
     zh: "罗德里格兹指出，世界各地偏远乡村的儿童都是像阿诺德·施瓦辛格和加斯·布鲁克斯这样的超级明星的粉丝，然而“有些美国人担心，居住在美国境内的移民依然以某种方式不受这个国家同化力量的影响”在美国存在引起分歧的问题和小范围涌动的怒火吗？确实存在。美国太大，什么情形都会有一点。但是，尤其在美国动荡过去的背景下来看，今天的社会指标几乎并未显示出一种黯淡退化的社会环境。",
     sentences: [
-    { num: "①", en: "Rodriguez notes that children in remote villages around the world are fans of superstars like Arnold Schwarzenegger and Garth Brooks, yet “some Americans fear that immigrants living within the United States remain somehow immune to the nation’s assimilative power.” Are there divisive issues and pockets of seething anger in America?", ref: "罗德里格兹指出，世界各地偏远乡村的儿童都是像阿诺德·施瓦辛格和加斯·布鲁克斯这样的超级明星的粉丝，然而“有些美国人担心，居住在美国境内的移民依然以某种方式不受这个国家同化力量的影响”在美国存在引起分歧的问题和小范围涌动的怒火吗？" },
-    { num: "②", en: "Indeed.", ref: "确实存在。" },
-    { num: "③", en: "It is big enough to have a bit of everything.", ref: "美国太大，什么情形都会有一点。" },
-    { num: "④", en: "But particularly when viewed against America’s turbulent past, today’s social indices hardly suggest a dark and deteriorating social environment.", ref: "但是，尤其在美国动荡过去的背景下来看，今天的社会指标几乎并未显示出一种黯淡退化的社会环境。" }
+    { num: "①", en: "Rodriguez notes that children in remote villages around the world are fans of superstars like Arnold Schwarzenegger and Garth Brooks, yet “some Americans fear that immigrants living within the United States remain somehow immune to the nation’s assimilative power.” Are there divisive issues and pockets of seething anger in America?", ref: "罗德里格兹指出，世界各地偏远乡村的儿童都是像阿诺德·施瓦辛格和加斯·布鲁克斯这样的超级明星的粉丝，然而“有些美国人担心，居住在美国境内的移民依然以某种方式不受这个国家同化力量的影响”在美国存在引起分歧的问题和小范围涌动的怒火吗？",
+      ai: { backbone: "主语 Rodriguez、谓语 notes、宾语从句 that children...yet “some Americans fear that...”", structure: ["宾语从句 that children in remote villages...yet some Americans fear...：作 notes 的宾语，用 yet 连接两层并列内容","宾语从句 that immigrants...remain somehow immune to...：作 fear 的宾语，说明美国人担忧的内容","现在分词短语 living within the United States：作后置定语，修饰 immigrants","介词短语 like Arnold Schwarzenegger and Garth Brooks：作后置定语，举例说明超级明星","疑问句 Are there divisive issues and pockets of seething anger in America?：提出反问，追问美国是否存在分裂性问题与暗涌的愤怒"], collocations: ["be immune to（对……免疫/不受影响）","assimilative power（同化力量）","pockets of seething anger（暗涌的愤怒）"] }},
+    { num: "②", en: "Indeed.", ref: "确实存在。",
+      ai: { backbone: "独立使用的副词，作整句的承接语，对上一问句作出肯定回答", structure: ["该句为单个副词 Indeed 独立成句，无主干成分，起承上启下的肯定强调作用"], collocations: ["indeed（确实，的确）"] }},
+    { num: "③", en: "It is big enough to have a bit of everything.", ref: "美国太大，什么情形都会有一点。",
+      ai: { backbone: "主语 It、系动词 is、表语 big enough；不定式短语作结果状语", structure: ["不定式短语 to have a bit of everything：作结果状语，说明“足够大”所导致的结果","enough to...：表达到达某程度后足以产生某种结果"], collocations: ["big enough to（大到足以）","a bit of（一点，少量）"] }},
+    { num: "④", en: "But particularly when viewed against America’s turbulent past, today’s social indices hardly suggest a dark and deteriorating social environment.", ref: "但是，尤其在美国动荡过去的背景下来看，今天的社会指标几乎并未显示出一种黯淡退化的社会环境。",
+      ai: { backbone: "主语 today's social indices、谓语 suggest、宾语 a dark and deteriorating social environment", structure: ["时间状语从句 when viewed against America's turbulent past：when 后省略了 they are，说明与何对照","程度副词 hardly：修饰 suggest，表示“几乎不”，否定社会指标预示恶化"], collocations: ["when viewed against（与……相比来看）","social indices（社会指标）","turbulent past（动荡的过去）"] }}
     ]
   },
   {
@@ -492,12 +603,18 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 2",
     zh: "众所周知，埃文河畔的斯特拉特福德镇只有一个产业——威廉·莎士比亚，却有两个泾渭分明且日益敌对的派别。一方是皇家莎士比亚剧团（RSC），它在埃文河畔的莎士比亚纪念剧院上演精彩绝伦的剧目。另一方是当地居民，他们在很大程度上依赖那些来此不是为了看戏，而是为了看安妮·海瑟薇（注：莎士比亚的妻子）小屋、莎士比亚出生地以及其他景点的观光客而生活。斯特拉福德镇“令人尊敬”的居民们认为剧院没有为他们增添哪怕一分钱的收入。他们毫不掩饰地讨厌皇家莎士比亚剧团的演员：这些演员们留着长发、蓄着胡须、穿着凉鞋，吵吵嚷嚷。当你想到养活他们的莎士比亚本人就是个（留着胡须的）演员而且噪音制造也有他一份时，这真是绝妙的讽刺。",
     sentences: [
-    { num: "①", en: "Stratford-on-Avon, as we all know, has only one industry --William Shakespeare -- but there are two distinctly separate and increasingly hostile branches.", ref: "众所周知，埃文河畔的斯特拉特福德镇只有一个产业——威廉·莎士比亚，却有两个泾渭分明且日益敌对的派别。" },
-    { num: "②", en: "There is the Royal Shakespeare Company (RSC), which presents superb productions of the plays at the Shakespeare Memorial Theatre on the Avon.", ref: "一方是皇家莎士比亚剧团（RSC），它在埃文河畔的莎士比亚纪念剧院上演精彩绝伦的剧目。" },
-    { num: "③", en: "And there are the townsfolk who largely live off the tourists who come, not to see the plays, but to look at Anne Hathaway's Cottage, Shakespeare's birthplace and the other sights.", ref: "另一方是当地居民，他们在很大程度上依赖那些来此不是为了看戏，而是为了看安妮·海瑟薇（注：莎士比亚的妻子）小屋、莎士比亚出生地以及其他景点的观光客而生活。" },
-    { num: "④", en: "The worthy residents of Stratford doubt that the theater adds a penny to their revenue.", ref: "斯特拉福德镇“令人尊敬”的居民们认为剧院没有为他们增添哪怕一分钱的收入。" },
-    { num: "⑤", en: "They frankly dislike the RSC's actors, them with their long hair and beards and sandals and noisiness.", ref: "他们毫不掩饰地讨厌皇家莎士比亚剧团的演员：这些演员们留着长发、蓄着胡须、穿着凉鞋，吵吵嚷嚷。" },
-    { num: "⑥", en: "It's all deliciously ironic when you consider that Shakespeare, who earns their living, was himself an actor (with a beard) and did his share of noise-making.", ref: "当你想到养活他们的莎士比亚本人就是个（留着胡须的）演员而且噪音制造也有他一份时，这真是绝妙的讽刺。" }
+    { num: "①", en: "Stratford-on-Avon, as we all know, has only one industry --William Shakespeare -- but there are two distinctly separate and increasingly hostile branches.", ref: "众所周知，埃文河畔的斯特拉特福德镇只有一个产业——威廉·莎士比亚，却有两个泾渭分明且日益敌对的派别。",
+      ai: { backbone: "but 连接两个并列分句：分句1 主语 Stratford-on-Avon、谓语 has、宾语 only one industry；分句2 为 there be 结构", structure: ["插入语 as we all know：补充交代背景常识","破折号内 William Shakespeare：作 industry 的同位语，指明该产业就是莎士比亚","there be 结构 there are two distinctly separate and increasingly hostile branches：说明存在两个截然分开且日益敌对的分支"], collocations: ["as we all know（众所周知）","distinctly separate（截然分开的）","increasingly hostile（日益敌对的）"] }},
+    { num: "②", en: "There is the Royal Shakespeare Company (RSC), which presents superb productions of the plays at the Shakespeare Memorial Theatre on the Avon.", ref: "一方是皇家莎士比亚剧团（RSC），它在埃文河畔的莎士比亚纪念剧院上演精彩绝伦的剧目。",
+      ai: { backbone: "There be 结构，主语 the Royal Shakespeare Company (RSC)", structure: ["非限制性定语从句 which presents superb productions of the plays：修饰 RSC，说明其演出活动","地点状语 at the Shakespeare Memorial Theatre on the Avon：说明演出地点"], collocations: ["superb productions（精彩演出）","memorial theatre（纪念剧院）"] }},
+    { num: "③", en: "And there are the townsfolk who largely live off the tourists who come, not to see the plays, but to look at Anne Hathaway's Cottage, Shakespeare's birthplace and the other sights.", ref: "另一方是当地居民，他们在很大程度上依赖那些来此不是为了看戏，而是为了看安妮·海瑟薇（注：莎士比亚的妻子）小屋、莎士比亚出生地以及其他景点的观光客而生活。",
+      ai: { backbone: "there be 结构，主语 the townsfolk；其后跟 who 引导的定语从句", structure: ["定语从句 who largely live off the tourists：修饰 townsfolk，说明镇民以游客为生","定语从句 who come：修饰 tourists，说明游客的到来","并列不定式短语 not to see the plays, but to look at Anne Hathaway's Cottage...：作目的状语，说明游客并非看戏而是参观","同位语 Shakespeare's birthplace：解释 Anne Hathaway's Cottage 的身份"], collocations: ["live off（靠……为生）","not...but（不是……而是）","the other sights（其他景点）"] }},
+    { num: "④", en: "The worthy residents of Stratford doubt that the theater adds a penny to their revenue.", ref: "斯特拉福德镇“令人尊敬”的居民们认为剧院没有为他们增添哪怕一分钱的收入。",
+      ai: { backbone: "主语 The worthy residents of Stratford、谓语 doubt、宾语从句 that the theater adds a penny to their revenue", structure: ["宾语从句 that the theater adds a penny to their revenue：作 doubt 的宾语，说明居民怀疑的内容","后置定语 of Stratford：修饰 residents，限定地点"], collocations: ["add to revenue（增加收入）","worthy residents（体面的居民）"] }},
+    { num: "⑤", en: "They frankly dislike the RSC's actors, them with their long hair and beards and sandals and noisiness.", ref: "他们毫不掩饰地讨厌皇家莎士比亚剧团的演员：这些演员们留着长发、蓄着胡须、穿着凉鞋，吵吵嚷嚷。",
+      ai: { backbone: "主语 They、谓语 dislike、宾语 the RSC's actors", structure: ["代词 them 加介词短语 with their long hair...：作 actors 的同位补充，强调演员的外貌与行为特征","介词短语 with their long hair and beards and sandals and noisiness：说明演员的外形与喧闹作风"], collocations: ["frankly dislike（直率地讨厌）","long hair and beards（长发与胡须）"] }},
+    { num: "⑥", en: "It's all deliciously ironic when you consider that Shakespeare, who earns their living, was himself an actor (with a beard) and did his share of noise-making.", ref: "当你想到养活他们的莎士比亚本人就是个（留着胡须的）演员而且噪音制造也有他一份时，这真是绝妙的讽刺。",
+      ai: { backbone: "主语 It、系动词 is、表语 deliciously ironic；when 引导时间状语从句", structure: ["时间状语从句 when you consider that Shakespeare...：修饰主句，说明“讽刺”成立的条件","宾语从句 that Shakespeare...was himself an actor and did his share of noise-making：作 consider 的宾语","非限制性定语从句 who earns their living：修饰 Shakespeare，说明他为镇民带来生计","并列谓语 was himself an actor and did his share of noise-making：强调莎士比亚本人的演员身份与喧闹行为"], collocations: ["earn one's living（谋生）","do one's share of（尽自己的一份……）","deliciously ironic（绝妙地讽刺）"] }}
     ]
   },
   {
@@ -506,11 +623,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 2",
     zh: "旅客流并不是完全分离的。乘公交车过来的观光客经常顺道去参观华威城堡和布伦海姆宫，却通常不会去看戏，有些人甚至很惊讶地发现在斯特拉福德镇居然还有一家剧院。然而，看戏的人则除看戏之外还会设法抽出时间游览一些景点。皇家莎士比亚剧团坚称，正是看戏的人带来了小镇的大部分收入，因为他们在此过夜（有些会住四到五个晚上），将大把的钱花在酒店和餐馆中。而观光者会在夜幕降临前游览完所有地方然后离开小镇。",
     sentences: [
-    { num: "①", en: "The tourist streams are not entirely separate.", ref: "旅客流并不是完全分离的。" },
-    { num: "②", en: "The sightseers who come by bus - and often take in Warwick Castle and Blenheim Palace on the side -- don't usually see the plays, and some of them are even surprised to find a theatre in Stratford.", ref: "乘公交车过来的观光客经常顺道去参观华威城堡和布伦海姆宫，却通常不会去看戏，有些人甚至很惊讶地发现在斯特拉福德镇居然还有一家剧院。" },
-    { num: "③", en: "However, the playgoers do manage a little sight-seeing along with their playgoing.", ref: "然而，看戏的人则除看戏之外还会设法抽出时间游览一些景点。" },
-    { num: "④", en: "It is the playgoers, the RSC contends, who bring in much of the town's revenue because they spend the night (some of them four or five nights) pouring cash into the hotels and restaurants.", ref: "皇家莎士比亚剧团坚称，正是看戏的人带来了小镇的大部分收入，因为他们在此过夜（有些会住四到五个晚上），将大把的钱花在酒店和餐馆中。" },
-    { num: "⑤", en: "The sightseers can take in everything and get out of town by nightfall.", ref: "而观光者会在夜幕降临前游览完所有地方然后离开小镇。" }
+    { num: "①", en: "The tourist streams are not entirely separate.", ref: "旅客流并不是完全分离的。",
+      ai: { backbone: "主语 The tourist streams、系动词 are not、表语 entirely separate", structure: ["程度副词 entirely：修饰表语 separate，说明并非完全分离"], collocations: ["tourist streams（游客人流）","not entirely（并非完全）"] }},
+    { num: "②", en: "The sightseers who come by bus - and often take in Warwick Castle and Blenheim Palace on the side -- don't usually see the plays, and some of them are even surprised to find a theatre in Stratford.", ref: "乘公交车过来的观光客经常顺道去参观华威城堡和布伦海姆宫，却通常不会去看戏，有些人甚至很惊讶地发现在斯特拉福德镇居然还有一家剧院。",
+      ai: { backbone: "主语 The sightseers、谓语 don't see、宾语 the plays；破折号内为插入语", structure: ["定语从句 who come by bus：修饰 sightseers，说明游客的交通方式","插入语 and often take in Warwick Castle and Blenheim Palace on the side：补充说明顺道参观的景点","并列谓语从句 some of them are even surprised to find a theatre：与前句由 and 连接，说明部分游客的意外反应","不定式短语 to find a theatre in Stratford：作 surprised 的补足，说明令其惊讶的内容"], collocations: ["come by bus（乘公交车来）","take in（参观，游览）","on the side（顺带）"] }},
+    { num: "③", en: "However, the playgoers do manage a little sight-seeing along with their playgoing.", ref: "然而，看戏的人则除看戏之外还会设法抽出时间游览一些景点。",
+      ai: { backbone: "主语 the playgoers、谓语 do manage、宾语 a little sight-seeing", structure: ["副词 However：承上启下，表示转折","并列介词短语 along with their playgoing：说明看戏之外附带观光","强调助动词 do：强调 manage 的动作确实发生"], collocations: ["manage to do sth（设法做到某事）","sight-seeing（观光游览）","along with（连同，与……一起）"] }},
+    { num: "④", en: "It is the playgoers, the RSC contends, who bring in much of the town's revenue because they spend the night (some of them four or five nights) pouring cash into the hotels and restaurants.", ref: "皇家莎士比亚剧团坚称，正是看戏的人带来了小镇的大部分收入，因为他们在此过夜（有些会住四到五个晚上），将大把的钱花在酒店和餐馆中。",
+      ai: { backbone: "强调句 It is the playgoers...who bring in much of the town's revenue；插入语 the RSC contends", structure: ["强调结构 It is...who...：强调主语 the playgoers，突出带来收益的主体","插入语 the RSC contends：说明该观点的提出者","原因状语从句 because they spend the night pouring cash into the hotels and restaurants：解释带来收益的原因","括号说明 some of them four or five nights：补充留宿时长","现在分词短语 pouring cash into...：作伴随状语，说明花钱的方式"], collocations: ["bring in revenue（带来收入）","pour cash into（向……大量投入金钱）","spend the night（过夜）"] }},
+    { num: "⑤", en: "The sightseers can take in everything and get out of town by nightfall.", ref: "而观光者会在夜幕降临前游览完所有地方然后离开小镇。",
+      ai: { backbone: "主语 The sightseers、谓语 can take in、宾语 everything；and 连接第二谓语 get out", structure: ["时间状语 by nightfall：说明离开的时间","并列谓语 take in everything and get out of town：说明观光客看完就走的行程"], collocations: ["take in（参观）","get out of town（离开城镇）","by nightfall（到夜幕降临时）"] }}
     ],
     analysis: [
       {
@@ -532,10 +654,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 2",
     zh: "小镇居民并不这么认为，因而当地市政委员会也不直接出钱补贴皇家莎士比亚剧团。斯特拉特福德镇历来有哭穷的传统。然而镇上的每家旅馆似乎都在增建新的侧厅或酒吧间。希尔顿集团正在那里建造自己的酒店，你几乎可以肯定它会配备哈姆雷特汉堡吧、李尔休息室、班柯宴会包间等，而且会是非常奢华。",
     sentences: [
-    { num: "①", en: "The townsfolk don't see it this way and the local council does not contribute directly to the subsidy of the Royal Shakespeare Company.", ref: "小镇居民并不这么认为，因而当地市政委员会也不直接出钱补贴皇家莎士比亚剧团。" },
-    { num: "②", en: "Stratford cries poor traditionally.", ref: "斯特拉特福德镇历来有哭穷的传统。" },
-    { num: "③", en: "Nevertheless every hotel in town seems to be adding a new wing or cocktail lounge.", ref: "然而镇上的每家旅馆似乎都在增建新的侧厅或酒吧间。" },
-    { num: "④", en: "Hilton is building its own hotel there, which you may be sure will be decorated with Hamlet Hamburger Bars, the Lear Lounge, the Banquo Banqueting Room, and so forth, and will be very expensive.", ref: "希尔顿集团正在那里建造自己的酒店，你几乎可以肯定它会配备哈姆雷特汉堡吧、李尔休息室、班柯宴会包间等，而且会是非常奢华。" }
+    { num: "①", en: "The townsfolk don't see it this way and the local council does not contribute directly to the subsidy of the Royal Shakespeare Company.", ref: "小镇居民并不这么认为，因而当地市政委员会也不直接出钱补贴皇家莎士比亚剧团。",
+      ai: { backbone: "and 连接两个并列分句：分句1 主语 The townsfolk、谓语 don't see、宾语 it；分句2 主语 the local council、谓语 does not contribute", structure: ["方式状语 this way：修饰 see，说明看待问题的角度","介词短语 to the subsidy of the Royal Shakespeare Company：修饰 contribute，说明不投入的对象"], collocations: ["see it this way（这样看待）","contribute to（为……出资，贡献）","local council（地方议会）"] }},
+    { num: "②", en: "Stratford cries poor traditionally.", ref: "斯特拉特福德镇历来有哭穷的传统。",
+      ai: { backbone: "主语 Stratford、谓语 cries、补语 poor；副词 traditionally 作状语", structure: ["副词 traditionally：说明这种哭穷是历来如此的传统"], collocations: ["cry poor（哭穷）","traditionally（传统上）"] }},
+    { num: "③", en: "Nevertheless every hotel in town seems to be adding a new wing or cocktail lounge.", ref: "然而镇上的每家旅馆似乎都在增建新的侧厅或酒吧间。",
+      ai: { backbone: "主语 every hotel in town、谓语 seems to be adding、宾语 a new wing or cocktail lounge", structure: ["状语 Nevertheless：承上启下，表转折","后置定语 in town：修饰 hotel，限定范围","不定式短语 to be adding...：作 seems 的表语，说明持续扩建的动作"], collocations: ["add a new wing（加盖新翼楼）","cocktail lounge（鸡尾酒廊）"] }},
+    { num: "④", en: "Hilton is building its own hotel there, which you may be sure will be decorated with Hamlet Hamburger Bars, the Lear Lounge, the Banquo Banqueting Room, and so forth, and will be very expensive.", ref: "希尔顿集团正在那里建造自己的酒店，你几乎可以肯定它会配备哈姆雷特汉堡吧、李尔休息室、班柯宴会包间等，而且会是非常奢华。",
+      ai: { backbone: "主语 Hilton、谓语 is building、宾语 its own hotel", structure: ["非限制性定语从句 which...will be decorated with...and will be very expensive：修饰 hotel，说明酒店的装饰与价位","并列谓语 will be decorated with Hamlet Hamburger Bars...：说明内部装修主题","插入语 you may be sure：强调确信无疑的语气"], collocations: ["be decorated with（用……装饰）","and so forth（等等）"] }}
     ],
     analysis: [
       {
@@ -556,10 +682,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 2",
     zh: "无论如何，当地居民都不能理解为什么皇家莎士比亚剧团需要补贴。（剧院连续三年打破上座记录。去年全年，其 1431 个座席的上座率达到 94%，而且今年的情况会更好。）当然，（剧院需要补贴的）原因是成本在飞涨，而票价却一直保持低位。",
     sentences: [
-    { num: "①", en: "Anyway, the townsfolk can’t understand why the Royal Shakespeare Company needs a subsidy.", ref: "无论如何，当地居民都不能理解为什么皇家莎士比亚剧团需要补贴。" },
-    { num: "②", en: "(The theatre has broken attendance records for three years in a row.", ref: "（剧院连续三年打破上座记录。" },
-    { num: "③", en: "Last year its 1,431 seats were 94 per cent occupied all year long and this year they'll do better.)", ref: "去年全年，其 1431 个座席的上座率达到 94%，而且今年的情况会更好。" },
-    { num: "④", en: "The reason, of course, is that costs have rocketed and ticket prices have stayed low.", ref: "当然，（剧院需要补贴的）原因是成本在飞涨，而票价却一直保持低位。" }
+    { num: "①", en: "Anyway, the townsfolk can’t understand why the Royal Shakespeare Company needs a subsidy.", ref: "无论如何，当地居民都不能理解为什么皇家莎士比亚剧团需要补贴。",
+      ai: { backbone: "主语 the townsfolk、谓语 can't understand、宾语从句 why the Royal Shakespeare Company needs a subsidy", structure: ["宾语从句 why the RSC needs a subsidy：作 understand 的宾语，说明无法理解的内容"], collocations: ["can't understand why（不明白为什么）","need a subsidy（需要补贴）"] }},
+    { num: "②", en: "(The theatre has broken attendance records for three years in a row.", ref: "（剧院连续三年打破上座记录。",
+      ai: { backbone: "主语 The theatre、谓语 has broken、宾语 attendance records", structure: ["时间状语 for three years in a row：说明连续三年打破纪录"], collocations: ["break attendance records（打破上座率纪录）","in a row（连续地）"] }},
+    { num: "③", en: "Last year its 1,431 seats were 94 per cent occupied all year long and this year they'll do better.)", ref: "去年全年，其 1431 个座席的上座率达到 94%，而且今年的情况会更好。）",
+      ai: { backbone: "and 连接两个并列分句：分句1 主语 its 1,431 seats、谓语 were occupied；分句2 主语 they、谓语 will do better", structure: ["时间状语 Last year / all year long：说明全年情况","百分比状语 94 per cent：说明上座率","时间状语 this year：说明今年的预期","宾语 better：作 do 的宾语，表示表现更好"], collocations: ["be occupied（被占用）","do better（做得更好）","all year long（全年）"] }},
+    { num: "④", en: "The reason, of course, is that costs have rocketed and ticket prices have stayed low.", ref: "当然，（剧院需要补贴的）原因是成本在飞涨，而票价却一直保持低位。",
+      ai: { backbone: "主语 The reason、系动词 is、表语从句 that costs have rocketed and ticket prices have stayed low", structure: ["表语从句 that costs have rocketed and ticket prices have stayed low：作系动词 is 的表语，解释原因","并列分句 costs have rocketed / ticket prices have stayed low：说明成本飞涨而票价维持低位这一矛盾"], collocations: ["rocket（飞涨）","stay low（保持低位）","ticket prices（票价）"] }}
     ]
   },
   {
@@ -568,9 +698,12 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 2",
     zh: "大幅提价将会是一件令人蒙羞的事，因为这样做将会赶走那些作为“斯特拉福德镇最有吸引力的顾客”的年轻人。他们来这里纯粹是为了欣赏戏剧，而不是为了逛景点。虽然他们来自世界各地，但是看起来却都很相像——身材消瘦，棱角分明，表情专注，穿着牛仔裤和凉鞋，啃着圆面包，躺在剧院外的石板上过夜，等着在上午十点半售票处开门时购买预留给露宿者的 20 张坐票和 80 张站票。",
     sentences: [
-    { num: "①", en: "It would be a shame to raise prices too much because it would drive away the young people who are Stratford's most attractive clientele.", ref: "大幅提价将会是一件令人蒙羞的事，因为这样做将会赶走那些作为“斯特拉福德镇最有吸引力的顾客”的年轻人。" },
-    { num: "②", en: "They come entirely for the plays, not the sights.", ref: "他们来这里纯粹是为了欣赏戏剧，而不是为了逛景点。" },
-    { num: "③", en: "They all seem to look alike (though they come from all over) - lean, pointed, dedicated faces, wearing jeans and sandals, eating their buns and bedding down for the night on the flagstones outside the theatre to buy the 20 seats and 80 standing-room tickets held for the sleepers and sold to them when the box office opens at 10:30 a. m.", ref: "虽然他们来自世界各地，但是看起来却都很相像——身材消瘦，棱角分明，表情专注，穿着牛仔裤和凉鞋，啃着圆面包，躺在剧院外的石板上过夜，等着在上午十点半售票处开门时购买预留给露宿者的 20 张坐票和 80 张站票。" }
+    { num: "①", en: "It would be a shame to raise prices too much because it would drive away the young people who are Stratford's most attractive clientele.", ref: "大幅提价将会是一件令人蒙羞的事，因为这样做将会赶走那些作为“斯特拉福德镇最有吸引力的顾客”的年轻人。",
+      ai: { backbone: "主语 It、系动词 would be、表语 a shame；不定式短语作真正主语", structure: ["不定式短语 to raise prices too much：作真正主语，说明令人遗憾之事","原因状语从句 because it would drive away the young people：解释为何不该涨价","定语从句 who are Stratford's most attractive clientele：修饰 young people，说明年轻人的重要地位"], collocations: ["it is a shame to（……是件憾事）","raise prices（涨价）","drive away（赶走，使离去）","most attractive clientele（最具吸引力的顾客群）"] }},
+    { num: "②", en: "They come entirely for the plays, not the sights.", ref: "他们来这里纯粹是为了欣赏戏剧，而不是为了逛景点。",
+      ai: { backbone: "主语 They、谓语 come、介词短语 for the plays 作目的状语", structure: ["目的状语 for the plays：说明前来的目的","否定结构 not the sights：与 for the plays 形成对比，强调只看戏不看景"], collocations: ["come for（为……而来）","the sights（景点）"] }},
+    { num: "③", en: "They all seem to look alike (though they come from all over) - lean, pointed, dedicated faces, wearing jeans and sandals, eating their buns and bedding down for the night on the flagstones outside the theatre to buy the 20 seats and 80 standing-room tickets held for the sleepers and sold to them when the box office opens at 10:30 a. m.", ref: "虽然他们来自世界各地，但是看起来却都很相像——身材消瘦，棱角分明，表情专注，穿着牛仔裤和凉鞋，啃着圆面包，躺在剧院外的石板上过夜，等着在上午十点半售票处开门时购买预留给露宿者的 20 张坐票和 80 张站票。",
+      ai: { backbone: "主语 They、系动词 seem to look、表语 alike；后接长串同位修饰", structure: ["让步状语从句 though they come from all over：说明虽来自各地却相貌相似","破折号后并列的形容词与分词短语 lean, pointed, dedicated faces, wearing jeans and sandals, eating their buns and bedding down...：作同位语，详细刻画年轻人形象","目的状语 to buy the 20 seats and 80 standing-room tickets：说明过夜的目的","后置定语 held for the sleepers and sold to them：修饰 tickets，说明票的用途","时间状语从句 when the box office opens at 10:30 a.m.：说明售票时间"], collocations: ["look alike（看起来相似）","bed down（露宿，躺下过夜）","standing-room tickets（站票）","box office（售票处）"] }}
     ]
   },
   {
@@ -579,16 +712,26 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 3",
     zh: "当史前人类到达世界的新区域时，某些奇怪的事情发生在大型动物身上：它们突然灭绝了。体型较小的物种幸存了下来。生长缓慢的大型动物容易被捕获，且迅速被猎杀直至灭绝。现在类似的事情可能正在各大洋中发生。人们多年来早已经知晓海洋正在遭受过度捕捞。而诸如兰森姆，迈尔斯和鲍里斯·沃尔姆这样的研究者所揭示的只是情势恶化到底有多快。他们研究了全世界渔场半个世纪的数据。其研究方法不是试图估算特定海域中鱼类的实际生物量（活体生物的数量），而是（估算）随着时间推移这些生物量的变化。据他们在《自然》杂志上发表的最新论文可知，一个新渔场在开发之初的 15 年中大型食肉鱼类（猎食其他动物的鱼类）的生物量平均减少了 80%。在一些长期捕鱼的地区，生物量自那之后又减少了一半。",
     sentences: [
-    { num: "①", en: "When prehistoric man arrived in new parts of the world, something strange happened to the large animals: they suddenly became extinct.", ref: "当史前人类到达世界的新区域时，某些奇怪的事情发生在大型动物身上：它们突然灭绝了。" },
-    { num: "②", en: "Smaller species survived.", ref: "体型较小的物种幸存了下来。" },
-    { num: "③", en: "The large, slow-growing animals were easy game, and were quickly hunted to extinction.", ref: "生长缓慢的大型动物容易被捕获，且迅速被猎杀直至灭绝。" },
-    { num: "④", en: "Now something similar could be happening in the oceans.", ref: "现在类似的事情可能正在各大洋中发生。" },
-    { num: "⑤", en: "That the seas are being overfished has been known for years.", ref: "人们多年来早已经知晓海洋正在遭受过度捕捞。" },
-    { num: "⑥", en: "What researchers such as Ransom Myers and Boris Worm have shown is just how fast things are changing.", ref: "而诸如兰森姆，迈尔斯和鲍里斯·沃尔姆这样的研究者所揭示的只是情势恶化到底有多快。" },
-    { num: "⑦", en: "They have looked at half a century of data from fisheries around the world.", ref: "他们研究了全世界渔场半个世纪的数据。" },
-    { num: "⑧", en: "Their methods do not attempt to estimate the actual biomass (the amount of living biological matter) of fish species in particular parts of the ocean, but rather changes in that biomass over time.", ref: "其研究方法不是试图估算特定海域中鱼类的实际生物量（活体生物的数量），而是（估算）随着时间推移这些生物量的变化。" },
-    { num: "⑨", en: "According to their latest paper published in Nature, the biomass of large predators (animals that kill and eat other animals) in a new fishery is reduced on average by 80% within 15 years of the start of exploitation.", ref: "据他们在《自然》杂志上发表的最新论文可知，一个新渔场在开发之初的 15 年中大型食肉鱼类（猎食其他动物的鱼类）的生物量平均减少了 80%。" },
-    { num: "⑩", en: "In some long-fished areas, it has halved again since then.", ref: "在一些长期捕鱼的地区，生物量自那之后又减少了一半。" }
+    { num: "①", en: "When prehistoric man arrived in new parts of the world, something strange happened to the large animals: they suddenly became extinct.", ref: "当史前人类到达世界的新区域时，某些奇怪的事情发生在大型动物身上：它们突然灭绝了。",
+      ai: { backbone: "时间状语从句 When prehistoric man arrived...；主句主语 something strange、谓语 happened、状语 to the large animals", structure: ["时间状语从句 When prehistoric man arrived in new parts of the world：修饰主句，说明事件发生的时代与地点","冒号后的独立分句 they suddenly became extinct：对“奇怪的事情”作具体说明","介词短语 to the large animals：说明这种变化的对象"], collocations: ["arrive in（到达）","become extinct（灭绝）"] }},
+    { num: "②", en: "Smaller species survived.", ref: "体型较小的物种幸存了下来。",
+      ai: { backbone: "主语 Smaller species、谓语 survived", structure: ["该句结构简单，无明显修饰成分"], collocations: ["smaller species（较小的物种）","survive（幸存）"] }},
+    { num: "③", en: "The large, slow-growing animals were easy game, and were quickly hunted to extinction.", ref: "生长缓慢的大型动物容易被捕获，且迅速被猎杀直至灭绝。",
+      ai: { backbone: "and 连接两个并列分句：分句1 主语 The large, slow-growing animals、系动词 were、表语 easy game；分句2 主语 they、谓语 were hunted", structure: ["并列谓语 were easy game and were quickly hunted to extinction：说明大型动物既易捕猎又迅速被猎尽","介词短语 to extinction：说明猎杀的结果是灭绝"], collocations: ["easy game（易得的猎物，易被利用的对象）","hunt to extinction（猎杀至灭绝）","slow-growing（生长缓慢的）"] }},
+    { num: "④", en: "Now something similar could be happening in the oceans.", ref: "现在类似的事情可能正在各大洋中发生。",
+      ai: { backbone: "主语 something similar、谓语 could be happening、状语 in the oceans", structure: ["副词 Now：点明当前时间，与史前形成对照","介词短语 in the oceans：说明正在发生的场所"], collocations: ["something similar（类似的情况）","could be happening（可能正在发生）"] }},
+    { num: "⑤", en: "That the seas are being overfished has been known for years.", ref: "人们多年来早已经知晓海洋正在遭受过度捕捞。",
+      ai: { backbone: "主语从句 That the seas are being overfished、谓语 has been known、时间状语 for years", structure: ["主语从句 That the seas are being overfished：作整个句子的主语，说明长期已知的事实","时间状语 for years：说明这一事实被知晓的时间之长"], collocations: ["be overfished（被过度捕捞）","for years（多年来）"] }},
+    { num: "⑥", en: "What researchers such as Ransom Myers and Boris Worm have shown is just how fast things are changing.", ref: "而诸如兰森姆，迈尔斯和鲍里斯·沃尔姆这样的研究者所揭示的只是情势恶化到底有多快。",
+      ai: { backbone: "主语从句 What researchers such as Ransom Myers and Boris Worm have shown、谓语 is、表语从句 how fast things are changing", structure: ["主语从句 What researchers...have shown：作句子主语，说明研究对象","介词短语 such as Ransom Myers and Boris Worm：举例说明研究者","表语从句 how fast things are changing：作 is 的表语，说明研究揭示的内容"], collocations: ["such as（例如）","things are changing（情况正在变化）"] }},
+    { num: "⑦", en: "They have looked at half a century of data from fisheries around the world.", ref: "他们研究了全世界渔场半个世纪的数据。",
+      ai: { backbone: "主语 They、谓语 have looked at、宾语 half a century of data", structure: ["介词短语 from fisheries around the world：作后置定语，修饰 data，说明数据来源"], collocations: ["look at（考察，研究）","half a century of（半个世纪的）","fisheries around the world（世界各地的渔业）"] }},
+    { num: "⑧", en: "Their methods do not attempt to estimate the actual biomass (the amount of living biological matter) of fish species in particular parts of the ocean, but rather changes in that biomass over time.", ref: "其研究方法不是试图估算特定海域中鱼类的实际生物量（活体生物的数量），而是（估算）随着时间推移这些生物量的变化。",
+      ai: { backbone: "主语 Their methods、谓语 do not attempt to estimate、宾语 the actual biomass；not...but rather 结构连接转折内容", structure: ["括号说明 the amount of living biological matter：解释 biomass 的含义","后置定语 of fish species in particular parts of the ocean：修饰 biomass，限定对象","转折结构 but rather changes in that biomass over time：not...but rather 强调方法不是估算绝对量而是变化量"], collocations: ["attempt to（试图）","actual biomass（实际生物量）","not...but rather（不是……而是……）","over time（随着时间推移）"] }},
+    { num: "⑨", en: "According to their latest paper published in Nature, the biomass of large predators (animals that kill and eat other animals) in a new fishery is reduced on average by 80% within 15 years of the start of exploitation.", ref: "据他们在《自然》杂志上发表的最新论文可知，一个新渔场在开发之初的 15 年中大型食肉鱼类（猎食其他动物的鱼类）的生物量平均减少了 80%。",
+      ai: { backbone: "主语 the biomass of large predators、谓语 is reduced、状语 by an average of 80%", structure: ["介词短语 According to their latest paper published in Nature：作状语，交代依据","过去分词短语 published in Nature：作后置定语，修饰 paper","括号说明 animals that kill and eat other animals：解释 predators 的含义","介词短语 in a new fishery：说明对象是新渔场","时间状语 within 15 years of the start of exploitation：说明减少发生的时间范围"], collocations: ["on average（平均）","large predators（大型捕食者）","the start of exploitation（开发之初）"] }},
+    { num: "⑩", en: "In some long-fished areas, it has halved again since then.", ref: "在一些长期捕鱼的地区，生物量自那之后又减少了一半。",
+      ai: { backbone: "主语 it、谓语 has halved；时间状语与地点状语前置", structure: ["时间状语 since then：说明自那以后","地点状语 In some long-fished areas：限定地区","副词 again：表示再度减半"], collocations: ["long-fished areas（长期捕捞的区域）","halve（减半）","since then（自那以后）"] }}
     ]
   },
   {
@@ -597,14 +740,22 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 3",
     zh: "沃尔姆博士承认这些数据是保守的。其原因之一是捕鱼技术已经改进。当今的船只可以使用50 年前还没有的卫星和声呐技术来寻找猎物。这就意味着更高比例的海洋生物正在被捕获，因此现在和过去之间的真正差异很可能比捕捞量变化所显示出的差异更大。而且，在早期，多钩长线上本可以挂满更多的鱼。有些鱼之所以没有被捕捉，是因为没有可利用的带饵鱼钩来诱捕它们，进而导致过去的鱼类资源量被低估。此外，在使用多钩长线捕鱼的初期，许多鱼被钩住后又被鲨鱼夺走。而现在这不再是一个问题，因为鲨鱼很少出现了。",
     sentences: [
-    { num: "①", en: "Dr.Worm acknowledges that these figures are conservative.", ref: "沃尔姆博士承认这些数据是保守的。" },
-    { num: "②", en: "One reason for this is that fishing technology has improved.", ref: "其原因之一是捕鱼技术已经改进。" },
-    { num: "③", en: "Today’s vessels can find their prey using satellites and sonar, which were not available 50 years ago.", ref: "当今的船只可以使用50 年前还没有的卫星和声呐技术来寻找猎物。" },
-    { num: "④", en: "That means a higher proportion of what is in the sea is being caught, so the real difference between present and past is likely to be worse than the one recorded by changes in catch sizes.", ref: "这就意味着更高比例的海洋生物正在被捕获，因此现在和过去之间的真正差异很可能比捕捞量变化所显示出的差异更大。" },
-    { num: "⑤", en: "In the early days, too, longlines would have been more saturated with fish.", ref: "而且，在早期，多钩长线上本可以挂满更多的鱼。" },
-    { num: "⑥", en: "Some individuals would therefore not have been caught, since no baited hooks would have been available to trap them, leading to an underestimate of fish stocks in the past.", ref: "有些鱼之所以没有被捕捉，是因为没有可利用的带饵鱼钩来诱捕它们，进而导致过去的鱼类资源量被低估。" },
-    { num: "⑦", en: "Furthermore, in the early days of longline fishing, a lot of fish were lost to sharks after they had been hooked.", ref: "此外，在使用多钩长线捕鱼的初期，许多鱼被钩住后又被鲨鱼夺走。" },
-    { num: "⑧", en: "That is no longer a problem, because there are fewer sharks around now.", ref: "而现在这不再是一个问题，因为鲨鱼很少出现了。" }
+    { num: "①", en: "Dr.Worm acknowledges that these figures are conservative.", ref: "沃尔姆博士承认这些数据是保守的。",
+      ai: { backbone: "主语 Dr.Worm、谓语 acknowledges、宾语从句 that these figures are conservative", structure: ["宾语从句 that these figures are conservative：作 acknowledges 的宾语，说明承认的内容"], collocations: ["acknowledge that（承认……）","figures are conservative（数字是保守的）"] }},
+    { num: "②", en: "One reason for this is that fishing technology has improved.", ref: "其原因之一是捕鱼技术已经改进。",
+      ai: { backbone: "主语 One reason for this、系动词 is、表语从句 that fishing technology has improved", structure: ["表语从句 that fishing technology has improved：作 is 的表语，说明原因","介词短语 for this：作后置定语，修饰 reason"], collocations: ["one reason for（……的一个原因）","fishing technology（捕鱼技术）"] }},
+    { num: "③", en: "Today’s vessels can find their prey using satellites and sonar, which were not available 50 years ago.", ref: "当今的船只可以使用50 年前还没有的卫星和声呐技术来寻找猎物。",
+      ai: { backbone: "主语 Today's vessels、谓语 can find、宾语 their prey", structure: ["方式状语 using satellites and sonar：说明定位猎物的手段","非限制性定语从句 which were not available 50 years ago：修饰 satellites and sonar，强调技术进步"], collocations: ["find prey（发现猎物）","satellites and sonar（卫星与声呐）","be available（可获得的）"] }},
+    { num: "④", en: "That means a higher proportion of what is in the sea is being caught, so the real difference between present and past is likely to be worse than the one recorded by changes in catch sizes.", ref: "这就意味着更高比例的海洋生物正在被捕获，因此现在和过去之间的真正差异很可能比捕捞量变化所显示出的差异更大。",
+      ai: { backbone: "主语 That、谓语 means、宾语从句 that a higher proportion of what is in the sea is being caught", structure: ["宾语从句 that a higher proportion of what is in the sea is being caught：作 means 的宾语","介词短语 of what is in the sea：作 proportion 的后置定语，其中 what 引导宾语从句","结果状语从句 so the real difference...is likely to be worse：so 连接结果","比较结构 than the one recorded by changes in catch sizes：与渔获量变化记录的差异比较"], collocations: ["a higher proportion of（更高比例的）","be likely to（很可能）","catch sizes（渔获量）"] }},
+    { num: "⑤", en: "In the early days, too, longlines would have been more saturated with fish.", ref: "而且，在早期，多钩长线上本可以挂满更多的鱼。",
+      ai: { backbone: "主语 longlines、谓语 would have been、表语 more saturated", structure: ["时间状语 In the early days：说明是早期情况","介词短语 with fish：说明饱和的内容","副词 too：表示同样如此"], collocations: ["in the early days（早期）","be saturated with（充满……，饱和）","longlines（延绳钓）"] }},
+    { num: "⑥", en: "Some individuals would therefore not have been caught, since no baited hooks would have been available to trap them, leading to an underestimate of fish stocks in the past.", ref: "有些鱼之所以没有被捕捉，是因为没有可利用的带饵鱼钩来诱捕它们，进而导致过去的鱼类资源量被低估。",
+      ai: { backbone: "主语 Some individuals、谓语 would not have been caught；since 引导原因状语从句", structure: ["原因状语从句 since no baited hooks would have been available to trap them：解释为何未被捕获","不定式短语 to trap them：作 hooks 的目的补足","结果状语 now分词短语 leading to an underestimate of fish stocks in the past：说明低估鱼群数量的结果"], collocations: ["baited hooks（带饵的鱼钩）","lead to（导致）","underestimate fish stocks（低估鱼类资源）"] }},
+    { num: "⑦", en: "Furthermore, in the early days of longline fishing, a lot of fish were lost to sharks after they had been hooked.", ref: "此外，在使用多钩长线捕鱼的初期，许多鱼被钩住后又被鲨鱼夺走。",
+      ai: { backbone: "主语 a lot of fish、谓语 were lost；时间状语从句 after they had been hooked", structure: ["时间状语 In the early days of longline fishing：说明背景","时间状语从句 after they had been hooked：说明损失发生在上钩之后","介词短语 to sharks：说明损失的原因"], collocations: ["be lost to（被……夺走）","longline fishing（延绳钓捕捞）","a lot of（大量）"] }},
+    { num: "⑧", en: "That is no longer a problem, because there are fewer sharks around now.", ref: "而现在这不再是一个问题，因为鲨鱼很少出现了。",
+      ai: { backbone: "主语 That、系动词 is、表语 no longer a problem；because 引导原因状语从句", structure: ["原因状语从句 because there are fewer sharks around now：解释不再成问题的原因","there be 结构 there are fewer sharks：说明鲨鱼数量减少"], collocations: ["no longer（不再）","fewer...around（周围的……更少）"] }}
     ]
   },
   {
@@ -613,11 +764,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 3",
     zh: "迈尔斯博士和沃尔姆博士认为他们的研究成果将提供一个未来管理活动必须考虑的正确基线。他们认为其数据验证了海洋生物学家就“变化基线”的一种普遍看法。这种看法就是人们未能发觉海洋中发生的巨大变化是因为他们一直只回顾过去一段相对较短时间内的情况。而这事关重大，因为理论认为当目标物种的生物量大约为其原始水平的 50%时，从渔场能够获得最大持续渔获量。大部分渔场都远低于这个水平，这是一种有害的经营方式。",
     sentences: [
-    { num: "①", en: "Dr.Myers and Dr.Worm argue that their work gives a correct baseline, which future management efforts must take into account.", ref: "迈尔斯博士和沃尔姆博士认为他们的研究成果将提供一个未来管理活动必须考虑的正确基线。" },
-    { num: "②", en: "They believe the data support an idea current among marine biologists, that of the“shifting baseline”.", ref: "他们认为其数据验证了海洋生物学家就“变化基线”的一种普遍看法。" },
-    { num: "③", en: "The notion is that people have failed to detect the massive changes which have happened in the ocean because they have been looking back only a relatively short time into the past.", ref: "这种看法就是人们未能发觉海洋中发生的巨大变化是因为他们一直只回顾过去一段相对较短时间内的情况。" },
-    { num: "④", en: "That matters because theory suggests that the maximum sustainable yield that can be cropped from a fishery comes when the biomass of a target species is about 50% of its original levels.", ref: "而这事关重大，因为理论认为当目标物种的生物量大约为其原始水平的 50%时，从渔场能够获得最大持续渔获量。" },
-    { num: "⑤", en: "Most fisheries are well below that, which is a bad way to do business.", ref: "大部分渔场都远低于这个水平，这是一种有害的经营方式。" }
+    { num: "①", en: "Dr.Myers and Dr.Worm argue that their work gives a correct baseline, which future management efforts must take into account.", ref: "迈尔斯博士和沃尔姆博士认为他们的研究成果将提供一个未来管理活动必须考虑的正确基线。",
+      ai: { backbone: "主语 Dr.Myers and Dr.Worm、谓语 argue、宾语从句 that their work gives a correct baseline", structure: ["宾语从句 that their work gives a correct baseline：作 argue 的宾语","非限制性定语从句 which future management efforts must take into account：修饰 baseline，说明其重要性"], collocations: ["argue that（主张……）","a correct baseline（正确的基线）","take into account（考虑，顾及）","future management efforts（未来的管理努力）"] }},
+    { num: "②", en: "They believe the data support an idea current among marine biologists, that of the“shifting baseline”.", ref: "他们认为其数据验证了海洋生物学家就“变化基线”的一种普遍看法。",
+      ai: { backbone: "主语 They、谓语 believe、宾语从句 the data support an idea", structure: ["宾语从句 the data support an idea...：作 believe 的宾语","后置定语 current among marine biologists：修饰 idea，说明观点在海洋生物学家中的流行","同位语 that of the “shifting baseline”：解释说明 idea 的具体内容"], collocations: ["believe that（相信……）","marine biologists（海洋生物学家）","shifting baseline（动态基线，变动基线）"] }},
+    { num: "③", en: "The notion is that people have failed to detect the massive changes which have happened in the ocean because they have been looking back only a relatively short time into the past.", ref: "这种看法就是人们未能发觉海洋中发生的巨大变化是因为他们一直只回顾过去一段相对较短时间内的情况。",
+      ai: { backbone: "主语 The notion、系动词 is、表语从句 that people have failed to detect the massive changes", structure: ["表语从句 that people have failed to detect the massive changes：作 is 的表语，解释观点的内涵","定语从句 which have happened in the ocean：修饰 changes，限定变化的发生地","原因状语从句 because they have been looking back only a relatively short time into the past：解释人们为何未能察觉"], collocations: ["fail to do sth（未能做到某事）","look back（回顾）","a relatively short time（相对较短的时间）"] }},
+    { num: "④", en: "That matters because theory suggests that the maximum sustainable yield that can be cropped from a fishery comes when the biomass of a target species is about 50% of its original levels.", ref: "而这事关重大，因为理论认为当目标物种的生物量大约为其原始水平的 50%时，从渔场能够获得最大持续渔获量。",
+      ai: { backbone: "主语 That、谓语 matters；because 引导原因状语从句", structure: ["原因状语从句 because theory suggests that the maximum sustainable yield...comes when the biomass...is about 50%：解释为何重要","宾语从句 that the maximum sustainable yield...comes...：作 suggests 的宾语","定语从句 that can be cropped from a fishery：修饰 yield，限定捕捞来源","时间状语从句 when the biomass of a target species is about 50% of its original levels：说明产量最大化的条件"], collocations: ["maximum sustainable yield（最大可持续产量）","target species（目标物种）","original levels（原始水平）"] }},
+    { num: "⑤", en: "Most fisheries are well below that, which is a bad way to do business.", ref: "大部分渔场都远低于这个水平，这是一种有害的经营方式。",
+      ai: { backbone: "主语 Most fisheries、系动词 are、表语 well below that；which 引导非限制性定语从句", structure: ["非限制性定语从句 which is a bad way to do business：指代整个主句，作出评价","不定式短语 to do business：作 way 的后置定语"], collocations: ["well below（远低于）","a bad way to do business（糟糕的经营方式）"] }}
     ],
     analysis: [
       {
@@ -637,11 +793,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 4",
     zh: "许多事情使人们认为艺术家是怪异的。但最怪异的或许是这件：艺术家唯一的工作就是探究情感，然而他们却选择聚焦于那些令人感觉糟糕的情感。情况并非总是如此。最早期的艺术形式，如绘画和音乐，是最适合表达喜悦的。但大约从19 世纪以来，更多的艺术家开始把幸福看作是无趣的、虚幻的、甚至是使人厌烦的情感，正如我们从华兹华斯的《水仙花》到波德莱尔的《恶之花》所体验到的一样。",
     sentences: [
-    { num: "①", en: "Many things make people think artists are weird.", ref: "许多事情使人们认为艺术家是怪异的。" },
-    { num: "②", en: "But the weirdest may be this: artists’ only job is to explore emotions, and yet they choose to focus on the ones that feel bad.", ref: "但最怪异的或许是这件：艺术家唯一的工作就是探究情感，然而他们却选择聚焦于那些令人感觉糟糕的情感。" },
-    { num: "③", en: "This wasn’t always so.", ref: "情况并非总是如此。" },
-    { num: "④", en: "The earliest forms of art, like painting and music, are those best suited for expressing joy.", ref: "最早期的艺术形式，如绘画和音乐，是最适合表达喜悦的。" },
-    { num: "⑤", en: "But somewhere from the 19th century onward, more artists began seeing happiness as meaningless, phony or, worst of all, boring, as we went from Wordsworth’s daffodils to Baudelaire’s flowers of evil.", ref: "但大约从19 世纪以来，更多的艺术家开始把幸福看作是无趣的、虚幻的、甚至是使人厌烦的情感，正如我们从华兹华斯的《水仙花》到波德莱尔的《恶之花》所体验到的一样。" }
+    { num: "①", en: "Many things make people think artists are weird.", ref: "许多事情使人们认为艺术家是怪异的。",
+      ai: { backbone: "主语 Many things、谓语 make、宾语 people、宾补 think artists are weird", structure: ["不定式短语 think artists are weird：作宾语补足语，说明人们对艺术家的印象","宾语从句 artists are weird：作 think 的宾语"], collocations: ["make sb do sth（使某人做某事）","many things（很多事情）"] }},
+    { num: "②", en: "But the weirdest may be this: artists’ only job is to explore emotions, and yet they choose to focus on the ones that feel bad.", ref: "但最怪异的或许是这件：艺术家唯一的工作就是探究情感，然而他们却选择聚焦于那些令人感觉糟糕的情感。",
+      ai: { backbone: "主语 the weirdest、系动词 may be、表语 this；冒号后为对 this 的解释", structure: ["冒号后的并列分句 artists' only job is to explore emotions, and yet they choose to focus on the ones...：具体说明最怪之处","不定式短语 to explore emotions：作表语，说明艺术家的唯一工作","定语从句 that feel bad：修饰 ones（指 emotions），限定令人不适的情感","连词 and yet：表示转折，突出矛盾"], collocations: ["explore emotions（探索情感）","focus on（专注于）","the ones that feel bad（令人不适的情感）"] }},
+    { num: "③", en: "This wasn’t always so.", ref: "情况并非总是如此。",
+      ai: { backbone: "主语 This、系动词 wasn't、表语 always so", structure: ["副词 always：说明并非历来如此"], collocations: ["not always（并非总是）"] }},
+    { num: "④", en: "The earliest forms of art, like painting and music, are those best suited for expressing joy.", ref: "最早期的艺术形式，如绘画和音乐，是最适合表达喜悦的。",
+      ai: { backbone: "主语 The earliest forms of art、系动词 are、表语 those best suited for expressing joy", structure: ["插入语 like painting and music：举例说明艺术形式","后置定语 best suited for expressing joy：修饰 those（指艺术形式），说明其最擅长表达欢乐","介词短语 for expressing joy：修饰 suited，说明适合的对象"], collocations: ["be suited for（适合……）","expressing joy（表达欢乐）","the earliest forms of（最早的形式）"] }},
+    { num: "⑤", en: "But somewhere from the 19th century onward, more artists began seeing happiness as meaningless, phony or, worst of all, boring, as we went from Wordsworth’s daffodils to Baudelaire’s flowers of evil.", ref: "但大约从19 世纪以来，更多的艺术家开始把幸福看作是无趣的、虚幻的、甚至是使人厌烦的情感，正如我们从华兹华斯的《水仙花》到波德莱尔的《恶之花》所体验到的一样。",
+      ai: { backbone: "主语 more artists、谓语 began seeing、宾语 happiness as meaningless...；as 引出宾语补语", structure: ["时间状语 somewhere from the 19th century onward：说明转折发生的时间起点","介词短语 from Wordsworth's daffodils to Baudelaire's flowers of evil：说明艺术风格的演变轨迹","as 引导的原因状语从句 we went from...to...：解释艺术家观念转变的背景","并列表语 meaningless, phony or, worst of all, boring：说明对幸福的三种负面看法"], collocations: ["from...onward（从……起）","see...as（把……视为）","flowers of evil（恶之花）","worst of all（最糟糕的是）"] }}
     ],
     analysis: [
       {
@@ -665,12 +826,18 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 4",
     zh: "你可能会辩称艺术越来越质疑幸福是因为现代社会经历了如此多的苦难。但早期社会又不是没有经历过连年战乱、天灾人祸和屠杀无辜。事实上，原因可能恰恰相反：当今世界有太多令人作呕的幸福。别忘了，几乎完全致力于描绘幸福的唯一现代表达形式是什么？是广告。反幸福艺术的兴起几乎完全与大众传媒同步，与之相伴而生的还有一种商业文化，在这种文化中幸福不仅是一种理想，更是一种意识形态。",
     sentences: [
-    { num: "①", en: "You could argue that art became more skeptical of happiness because modern times have seen so much misery.", ref: "你可能会辩称艺术越来越质疑幸福是因为现代社会经历了如此多的苦难。" },
-    { num: "②", en: "But it’s not as if earlier times didn’t know perpetual war, disaster and the massacre of innocents.", ref: "但早期社会又不是没有经历过连年战乱、天灾人祸和屠杀无辜。" },
-    { num: "③", en: "The reason, in fact, may be just the opposite: there is too much damn happiness in the world today.", ref: "事实上，原因可能恰恰相反：当今世界有太多令人作呕的幸福。" },
-    { num: "④", en: "After all, what is the one modern form of expression almost completely dedicated to depicting happiness?", ref: "别忘了，几乎完全致力于描绘幸福的唯一现代表达形式是什么？" },
-    { num: "⑤", en: "Advertising.", ref: "是广告。" },
-    { num: "⑥", en: "The rise of anti-happy art almost exactly tracks the emergence of mass media, and with it, a commercial culture in which happiness is not just an ideal but an ideology.", ref: "反幸福艺术的兴起几乎完全与大众传媒同步，与之相伴而生的还有一种商业文化，在这种文化中幸福不仅是一种理想，更是一种意识形态。" }
+    { num: "①", en: "You could argue that art became more skeptical of happiness because modern times have seen so much misery.", ref: "你可能会辩称艺术越来越质疑幸福是因为现代社会经历了如此多的苦难。",
+      ai: { backbone: "主语 You、谓语 could argue、宾语从句 that art became more skeptical of happiness", structure: ["宾语从句 that art became more skeptical of happiness：作 argue 的宾语","原因状语从句 because modern times have seen so much misery：解释艺术怀疑幸福的原因"], collocations: ["could argue that（可以说……）","be skeptical of（对……持怀疑态度）","modern times（现代）"] }},
+    { num: "②", en: "But it’s not as if earlier times didn’t know perpetual war, disaster and the massacre of innocents.", ref: "但早期社会又不是没有经历过连年战乱、天灾人祸和屠杀无辜。",
+      ai: { backbone: "主语 it、系动词 is、表语 not as if earlier times didn't know...", structure: ["表语从句 as if earlier times didn't know perpetual war, disaster and the massacre of innocents：说明早期并非不知苦难","并列宾语 perpetual war, disaster and the massacre of innocents：列举早期人类所知的苦难"], collocations: ["as if（仿佛，好像）","perpetual war（无休止的战争）","the massacre of innocents（屠杀无辜者）"] }},
+    { num: "③", en: "The reason, in fact, may be just the opposite: there is too much damn happiness in the world today.", ref: "事实上，原因可能恰恰相反：当今世界有太多令人作呕的幸福。",
+      ai: { backbone: "主语 The reason、系动词 may be、表语 the opposite；in fact 作插入语", structure: ["插入语 in fact：加强语气","冒号后的 there is too much damn happiness in the world today：具体说明相反的原因"], collocations: ["the opposite（相反的情况）","in fact（事实上）","too much happiness（过多的幸福）"] }},
+    { num: "④", en: "After all, what is the one modern form of expression almost completely dedicated to depicting happiness?", ref: "别忘了，几乎完全致力于描绘幸福的唯一现代表达形式是什么？",
+      ai: { backbone: "主语 what is the one modern form of expression almost completely dedicated to depicting happiness？为疑问句，谓语 is", structure: ["后置定语 of expression：修饰 form","过去分词短语 dedicated to depicting happiness：作后置定语，修饰 form，说明其专门用于描绘幸福"], collocations: ["be dedicated to（致力于……）","depict happiness（描绘幸福）","form of expression（表达形式）"] }},
+    { num: "⑤", en: "Advertising.", ref: "是广告。",
+      ai: { backbone: "单个名词 Advertising 独立成句，承接上文回答问题", structure: ["该句为单词句，直接回答前文疑问，指出答案即广告"], collocations: ["advertising（广告业）"] }},
+    { num: "⑥", en: "The rise of anti-happy art almost exactly tracks the emergence of mass media, and with it, a commercial culture in which happiness is not just an ideal but an ideology.", ref: "反幸福艺术的兴起几乎完全与大众传媒同步，与之相伴而生的还有一种商业文化，在这种文化中幸福不仅是一种理想，更是一种意识形态。",
+      ai: { backbone: "主语 The rise of anti-happy art、谓语 tracks、宾语 the emergence of mass media", structure: ["状语 The rise of anti-happy art：作主语，其中 of anti-happy art 为后置定语","并列介词短语 and with it, a commercial culture：说明随之而来的商业文化","定语从句 in which happiness is not just an ideal but an ideology：修饰 culture，说明商业文化中幸福的地位"], collocations: ["anti-happy art（反幸福艺术）","mass media（大众传媒）","not just...but（不仅是……而且是……）","commercial culture（商业文化）"] }}
     ]
   },
   {
@@ -679,10 +846,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 4",
     zh: "早期时代的人们被苦难提示信息团团包围。他们工作到筋疲力尽，生活几乎没有任何保障，且年纪尚轻便会逝去。在西方，在大众传播和教育普及之前，最强有力的大众传媒是教堂，在这里，信徒们会被提醒：他们的灵魂处于危险之中，他们有朝一日将沦为腐尸被蠕虫啮噬。鉴于这一切，他们根本不需要艺术也成为一件恼人之物。",
     sentences: [
-    { num: "①", en: "People in earlier eras were surrounded by reminders of misery.", ref: "早期时代的人们被苦难提示信息团团包围。" },
-    { num: "②", en: "They worked until exhausted, lived with few protections and died young.", ref: "他们工作到筋疲力尽，生活几乎没有任何保障，且年纪尚轻便会逝去。" },
-    { num: "③", en: "In the West, before mass communication and literacy, the most powerful mass medium was the church, which reminded worshippers that their souls were in danger and that they would someday be meat for worms.", ref: "在西方，在大众传播和教育普及之前，最强有力的大众传媒是教堂，在这里，信徒们会被提醒：他们的灵魂处于危险之中，他们有朝一日将沦为腐尸被蠕虫啮噬。" },
-    { num: "④", en: "Given all this, they did not exactly need their art to be a bummer too.", ref: "鉴于这一切，他们根本不需要艺术也成为一件恼人之物。" }
+    { num: "①", en: "People in earlier eras were surrounded by reminders of misery.", ref: "早期时代的人们被苦难提示信息团团包围。",
+      ai: { backbone: "主语 People in earlier eras、谓语 were surrounded、介词短语 by reminders of misery 作状语", structure: ["后置定语 in earlier eras：修饰 People，限定时代","介词短语 by reminders of misery：说明被何种事物环绕"], collocations: ["be surrounded by（被……环绕）","in earlier eras（在更早的时代）","reminders of misery（苦难的提醒物）"] }},
+    { num: "②", en: "They worked until exhausted, lived with few protections and died young.", ref: "他们工作到筋疲力尽，生活几乎没有任何保障，且年纪尚轻便会逝去。",
+      ai: { backbone: "三个并列分句：主语 They、谓语 worked / lived / died", structure: ["并列谓语结构 worked until exhausted, lived with few protections and died young：概述早期民众的艰辛生活","程度状语 until exhausted：说明劳累程度","状语 with few protections：说明缺乏保障","表语 young：说明死得早"], collocations: ["work until exhausted（劳累至精疲力竭）","die young（英年早逝）","few protections（几乎没有保障）"] }},
+    { num: "③", en: "In the West, before mass communication and literacy, the most powerful mass medium was the church, which reminded worshippers that their souls were in danger and that they would someday be meat for worms.", ref: "在西方，在大众传播和教育普及之前，最强有力的大众传媒是教堂，在这里，信徒们会被提醒：他们的灵魂处于危险之中，他们有朝一日将沦为腐尸被蠕虫啮噬。",
+      ai: { backbone: "主语 the most powerful mass medium、系动词 was、表语 the church", structure: ["时间状语 In the West, before mass communication and literacy：说明背景","非限制性定语从句 which reminded worshippers that...：修饰 church，说明其教诲内容","宾语从句 that their souls were in danger and that they would someday be meat for worms：作 reminded 的宾语，说明告诫的内容"], collocations: ["mass communication（大众传播）","be in danger（处于危险中）","remind sb that（提醒某人……）"] }},
+    { num: "④", en: "Given all this, they did not exactly need their art to be a bummer too.", ref: "鉴于这一切，他们根本不需要艺术也成为一件恼人之物。",
+      ai: { backbone: "主语 they、谓语 did not exactly need、宾语 their art to be a bummer too", structure: ["状语 Given all this：作原因状语，说明鉴于上述背景","不定式短语 to be a bummer too：作宾语补足语，说明艺术无需同样令人沮丧"], collocations: ["given all this（鉴于这一切）","be a bummer（令人沮丧的事物）","not exactly（并不完全）"] }}
     ],
     analysis: [
       {
@@ -707,16 +878,26 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2006 Text 4",
     zh: "如今围绕普通西方人的信息不是宗教的，而是商业的，且永远都是幸福的。快餐食客、新闻主播、发短信者，都在微笑、微笑、微笑。我们的杂志特载满面春光的名人以及完美住宅里的幸福家庭。由于这些信息有着特定的目的——诱使我们打开钱包——它们使得“幸福”这一概念看起来不可靠。“欢庆吧！”关节炎药西乐葆的广告这样鼓动道，之后我们才发现，它会增加心脏病的发病风险。但是我们所忘记的——我们的经济依赖的是我们的忘记——是：幸福并非是没有痛苦的快乐。带来最大欢乐的东西很可能带来最大的损失和失望。如今，周围到处都是对唾手可得的幸福的承诺，我们需要艺术来告诫我们，正如宗教曾经告诉我们，人终有一死，万事皆会结束，幸福不在于否定这一点而在于忍受它。这是甚至比丁香烟还要苦涩的启示，但不知何故，却带来了一缕清新的空气。",
     sentences: [
-    { num: "①", en: "Today the messages the average Westerner is surrounded with are not religious but commercial, and forever happy.", ref: "如今围绕普通西方人的信息不是宗教的，而是商业的，且永远都是幸福的。" },
-    { num: "②", en: "Fast-food eaters, news anchors, text messengers, all smiling, smiling, smiling.", ref: "快餐食客、新闻主播、发短信者，都在微笑、微笑、微笑。" },
-    { num: "③", en: "Our magazines feature beaming celebrities and happy families in perfect homes.", ref: "我们的杂志特载满面春光的名人以及完美住宅里的幸福家庭。" },
-    { num: "④", en: "And since these messages have an agenda—to lure us to open our wallets—they make the very idea of happiness seem unreliable.", ref: "由于这些信息有着特定的目的——诱使我们打开钱包——它们使得“幸福”这一概念看起来不可靠。" },
-    { num: "⑤", en: "“Celebrate!”", ref: "“欢庆吧！" },
-    { num: "⑥", en: "commanded the ads for the arthritis drug Celebrex, before we found out it could increase the risk of heart attacks.", ref: "关节炎药西乐葆的广告这样鼓动道，之后我们才发现，它会增加心脏病的发病风险。" },
-    { num: "⑦", en: "But what we forget—what our economy depends on us forgetting—is that happiness is more than pleasure without pain.", ref: "但是我们所忘记的——我们的经济依赖的是我们的忘记——是：幸福并非是没有痛苦的快乐。" },
-    { num: "⑧", en: "The things that bring the greatest joy carry the greatest potential for loss and disappointment.", ref: "带来最大欢乐的东西很可能带来最大的损失和失望。" },
-    { num: "⑨", en: "Today, surrounded by promises of easy happiness, we need art to tell us, as religion once did, Memento mori: remember that you will die, that everything ends, and that happiness comes not in denying this but in living with it.", ref: "如今，周围到处都是对唾手可得的幸福的承诺，我们需要艺术来告诫我们，正如宗教曾经告诉我们，人终有一死，万事皆会结束，幸福不在于否定这一点而在于忍受它。" },
-    { num: "⑩", en: "It’s a message even more bitter than a clove cigarette, yet, somehow, a breath of fresh air.", ref: "这是甚至比丁香烟还要苦涩的启示，但不知何故，却带来了一缕清新的空气。" }
+    { num: "①", en: "Today the messages the average Westerner is surrounded with are not religious but commercial, and forever happy.", ref: "如今围绕普通西方人的信息不是宗教的，而是商业的，且永远都是幸福的。",
+      ai: { backbone: "主语 the messages、系动词 are、表语 not religious but commercial, and forever happy；后接定语从句", structure: ["定语从句 the average Westerner is surrounded with：修饰 messages，说明人们周围的信息","并列表语 not religious but commercial and forever happy：not...but 结构说明信息性质","时间状语 Today：点明当下"], collocations: ["be surrounded with（被……包围）","not...but（不是……而是）","forever happy（永远快乐的）"] }},
+    { num: "②", en: "Fast-food eaters, news anchors, text messengers, all smiling, smiling, smiling.", ref: "快餐食客、新闻主播、发短信者，都在微笑、微笑、微笑。",
+      ai: { backbone: "并列名词短语 Fast-food eaters, news anchors, text messengers 后接现在分词 smiling 作伴随说明", structure: ["现在分词短语 smiling, smiling, smiling：反复出现，强调无处不在的微笑","并列名词短语 Fast-food eaters, news anchors, text messengers：列举各种微笑人群"], collocations: ["fast-food eaters（快餐食客）","news anchors（新闻主播）","text messengers（发短信者）"] }},
+    { num: "③", en: "Our magazines feature beaming celebrities and happy families in perfect homes.", ref: "我们的杂志特载满面春光的名人以及完美住宅里的幸福家庭。",
+      ai: { backbone: "主语 Our magazines、谓语 feature、宾语 beaming celebrities and happy families", structure: ["后置定语 in perfect homes：修饰 families，说明家庭的完美状态","形容词 beaming：作前置定语，修饰 celebrities，形容笑容满面"], collocations: ["feature（以……为特色，刊登）","beaming celebrities（笑容满面的名人）","happy families（幸福的家庭）"] }},
+    { num: "④", en: "And since these messages have an agenda—to lure us to open our wallets—they make the very idea of happiness seem unreliable.", ref: "由于这些信息有着特定的目的——诱使我们打开钱包——它们使得“幸福”这一概念看起来不可靠。",
+      ai: { backbone: "主语 these messages、谓语 have、宾语 an agenda；and 连接第二谓语 make", structure: ["原因状语从句 since these messages have an agenda：说明背后的动机","破折号内的不定式短语 to lure us to open our wallets：解释 agenda 的内容","宾语从句 they make the very idea of happiness seem unreliable：说明结果，其中 make 后接宾语+宾补"], collocations: ["have an agenda（别有用心，有计划）","lure sb to do（诱使某人做）","open one's wallet（掏钱包）","seem unreliable（显得不可靠）"] }},
+    { num: "⑤", en: "“Celebrate!”", ref: "“欢庆吧！”",
+      ai: { backbone: "独立引语 “Celebrate!” 为祈使句，谓语 Celebrate", structure: ["该句为祈使句，表达号召性口号，无主语"], collocations: ["celebrate（庆祝）"] }},
+    { num: "⑥", en: "commanded the ads for the arthritis drug Celebrex, before we found out it could increase the risk of heart attacks.", ref: "关节炎药西乐葆的广告这样鼓动道，之后我们才发现，它会增加心脏病的发病风险。",
+      ai: { backbone: "引语 commanded the ads...为倒装引述句，主语 the ads、谓语 commanded；before 引导时间状语从句", structure: ["宾语前置 Celebrated 与引语“Celebrate!”呼应","后置定语 for the arthritis drug Celebrex：修饰 the ads，说明广告针对的药物","时间状语从句 before we found out it could increase the risk of heart attacks：说明后来才发现的真相","宾语从句 it could increase the risk of heart attacks：作 found out 的宾语"], collocations: ["command（命令，号召）","arthritis drug（关节炎药物）","increase the risk of（增加……的风险）","heart attacks（心脏病发作）"] }},
+    { num: "⑦", en: "But what we forget—what our economy depends on us forgetting—is that happiness is more than pleasure without pain.", ref: "但是我们所忘记的——我们的经济依赖的是我们的忘记——是：幸福并非是没有痛苦的快乐。",
+      ai: { backbone: "主语 what we forget、谓语 is、表语从句 that happiness is more than pleasure without pain", structure: ["主语从句 what we forget：作主语","破折号内的宾语从句 what our economy depends on us forgetting：作主语从句的补充说明","表语从句 that happiness is more than pleasure without pain：作 is 的表语，阐明观点"], collocations: ["depend on（依赖）","more than（不仅仅是）","pleasure without pain（没有痛苦的快乐）"] }},
+    { num: "⑧", en: "The things that bring the greatest joy carry the greatest potential for loss and disappointment.", ref: "带来最大欢乐的东西很可能带来最大的损失和失望。",
+      ai: { backbone: "主语 The things、谓语 carry、宾语 the greatest potential", structure: ["定语从句 that bring the greatest joy：修饰 things，说明带来最大快乐的事物","介词短语 for loss and disappointment：作后置定语，修饰 potential，说明潜在的对象"], collocations: ["bring joy（带来快乐）","potential for loss（失去的可能）","disappointment（失望）"] }},
+    { num: "⑨", en: "Today, surrounded by promises of easy happiness, we need art to tell us, as religion once did, Memento mori: remember that you will die, that everything ends, and that happiness comes not in denying this but in living with it.", ref: "如今，周围到处都是对唾手可得的幸福的承诺，我们需要艺术来告诫我们，正如宗教曾经告诉我们，人终有一死，万事皆会结束，幸福不在于否定这一点而在于忍受它。",
+      ai: { backbone: "主语 we、谓语 need、宾语 art、宾补 to tell us；句首为过去分词状语", structure: ["过去分词短语 surrounded by promises of easy happiness：作状语，说明人们所处的环境","方式状语 as religion once did：说明艺术像宗教那样告诫","宾语补足语 to tell us Memento mori...：说明艺术要传达的内容","宾语从句 remember that you will die, that everything ends, and that happiness comes...：作 remember 的三个并列宾语，阐释死亡与幸福的真谛"], collocations: ["be surrounded by（被……包围）","promises of easy happiness（唾手可得的幸福的承诺）","Memento mori（记住你终将死亡）","deny（否认，拒绝承认）"] }},
+    { num: "⑩", en: "It’s a message even more bitter than a clove cigarette, yet, somehow, a breath of fresh air.", ref: "这是甚至比丁香烟还要苦涩的启示，但不知何故，却带来了一缕清新的空气。",
+      ai: { backbone: "主语 It、系动词 is、表语 a message；yet 连接第二层转折", structure: ["比较结构 even more bitter than a clove cigarette：说明信息的苦涩程度","转折副词 somehow：表示某种出人意料的意味","表语 a breath of fresh air：说明虽苦涩却清新","并列连词 yet：连接前后两个表语性质"], collocations: ["a clove cigarette（丁香香烟）","a breath of fresh air（一股清新的空气）","even more bitter（更加苦涩）"] }}
     ],
     analysis: [
       {
@@ -749,22 +930,30 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2007 Text 1",
     zh: "如果查看一下 2006 年世界杯赛所有足球运动员的出生证，你很可能会发现一件引人注意的奇事：出类拔萃的足球运动员更可能出生在一年中的头几个月而非后几个月。如果再看看为世界杯和职业球队输送人才的欧洲各国国家青年队（队员出生证），你会发现这一奇怪现象甚至更为显著。这一奇怪现象可能的成因是什么呢？以下是几种猜测：a）某些星座赐予球员高超的足球技能；b）冬季出生的婴孩往往具有更高的血液携氧能力，这会增加踢足球时的耐力；c）痴速足球的父母更可能在春天，也即每年足球狂热的巅峰时期受孕；d）以上都不是。",
     sentences: [
-    { num: "①", en: "If you were to examine the birth certificates of every soccer player in 2006’s World Cup tournament, you would most likely find a noteworthy quirk: elite soccer players are more likely to have been born in the earlier months of the year than in the late months.", ref: "如果查看一下 2006 年世界杯赛所有足球运动员的出生证，你很可能会发现一件引人注意的奇事：出类拔萃的足球运动员更可能出生在一年中的头几个月而非后几个月。" },
-    { num: "②", en: "If you then examined the European national youth teams that feed the World Cup and professional ranks, you would find this strange phenomenon to be ever more pronounced.", ref: "如果再看看为世界杯和职业球队输送人才的欧洲各国国家青年队（队员出生证），你会发现这一奇怪现象甚至更为显著。" },
-    { num: "③", en: "What might account for this strange phenomenon?", ref: "这一奇怪现象可能的成因是什么呢？" },
-    { num: "④", en: "Here are a few guesses: a) certain astrological signs confer superior soccer skills; b) winter-born babies tend to have higher oxygen capacity, which increases soccer stamina; c) soccer-mad parents are more likely to conceive children in springtime, at the annual peak of soccer mania; d) none of the above.", ref: "以下是几种猜测：a）某些星座赐予球员高超的足球技能；b）冬季出生的婴孩往往具有更高的血液携氧能力，这会增加踢足球时的耐力；c）痴速足球的父母更可能在春天，也即每年足球狂热的巅峰时期受孕；d）以上都不是。" }
+    { num: "①", en: "If you were to examine the birth certificates of every soccer player in 2006’s World Cup tournament, you would most likely find a noteworthy quirk: elite soccer players are more likely to have been born in the earlier months of the year than in the late months.", ref: "如果查看一下 2006 年世界杯赛所有足球运动员的出生证，你很可能会发现一件引人注意的奇事：出类拔萃的足球运动员更可能出生在一年中的头几个月而非后几个月。",
+      ai: { backbone: "主句主语 you、谓语 would find、宾语 a noteworthy quirk；句首为 if 引导的条件状语从句", structure: ["条件状语从句 If you were to examine the birth certificates of every soccer player...：虚拟语气，说明假设条件","时间状语 in 2006's World Cup tournament：限定对象","冒号后的独立分句 elite soccer players are more likely to have been born in the earlier months...：具体解释 quirk 的内容","比较结构 more likely...than in the late months：对比出生月份"], collocations: ["birth certificates（出生证明）","World Cup tournament（世界杯锦标赛）","be likely to（很可能）","a noteworthy quirk（值得注意的怪现象）"] }},
+    { num: "②", en: "If you then examined the European national youth teams that feed the World Cup and professional ranks, you would find this strange phenomenon to be ever more pronounced.", ref: "如果再看看为世界杯和职业球队输送人才的欧洲各国国家青年队（队员出生证），你会发现这一奇怪现象甚至更为显著。",
+      ai: { backbone: "主句主语 you、谓语 would find、宾语 this strange phenomenon；句首为 if 条件状语从句", structure: ["条件状语从句 If you then examined the European national youth teams：虚拟条件","定语从句 that feed the World Cup and professional ranks：修饰 teams，说明其作用","宾语补足语 to be ever more pronounced：说明现象更显著"], collocations: ["national youth teams（国家青年队）","professional ranks（职业行列）","ever more pronounced（更加明显）"] }},
+    { num: "③", en: "What might account for this strange phenomenon?", ref: "这一奇怪现象可能的成因是什么呢？",
+      ai: { backbone: "疑问句：主语 What、谓语 might account for、宾语 this strange phenomenon", structure: ["情态动词 might：表示可能性的推测","介词短语 for this strange phenomenon：说明针对的对象"], collocations: ["account for（解释，说明）","strange phenomenon（奇怪的现象）"] }},
+    { num: "④", en: "Here are a few guesses: a) certain astrological signs confer superior soccer skills; b) winter-born babies tend to have higher oxygen capacity, which increases soccer stamina; c) soccer-mad parents are more likely to conceive children in springtime, at the annual peak of soccer mania; d) none of the above.", ref: "以下是几种猜测：a）某些星座赐予球员高超的足球技能；b）冬季出生的婴孩往往具有更高的血液携氧能力，这会增加踢足球时的耐力；c）痴速足球的父母更可能在春天，也即每年足球狂热的巅峰时期受孕；d）以上都不是。",
+      ai: { backbone: "主语 Here、系动词 are、表语 a few guesses；冒号后列举四种猜测", structure: ["并列列举 a) certain astrological signs confer superior soccer skills；b) winter-born babies tend to have higher oxygen capacity...；c) soccer-mad parents are more likely to conceive children...；d) none of the above：四种猜测以分号并列","定语从句 which increases soccer stamina：修饰 oxygen capacity","介词短语 at the annual peak of soccer mania：说明受孕的时间"], collocations: ["astrological signs（星座）","oxygen capacity（氧容量）","conceive children（受孕）","the peak of（……的高峰）"] }}
     ]
   },
   {
     day: 39,
     type: "英一",
     source: "2007 Text 1",
-    zh: "安德斯·艾利克森，佛罗里达州立大学一位 58 岁的心理学教授，称他坚信“以上都不对”。艾利克森在瑞典长大，起初攻读核能工程学，直到他意识到如果转学心理学，会有更多机会从事自己的研究。他的首次实验，大约在 30 年前，与记忆力相关：训练一个人听一组随机数字，随后进行复述。“在约 20 个小时训练之后，第一位被试者的数字记忆跨度从 7 个增加至 20 个，”艾利克森四忆道，“他不断地进步，约 200 个小时训练之后，他能记住 80 多个数字。”",
+    zh: "安德斯·艾利克森，佛罗里达州立大学一位 58 岁的心理学教授，称他坚信“以上都不对”。艾利克森在瑞典长大，起初攻读核能工程学，直到他意识到如果转学心理学，会有更多机会从事自己的研究。他的首次实验，大约在 30 年前，与记忆力相关：训练一个人听一组随机数字，随后进行复述。“在约 20 个小时训练之后，第一位被试者的数字记忆跨度从 7 个增加至 20 个，”艾利克森回忆道，“他不断地进步，约 200 个小时训练之后，他能记住 80 多个数字。”",
     sentences: [
-    { num: "①", en: "Anders Ericsson, a 58-year-old psychology professor at Florida State University, says he believes strongly in “none of the above.”", ref: "安德斯·艾利克森，佛罗里达州立大学一位 58 岁的心理学教授，称他坚信“以上都不对”。" },
-    { num: "②", en: "Ericsson grew up in Sweden, and studied nuclear engineering until he realized he would have more opportunity to conduct his own research if he switched to psychology.", ref: "艾利克森在瑞典长大，起初攻读核能工程学，直到他意识到如果转学心理学，会有更多机会从事自己的研究。" },
-    { num: "③", en: "His first experiment, nearly 30 years ago, involved memory: training a person to hear and then repeat a random series of numbers.", ref: "他的首次实验，大约在 30 年前，与记忆力相关：训练一个人听一组随机数字，随后进行复述。" },
-    { num: "④", en: "“With the first subject, after about 20 hours of training, his digit span had risen from 7 to 20,” Ericsson recalls. “He kept improving, and after about 200 hours of training he had risen to over 80 numbers.”", ref: "“在约 20 个小时训练之后，第一位被试者的数字记忆跨度从 7 个增加至 20 个，”艾利克森四忆道，“他不断地进步，约 200 个小时训练之后，他能记住 80 多个数字。”" }
+    { num: "①", en: "Anders Ericsson, a 58-year-old psychology professor at Florida State University, says he believes strongly in “none of the above.”", ref: "安德斯·艾利克森，佛罗里达州立大学一位 58 岁的心理学教授，称他坚信“以上都不对”。",
+      ai: { backbone: "主语 Anders Ericsson、谓语 says、宾语从句 he believes strongly in “none of the above”", structure: ["同位语 a 58-year-old psychology professor at Florida State University：说明 Ericsson 的身份","宾语从句 he believes strongly in “none of the above”：作 says 的宾语"], collocations: ["psychology professor（心理学教授）","believe strongly in（坚信）","none of the above（以上都不是）"] }},
+    { num: "②", en: "Ericsson grew up in Sweden, and studied nuclear engineering until he realized he would have more opportunity to conduct his own research if he switched to psychology.", ref: "艾利克森在瑞典长大，起初攻读核能工程学，直到他意识到如果转学心理学，会有更多机会从事自己的研究。",
+      ai: { backbone: "主语 Ericsson、谓语 grew up；and 连接第二谓语 studied；until 引导时间状语从句", structure: ["地点状语 in Sweden：说明成长地","时间状语从句 until he realized he would have more opportunity...：说明转变的时间点","宾语从句 he would have more opportunity to conduct his own research if he switched to psychology：作 realized 的宾语","条件状语从句 if he switched to psychology：说明机会的条件"], collocations: ["grow up（长大）","nuclear engineering（核工程）","switch to（转向）","conduct research（开展研究）"] }},
+    { num: "③", en: "His first experiment, nearly 30 years ago, involved memory: training a person to hear and then repeat a random series of numbers.", ref: "他的首次实验，大约在 30 年前，与记忆力相关：训练一个人听一组随机数字，随后进行复述。",
+      ai: { backbone: "主语 His first experiment、谓语 involved、宾语 memory；冒号后为解释说明", structure: ["时间状语 nearly 30 years ago：说明实验时间","现在分词短语 training a person to hear and then repeat a random series of numbers：具体解释实验内容","不定式短语 to hear and then repeat...：作训练的内容"], collocations: ["first experiment（第一次实验）","a random series of（一系列随机的）","involve（涉及，包含）"] }},
+    { num: "④", en: "“With the first subject, after about 20 hours of training, his digit span had risen from 7 to 20,” Ericsson recalls. “He kept improving, and after about 200 hours of training he had risen to over 80 numbers.”", ref: "“在约 20 个小时训练之后，第一位被试者的数字记忆跨度从 7 个增加至 20 个，”艾利克森回忆道，“他不断地进步，约 200 个小时训练之后，他能记住 80 多个数字。”",
+      ai: { backbone: "引语 “With the first subject... had risen from 7 to 20” 作宾语，主语 Ericsson、谓语 recalls", structure: ["引语中主语 his digit span、谓语 had risen：说明数字广度的提升","时间状语 after about 20 hours of training：说明训练时长","后一句引语 He kept improving...：补充说明持续进步","时间状语 after about 200 hours of training：说明更长的训练时间","介词短语 to over 80 numbers：说明最终水平"], collocations: ["digit span（数字广度，数字记忆跨度）","rise from...to...（从……上升到……）","keep improving（持续进步）"] }}
     ]
   },
   {
@@ -773,10 +962,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2007 Text 1",
     zh: "这次成功，加上后续的表明记忆力本身并非由基因决定的研究，使得艾利克森得出结论：记忆行为与其说是一种直觉活动，不如说是一种认知活动。换句话说，不论两个人在记忆能力方面表现出什么先天性差异，这些差异都被个人“编码”信息能力的强弱所掩盖。艾利克森断定，学习有目的地编码信息的最佳方法是一个被称为“刻意练习”的过程。“刻意练习”需要的不仅仅是简单地重复任务，确切地讲，它需要制定明确目标、获取即时反馈并且要技巧与结果并重。",
     sentences: [
-    { num: "①", en: "This success, coupled with later research showing that memory itself is not genetically determined, led Ericsson to conclude that the act of memorizing is more of a cognitive exercise than an intuitive one.", ref: "这次成功，加上后续的表明记忆力本身并非由基因决定的研究，使得艾利克森得出结论：记忆行为与其说是一种直觉活动，不如说是一种认知活动。" },
-    { num: "②", en: "In other words, whatever inborn differences two people may exhibit in their abilities to memorize, those differences are swamped by how well each person “encodes” the information.", ref: "换句话说，不论两个人在记忆能力方面表现出什么先天性差异，这些差异都被个人“编码”信息能力的强弱所掩盖。" },
-    { num: "③", en: "And the best way to learn how to encode information meaningfully, Ericsson determined, was a process known as deliberate practice.", ref: "艾利克森断定，学习有目的地编码信息的最佳方法是一个被称为“刻意练习”的过程。" },
-    { num: "④", en: "Deliberate practice entails more than simply repeating a task. Rather, it involves setting specific goals, obtaining immediate feedback and concentrating as much on technique as on outcome.", ref: "“刻意练习”需要的不仅仅是简单地重复任务，确切地讲，它需要制定明确目标、获取即时反馈并且要技巧与结果并重。" }
+    { num: "①", en: "This success, coupled with later research showing that memory itself is not genetically determined, led Ericsson to conclude that the act of memorizing is more of a cognitive exercise than an intuitive one.", ref: "这次成功，加上后续的表明记忆力本身并非由基因决定的研究，使得艾利克森得出结论：记忆行为与其说是一种直觉活动，不如说是一种认知活动。",
+      ai: { backbone: "主语 This success、谓语 led、宾语 Ericsson、宾补 to conclude；句首为过去分词短语作状语", structure: ["过去分词短语 coupled with later research：作后置定语，修饰 success","现在分词短语 showing that memory itself is not genetically determined：作后置定语，修饰 research","宾语从句 that memory itself is not genetically determined：作 showing 的宾语","宾语补足语 to conclude that the act of memorizing is more of a cognitive exercise than an intuitive one：说明结论","比较结构 more...than...：对比认知练习与直觉行为"], collocations: ["coupled with（加上，与……结合）","genetically determined（由基因决定的）","lead sb to conclude（使某人得出结论）","more...than（与其……不如……）"] }},
+    { num: "②", en: "In other words, whatever inborn differences two people may exhibit in their abilities to memorize, those differences are swamped by how well each person “encodes” the information.", ref: "换句话说，不论两个人在记忆能力方面表现出什么先天性差异，这些差异都被个人“编码”信息能力的强弱所掩盖。",
+      ai: { backbone: "主语 those differences、谓语 are swamped；句首为让步状语从句", structure: ["让步状语从句 whatever inborn differences two people may exhibit in their abilities to memorize：无论先天差异如何","方式状语 by how well each person “encodes” the information：说明被何淹没","介词短语 in their abilities to memorize：修饰 differences，限定领域"], collocations: ["inborn differences（先天差异）","be swamped by（被……淹没）","encode information（编码信息）"] }},
+    { num: "③", en: "And the best way to learn how to encode information meaningfully, Ericsson determined, was a process known as deliberate practice.", ref: "艾利克森断定，学习有目的地编码信息的最佳方法是一个被称为“刻意练习”的过程。",
+      ai: { backbone: "主语 the best way、系动词 was、表语 a process；and 连接第二主语", structure: ["不定式短语 to learn how to encode information meaningfully：作 way 的后置定语","插入语 Ericsson determined：说明观点来源","过去分词短语 known as deliberate practice：作后置定语，修饰 process，说明其名称"], collocations: ["deliberate practice（刻意练习）","encode information（编码信息）","the best way to（……的最佳方式）"] }},
+    { num: "④", en: "Deliberate practice entails more than simply repeating a task. Rather, it involves setting specific goals, obtaining immediate feedback and concentrating as much on technique as on outcome.", ref: "“刻意练习”需要的不仅仅是简单地重复任务，确切地讲，它需要制定明确目标、获取即时反馈并且要技巧与结果并重。",
+      ai: { backbone: "主语 Deliberate practice、谓语 entails、宾语 more than simply repeating a task；Rather 引出第二分句", structure: ["宾语结构 more than simply repeating a task：说明刻意练习不止于此","第二分句 it involves setting specific goals, obtaining immediate feedback and concentrating...：说明其具体要素","并列动名词短语 setting...obtaining...concentrating...：列举刻意练习的三个要素","比较结构 as much on technique as on outcome：强调技巧与结果并重"], collocations: ["deliberate practice（刻意练习）","entail（需要，牵涉）","set specific goals（设定具体目标）","immediate feedback（即时反馈）","concentrate on（专注于）"] }}
     ],
     analysis: [
       {
@@ -797,10 +990,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2007 Text 1",
     zh: "艾利克森和他的同事由此开始 于研究众多领域（包括足球）的出色表现者。他们收集能够收集到的所有资料，不仅包括工作表现统计数据和生平详细资料，还包括他们在自己实验室里对杰出人才所做实验的结果。他们的研究结论相当令人震惊：我们通常称之为“天赋”的这一特质被过于高估了。或者，换句话说，不管是在记忆力还是外科手术领域，是在芭蕾舞还是在计算机编程方面，表现出色的人几乎都是造就的，而不是天生的。",
     sentences: [
-    { num: "①", en: "Ericsson and his colleagues have thus taken to studying expert performers in a wide range of pursuits, including soccer.", ref: "艾利克森和他的同事由此开始 于研究众多领域（包括足球）的出色表现者。" },
-    { num: "②", en: "They gather all the data they can, not just performance statistics and biographical details but also the results of their own laboratory experiments with high achievers.", ref: "他们收集能够收集到的所有资料，不仅包括工作表现统计数据和生平详细资料，还包括他们在自己实验室里对杰出人才所做实验的结果。" },
-    { num: "③", en: "Their work makes a rather startling assertion: the trait we commonly call talent is highly overrated.", ref: "他们的研究结论相当令人震惊：我们通常称之为“天赋”的这一特质被过于高估了。" },
-    { num: "④", en: "Or, put another way, expert performers—whether in memory or surgery, ballet or computer programming—are nearly always made, not born.", ref: "或者，换句话说，不管是在记忆力还是外科手术领域，是在芭蕾舞还是在计算机编程方面，表现出色的人几乎都是造就的，而不是天生的。" }
+    { num: "①", en: "Ericsson and his colleagues have thus taken to studying expert performers in a wide range of pursuits, including soccer.", ref: "艾利克森和他的同事由此开始 于研究众多领域（包括足球）的出色表现者。",
+      ai: { backbone: "主语 Ericsson and his colleagues、谓语 have taken to studying、宾语 expert performers", structure: ["时间状语 thus：表因果关系","现在分词短语 studying expert performers in a wide range of pursuits：作 take to 的宾语","介词短语 in a wide range of pursuits：限定领域范围","介词短语 including soccer：举例说明"], collocations: ["take to doing（开始从事）","expert performers（顶尖表现者）","a wide range of（广泛的）","pursuits（追求的事业）"] }},
+    { num: "②", en: "They gather all the data they can, not just performance statistics and biographical details but also the results of their own laboratory experiments with high achievers.", ref: "他们收集能够收集到的所有资料，不仅包括工作表现统计数据和生平详细资料，还包括他们在自己实验室里对杰出人才所做实验的结果。",
+      ai: { backbone: "主语 They、谓语 gather、宾语 all the data；后接 not just...but also 结构", structure: ["定语从句 they can：省略 that，修饰 data","并列结构 not just performance statistics and biographical details but also the results...：强调收集数据的全面","后置定语 with high achievers：修饰 experiments，说明实验对象"], collocations: ["gather data（收集数据）","performance statistics（成绩统计）","biographical details（生平细节）","laboratory experiments（实验室实验）","high achievers（高成就者）"] }},
+    { num: "③", en: "Their work makes a rather startling assertion: the trait we commonly call talent is highly overrated.", ref: "他们的研究结论相当令人震惊：我们通常称之为“天赋”的这一特质被过于高估了。",
+      ai: { backbone: "主语 Their work、谓语 makes、宾语 a rather startling assertion；冒号后为解释", structure: ["冒号后的独立分句 the trait we commonly call talent is highly overrated：具体说明断言内容","定语从句 we commonly call talent：修饰 trait，省略 that","程度副词 highly：修饰 overrated"], collocations: ["make an assertion（作出断言）","startling（令人震惊的）","be overrated（被高估）"] }},
+    { num: "④", en: "Or, put another way, expert performers—whether in memory or surgery, ballet or computer programming—are nearly always made, not born.", ref: "或者，换句话说，不管是在记忆力还是外科手术领域，是在芭蕾舞还是在计算机编程方面，表现出色的人几乎都是造就的，而不是天生的。",
+      ai: { backbone: "主语 expert performers、系动词 are、表语 made, not born；句首为插入状语", structure: ["插入语 put another way：换种说法","介词短语 whether in memory or surgery, ballet or computer programming：列举不同领域","并列结构 made, not born：强调后天造就而非天生","副词 nearly always：说明几乎总是如此"], collocations: ["put another way（换句话说）","expert performers（顶尖表现者）","be made, not born（是后天造就而非天生的）"] }}
     ],
     analysis: [
       {
@@ -820,17 +1017,26 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 42,
     type: "英一",
     source: "2007 Text 2",
-    zh: "在过去几年中，报纸周日副刊《大观》开设了一版名为“问问玛丽莲”的特色专栏。人们被邀请向玛丽莲·沃斯·莎凡提问，她在 10 岁时测得的智力水平相当于普通人 23 岁左右，也就是智商为 228，这是有记录以来的最高分数。IQ 测试要求你完成文宇和视觉类推、想象纸张经折叠和剪切后的形状、推导数字序列，以及其他类似的任务。因此，莎凡能巧妙应对（智商为 100 的）普通人提出的诸如“爱与喜爱有何区别”或“运气和巧合的本质是什么”这类问题,这有点令人费解。想象物体（形状）和破解数值模式的能力如何能使人解答那些曾难倒一些最优秀诗人和哲学家的问题，这一点难以理解。显然，智力不止包含一次测试的一个得分。那么什么才叫“聪明”呢？智力有多少可以被明确（测知）？我们从神经学、遗传学、计算机科学和其他领域中又能对智力了解多少呢?",
+    zh: "在过去几年中，报纸周日副刊《大观》开设了一版名为“问问玛丽莲”的特色专栏。人们被邀请向玛丽莲·沃斯·莎凡提问，她在 10 岁时测得的智力水平相当于普通人 23 岁左右；这使她的智商达到 228——这是有记录以来的最高分数。IQ 测试要求你完成文字和视觉类推、想象纸张经折叠和剪切后的形状、推导数字序列，以及其他类似的任务。因此，莎凡能巧妙应对（智商为 100 的）普通人提出的诸如“爱与喜爱有何区别”或“运气和巧合的本质是什么”这类问题,这有点令人费解。想象物体（形状）和破解数值模式的能力如何能使人解答那些曾难倒一些最优秀诗人和哲学家的问题，这一点难以理解。显然，智力不止包含一次测试的一个得分。那么什么才叫“聪明”呢？智力有多少可以被明确（测知）？我们从神经学、遗传学、计算机科学和其他领域中又能对智力了解多少呢?",
     sentences: [
-    { num: "①", en: "For the past\u0003several years, the Sunday newspaper supplement Parade has featured a column called “Ask Marilyn.”", ref: "在过去几年中，报纸周日副刊《大观》开设了一版名为“问问玛丽莲”的特色专栏。" },
-    { num: "②", en: "People are invited to query Marilyn vos Savant, who at age 10 had tested at a mental level of someone about 23 years old;", ref: "人们被邀请向玛丽莲·沃斯·莎凡提问，她在 10 岁时测得的智力水平相当于普通人 23 岁左右，也就是智商为 228，这是有记录以来的最高分数。" },
-    { num: "③", en: "that gave her an IQ of 228—the highest score ever recorded.", ref: "IQ 测试要求你完成文宇和视觉类推、想象纸张经折叠和剪切后的形状、推导数字序列，以及其他类似的任务。" },
-    { num: "④", en: "IQ tests ask you to complete verbal and visual analogies, to envision paper after it has been folded and cut, and to deduce numerical sequences, among other similar tasks.", ref: "因此，莎凡能巧妙应对（智商为 100 的）普通人提出的诸如“爱与喜爱有何区别”或“运气和巧合的本质是什么”这类问题,这有点令人费解。" },
-    { num: "⑤", en: "So it is a bit confusing when vos Savant fields such queries from the average Joe (whose IQ is 100) as, What’s the difference between love and fondness? Or what is the nature of luck and coincidence?", ref: "想象物体（形状）和破解数值模式的能力如何能使人解答那些曾难倒一些最优秀诗人和哲学家的问题，这一点难以理解。" },
-    { num: "⑥", en: "It’s not obvious how the capacity to visualize objects and to figure out numerical patterns suits one to answer questions that have eluded some of the best poets and philosophers.", ref: "显然，智力不止包含一次测试的一个得分。" },
-    { num: "⑦", en: "Clearly, intelligence encompasses more than a score on a test.", ref: "那么什么才叫“聪明”呢？" },
-    { num: "⑧", en: "Just what does it mean to be smart?", ref: "智力有多少可以被明确（测知）？" },
-    { num: "⑨", en: "How much of intelligence can be specified, and how much can we learn about it from neurology, genetics, computer science and other fields?", ref: "我们从神经学、遗传学、计算机科学和其他领域中又能对智力了解多少呢?" }
+    { num: "①", en: "For the past\u0003several years, the Sunday newspaper supplement Parade has featured a column called “Ask Marilyn.”", ref: "在过去几年中，报纸周日副刊《大观》开设了一版名为“问问玛丽莲”的特色专栏。",
+      ai: { backbone: "主语 the Sunday newspaper supplement Parade、谓语 has featured、宾语 a column called “Ask Marilyn”", structure: ["时间状语 For the past several years：说明持续时间","过去分词短语 called “Ask Marilyn”：作后置定语，修饰 column"], collocations: ["newspaper supplement（报纸副刊）","feature a column（刊登专栏）"] }},
+    { num: "②", en: "People are invited to query Marilyn vos Savant, who at age 10 had tested at a mental level of someone about 23 years old;", ref: "人们被邀请向玛丽莲·沃斯·莎凡提问，她在 10 岁时测得的智力水平相当于普通人 23 岁左右；",
+      ai: { backbone: "主句主语 People、谓语 are invited；后接 to query 不定式", structure: ["不定式短语 to query Marilyn vos Savant：作主语补足语，说明受邀做的事","非限制性定语从句 who at age 10 had tested at a mental level of someone about 23 years old：修饰 vos Savant，说明其早年智力水平"], collocations: ["be invited to（被邀请……）","mental level（智力水平）"] }},
+    { num: "③", en: "that gave her an IQ of 228—the highest score ever recorded.", ref: "这使她的智商达到 228——这是有记录以来的最高分数。",
+      ai: { backbone: "主语 that、谓语 gave、宾语 her、宾语补语 an IQ of 228；破折号后为解释", structure: ["破折号后的 the highest score ever recorded：作 IQ of 228 的同位语，强调其纪录性"], collocations: ["give an IQ of（智商达到）","the highest score ever recorded（有记录以来的最高分）"] }},
+    { num: "④", en: "IQ tests ask you to complete verbal and visual analogies, to envision paper after it has been folded and cut, and to deduce numerical sequences, among other similar tasks.", ref: "IQ 测试要求你完成文字和视觉类推、想象纸张经折叠和剪切后的形状、推导数字序列，以及其他类似的任务。",
+      ai: { backbone: "主语 IQ tests、谓语 ask、宾语 you、宾补 to complete...to envision...and to deduce...", structure: ["并列不定式短语 to complete verbal and visual analogies, to envision paper...and to deduce numerical sequences：作宾语补足语，列举测试任务","时间状语 after it has been folded and cut：说明折剪后的纸","介词短语 among other similar tasks：说明还有其他类似任务"], collocations: ["verbal and visual analogies（语言与视觉类比）","numerical sequences（数字序列）","IQ tests（智商测试）"] }},
+    { num: "⑤", en: "So it is a bit confusing when vos Savant fields such queries from the average Joe (whose IQ is 100) as, What’s the difference between love and fondness? Or what is the nature of luck and coincidence?", ref: "因此，莎凡能巧妙应对（智商为 100 的）普通人提出的诸如“爱与喜爱有何区别”或“运气和巧合的本质是什么”这类问题,这有点令人费解。",
+      ai: { backbone: "主语 it、系动词 is、表语 a bit confusing；so 连接因果；when 引导时间状语从句", structure: ["时间状语从句 when vos Savant fields such queries from the average Joe：说明令人困惑的场景","后置定语 whose IQ is 100：修饰 the average Joe","宾语从句 what's the difference between love and fondness？or what is the nature of luck and coincidence？：作引述的两个并列问题"], collocations: ["field queries（应答提问）","the average Joe（普通人）","the nature of（……的本质）"] }},
+    { num: "⑥", en: "It’s not obvious how the capacity to visualize objects and to figure out numerical patterns suits one to answer questions that have eluded some of the best poets and philosophers.", ref: "想象物体（形状）和破解数值模式的能力如何能使人解答那些曾难倒一些最优秀诗人和哲学家的问题，这一点难以理解。",
+      ai: { backbone: "主语 it、系动词 is not、表语 obvious；不定式短语作真正主语", structure: ["不定式短语 how the capacity...suits one to answer questions：作真正主语，说明不明确之处","并列不定式 to visualize objects and to figure out numerical patterns：说明能力内容","定语从句 that have eluded some of the best poets and philosophers：修饰 questions，说明难题之难"], collocations: ["visualize objects（想象物体）","figure out（弄明白）","elude（使……困惑，难倒）"] }},
+    { num: "⑦", en: "Clearly, intelligence encompasses more than a score on a test.", ref: "显然，智力不止包含一次测试的一个得分。",
+      ai: { backbone: "主语 intelligence、谓语 encompasses、宾语 more than a score on a test", structure: ["副词 Clearly：加强语气","比较结构 more than a score on a test：说明智力远不止分数"], collocations: ["encompass（包含，涵盖）","more than（不仅仅是）"] }},
+    { num: "⑧", en: "Just what does it mean to be smart?", ref: "那么什么才叫“聪明”呢？",
+      ai: { backbone: "疑问句：主语 it、谓语 does mean、宾语 what；to be smart 为不定式主语", structure: ["强调助动词 does：加强疑问语气","不定式短语 to be smart：作真正主语"], collocations: ["just what does it mean to（究竟意味着什么）","be smart（聪明）"] }},
+    { num: "⑨", en: "How much of intelligence can be specified, and how much can we learn about it from neurology, genetics, computer science and other fields?", ref: "智力有多少可以被明确（测知）？我们从神经学、遗传学、计算机科学和其他领域中又能对智力了解多少呢?",
+      ai: { backbone: "疑问句：主语 how much of intelligence、谓语 can be specified；and 连接第二分句", structure: ["第二分句 how much can we learn about it from neurology, genetics, computer science and other fields：提出另一问","介词短语 from neurology...：说明知识来源领域"], collocations: ["be specified（被明确说明）","neurology（神经学）","genetics（遗传学）"] }}
     ],
     analysis: [
       {
@@ -854,11 +1060,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2007 Text 2",
     zh: "尽管如今 IQ 测试已经不像以前那么频繁地被使用，但 IQ 分数似乎仍是定义人类智力的术语。IQ 测试主要有两种形式：斯坦福一比纳智力量表和韦克斯勒智力量表（二者都有成人版和儿童版）。这两种测试形式费用一般为几百美元，通常只由心理学家提供，不过他们的改编版本在书店和互联网上随处可见。像莎凡那样的超高分数不可能再出现，因为现在分数计算是以同龄群体在统计学意义上的人口分布为基础的，而不是简单地用智力年龄除以生理年龄再乘以 100。其他标准化测试，比如学术评估测验（SAT）和研究生入学考试（GRE），都充分体现了 IQ 测试的主要特点。",
     sentences: [
-    { num: "①", en: "The defining term of intelligence in humans still seems to be the IQ score, even though IQ tests are not given as often as they used to be.", ref: "尽管如今 IQ 测试已经不像以前那么频繁地被使用，但 IQ 分数似乎仍是定义人类智力的术语。" },
-    { num: "②", en: "The test comes primarily in two forms: the Stanford-Binet Intelligence Scale and the Wechsler Intelligence Scales (both come in adult and children’s version).", ref: "IQ 测试主要有两种形式：斯坦福一比纳智力量表和韦克斯勒智力量表（二者都有成人版和儿童版）。" },
-    { num: "③", en: "Generally costing several hundred dollars, they are usually given only by psychologists, although variations of them populate bookstores and the World Wide Web.", ref: "这两种测试形式费用一般为几百美元，通常只由心理学家提供，不过他们的改编版本在书店和互联网上随处可见。" },
-    { num: "④", en: "Superhigh scores like vos Savant’s are no longer possible, because scoring is now based on a statistical population distribution among age peers, rather than simply dividing the mental age by the chronological age and multiplying by 100.", ref: "像莎凡那样的超高分数不可能再出现，因为现在分数计算是以同龄群体在统计学意义上的人口分布为基础的，而不是简单地用智力年龄除以生理年龄再乘以 100。" },
-    { num: "⑤", en: "Other standardized tests, such as the Scholastic Assessment Test (SAT) and the Graduate Record Exam (GRE), capture the main aspects of IQ tests.", ref: "其他标准化测试，比如学术评估测验（SAT）和研究生入学考试（GRE），都充分体现了 IQ 测试的主要特点。" }
+    { num: "①", en: "The defining term of intelligence in humans still seems to be the IQ score, even though IQ tests are not given as often as they used to be.", ref: "尽管如今 IQ 测试已经不像以前那么频繁地被使用，但 IQ 分数似乎仍是定义人类智力的术语。",
+      ai: { backbone: "主语 The defining term of intelligence in humans、系动词 seems to be、表语 the IQ score；even though 引导让步状语从句", structure: ["让步状语从句 even though IQ tests are not given as often as they used to be：说明尽管测试减少仍以智商分数定义智力","比较结构 as often as they used to be：对比过去的使用频率"], collocations: ["defining term（定义性标准）","the IQ score（智商分数）","as often as（与……一样频繁）"] }},
+    { num: "②", en: "The test comes primarily in two forms: the Stanford-Binet Intelligence Scale and the Wechsler Intelligence Scales (both come in adult and children’s version).", ref: "IQ 测试主要有两种形式：斯坦福一比纳智力量表和韦克斯勒智力量表（二者都有成人版和儿童版）。",
+      ai: { backbone: "主语 The test、谓语 comes、介词短语 in two forms 作状语", structure: ["方式状语 primarily：说明主要形式","并列名词 the Stanford-Binet Intelligence Scale and the Wechsler Intelligence Scales：列举两种量表","括号说明 both come in adult and children's version：补充两种版本"], collocations: ["intelligence scale（智力量表）","adult and children's version（成人版与儿童版）"] }},
+    { num: "③", en: "Generally costing several hundred dollars, they are usually given only by psychologists, although variations of them populate bookstores and the World Wide Web.", ref: "这两种测试形式费用一般为几百美元，通常只由心理学家提供，不过他们的改编版本在书店和互联网上随处可见。",
+      ai: { backbone: "主语 they、谓语 are given；句首为现在分词短语作让步状语", structure: ["让步状语 Generally costing several hundred dollars：说明虽费用不菲","方式状语 usually only by psychologists：说明由谁施测","让步状语从句 although variations of them populate bookstores and the World Wide Web：说明虽有变体流传"], collocations: ["cost several hundred dollars（花费数百美元）","populate（遍布，充斥）","the World Wide Web（万维网）"] }},
+    { num: "④", en: "Superhigh scores like vos Savant’s are no longer possible, because scoring is now based on a statistical population distribution among age peers, rather than simply dividing the mental age by the chronological age and multiplying by 100.", ref: "像莎凡那样的超高分数不可能再出现，因为现在分数计算是以同龄群体在统计学意义上的人口分布为基础的，而不是简单地用智力年龄除以生理年龄再乘以 100。",
+      ai: { backbone: "主语 Superhigh scores、系动词 are no longer possible；because 引导原因状语从句", structure: ["原因状语从句 because scoring is now based on a statistical population distribution among age peers：解释原因","比较结构 rather than simply dividing the mental age by the chronological age and multiplying by 100：对比新旧计分方法"], collocations: ["superhigh scores（超高分数）","be based on（基于）","population distribution（人群分布）","age peers（同龄人）"] }},
+    { num: "⑤", en: "Other standardized tests, such as the Scholastic Assessment Test (SAT) and the Graduate Record Exam (GRE), capture the main aspects of IQ tests.", ref: "其他标准化测试，比如学术评估测验（SAT）和研究生入学考试（GRE），都充分体现了 IQ 测试的主要特点。",
+      ai: { backbone: "主语 Other standardized tests、谓语 capture、宾语 the main aspects of IQ tests", structure: ["插入语 such as the Scholastic Assessment Test (SAT) and the Graduate Record Exam (GRE)：举例说明其他标准化测试"], collocations: ["standardized tests（标准化测试）","capture the main aspects（体现主要方面）","Scholastic Assessment Test（学术能力评估测试）"] }}
     ]
   },
   {
@@ -867,11 +1078,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2007 Text 2",
     zh: "罗伯特·J·斯特恩伯格指出，这类标准化测试也许不能评估在学业和生活中取得成功所必需的所有重要因素。斯特恩伯格在他的《智力测试有多智能?》一文中指出传统测试能够对分析能力和语言能力做出最佳评估，但不能评估创造能力和实践知识，而这两个因素对于解决问题和在生活中取得成功也至关重要。此外，一旦受试群体或环境发生变化，IQ 测试不一定能做出准确预测。研究发现，当（受试者）在压力小的情况下进行测试时，IQ 能预示领导能力（的高低）；但是在压力大的情况下，IQ 与领导能力负相关——也就是说，根据智商预测出的领导能力与实际情况相反。任何熬过“学术能力评估测试”的人都可以证明，应试技巧也很重要，无论是知道何时应该猜测或是（知道）何题应该跳过。",
     sentences: [
-    { num: "①", en: "Such standardized tests may not assess all the important elements necessary to succeed in school and in life, argues Robert J. Sternberg.", ref: "罗伯特·J·斯特恩伯格指出，这类标准化测试也许不能评估在学业和生活中取得成功所必需的所有重要因素。" },
-    { num: "②", en: "In his article “How Intelligent Is Intelligence Testing?” , Sternberg notes that traditional tests best assess analytical and verbal skills but fail to measure creativity and practical knowledge, components also critical to problem solving and life success.", ref: "斯特恩伯格在他的《智力测试有多智能?》一文中指出传统测试能够对分析能力和语言能力做出最佳评估，但不能评估创造能力和实践知识，而这两个因素对于解决问题和在生活中取得成功也至关重要。" },
-    { num: "③", en: "Moreover, IQ tests do not necessarily predict so well once populations or situations change.", ref: "此外，一旦受试群体或环境发生变化，IQ 测试不一定能做出准确预测。" },
-    { num: "④", en: "Research has found that IQ predicted leadership skills when the tests were given under low-stress conditions, but under high-stress conditions, IQ was negatively correlated with leadership—that is, it predicted the opposite.", ref: "研究发现，当（受试者）在压力小的情况下进行测试时，IQ 能预示领导能力（的高低）；但是在压力大的情况下，IQ 与领导能力负相关——也就是说，根据智商预测出的领导能力与实际情况相反。" },
-    { num: "⑤", en: "Anyone who has toiled through SAT will testify that test-taking skill also matters, whether it’s knowing when to guess or what questions to skip.", ref: "任何熬过“学术能力评估测试”的人都可以证明，应试技巧也很重要，无论是知道何时应该猜测或是（知道）何题应该跳过。" }
+    { num: "①", en: "Such standardized tests may not assess all the important elements necessary to succeed in school and in life, argues Robert J. Sternberg.", ref: "罗伯特·J·斯特恩伯格指出，这类标准化测试也许不能评估在学业和生活中取得成功所必需的所有重要因素。",
+      ai: { backbone: "主语 Such standardized tests、谓语 may not assess、宾语 all the important elements；尾句为引述倒装", structure: ["宾语从句 all the important elements necessary to succeed in school and in life：作 assess 的宾语","后置定语 necessary to succeed in school and in life：修饰 elements，说明其必要性","引述句 argues Robert J. Sternberg：交代观点提出者"], collocations: ["standardized tests（标准化测试）","assess（评估）","succeed in school and in life（在学业与人生中成功）"] }},
+    { num: "②", en: "In his article “How Intelligent Is Intelligence Testing?” , Sternberg notes that traditional tests best assess analytical and verbal skills but fail to measure creativity and practical knowledge, components also critical to problem solving and life success.", ref: "斯特恩伯格在他的《智力测试有多智能?》一文中指出传统测试能够对分析能力和语言能力做出最佳评估，但不能评估创造能力和实践知识，而这两个因素对于解决问题和在生活中取得成功也至关重要。",
+      ai: { backbone: "主语 Sternberg、谓语 notes、宾语从句 that traditional tests best assess analytical and verbal skills but fail to measure creativity and practical knowledge", structure: ["时间状语 In his article “How Intelligent Is Intelligence Testing?”：说明出处","宾语从句 that traditional tests...but fail to measure...：作 notes 的宾语","后置定语 components also critical to problem solving and life success：作 creativity and practical knowledge 的同位补充"], collocations: ["analytical and verbal skills（分析与语言技能）","practical knowledge（实践知识）","be critical to（对……至关重要）","problem solving（解决问题）"] }},
+    { num: "③", en: "Moreover, IQ tests do not necessarily predict so well once populations or situations change.", ref: "此外，一旦受试群体或环境发生变化，IQ 测试不一定能做出准确预测。",
+      ai: { backbone: "主语 IQ tests、谓语 do not necessarily predict、宾语 so well；once 引导时间状语从句", structure: ["时间状语从句 once populations or situations change：说明当环境变化时预测力下降","副词 moreover：承上启下，进一步补充"], collocations: ["necessarily（必然地）","predict（预测）","populations or situations change（人群或情境发生变化）"] }},
+    { num: "④", en: "Research has found that IQ predicted leadership skills when the tests were given under low-stress conditions, but under high-stress conditions, IQ was negatively correlated with leadership—that is, it predicted the opposite.", ref: "研究发现，当（受试者）在压力小的情况下进行测试时，IQ 能预示领导能力（的高低）；但是在压力大的情况下，IQ 与领导能力负相关——也就是说，根据智商预测出的领导能力与实际情况相反。",
+      ai: { backbone: "主语 Research、谓语 has found、宾语从句 IQ predicted leadership skills when...but under...IQ was negatively correlated with leadership", structure: ["宾语从句 IQ predicted leadership skills...but under high-stress conditions, IQ was negatively correlated with leadership：作 found 的宾语，含转折并列","时间状语从句 when the tests were given under low-stress conditions：说明低压力条件","破折号后的解释 that is, it predicted the opposite：说明负相关即预测相反结果"], collocations: ["leadership skills（领导能力）","under low-stress conditions（在低压条件下）","be negatively correlated with（与……呈负相关）"] }},
+    { num: "⑤", en: "Anyone who has toiled through SAT will testify that test-taking skill also matters, whether it’s knowing when to guess or what questions to skip.", ref: "任何熬过“学术能力评估测试”的人都可以证明，应试技巧也很重要，无论是知道何时应该猜测或是（知道）何题应该跳过。",
+      ai: { backbone: "主语 Anyone、谓语 will testify、宾语从句 that test-taking skill also matters", structure: ["定语从句 who has toiled through SAT：修饰 Anyone，限定为经历过 SAT 的人","宾语从句 that test-taking skill also matters：作 testify 的宾语","方式状语 whether it's knowing when to guess or what questions to skip：说明应试技巧的具体内容"], collocations: ["toil through（艰难地通过）","test-taking skill（应试技巧）","know when to guess（知道何时猜答案）"] }}
     ],
     analysis: [
       {
@@ -891,10 +1107,12 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 45,
     type: "英一",
     source: "2007 Text 3",
-    zh: "在过去一代人的时间里，原本依靠努力工作和公乎竞争便能保持自身经济安稳的美国中产阶级家庭已被经济风险和新的现实彻底改变现在，一张粉色小纸条（解雇通知书），一个恶性诊断结果，或者离散的配偶，都可以使一个家庭从殷实的中产阶级在几个月内沧为新贫阶层。",
+    zh: "在过去一代人的时间里，原本依靠努力工作和公平竞争便能保持自身经济安稳的美国中产阶级家庭已被经济风险和新的现实彻底改变。现在，一张粉色小纸条（解雇通知书），一个恶性诊断结果，或者离散的配偶，都可以使一个家庭从殷实的中产阶级在几个月内沦为新贫阶层。",
     sentences: [
-    { num: "①", en: "During the past generation, the American middle-class family that once could count on hard work and fair play to keep itself financially secure has been transformed by economic risk and new realities.", ref: "在过去一代人的时间里，原本依靠努力工作和公乎竞争便能保持自身经济安稳的美国中产阶级家庭已被经济风险和新的现实彻底改变。" },
-    { num: "②", en: "Now a pink slip, a bad diagnosis, or a disappearing spouse can reduce a family from solidly middle class to newly poor in a few months.", ref: "现在，一张粉色小纸条（解雇通知书），一个恶性诊断结果，或者离散的配偶，都可以使一个家庭从殷实的中产阶级在几个月内沧为新贫阶层。" }
+    { num: "①", en: "During the past generation, the American middle-class family that once could count on hard work and fair play to keep itself financially secure has been transformed by economic risk and new realities.", ref: "在过去一代人的时间里，原本依靠努力工作和公平竞争便能保持自身经济安稳的美国中产阶级家庭已被经济风险和新的现实彻底改变。",
+      ai: { backbone: "主语 the American middle-class family、谓语 has been transformed；后接定语从句", structure: ["时间状语 During the past generation：说明转变的时期","定语从句 that once could count on hard work and fair play to keep itself financially secure：修饰 family，说明其过去依靠","介词短语 by economic risk and new realities：说明转变的原因","并列后置定语 of hard work and fair play：修饰 count on 的对象"], collocations: ["count on（依靠，指望）","hard work and fair play（勤奋与公平竞争）","financially secure（经济上安全）","economic risk（经济风险）"] }},
+    { num: "②", en: "Now a pink slip, a bad diagnosis, or a disappearing spouse can reduce a family from solidly middle class to newly poor in a few months.", ref: "现在，一张粉色小纸条（解雇通知书），一个恶性诊断结果，或者离散的配偶，都可以使一个家庭从殷实的中产阶级在几个月内沦为新贫阶层。",
+      ai: { backbone: "主语 a pink slip, a bad diagnosis, or a disappearing spouse、谓语 can reduce、宾语 a family、宾补 from solidly middle class to newly poor", structure: ["时间状语 Now：点明当下","并列主语 a pink slip, a bad diagnosis, or a disappearing spouse：列举三种变故","时间状语 in a few months：说明变穷的速度"], collocations: ["a pink slip（解雇通知书）","reduce...from...to...（使……从……沦为……）","middle class（中产阶级）","newly poor（新贫困）"] }}
     ]
   },
   {
@@ -903,10 +1121,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2007 Text 3",
     zh: "在仅仅一代人的时间里，数百万母亲已出去工作，改变了基本的家庭经济（模式），学者、政策制定者以及各路评论家都已反复讨论这些变化的社会意义，但几乎没人仔细研究过其副作用：家庭风险也提高了。如今家庭的开支已达这种新双薪状态的极限结果，他们失去了经济受挫时期曾经拥有的“降落伞”——一个在家庭经济支柱失业或生病时可以走进职场的候补赚钱者（通常是母亲）。这种“附加的劳动者效应”能够增强失业保险或伤残保险所提供的安全保障网帮助家庭渡过难关。但如今，家庭时运遭到的破坏再也不能通过原本赋闲在家的另一半获得的额外收入得以弥补。",
     sentences: [
-    { num: "①", en: "In just one generation, millions of mothers have gone to work,transforming basic family economics. Scholars, policymakers, and critics of all stripes have debated the social implications of these changes, but few have looked at the side effect: family risk has risen as well.", ref: "在仅仅一代人的时间里，数百万母亲已出去工作，改变了基本的家庭经济（模式），学者、政策制定者以及各路评论家都已反复讨论这些变化的社会意义，但几乎没人仔细研究过其副作用：家庭风险也提高了。" },
-    { num: "②", en: "Today’s families have budgeted to the limits of their\u0003new two-paycheck status. As a result, they have lost the parachute they once had in times of financial setback—a back-up earner (usually Mom) who could go into the workforce if the primary earner got laid off or fell sick.", ref: "如今家庭的开支已达这种新双薪状态的极限结果，他们失去了经济受挫时期曾经拥有的“降落伞”——一个在家庭经济支柱失业或生病时可以走进职场的候补赚钱者（通常是母亲）。" },
-    { num: "③", en: "This “added-worker effect” could support the safety net offered by unemployment insurance or disability insurance to help families weather bad times.", ref: "这种“附加的劳动者效应”能够增强失业保险或伤残保险所提供的安全保障网帮助家庭渡过难关。" },
-    { num: "④", en: "But today, a disruption to family fortunes can no longer be made up with extra income from an otherwise-stay-at-home partner.", ref: "但如今，家庭时运遭到的破坏再也不能通过原本赋闲在家的另一半获得的额外收入得以弥补。" }
+    { num: "①", en: "In just one generation, millions of mothers have gone to work,transforming basic family economics. Scholars, policymakers, and critics of all stripes have debated the social implications of these changes, but few have looked at the side effect: family risk has risen as well.", ref: "在仅仅一代人的时间里，数百万母亲已出去工作，改变了基本的家庭经济（模式），学者、政策制定者以及各路评论家都已反复讨论这些变化的社会意义，但几乎没人仔细研究过其副作用：家庭风险也提高了。",
+      ai: { backbone: "分号前：主语 millions of mothers、谓语 have gone、介词短语 to work；分词短语作结果状语；分号后：并列主语与谓语", structure: ["时间状语 In just one generation：说明时间跨度","现在分词短语 transforming basic family economics：作结果状语","后接并列句 Scholars, policymakers, and critics of all stripes have debated...but few have looked at the side effect：说明学界关注点","宾语从句 family risk has risen as well：作 looked at 的宾语"], collocations: ["in just one generation（仅在一代人的时间里）","go to work（上班工作）","critics of all stripes（各界批评人士）","side effect（副作用，附带影响）"] }},
+    { num: "②", en: "Today’s families have budgeted to the limits of their\u0003new two-paycheck status. As a result, they have lost the parachute they once had in times of financial setback—a back-up earner (usually Mom) who could go into the workforce if the primary earner got laid off or fell sick.", ref: "如今家庭的开支已达这种新双薪状态的极限结果，他们失去了经济受挫时期曾经拥有的“降落伞”——一个在家庭经济支柱失业或生病时可以走进职场的候补赚钱者（通常是母亲）。",
+      ai: { backbone: "分句1 主语 Today's families、谓语 have budgeted、介词短语 to the limits 作状语；分句2 主语 they、谓语 have lost、宾语 the parachute", structure: ["分句1 时间状语 Today 与后置定语 of their new two-paycheck status：说明预算依据","分句2 结果状语 As a result：说明因果关系","定语从句 they once had in times of financial setback：修饰 parachute","破折号后的同位语 a back-up earner (usually Mom)：解释 parachute 即后备挣钱者","定语从句 who could go into the workforce if the primary earner got laid off or fell sick：说明后备者的作用"], collocations: ["budget to the limits（预算到极限）","two-paycheck status（双薪状态）","financial setback（财务挫折）","back-up earner（后备挣钱者）","get laid off（被解雇）"] }},
+    { num: "③", en: "This “added-worker effect” could support the safety net offered by unemployment insurance or disability insurance to help families weather bad times.", ref: "这种“附加的劳动者效应”能够增强失业保险或伤残保险所提供的安全保障网帮助家庭渡过难关。",
+      ai: { backbone: "主语 This “added-worker effect”、谓语 could support、宾语 the safety net；to 引导目的状语", structure: ["过去分词短语 offered by unemployment insurance or disability insurance：作后置定语，修饰 safety net","不定式短语 to help families weather bad times：作目的状语","宾语从句省略：help families（to）weather bad times"], collocations: ["added-worker effect（附加劳动力效应）","safety net（安全网）","unemployment insurance（失业保险）","weather bad times（渡过艰难时期）"] }},
+    { num: "④", en: "But today, a disruption to family fortunes can no longer be made up with extra income from an otherwise-stay-at-home partner.", ref: "但如今，家庭时运遭到的破坏再也不能通过原本赋闲在家的另一半获得的额外收入得以弥补。",
+      ai: { backbone: "主语 a disruption to family fortunes、谓语 can no longer be made up；with 引导方式状语", structure: ["时间状语 But today：强调今昔对比","介词短语 with extra income from an otherwise-stay-at-home partner：说明弥补方式","复合形容词 otherwise-stay-at-home：修饰 partner，指原本居家者"], collocations: ["a disruption to（对……的破坏）","make up（弥补）","extra income（额外收入）","no longer（不再）"] }}
     ],
     analysis: [
       {
@@ -927,14 +1149,20 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 47,
     type: "英一",
     source: "2007 Text 3",
-    zh: "与此同时，家庭被要求在退体收入方面承担（比以前）大得多的风险。钢铁工人、航空公司雇员以及现在汽车行业的员工正在加入数百万家庭，必须担忧利率、股市波动以及退体全不足以养老这一严酷现实。去年的大半年之中，布什总统领导了将社会保障体系变成储蓄账户模式的改革运动，（在这种模式下，）退休人员的大部分或全部的“有保障的收入”变成了“依赖投资收益的收入”。对于较年轻的家庭来说，境况并没有好出丝毫。医疗保健的绝对成本以及其中家庭承担的份额都已提高——且新近流行的健康储蓄计划正从国会大厅蔓延到沃尔玛员工那里，随之而来的是比过去高出许多的医疗保险免赔额，以及家庭未来的医疗保健所面临的大量新增投资风险。甚至人口统计数据都对中产阶级家庭不利，因为（据统计）家庭中出现年老力衰的父（母）——以及随之而来的体力和经济援助需要——的几率在仅仅一代人的时间里就猛涨到原来的八倍。",
+    zh: "与此同时，家庭被要求在退休收入方面承担（比以前）大得多的风险。钢铁工人、航空公司雇员以及现在汽车行业的员工正在加入数百万家庭，必须担忧利率、股市波动以及退休金不足以养老这一严酷现实。去年的大半年之中，布什总统领导了将社会保障体系变成储蓄账户模式的改革运动，（在这种模式下，）退休人员的大部分或全部的“有保障的收入”变成了“依赖投资收益的收入”。对于较年轻的家庭来说，境况并没有好出丝毫。医疗保健的绝对成本以及其中家庭承担的份额都已提高——且新近流行的健康储蓄计划正从国会大厅蔓延到沃尔玛员工那里，随之而来的是比过去高出许多的医疗保险免赔额，以及家庭未来的医疗保健所面临的大量新增投资风险。甚至人口统计数据都对中产阶级家庭不利，因为（据统计）家庭中出现年老力衰的父（母）——以及随之而来的体力和经济援助需要——的几率在仅仅一代人的时间里就猛涨到原来的八倍。",
     sentences: [
-    { num: "①", en: "During the same period, families have been asked to absorb much more risk in their retirement income.", ref: "与此同时，家庭被要求在退体收入方面承担（比以前）大得多的风险。" },
-    { num: "②", en: "Steelworkers, airline employees, and now those in the auto industry are joining millions of families who must worry about interest rates, stock market fluctuation, and the harsh reality that they may outlive their retirement money.", ref: "钢铁工人、航空公司雇员以及现在汽车行业的员工正在加入数百万家庭，必须担忧利率、股市波动以及退体全不足以养老这一严酷现实。" },
-    { num: "③", en: "For much of the past year, President Bush campaigned to move Social Security to a savings-account model, with retirees trading much or all of their guaranteed payments for payments depending on investment returns.", ref: "去年的大半年之中，布什总统领导了将社会保障体系变成储蓄账户模式的改革运动，（在这种模式下，）退休人员的大部分或全部的“有保障的收入”变成了“依赖投资收益的收入”。" },
-    { num: "④", en: "For younger families, the picture is not any better.", ref: "对于较年轻的家庭来说，境况并没有好出丝毫。" },
-    { num: "⑤", en: "Both the absolute cost of healthcare and the share of it borne by families have risen—and newly fashionable health-savings plans are spreading from legislative halls to Wal-Mart workers, with much higher deductibles and a large new dose of investment risk for families’ future healthcare.", ref: "医疗保健的绝对成本以及其中家庭承担的份额都已提高——且新近流行的健康储蓄计划正从国会大厅蔓延到沃尔玛员工那里，随之而来的是比过去高出许多的医疗保险免赔额，以及家庭未来的医疗保健所面临的大量新增投资风险。" },
-    { num: "⑥", en: "Even demographics are working against the middle class family, as the odds of having a weak elderly parent—and all the attendant need for physical and financial assistance—have jumped eightfold in just one generation.", ref: "甚至人口统计数据都对中产阶级家庭不利，因为（据统计）家庭中出现年老力衰的父（母）——以及随之而来的体力和经济援助需要——的几率在仅仅一代人的时间里就猛涨到原来的八倍。" }
+    { num: "①", en: "During the same period, families have been asked to absorb much more risk in their retirement income.", ref: "与此同时，家庭被要求在退休收入方面承担（比以前）大得多的风险。",
+      ai: { backbone: "主语 families、谓语 have been asked to absorb、宾语 much more risk", structure: ["时间状语 During the same period：说明同一时期","介词短语 in their retirement income：说明风险所在领域"], collocations: ["be asked to do（被要求做）","absorb risk（承担风险）","retirement income（退休收入）"] }},
+    { num: "②", en: "Steelworkers, airline employees, and now those in the auto industry are joining millions of families who must worry about interest rates, stock market fluctuation, and the harsh reality that they may outlive their retirement money.", ref: "钢铁工人、航空公司雇员以及现在汽车行业的员工正在加入数百万家庭，必须担忧利率、股市波动以及退休金不足以养老这一严酷现实。",
+      ai: { backbone: "主语 Steelworkers, airline employees, and now those in the auto industry、谓语 are joining、宾语 millions of families", structure: ["定语从句 who must worry about interest rates, stock market fluctuation, and the harsh reality：修饰 families","同位语从句 that they may outlive their retirement money：解释 reality 的内容"], collocations: ["interest rates（利率）","stock market fluctuation（股市波动）","outlive one's retirement money（活得比退休金还久）"] }},
+    { num: "③", en: "For much of the past year, President Bush campaigned to move Social Security to a savings-account model, with retirees trading much or all of their guaranteed payments for payments depending on investment returns.", ref: "去年的大半年之中，布什总统领导了将社会保障体系变成储蓄账户模式的改革运动，（在这种模式下，）退休人员的大部分或全部的“有保障的收入”变成了“依赖投资收益的收入”。",
+      ai: { backbone: "主语 President Bush、谓语 campaigned to move、宾语 Social Security；with 引导伴随状语", structure: ["时间状语 For much of the past year：说明持续时间","不定式短语 to move Social Security to a savings-account model：作 campaigned 的目的","介词短语 with retirees trading much or all of their guaranteed payments：作伴随状语，说明置换方式","后置定语 for payments depending on investment returns：说明置换后的支付来源"], collocations: ["campaign to do（发起运动做……）","savings-account model（储蓄账户模式）","guaranteed payments（有保障的支付）","investment returns（投资回报）"] }},
+    { num: "④", en: "For younger families, the picture is not any better.", ref: "对于较年轻的家庭来说，境况并没有好出丝毫。",
+      ai: { backbone: "主语 the picture、系动词 is not、表语 any better", structure: ["时间状语 For younger families：说明针对对象"], collocations: ["for younger families（对年轻家庭而言）","the picture is not any better（情况并未好转）"] }},
+    { num: "⑤", en: "Both the absolute cost of healthcare and the share of it borne by families have risen—and newly fashionable health-savings plans are spreading from legislative halls to Wal-Mart workers, with much higher deductibles and a large new dose of investment risk for families’ future healthcare.", ref: "医疗保健的绝对成本以及其中家庭承担的份额都已提高——且新近流行的健康储蓄计划正从国会大厅蔓延到沃尔玛员工那里，随之而来的是比过去高出许多的医疗保险免赔额，以及家庭未来的医疗保健所面临的大量新增投资风险。",
+      ai: { backbone: "主语 Both the absolute cost of healthcare and the share of it、谓语 have risen；and 连接第二分句", structure: ["后置定语 of healthcare：修饰 cost，限定领域","后置定语 of it borne by families：修饰 share，说明家庭承担的部分","分句2 主语 health-savings plans、谓语 are spreading from...to...：说明计划扩散范围","介词短语 with much higher deductibles and a large new dose of investment risk：说明新计划的特征"], collocations: ["the absolute cost of healthcare（医疗保健的绝对成本）","be borne by（由……承担）","health-savings plans（健康储蓄计划）","legislative halls（立法大厅，立法机构）","a dose of investment risk（一股投资风险）"] }},
+    { num: "⑥", en: "Even demographics are working against the middle class family, as the odds of having a weak elderly parent—and all the attendant need for physical and financial assistance—have jumped eightfold in just one generation.", ref: "甚至人口统计数据都对中产阶级家庭不利，因为（据统计）家庭中出现年老力衰的父（母）——以及随之而来的体力和经济援助需要——的几率在仅仅一代人的时间里就猛涨到原来的八倍。",
+      ai: { backbone: "主语 Even demographics、谓语 are working against、宾语 the middle class family；as 引导原因状语从句", structure: ["原因状语从句 as the odds...have jumped eightfold in just one generation：解释不利原因","后置定语 of having a weak elderly parent：修饰 odds","and 连接的并列成分 all the attendant need for physical and financial assistance：说明随之而来的需求"], collocations: ["work against（对……不利）","demographics（人口结构）","the odds of（……的可能性）","eightfold（八倍地）"] }}
     ],
     analysis: [
       {
@@ -969,10 +1197,12 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 48,
     type: "英一",
     source: "2007 Text 3",
-    zh: "可以理解，从中产阶级家庭的角度看，上述许多现象看起来远不像是履行更多经济责任的机会，而更像是以骇人的增速将全融风险大规模转嫁到他们已经不堪重负的肩膀上。经济上的不良后果已经显现，政治影响也不会太远了。",
+    zh: "可以理解，从中产阶级家庭的角度看，上述许多现象看起来远不像是履行更多经济责任的机会，而更像是以骇人的增速将金融风险大规模转嫁到他们已经不堪重负的肩膀上。经济上的不良后果已经显现，政治影响也不会太远了。",
     sentences: [
-    { num: "①", en: "From the middle-class family perspective, much of this, understandably, looks far less like an opportunity to exercise more financial responsibility, and a good deal more like a frightening acceleration of the wholesale shift of financial risk onto their already overburdened shoulders.", ref: "可以理解，从中产阶级家庭的角度看，上述许多现象看起来远不像是履行更多经济责任的机会，而更像是以骇人的增速将全融风险大规模转嫁到他们已经不堪重负的肩膀上。" },
-    { num: "②", en: "The financial fallout has begun, and the political fallout may not be far behind.", ref: "经济上的不良后果已经显现，政治影响也不会太远了。" }
+    { num: "①", en: "From the middle-class family perspective, much of this, understandably, looks far less like an opportunity to exercise more financial responsibility, and a good deal more like a frightening acceleration of the wholesale shift of financial risk onto their already overburdened shoulders.", ref: "可以理解，从中产阶级家庭的角度看，上述许多现象看起来远不像是履行更多经济责任的机会，而更像是以骇人的增速将金融风险大规模转嫁到他们已经不堪重负的肩膀上。",
+      ai: { backbone: "主语 much of this、谓语 looks、介词短语 like...作表语；and 连接第二谓语", structure: ["时间状语 From the middle-class family perspective：说明观察视角","插入语 understandably：表示可以理解","比较结构 far less like...and a good deal more like...：not only...but 的变体对比两种观感","后置定语 of the wholesale shift of financial risk：修饰 acceleration","后置定语 onto their already overburdened shoulders：说明风险转移对象"], collocations: ["from the perspective of（从……的角度）","far less like（远不像）","a good deal more like（更像得多）","wholesale shift（全面转移）","overburdened shoulders（不堪重负的肩膀）"] }},
+    { num: "②", en: "The financial fallout has begun, and the political fallout may not be far behind.", ref: "经济上的不良后果已经显现，政治影响也不会太远了。",
+      ai: { backbone: "and 连接两个并列分句：分句1 主语 The financial fallout、谓语 has begun；分句2 主语 the political fallout、系动词 may be", structure: ["表语 not far behind：说明政治影响紧随其后","副词 may：表示不确定性"], collocations: ["financial fallout（金融余波）","political fallout（政治余波）","not far behind（紧随其后）"] }}
     ],
     analysis: [
       {
@@ -995,11 +1225,14 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 49,
     type: "英一",
     source: "2007 Text 4",
-    zh: "不雨则已，雨则倾盆。正值老板、董事会们总算解决了最为棘手的财务和合规问题，并且改善了薄弱的公司治理之际，一个新的问题又可能为他们惹来——尤其是在美国——那种不可避免地使管理层受重罚的负面头条，这个问题就是：数据不安全此前，信息保护一直是由古怪而又低级的信息技术员工来负责，并且被看作只是诸如银行、电信、航空旅行这类拥有大量数据的行业才关注的问题，而现在却高居各行业老板的议程表之首。",
+    zh: "不雨则已，雨则倾盆。正值老板、董事会们总算解决了最为棘手的财务和合规问题，并且改善了薄弱的公司治理之际，一个新的问题又可能为他们惹来——尤其是在美国——那种不可避免地使管理层受重罚的负面头条，这个问题就是：数据不安全。此前，信息保护一直是由古怪而又低级的信息技术员工来负责，并且被看作只是诸如银行、电信、航空旅行这类拥有大量数据的行业才关注的问题，而现在却高居各行业老板的议程表之首。",
     sentences: [
-    { num: "①", en: "It never rains but it pours.", ref: "不雨则已，雨则倾盆。" },
-    { num: "②", en: "Just as bosses and boards have finally sorted out their worst accounting and compliance troubles, and improved their feeble corporation governance, a new problem threatens to earn them—especially in America—the sort of nasty headlines that inevitably lead to heads rolling in the executive suite: data insecurity.", ref: "正值老板、董事会们总算解决了最为棘手的财务和合规问题，并且改善了薄弱的公司治理之际，一个新的问题又可能为他们惹来——尤其是在美国——那种不可避免地使管理层受重罚的负面头条，这个问题就是：数据不安全。" },
-    { num: "③", en: "Left, until now, to odd, low-level IT staff to put right, and seen as a concern only of data-rich industries such as banking, telecoms and air travel, information protection is now high on the boss’s agenda in businesses of every variety.", ref: "此前，信息保护一直是由古怪而又低级的信息技术员工来负责，并且被看作只是诸如银行、电信、航空旅行这类拥有大量数据的行业才关注的问题，而现在却高居各行业老板的议程表之首。" }
+    { num: "①", en: "It never rains but it pours.", ref: "不雨则已，雨则倾盆。",
+      ai: { backbone: "主语 it、谓语 rains；后接 not...but 结构的状语", structure: ["否定副词 never：强调不雨则已","并列结构 not...but...：表达“不……则……”，强调雨不止一场","副词 pours：与 rains 呼应，表示倾盆而下"], collocations: ["it never rains but it pours（不雨则已，一雨倾盆；祸不单行）","pour（倾泻）"] }},
+    { num: "②", en: "Just as bosses and boards have finally sorted out their worst accounting and compliance troubles, and improved their feeble corporation governance, a new problem threatens to earn them—especially in America—the sort of nasty headlines that inevitably lead to heads rolling in the executive suite: data insecurity.", ref: "正值老板、董事会们总算解决了最为棘手的财务和合规问题，并且改善了薄弱的公司治理之际，一个新的问题又可能为他们惹来——尤其是在美国——那种不可避免地使管理层受重罚的负面头条，这个问题就是：数据不安全。",
+      ai: { backbone: "主语 a new problem、谓语 threatens to earn、宾语 them、宾补 the sort of nasty headlines；句首为 just as 时间状语从句", structure: ["时间状语从句 Just as bosses and boards have finally sorted out...and improved...：说明在解决旧问题的同时","并列谓语 sorted out their worst accounting and compliance troubles and improved their feeble corporation governance：说明刚完成的整顿","插入语 especially in America：强调地点","定语从句 that inevitably lead to heads rolling in the executive suite：修饰 headlines，说明后果","冒号后的名词 data insecurity：对 a new problem 作同位解释"], collocations: ["sort out（解决，整顿）","accounting and compliance troubles（会计与合规问题）","corporate governance（公司治理）","heads roll（人头落地，负责人被解职）","executive suite（高管层）"] }},
+    { num: "③", en: "Left, until now, to odd, low-level IT staff to put right, and seen as a concern only of data-rich industries such as banking, telecoms and air travel, information protection is now high on the boss’s agenda in businesses of every variety.", ref: "此前，信息保护一直是由古怪而又低级的信息技术员工来负责，并且被看作只是诸如银行、电信、航空旅行这类拥有大量数据的行业才关注的问题，而现在却高居各行业老板的议程表之首。",
+      ai: { backbone: "主语 information protection、系动词 is、表语 high；句首为过去分词短语作状语", structure: ["过去分词短语 Left, until now, to odd, low-level IT staff to put right：作让步/背景状语，说明过去被交给底层 IT 处理","过去分词短语 seen as a concern only of data-rich industries...：作并列背景状语","介词短语 in businesses of every variety：说明如今波及各类企业","状语 now high on the boss's agenda：说明如今成为优先事项"], collocations: ["low-level IT staff（基层 IT 人员）","put right（纠正，修复）","data-rich industries（数据密集型行业）","high on the agenda（列入重要议程）","of every variety（各种各样的）"] }}
     ],
     analysis: [
       {
@@ -1038,19 +1271,24 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2007 Text 4",
     zh: "今年几起重大的客户和员工数据泄露事件——发生于各类机构里，如时代华纳公司、美国国防项目承包商科学应用国际公司、甚至加州大学伯克利分校——使得管理者们慌忙检查自身复杂精细的信息技术系统和业务流程，以寻找潜在的漏洞。",
     sentences: [
-    { num: "①", en: "Several massive leakages of customer and employee data this year—from organizations as diverse as Time Warner, the American defense contractor Science Applications International Corp and even the University of California, Berkeley—have left managers hurriedly peering into their intricate IT systems and business processes in search of potential vulnerabilities.", ref: "今年几起重大的客户和员工数据泄露事件——发生于各类机构里，如时代华纳公司、美国国防项目承包商科学应用国际公司、甚至加州大学伯克利分校——使得管理者们慌忙检查自身复杂精细的信息技术系统和业务流程，以寻找潜在的漏洞。" }
+    { num: "①", en: "Several massive leakages of customer and employee data this year—from organizations as diverse as Time Warner, the American defense contractor Science Applications International Corp and even the University of California, Berkeley—have left managers hurriedly peering into their intricate IT systems and business processes in search of potential vulnerabilities.", ref: "今年几起重大的客户和员工数据泄露事件——发生于各类机构里，如时代华纳公司、美国国防项目承包商科学应用国际公司、甚至加州大学伯克利分校——使得管理者们慌忙检查自身复杂精细的信息技术系统和业务流程，以寻找潜在的漏洞。",
+      ai: { backbone: "主语 Several massive leakages、谓语 have left、宾语 managers、宾补 peering into...；破折号内为插入语", structure: ["时间状语 this year：说明发生时间","介词短语 from organizations as diverse as Time Warner...：说明泄密来源机构","破折号插入语列举多个机构：Time Warner, SAIC, University of California, Berkeley","现在分词短语 peering into their intricate IT systems and business processes：作宾语补足语，说明经理们慌忙检查","不定式短语 in search of potential vulnerabilities：作目的状语"], collocations: ["massive leakages（大规模泄密）","customer and employee data（客户与员工数据）","peer into（仔细查看）","intricate IT systems（错综复杂的 IT 系统）","in search of（寻找）","potential vulnerabilities（潜在漏洞）"] }}
     ]
   },
   {
     day: 51,
     type: "英一",
     source: "2007 Text 4",
-    zh: "斯坦福大学商学院的海姆·孟德尔森说:“数据正在变成一种资产，与任何其他资产一样，它也需要受到保护。保护客户数据的能力是（保证）市场价值的关键，董事会应当为了股东的利益对市场价值负责。”的确，正如有一般公认会计原则（GAAP）的概念一样，或许现在是该制定一般公认安全原则（GAAP）的时候了，纽约哥伦比亚大学商学院的伊菜·诺姆这样建议道。他指出：“为（数据）安全、冗余以及恢复设立恰当的投资标准是个管理问题，而不是技术问题。”",
+    zh: "斯坦福大学商学院的海姆·孟德尔森说:“数据正在变成一种资产，与任何其他资产一样，它也需要受到保护。保护客户数据的能力是（保证）市场价值的关键，董事会应当为了股东的利益对市场价值负责。的确，正如有一般公认会计原则（GAAP）的概念一样，或许现在是该制定一般公认安全原则（GAAP）的时候了，纽约哥伦比亚大学商学院的伊菜·诺姆这样建议道。他指出：“为（数据）安全、冗余以及恢复设立恰当的投资标准是个管理问题，而不是技术问题。”",
     sentences: [
-    { num: "①", en: "“Data is becoming an asset which needs to be guarded as much as any other asset,” says Haim Mendelson of Stanford University’s business school.", ref: "斯坦福大学商学院的海姆·孟德尔森说:“数据正在变成一种资产，与任何其他资产一样，它也需要受到保护。" },
-    { num: "②", en: "“The ability to guard customer data is the key to market value, which the board is responsible for on behalf of shareholders”.", ref: "保护客户数据的能力是（保证）市场价值的关键，董事会应当为了股东的利益对市场价值负责。" },
-    { num: "③", en: "Indeed, just as there is the concept of Generally Accepted Accounting Principles (GAAP), perhaps it is time for GASP, Generally Accepted Security Practices, suggested Eli Noam of New York’s Columbia Business School.", ref: "的确，正如有一般公认会计原则（GAAP）的概念一样，或许现在是该制定一般公认安全原则（GAAP）的时候了，纽约哥伦比亚大学商学院的伊菜·诺姆这样建议道。" },
-    { num: "④", en: "“Setting the proper investment level for security, redundancy, and recovery is a management issue, not a technical one,” he says.", ref: "他指出：“为（数据）安全、冗余以及恢复设立恰当的投资标准是个管理问题，而不是技术问题。”" }
+    { num: "①", en: "“Data is becoming an asset which needs to be guarded as much as any other asset,” says Haim Mendelson of Stanford University’s business school.", ref: "斯坦福大学商学院的海姆·孟德尔森说:“数据正在变成一种资产，与任何其他资产一样，它也需要受到保护。",
+      ai: { backbone: "引语 Data is becoming an asset 作宾语，主语 Haim Mendelson、谓语 says；后接同位语", structure: ["引语中主语 Data、谓语 is becoming、表语 an asset","定语从句 which needs to be guarded as much as any other asset：修饰 asset，说明其重要程度","同位语 of Stanford University's business school：说明说话者身份"], collocations: ["become an asset（成为一种资产）","guard（保护，守护）","as much as（与……一样多）"] }},
+    { num: "②", en: "“The ability to guard customer data is the key to market value, which the board is responsible for on behalf of shareholders”.", ref: "保护客户数据的能力是（保证）市场价值的关键，董事会应当为了股东的利益对市场价值负责。",
+      ai: { backbone: "主语 The ability to guard customer data、系动词 is、表语 the key to market value；后接非限制性定语从句", structure: ["不定式短语 to guard customer data：作 ability 的后置定语","介词短语 to market value：作 key 的后置定语","非限制性定语从句 which the board is responsible for on behalf of shareholders：修饰 key，说明董事会责任"], collocations: ["the key to（……的关键）","market value（市场价值）","be responsible for（对……负责）","on behalf of（代表）"] }},
+    { num: "③", en: "Indeed, just as there is the concept of Generally Accepted Accounting Principles (GAAP), perhaps it is time for GASP, Generally Accepted Security Practices, suggested Eli Noam of New York’s Columbia Business School.", ref: "的确，正如有一般公认会计原则（GAAP）的概念一样，或许现在是该制定一般公认安全原则（GAAP）的时候了，纽约哥伦比亚大学商学院的伊菜·诺姆这样建议道。",
+      ai: { backbone: "主语 it、系动词 is、表语 time for GASP；句首为让步/类比从句；尾句为引述倒装", structure: ["类比从句 just as there is the concept of Generally Accepted Accounting Principles (GAAP)：说明类比对象","祈使/建议结构 perhaps it is time for...：表达建议","同位语 Generally Accepted Security Practices：解释 GASP 全称","引述句 suggested Eli Noam of New York's Columbia Business School：说明观点来源"], collocations: ["Generally Accepted Accounting Principles（公认会计原则）","it is time for（是……的时候了）","security practices（安全惯例）"] }},
+    { num: "④", en: "“Setting the proper investment level for security, redundancy, and recovery is a management issue, not a technical one,” he says.", ref: "他指出：“为（数据）安全、冗余以及恢复设立恰当的投资标准是个管理问题，而不是技术问题。”",
+      ai: { backbone: "主语 Setting the proper investment level...、系动词 is、表语 a management issue；后接引述句", structure: ["动名词短语 Setting the proper investment level for security, redundancy, and recovery：作句子主语","介词短语 for security, redundancy, and recovery：说明投资对象","否定结构 not a technical one：强调是管理问题而非技术问题","引述句 he says：交代出处"], collocations: ["investment level（投资水平）","redundancy（冗余）","recovery（恢复）","a management issue（管理问题）"] }}
     ]
   },
   {
@@ -1059,8 +1297,10 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2007 Text 4",
     zh: "难以理解的是，这竟然令所有的老板们都大吃一惊。无疑的是，即使最愚笨的管理人员也应该会清楚地知道：信任，也即经济资产中最具价值的东西，很容易遭到破坏而修复起来代价高昂；没有什么事情比企业任由个人敏感信息落入别有用心的人手中更能破坏信任的了。",
     sentences: [
-    { num: "①", en: "The mystery is that this should come as a surprise to any boss.", ref: "难以理解的是，这竟然令所有的老板们都大吃一惊。" },
-    { num: "②", en: "Surely it should be obvious to the dimmest executive that trust, that most valuable of economic assets, is easily destroyed and hugely expensive to restore—and that few things are more likely to destroy trust than a company letting sensitive personal data get into the wrong hands.", ref: "无疑的是，即使最愚笨的管理人员也应该会清楚地知道：信任，也即经济资产中最具价值的东西，很容易遭到破坏而修复起来代价高昂；没有什么事情比企业任由个人敏感信息落入别有用心的人手中更能破坏信任的了。" }
+    { num: "①", en: "The mystery is that this should come as a surprise to any boss.", ref: "难以理解的是，这竟然令所有的老板们都大吃一惊。",
+      ai: { backbone: "主语 The mystery、系动词 is、表语从句 that this should come as a surprise to any boss", structure: ["表语从句 that this should come as a surprise to any boss：作 is 的表语，说明谜团所在","介词短语 to any boss：说明令人惊讶的对象"], collocations: ["the mystery is that（谜团在于……）","come as a surprise（令人惊讶）"] }},
+    { num: "②", en: "Surely it should be obvious to the dimmest executive that trust, that most valuable of economic assets, is easily destroyed and hugely expensive to restore—and that few things are more likely to destroy trust than a company letting sensitive personal data get into the wrong hands.", ref: "无疑的是，即使最愚笨的管理人员也应该会清楚地知道：信任，也即经济资产中最具价值的东西，很容易遭到破坏而修复起来代价高昂；没有什么事情比企业任由个人敏感信息落入别有用心的人手中更能破坏信任的了。",
+      ai: { backbone: "主语 it、系动词 should be、表语 obvious to the dimmest executive；that 引导主语从句", structure: ["主语从句 that trust...is easily destroyed and hugely expensive to restore：作真正主语","后置定语 of economic assets：修饰 trust，说明其经济属性","插入语 that most valuable of economic assets：作 trust 的同位语","并列宾语从句 and that few things are more likely to destroy trust than a company letting sensitive personal data get into the wrong hands：补充第二个判断"], collocations: ["be obvious to（对……显而易见）","economic assets（经济资产）","be destroyed（被摧毁）","expensive to restore（恢复代价高昂）","get into the wrong hands（落入不当之人手中）"] }}
     ],
     analysis: [
       {
@@ -1081,21 +1321,28 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2007 Text 4",
     zh: "（美国，而不是欧洲）欠缺针对数据泄露的法律惩处，这种情况虽不至于证明当前事态合理，但却可能助长其发展。加州最近通过了一项法律，在此之前，美国的公司在数据丢失时无需通知任何人，甚至是受害者本人。这种情况可能很快就会改变：大量有关数据安全的立法提案正在国会接受审议。与此同时，美国 6 月 17 日披露的一起涉及大约 4000 万信用卡账户的信息失窃案，又使得美国联邦贸易委员会头一天（16 日）做出的一项极为重大的决议——该决议警告美国商界，如果公司不能充分保障数据的安全，那么监管机构就会采取措施——颜面尽失。",
     sentences: [
-    { num: "①", en: "The current state of affairs may have been encouraged—though not justified—by the lack of legal penalty (in America, but not Europe) for data leakage.", ref: "（美国，而不是欧洲）欠缺针对数据泄露的法律惩处，这种情况虽不至于证明当前事态合理，但却可能助长其发展。" },
-    { num: "②", en: "Until California recently passed a law, American firms did not have to tell anyone, even the victim, when data went astray.", ref: "加州最近通过了一项法律，在此之前，美国的公司在数据丢失时无需通知任何人，甚至是受害者本人。" },
-    { num: "③", en: "That may change fast: lots of proposed data-security legislation is now doing the rounds in Washington, D.C. Meanwhile, the theft of information about some 40 million credit-card accounts in America, disclosed on th June 17 , overshadowed a hugely important decision a day earlier by America’s Federal Trade Commission (FTC) that puts corporate America on notice that regulators will act if firms fail to provide adequate data security.", ref: "这种情况可能很快就会改变：大量有关数据安全的立法提案正在国会接受审议。与此同时，美国 6 月 17 日披露的一起涉及大约 4000 万信用卡账户的信息失窃案，又使得美国联邦贸易委员会头一天（16 日）做出的一项极为重大的决议——该决议警告美国商界，如果公司不能充分保障数据的安全，那么监管机构就会采取措施——颜面尽失。" }
+    { num: "①", en: "The current state of affairs may have been encouraged—though not justified—by the lack of legal penalty (in America, but not Europe) for data leakage.", ref: "（美国，而不是欧洲）欠缺针对数据泄露的法律惩处，这种情况虽不至于证明当前事态合理，但却可能助长其发展。",
+      ai: { backbone: "主语 The current state of affairs、谓语 may have been encouraged；破折号内为插入；by 引出施动者", structure: ["破折号插入语 though not justified：说明虽有鼓励但并非正当","介词短语 by the lack of legal penalty：说明鼓励因素","括号说明 (in America, but not Europe)：说明地域差异","介词短语 for data leakage：说明惩罚针对的行为"], collocations: ["state of affairs（事态，状况）","legal penalty（法律惩罚）","data leakage（数据泄露）"] }},
+    { num: "②", en: "Until California recently passed a law, American firms did not have to tell anyone, even the victim, when data went astray.", ref: "加州最近通过了一项法律，在此之前，美国的公司在数据丢失时无需通知任何人，甚至是受害者本人。",
+      ai: { backbone: "主句主语 American firms、谓语 did not have to tell、宾语 anyone；when 引导时间状语从句", structure: ["时间状语从句 Until California recently passed a law：说明加州立法前的状况","方式状语 even the victim：强调连受害者都不必告知","时间状语从句 when data went astray：说明数据出错时"], collocations: ["pass a law（通过法律）","have to tell（必须告知）","data goes astray（数据出错/丢失）"] }},
+    { num: "③", en: "That may change fast: lots of proposed data-security legislation is now doing the rounds in Washington, D.C. Meanwhile, the theft of information about some 40 million credit-card accounts in America, disclosed on th June 17 , overshadowed a hugely important decision a day earlier by America’s Federal Trade Commission (FTC) that puts corporate America on notice that regulators will act if firms fail to provide adequate data security.", ref: "这种情况可能很快就会改变：大量有关数据安全的立法提案正在国会接受审议。与此同时，美国 6 月 17 日披露的一起涉及大约 4000 万信用卡账户的信息失窃案，又使得美国联邦贸易委员会头一天（16 日）做出的一项极为重大的决议——该决议警告美国商界，如果公司不能充分保障数据的安全，那么监管机构就会采取措施——颜面尽失。",
+      ai: { backbone: "主语 That、谓语 may change、宾语 fast；冒号后为解释；Meanwhile 引出第二分句", structure: ["冒号后的独立分句 lots of proposed data-security legislation is now doing the rounds in Washington, D.C.：解释变化之快","副词 Meanwhile：引出同时发生的另一事件","分句2 主语 the theft of information about some 40 million credit-card accounts、谓语 overshadowed、宾语 a hugely important decision","过去分词短语 disclosed on June 17：作后置定语，修饰 theft","定语从句 that puts corporate America on notice：修饰 decision","宾语从句 that regulators will act if firms fail to provide adequate data security：作 on notice 的补足说明"], collocations: ["may change fast（可能迅速改变）","proposed legislation（拟议中的立法）","do the rounds（流传，四处传播）","credit-card accounts（信用卡账户）","overshadow（使黯然失色，盖过）","put sb on notice（警告某人）","adequate data security（充分的数据安全）"] }}
     ]
   },
   {
     day: 54,
     type: "英一",
     source: "2008 Text 1",
-    zh: "尽管女性在现代生活中的不少领城仍在努力追赶男性，但至少在一个不利的方面女性似乎遥遥领先。据纽约退伍军人管理医院精神科主任医师耶胡达博士称，“相比男性，女性在应对压力时特别容易患抑郁症和焦虑症”。对动物和人的研究都表明性激素会以某种方式影响压力反应，导致处于压力下的雌性比处于同等条件下的雄性分泌更多触发不良反应的化学物质。其中几项研究显示，如果将承受巨大压力的难鼠的卵巢（雌性生殖器官）切除，她们的化学反应变得和雄鼠相当。",
+    zh: "尽管女性在现代生活中的不少领城仍在努力追赶男性，但至少在一个不利的方面女性似乎遥遥领先。据纽约退伍军人管理医院精神科主任医师耶胡达博士称，“相比男性，女性在应对压力时特别容易患抑郁症和焦虑症”。对动物和人的研究都表明性激素会以某种方式影响压力反应，导致处于压力下的雌性比处于同等条件下的雄性分泌更多触发不良反应的化学物质。其中几项研究显示，如果将承受巨大压力的雌鼠的卵巢（雌性生殖器官）切除，她们的化学反应变得和雄鼠相当。",
     sentences: [
-    { num: "①", en: "While still catching-up to men in some spheres of modern life, women appear to be way ahead in at least one undesirable category.", ref: "尽管女性在现代生活中的不少领城仍在努力追赶男性，但至少在一个不利的方面女性似乎遥遥领先。" },
-    { num: "②", en: "“Women are particularly susceptible to developing depression and anxiety disorders in response to stress compared to men,” according to Dr. Yehuda, chief psychiatrist at New York’s Veteran’s Administration Hospital.", ref: "据纽约退伍军人管理医院精神科主任医师耶胡达博士称，“相比男性，女性在应对压力时特别容易患抑郁症和焦虑症”。" },
-    { num: "③", en: "Studies of both animals and humans have shown that sex hormones somehow affect the stress response, causing females under stress to produce more of the trigger chemicals than do males under the same conditions.", ref: "对动物和人的研究都表明性激素会以某种方式影响压力反应，导致处于压力下的雌性比处于同等条件下的雄性分泌更多触发不良反应的化学物质。" },
-    { num: "④", en: "In several of the studies, when stressed-out female rats had their ovaries (the female reproductive organs) removed, their chemical responses became equal to those of the males.", ref: "其中几项研究显示，如果将承受巨大压力的难鼠的卵巢（雌性生殖器官）切除，她们的化学反应变得和雄鼠相当。" }
+    { num: "①", en: "While still catching-up to men in some spheres of modern life, women appear to be way ahead in at least one undesirable category.", ref: "尽管女性在现代生活中的不少领城仍在努力追赶男性，但至少在一个不利的方面女性似乎遥遥领先。",
+      ai: { backbone: "主语 women、系动词 appear to be、表语 way ahead；句首为 While 让步状语从句", structure: ["让步状语从句 While still catching-up to men in some spheres of modern life：说明尽管在部分领域追赶男性","介词短语 in at least one undesirable category：说明领先的领域"], collocations: ["catch up to（赶上）","in some spheres of（在某些领域）","way ahead（遥遥领先）","undesirable category（不受欢迎的类别）"] }},
+    { num: "②", en: "“Women are particularly susceptible to developing depression and anxiety disorders in response to stress compared to men,” according to Dr. Yehuda, chief psychiatrist at New York’s Veteran’s Administration Hospital.", ref: "据纽约退伍军人管理医院精神科主任医师耶胡达博士称，“相比男性，女性在应对压力时特别容易患抑郁症和焦虑症”。",
+      ai: { backbone: "主语 Women、谓语 are susceptible to developing、宾语 depression and anxiety disorders；according to 引出处", structure: ["程度副词 particularly：强调易感程度","介词短语 in response to stress：说明应激背景","比较结构 compared to men：与男性对比","同位语 chief psychiatrist at New York's Veteran's Administration Hospital：说明 Dr. Yehuda 身份"], collocations: ["be susceptible to（易受……影响）","depression and anxiety disorders（抑郁症与焦虑症）","in response to（作为对……的反应）","compared to（与……相比）"] }},
+    { num: "③", en: "Studies of both animals and humans have shown that sex hormones somehow affect the stress response, causing females under stress to produce more of the trigger chemicals than do males under the same conditions.", ref: "对动物和人的研究都表明性激素会以某种方式影响压力反应，导致处于压力下的雌性比处于同等条件下的雄性分泌更多触发不良反应的化学物质。",
+      ai: { backbone: "主语 Studies、谓语 have shown、宾语从句 that sex hormones somehow affect the stress response", structure: ["后置定语 of both animals and humans：说明研究对象","宾语从句 that sex hormones somehow affect the stress response：作 shown 的宾语","现在分词短语 causing females under stress to produce more of the trigger chemicals：作结果状语","比较结构 than do males under the same conditions：比较两性反应"], collocations: ["sex hormones（性激素）","affect the stress response（影响应激反应）","trigger chemicals（触发化学物质）","under the same conditions（在相同条件下）"] }},
+    { num: "④", en: "In several of the studies, when stressed-out female rats had their ovaries (the female reproductive organs) removed, their chemical responses became equal to those of the males.", ref: "其中几项研究显示，如果将承受巨大压力的雌鼠的卵巢（雌性生殖器官）切除，她们的化学反应变得和雄鼠相当。",
+      ai: { backbone: "主语 their chemical responses、系动词 became、表语 equal to those of the males；when 引导时间状语从句", structure: ["时间状语从句 when stressed-out female rats had their ovaries removed：说明实验条件","括号说明 the female reproductive organs：解释 ovaries","介词短语 to those of the males：说明对比对象"], collocations: ["stressed-out（压力过大的）","have sth removed（将……摘除）","be equal to（等同于）","reproductive organs（生殖器官）"] }}
     ],
     analysis: [
       {
@@ -1131,35 +1378,54 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 55,
     type: "英一",
     source: "2008 Text 1",
-    zh: "加重女性更多压力化学物质剂量的，是她们增多的压力“机会”。耶胡达博士说“未必是女性不能同样地应付压力。只是她们不得不应付多得多的压力。她说道，“女性忍受压力的能力甚至可能超过男性，只是她们需要应付如此之多的事，以致她们精疲力竭得更明显且更快。”耶胡达博士还提到两性间的另一种差别。“我认为女性面临的各种事情往往更具长期性或反复性。男性去打仗，面临的是战斗压力。他们面临更多的是偶尔的身体上的暴力行为。女性面临的各种人际间暴力往往是在家庭环境中，不幸的是这种暴力来自于父母或其他家庭成员，而且往往不是一次了事。这些长久关系带来的折磨可能是极具毁灭性的”。",
+    zh: "加重女性更多压力化学物质剂量的，是她们增多的压力“机会”。耶胡达博士说“未必是女性不能同样地应付压力。只是她们不得不应付多得多的压力。她说道，“女性忍受压力的能力甚至可能超过男性，只是她们需要应付如此之多的事，以致她们精疲力竭得更明显且更快。耶胡达博士还提到两性间的另一种差别。“我认为女性面临的各种事情往往更具长期性或反复性。男性去打仗，面临的是战斗压力。他们面临更多的是偶尔的身体上的暴力行为。女性面临的各种人际间暴力往往是在家庭环境中，不幸的是这种暴力来自于父母或其他家庭成员，而且往往不是一次了事。这些长久关系带来的折磨可能是极具毁灭性的”。",
     sentences: [
-    { num: "①", en: "Adding to a woman’s increased dose of stress chemicals, are her increased “opportunities” for stress.", ref: "加重女性更多压力化学物质剂量的，是她们增多的压力“机会”。" },
-    { num: "②", en: "“It’s not necessarily that women don’t cope as well.", ref: "耶胡达博士说“未必是女性不能同样地应付压力。" },
-    { num: "③", en: "It’s just that they have so much more to cope with,” says Dr. Yehuda.", ref: "只是她们不得不应付多得多的压力。" },
-    { num: "④", en: "“Their capacity for tolerating stress may even be greater than men’s,” she observes, “it’s just that they’re dealing with so many more things that they become worn out from it more visibly and sooner.”", ref: "她说道，“女性忍受压力的能力甚至可能超过男性，只是她们需要应付如此之多的事，以致她们精疲力竭得更明显且更快。" },
-    { num: "⑤", en: "Dr. Yehuda notes another difference between the sexes.", ref: "耶胡达博士还提到两性间的另一种差别。" },
-    { num: "⑥", en: "“I think that the kinds of things that women are exposed to tend to be in more of a chronic or repeated nature.", ref: "“我认为女性面临的各种事情往往更具长期性或反复性。" },
-    { num: "⑦", en: "Men go to war and are exposed to combat stress.", ref: "男性去打仗，面临的是战斗压力。" },
-    { num: "⑧", en: "Men are exposed to more acts of random physical violence.", ref: "他们面临更多的是偶尔的身体上的暴力行为。" },
-    { num: "⑨", en: "The kinds of interpersonal violence that women are exposed to tend to be in domestic situations, by, unfortunately, parents or other family members, and they tend not to be one-shot deals.", ref: "女性面临的各种人际间暴力往往是在家庭环境中，不幸的是这种暴力来自于父母或其他家庭成员，而且往往不是一次了事。" },
-    { num: "⑩", en: "The wear-and-tear that comes from these longer relationships can be quite devastating.”", ref: "这些长久关系带来的折磨可能是极具毁灭性的”。" }
+    { num: "①", en: "Adding to a woman’s increased dose of stress chemicals, are her increased “opportunities” for stress.", ref: "加重女性更多压力化学物质剂量的，是她们增多的压力“机会”。",
+      ai: { backbone: "倒装句：表语 Adding to a woman's increased dose of stress chemicals 前置，主语 her increased “opportunities” for stress、系动词 are", structure: ["介词短语 Adding to a woman's increased dose of stress chemicals：倒装前置的表语部分","介词短语 for stress：说明机会指向","分词短语 Adding to...：表示在原有基础上叠加"], collocations: ["add to（增加）","a dose of stress chemicals（一剂应激化学物质）","opportunities for stress（承受压力的机会）"] }},
+    { num: "②", en: "“It’s not necessarily that women don’t cope as well.", ref: "耶胡达博士说“未必是女性不能同样地应付压力。",
+      ai: { backbone: "主语 it、系动词 is not、表语 necessarily that women don't cope as well", structure: ["副词 necessarily：说明并非必然","表语从句 that women don't cope as well：说明否认的内容","比较结构 as well：与男性比较应对能力"], collocations: ["not necessarily（未必，不一定）","cope（应对）","as well（一样好）"] }},
+    { num: "③", en: "It’s just that they have so much more to cope with,” says Dr. Yehuda.", ref: "只是她们不得不应付多得多的压力。",
+      ai: { backbone: "主语 it、系动词 is、表语 that they have so much more to cope with；后接引述句", structure: ["表语从句 that they have so much more to cope with：说明原因","不定式短语 to cope with：作后置定语，修饰 much","引述句 says Dr. Yehuda：交代出处"], collocations: ["so much more（多得多）","cope with（应对）"] }},
+    { num: "④", en: "“Their capacity for tolerating stress may even be greater than men’s,” she observes, “it’s just that they’re dealing with so many more things that they become worn out from it more visibly and sooner.”", ref: "她说道，“女性忍受压力的能力甚至可能超过男性，只是她们需要应付如此之多的事，以致她们精疲力竭得更明显且更快。",
+      ai: { backbone: "主语 Their capacity for tolerating stress、系动词 may even be、表语 greater than men's；后接并列观察句", structure: ["介词短语 for tolerating stress：作 capacity 的后置定语","比较结构 greater than men's：与男性对比","引述 she observes：交代出处","后句 it's just that they're dealing with so many more things...：解释为何更易疲惫","结果状语从句 that they become worn out from it more visibly and sooner：说明疲惫结果"], collocations: ["capacity for tolerating（承受……的能力）","deal with（处理，应对）","wear out（疲惫不堪）","more visibly and sooner（更明显、更快地）"] }},
+    { num: "⑤", en: "Dr. Yehuda notes another difference between the sexes.", ref: "耶胡达博士还提到两性间的另一种差别。",
+      ai: { backbone: "主语 Dr. Yehuda、谓语 notes、宾语 another difference", structure: ["介词短语 between the sexes：说明差异的双方"], collocations: ["note a difference（指出差异）","between the sexes（两性之间）"] }},
+    { num: "⑥", en: "“I think that the kinds of things that women are exposed to tend to be in more of a chronic or repeated nature.", ref: "“我认为女性面临的各种事情往往更具长期性或反复性。",
+      ai: { backbone: "主语 the kinds of things、系动词 tend to be、表语 in more of a chronic or repeated nature", structure: ["宾语从句 that women are exposed to：作后置定语，修饰 things","介词短语 in more of a chronic or repeated nature：说明性质"], collocations: ["be exposed to（暴露于……）","a chronic or repeated nature（慢性或反复的性质）"] }},
+    { num: "⑦", en: "Men go to war and are exposed to combat stress.", ref: "男性去打仗，面临的是战斗压力。",
+      ai: { backbone: "主语 Men、谓语 go、介词短语 to war 作状语；and 连接第二谓语", structure: ["并列谓语 go to war and are exposed to combat stress：说明男性经历"], collocations: ["go to war（上战场）","combat stress（战斗应激）"] }},
+    { num: "⑧", en: "Men are exposed to more acts of random physical violence.", ref: "他们面临更多的是偶尔的身体上的暴力行为。",
+      ai: { backbone: "主语 Men、谓语 are exposed to、宾语 more acts of random physical violence", structure: ["比较结构 more...：与女性比较","介词短语 of random physical violence：说明暴力类型"], collocations: ["be exposed to（暴露于……）","random physical violence（随机人身暴力）"] }},
+    { num: "⑨", en: "The kinds of interpersonal violence that women are exposed to tend to be in domestic situations, by, unfortunately, parents or other family members, and they tend not to be one-shot deals.", ref: "女性面临的各种人际间暴力往往是在家庭环境中，不幸的是这种暴力来自于父母或其他家庭成员，而且往往不是一次了事。",
+      ai: { backbone: "主语 The kinds of interpersonal violence、谓语 tend to be、介词短语 in domestic situations 作表语；后接并列分句", structure: ["定语从句 that women are exposed to：修饰 violence","插入语 unfortunately：表达遗憾语气","介词短语 by parents or other family members：说明施暴者","并列谓语 they tend not to be one-shot deals：说明并非一次性事件"], collocations: ["interpersonal violence（人际暴力）","domestic situations（家庭情境）","one-shot deals（一次性事件）"] }},
+    { num: "⑩", en: "The wear-and-tear that comes from these longer relationships can be quite devastating.”", ref: "这些长久关系带来的折磨可能是极具毁灭性的”。",
+      ai: { backbone: "主语 The wear-and-tear、系动词 can be、表语 quite devastating；后接定语从句", structure: ["定语从句 that comes from these longer relationships：修饰 wear-and-tear，说明来源","程度副词 quite：加强语气"], collocations: ["wear-and-tear（磨损，损耗）","devastating（毁灭性的）","longer relationships（更长久的关系）"] }}
     ]
   },
   {
     day: 56,
     type: "英一",
     source: "2008 Text 1",
-    zh: "阿德琳·阿尔瓦雷兹十八岁结婚并生有一子，但她却坚决要完成大学学业。“为了拿到大学文凭我拼命努力。我的生活极其不如意，以至于我只有通过上学、取得进步并做得更好以摆脱现实困境。”后来，她的婚姻结束，她成了单身母亲。“照顾一个十来岁的孩子、工作、交房租、付车款、还要偿还债务，这是最辛苦的事情。我过着勉强糊口的生活。”并不是每个人都承受着阿德琳·阿尔瓦雷兹描述的这种巨大的长期性压力。但如今大多数女性都担负着许多责任，几乎没有放松的时候，因此感到焦虑。阿尔瓦需兹的经历说明在压力威胁到你的健康和身体机能之前寻求途径缓解压力是相当重要的。",
+    zh: "阿德琳·阿尔瓦雷兹十八岁结婚并生有一子，但她却坚决要完成大学学业。“为了拿到大学文凭我拼命努力。我的生活极其不如意，以至于我只有通过上学、取得进步并做得更好以摆脱现实困境。后来，她的婚姻结束，她成了单身母亲。“照顾一个十来岁的孩子、工作、交房租、付车款、还要偿还债务，这是最辛苦的事情。我过着勉强糊口的生活。并不是每个人都承受着阿德琳·阿尔瓦雷兹描述的这种巨大的长期性压力。但如今大多数女性都担负着许多责任，几乎没有放松的时候，因此感到焦虑。阿尔瓦雷兹的经历说明在压力威胁到你的健康和身体机能之前寻求途径缓解压力是相当重要的。",
     sentences: [
-    { num: "①", en: "Adeline Alvarez married at 18 and gave birth to a son, but was determined to finish college.", ref: "阿德琳·阿尔瓦雷兹十八岁结婚并生有一子，但她却坚决要完成大学学业。" },
-    { num: "②", en: "“I struggled a lot to get the college degree.", ref: "“为了拿到大学文凭我拼命努力。" },
-    { num: "③", en: "I was living in so much frustration that that was my escape, to go to school, and get ahead and do better.”", ref: "我的生活极其不如意，以至于我只有通过上学、取得进步并做得更好以摆脱现实困境。" },
-    { num: "④", en: "Later, her marriage ended and she became a single mother.", ref: "后来，她的婚姻结束，她成了单身母亲。" },
-    { num: "⑤", en: "“It’s the hardest thing to take care of a teenager, have a job, pay the rent, pay the car payment, and pay the debt.", ref: "“照顾一个十来岁的孩子、工作、交房租、付车款、还要偿还债务，这是最辛苦的事情。" },
-    { num: "⑥", en: "I lived from paycheck to paycheck.”", ref: "我过着勉强糊口的生活。" },
-    { num: "⑦", en: "Not everyone experiences the kinds of severe chronic stresses Alvarez describes.", ref: "并不是每个人都承受着阿德琳·阿尔瓦雷兹描述的这种巨大的长期性压力。" },
-    { num: "⑧", en: "But most women today are coping with a lot of obligations, with few breaks, and feeling the strain.", ref: "但如今大多数女性都担负着许多责任，几乎没有放松的时候，因此感到焦虑。" },
-    { num: "⑨", en: "Alvarez’s experience demonstrates the importance of finding ways to diffuse stress before it threatens your health and your ability to function.", ref: "阿尔瓦需兹的经历说明在压力威胁到你的健康和身体机能之前寻求途径缓解压力是相当重要的。" }
+    { num: "①", en: "Adeline Alvarez married at 18 and gave birth to a son, but was determined to finish college.", ref: "阿德琳·阿尔瓦雷兹十八岁结婚并生有一子，但她却坚决要完成大学学业。",
+      ai: { backbone: "主语 Adeline Alvarez、谓语 married at 18 and gave birth to a son；but 连接第二谓语", structure: ["并列谓语 married at 18 and gave birth to a son：概述早年经历","转折连词 but 与 was determined to finish college：说明其坚持求学的决心"], collocations: ["get married（结婚）","give birth to（生下）","be determined to（决心……）","finish college（完成大学学业）"] }},
+    { num: "②", en: "“I struggled a lot to get the college degree.", ref: "“为了拿到大学文凭我拼命努力。",
+      ai: { backbone: "主语 I、谓语 struggled、程度状语 a lot；不定式作目的状语", structure: ["不定式短语 to get the college degree：作目的状语"], collocations: ["struggle a lot（非常艰难）","get the college degree（取得大学学位）"] }},
+    { num: "③", en: "I was living in so much frustration that that was my escape, to go to school, and get ahead and do better.”", ref: "我的生活极其不如意，以至于我只有通过上学、取得进步并做得更好以摆脱现实困境。",
+      ai: { backbone: "主语 I、谓语 was living、介词短语 in so much frustration 作状语；that 引导结果状语从句", structure: ["结果状语从句 that that was my escape：说明沮丧之深","不定式短语 to go to school, and get ahead and do better：对 escape 作同位解释"], collocations: ["live in frustration（生活在挫败中）","so much...that（如此……以至于）","get ahead（取得成功）"] }},
+    { num: "④", en: "Later, her marriage ended and she became a single mother.", ref: "后来，她的婚姻结束，她成了单身母亲。",
+      ai: { backbone: "主语 her marriage、谓语 ended；and 连接第二分句", structure: ["时间状语 Later：说明时间","第二分句 she became a single mother：说明身份转变"], collocations: ["marriage ends（婚姻结束）","a single mother（单亲妈妈）"] }},
+    { num: "⑤", en: "“It’s the hardest thing to take care of a teenager, have a job, pay the rent, pay the car payment, and pay the debt.", ref: "“照顾一个十来岁的孩子、工作、交房租、付车款、还要偿还债务，这是最辛苦的事情。",
+      ai: { backbone: "主语 It、系动词 is、表语 the hardest thing；不定式短语作真正主语", structure: ["不定式短语 to take care of a teenager, have a job, pay the rent, pay the car payment, and pay the debt：作真正主语，并列列举多重负担"], collocations: ["take care of（照顾）","pay the rent（付房租）","car payment（车贷）"] }},
+    { num: "⑥", en: "I lived from paycheck to paycheck.”", ref: "我过着勉强糊口的生活。",
+      ai: { backbone: "主语 I、谓语 lived、介词短语 from paycheck to paycheck 作状语", structure: ["介词短语 from paycheck to paycheck：说明财务拮据、月月光"], collocations: ["live from paycheck to paycheck（月光，靠薪水度日）"] }},
+    { num: "⑦", en: "Not everyone experiences the kinds of severe chronic stresses Alvarez describes.", ref: "并不是每个人都承受着阿德琳·阿尔瓦雷兹描述的这种巨大的长期性压力。",
+      ai: { backbone: "主语 Not everyone、谓语 experiences、宾语 the kinds of severe chronic stresses", structure: ["定语从句 Alvarez describes：修饰 stresses，说明是 Alvarez 所描述的那种","后置定语 of severe chronic stresses：说明压力类型"], collocations: ["severe chronic stresses（严重的慢性压力）","not everyone（并非所有人）"] }},
+    { num: "⑧", en: "But most women today are coping with a lot of obligations, with few breaks, and feeling the strain.", ref: "但如今大多数女性都担负着许多责任，几乎没有放松的时候，因此感到焦虑。",
+      ai: { backbone: "主语 most women、谓语 are coping with、宾语 a lot of obligations；and 连接第二谓语", structure: ["转折连词 But：承上启下","时间状语 today：点明当下","介词短语 with few breaks：说明休息甚少","现在分词短语 feeling the strain：作伴随状语"], collocations: ["cope with（应对）","a lot of obligations（大量责任）","feel the strain（感到压力）"] }},
+    { num: "⑨", en: "Alvarez’s experience demonstrates the importance of finding ways to diffuse stress before it threatens your health and your ability to function.", ref: "阿尔瓦雷兹的经历说明在压力威胁到你的健康和身体机能之前寻求途径缓解压力是相当重要的。",
+      ai: { backbone: "主语 Alvarez's experience、谓语 demonstrates、宾语 the importance；of 引导后置定语", structure: ["介词短语 of finding ways to diffuse stress：作 importance 的后置定语","时间状语从句 before it threatens your health and your ability to function：说明时机"], collocations: ["demonstrate the importance of（表明……的重要性）","diffuse stress（缓解压力）","ability to function（正常运作的能力）"] }}
     ]
   },
   {
@@ -1168,11 +1434,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2008 Text 2",
     zh: "它曾是如此直接。在实验室通力合作的一组研究人员将他们的研究成果呈递给一份期刊。之后该期刊的某位编辑会隐去论文上作者的名字和所属机构，并送交同行专家评审。该编辑会根据收到的（专家）意见来决定是否同意发表该论文。论文的版权归属于期刊出版商，想要查询该研究成果相关信息的研究者不得不订阅该期刊。",
     sentences: [
-    { num: "①", en: "It used to be so straightforward.", ref: "它曾是如此直接。" },
-    { num: "②", en: "A team of researchers working together in the laboratory would submit the results of their research to a journal.", ref: "在实验室通力合作的一组研究人员将他们的研究成果呈递给一份期刊。" },
-    { num: "③", en: "A journal editor would then remove the author’s names and affiliations from the paper and send it to their peers for review.", ref: "之后该期刊的某位编辑会隐去论文上作者的名字和所属机构，并送交同行专家评审。" },
-    { num: "④", en: "Depending on the comments received, the editor would accept the paper for publication or decline it.", ref: "该编辑会根据收到的（专家）意见来决定是否同意发表该论文。" },
-    { num: "⑤", en: "Copyright rested with the journal publisher, and researchers seeking knowledge of the results would have to subscribe to the journal.", ref: "论文的版权归属于期刊出版商，想要查询该研究成果相关信息的研究者不得不订阅该期刊。" }
+    { num: "①", en: "It used to be so straightforward.", ref: "它曾是如此直接。",
+      ai: { backbone: "主语 it、系动词 used to be、表语 so straightforward", structure: ["情态结构 used to：表示过去的常态","表语 so straightforward：说明过去流程简单直接"], collocations: ["used to be（过去曾经是）","straightforward（简单直接的）"] }},
+    { num: "②", en: "A team of researchers working together in the laboratory would submit the results of their research to a journal.", ref: "在实验室通力合作的一组研究人员将他们的研究成果呈递给一份期刊。",
+      ai: { backbone: "主语 A team of researchers、谓语 would submit、宾语 the results", structure: ["现在分词短语 working together in the laboratory：作后置定语，修饰 researchers","介词短语 to a journal：说明提交对象","后置定语 of their research：修饰 results"], collocations: ["a team of researchers（研究团队）","submit...to...（把……提交给……）","in the laboratory（在实验室）"] }},
+    { num: "③", en: "A journal editor would then remove the author’s names and affiliations from the paper and send it to their peers for review.", ref: "之后该期刊的某位编辑会隐去论文上作者的名字和所属机构，并送交同行专家评审。",
+      ai: { backbone: "主语 A journal editor、谓语 would remove、宾语 the author's names and affiliations；and 连接第二谓语", structure: ["时间状语 then：说明流程顺序","介词短语 from the paper：说明移除的对象","第二谓语 send it to their peers for review：说明送审流程"], collocations: ["remove...from...（从……中移除）","send to peers（送交同行）","for review（供评审）"] }},
+    { num: "④", en: "Depending on the comments received, the editor would accept the paper for publication or decline it.", ref: "该编辑会根据收到的（专家）意见来决定是否同意发表该论文。",
+      ai: { backbone: "主语 the editor、谓语 would accept、宾语 the paper for publication or decline it；Depending on 作状语", structure: ["介词短语 Depending on the comments received：作条件状语，说明依据","过去分词短语 received：作后置定语，修饰 comments","并列谓语 accept...or decline it：说明两种可能"], collocations: ["depending on（取决于）","accept for publication（接受发表）","decline（拒绝）"] }},
+    { num: "⑤", en: "Copyright rested with the journal publisher, and researchers seeking knowledge of the results would have to subscribe to the journal.", ref: "论文的版权归属于期刊出版商，想要查询该研究成果相关信息的研究者不得不订阅该期刊。",
+      ai: { backbone: "and 连接两个并列分句：分句1 主语 Copyright、谓语 rested with、宾语 the journal publisher；分句2 主语 researchers、谓语 would have to subscribe", structure: ["介词短语 with the journal publisher：说明版权的归属方","现在分词短语 seeking knowledge of the results：作后置定语，修饰 researchers","不定式短语 to subscribe to the journal：作宾语，说明须订阅刊物"], collocations: ["rest with（归属于）","journal publisher（期刊出版商）","subscribe to（订阅）"] }}
     ],
     analysis: [
       {
@@ -1194,13 +1465,18 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 58,
     type: "英一",
     source: "2008 Text 2",
-    zh: "（情形）不再如此。因特网——以及来自资助机构的压力，这些机构质问，商业出版商为什么通过限制科研成果的获取从政府资助的研究项目中获利——正在使自由获取科研成果成为现实。经济合作与发展组织（OECD）刚刚发布了一份报告阐述了这一变化的深远影响。这篇由澳大利亚维多利亚大学的约翰·霍顿和 OECD 的格菜汉姆·维克利共同撰写的报告，让那些迄今为止赚取了丰厚利润的出版商读起来心情沉重。但其意义不止于此，它还标志着科学探索目前为止的一个关键要素发生的一种变化。",
+    zh: "（情形）不再如此。因特网——以及来自资助机构的压力，这些机构质问，商业出版商为什么通过限制科研成果的获取从政府资助的研究项目中获利——正在使自由获取科研成果成为现实。经济合作与发展组织（OECD）刚刚发布了一份报告阐述了这一变化的深远影响。这篇由澳大利亚维多利亚大学的约翰·霍顿和 OECD 的格雷厄姆·维克利共同撰写的报告，让那些迄今为止赚取了丰厚利润的出版商读起来心情沉重。但其意义不止于此，它还标志着科学探索目前为止的一个关键要素发生的一种变化。",
     sentences: [
-    { num: "①", en: "No longer.", ref: "（情形）不再如此。" },
-    { num: "②", en: "The Internet—and pressure from funding agencies, who are questioning why commercial publishers are making money from government-funded research by restricting access to it—is making access to scientific results a reality.", ref: "因特网——以及来自资助机构的压力，这些机构质问，商业出版商为什么通过限制科研成果的获取从政府资助的研究项目中获利——正在使自由获取科研成果成为现实。" },
-    { num: "③", en: "The Organization for Economic Co-operation and Development (OECD) has just issued a report describing the far-reaching consequences of this.", ref: "经济合作与发展组织（OECD）刚刚发布了一份报告阐述了这一变化的深远影响。" },
-    { num: "④", en: "The report, by John Houghton of Victoria University in Australia and Graham Vickery of the OECD, makes heavy reading for publishers who have, so far, made handsome profits.", ref: "这篇由澳大利亚维多利亚大学的约翰·霍顿和 OECD 的格菜汉姆·维克利共同撰写的报告，让那些迄今为止赚取了丰厚利润的出版商读起来心情沉重。" },
-    { num: "⑤", en: "But it goes further than that. It signals a change in what has, until now, been a key element of scientific endeavor.", ref: "但其意义不止于此，它还标志着科学探索目前为止的一个关键要素发生的一种变化。" }
+    { num: "①", en: "No longer.", ref: "（情形）不再如此。",
+      ai: { backbone: "省略句：No longer，省略主谓，承上表示情况不复存在", structure: ["该句为省略句，仅保留时间状语 No longer，强调上述流程已成历史"], collocations: ["no longer（不再）"] }},
+    { num: "②", en: "The Internet—and pressure from funding agencies, who are questioning why commercial publishers are making money from government-funded research by restricting access to it—is making access to scientific results a reality.", ref: "因特网——以及来自资助机构的压力，这些机构质问，商业出版商为什么通过限制科研成果的获取从政府资助的研究项目中获利——正在使自由获取科研成果成为现实。",
+      ai: { backbone: "主语 The Internet—and pressure from funding agencies—、谓语 is making、宾语 access、宾补 a reality；破折号内为插入语", structure: ["破折号内的并列主语 and pressure from funding agencies：补充说明压力来源","非限制性定语从句 who are questioning why commercial publishers are making money...：修饰 funding agencies","宾语从句 why commercial publishers are making money from government-funded research：作 questioning 的宾语","现在分词短语 by restricting access to it：说明牟利方式","介词短语 to scientific results：修饰 access，说明访问对象"], collocations: ["pressure from（来自……的压力）","funding agencies（资助机构）","commercial publishers（商业出版商）","government-funded research（政府资助的研究）","make money from（从……牟利）","restrict access to（限制……的获取）"] }},
+    { num: "③", en: "The Organization for Economic Co-operation and Development (OECD) has just issued a report describing the far-reaching consequences of this.", ref: "经济合作与发展组织（OECD）刚刚发布了一份报告阐述了这一变化的深远影响。",
+      ai: { backbone: "主语 The Organization for Economic Co-operation and Development (OECD)、谓语 has issued、宾语 a report；现在分词作后置定语", structure: ["时间状语 just：表示刚刚","现在分词短语 describing the far-reaching consequences of this：作后置定语，修饰 report"], collocations: ["issue a report（发布报告）","far-reaching consequences（深远的影响）"] }},
+    { num: "④", en: "The report, by John Houghton of Victoria University in Australia and Graham Vickery of the OECD, makes heavy reading for publishers who have, so far, made handsome profits.", ref: "这篇由澳大利亚维多利亚大学的约翰·霍顿和 OECD 的格雷厄姆·维克利共同撰写的报告，让那些迄今为止赚取了丰厚利润的出版商读起来心情沉重。",
+      ai: { backbone: "主语 The report、谓语 makes、宾语 heavy reading for publishers；后接定语从句", structure: ["介词短语 by John Houghton...and Graham Vickery...：说明报告作者","同位语 of Victoria University in Australia / of the OECD：说明作者所属机构","定语从句 who have, so far, made handsome profits：修饰 publishers，说明其此前获利丰厚"], collocations: ["heavy reading（令人心情沉重的读物）","handsome profits（丰厚的利润）","so far（迄今为止）"] }},
+    { num: "⑤", en: "But it goes further than that. It signals a change in what has, until now, been a key element of scientific endeavor.", ref: "但其意义不止于此，它还标志着科学探索目前为止的一个关键要素发生的一种变化。",
+      ai: { backbone: "主语 it、谓语 goes、程度状语 further；but 连接转折；分句2 主语 it、谓语 signals、宾语 a change", structure: ["转折连词 But：说明更进一步","介词短语 in what has, until now, been a key element of scientific endeavor：说明变化发生的领域，其中 what 引导宾语从句"], collocations: ["go further（更进一步）","signal a change（标志一种变化）","scientific endeavor（科学事业）"] }}
     ]
   },
   {
@@ -1209,27 +1485,40 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     source: "2008 Text 2",
     zh: "知识的价值以及科研公共投资的回报某种程度上取决于其广泛的传播和容易的获取。这是门大生意。在美国，核心科学出版市场的估值在 70 亿到 110 亿美元之间。国际科学、技术和医学出版商协会称，全球有超过 2000 家出版公司专门从事这些学科（科学、技术和医学）的出版，它们每年在近 16,000 种期刊中刊登超过 120 万篇论文。",
     sentences: [
-    { num: "①", en: "The value of knowledge and the return on the public investment in research depends, in part, upon wide distribution and ready access.", ref: "知识的价值以及科研公共投资的回报某种程度上取决于其广泛的传播和容易的获取。" },
-    { num: "②", en: "It is big business.", ref: "这是门大生意。" },
-    { num: "③", en: "In America, the core scientific publishing market is estimated at between $7 billion and $11 billion.", ref: "在美国，核心科学出版市场的估值在 70 亿到 110 亿美元之间。" },
-    { num: "④", en: "The International Association of Scientific, Technical and Medical Publishers says that there are more than 2,000 publishers worldwide specializing in these subjects. They publish more than 1.2 million articles each year in some 16,000 journals.", ref: "国际科学、技术和医学出版商协会称，全球有超过 2000 家出版公司专门从事这些学科（科学、技术和医学）的出版，它们每年在近 16,000 种期刊中刊登超过 120 万篇论文。" }
+    { num: "①", en: "The value of knowledge and the return on the public investment in research depends, in part, upon wide distribution and ready access.", ref: "知识的价值以及科研公共投资的回报某种程度上取决于其广泛的传播和容易的获取。",
+      ai: { backbone: "主语 The value of knowledge and the return on the public investment、谓语 depends、介词短语 in part upon wide distribution and ready access 作状语", structure: ["介词短语 on the public investment：作 return 的后置定语","介词短语 in part：说明部分程度","介词短语 upon wide distribution and ready access：说明依赖对象"], collocations: ["the value of knowledge（知识的价值）","public investment（公共投资）","in part（部分地）","wide distribution（广泛传播）","ready access（便捷获取）"] }},
+    { num: "②", en: "It is big business.", ref: "这是门大生意。",
+      ai: { backbone: "主语 It、系动词 is、表语 big business", structure: ["该句结构简单，无明显修饰成分"], collocations: ["big business（大生意，庞大的产业）"] }},
+    { num: "③", en: "In America, the core scientific publishing market is estimated at between $7 billion and $11 billion.", ref: "在美国，核心科学出版市场的估值在 70 亿到 110 亿美元之间。",
+      ai: { backbone: "主语 the core scientific publishing market、谓语 is estimated、介词短语 at between $7 billion and $11 billion 作补语", structure: ["地点状语 In America：限定范围","介词短语 at between $7 billion and $11 billion：说明估值区间"], collocations: ["scientific publishing market（科学出版市场）","be estimated at（估计为）","core（核心的）"] }},
+    { num: "④", en: "The International Association of Scientific, Technical and Medical Publishers says that there are more than 2,000 publishers worldwide specializing in these subjects. They publish more than 1.2 million articles each year in some 16,000 journals.", ref: "国际科学、技术和医学出版商协会称，全球有超过 2000 家出版公司专门从事这些学科（科学、技术和医学）的出版，它们每年在近 16,000 种期刊中刊登超过 120 万篇论文。",
+      ai: { backbone: "主语 The International Association...、谓语 says、宾语从句 there are more than 2,000 publishers", structure: ["宾语从句 there are more than 2,000 publishers worldwide...：作 says 的宾语","现在分词短语 specializing in these subjects：作后置定语，修饰 publishers","后一句 They publish more than 1.2 million articles each year in some 16,000 journals：补充说明出版规模"], collocations: ["specialize in（专攻，专门从事）","publish articles（发表论文）","scientific, technical and medical（科技与医学的）"] }}
     ]
   },
   {
     day: 60,
     type: "英一",
     source: "2008 Text 2",
-    zh: "这一情形如今正在改变。根据 OECD 的这份报告，目前已有约 75%的学术期刊上线。全新的商业模式正在涌现。报告作者明确指出了三种主要的模式。第一种是所谓的“大订单”模式，机构订户通过网站许可协议付费获取一大批网络期刊的（阅读）权限。第二种是开放存取出版，通常依靠作者（或其所属机构）支付论文出版费用。第三种是开放存取知识库，由大学或国际实验室这样的组织资助（建立）机构储存库。现有的其他模式是这三种的混合，如延期开放存取，即，期刊在（论文发表后的）前六个月只允许付费订调者阅读论文，之后免费提供给所有想阅读的人。所有这一切可能会改变传统的同行评议程序，至少对于论文出版是如此。",
+    zh: "这一情形如今正在改变。根据 OECD 的这份报告，目前已有约 75%的学术期刊上线。全新的商业模式正在涌现。报告作者明确指出了三种主要的模式。第一种是所谓的“大订单”模式，机构订户通过网站许可协议付费获取一大批网络期刊的（阅读）权限。第二种是开放存取出版，通常依靠作者（或其所属机构）支付论文出版费用。第三种是开放存取知识库，由大学或国际实验室这样的组织资助（建立）机构储存库。现有的其他模式是这三种的混合，如延期开放存取，即，期刊在（论文发表后的）前六个月只允许付费订阅者阅读论文，之后免费提供给所有想阅读的人。所有这一切可能会改变传统的同行评议程序，至少对于论文出版是如此。",
     sentences: [
-    { num: "①", en: "This is now changing.", ref: "这一情形如今正在改变。" },
-    { num: "②", en: "According to the OECD report, some 75% of scholarly journals are now online.", ref: "根据 OECD 的这份报告，目前已有约 75%的学术期刊上线。" },
-    { num: "③", en: "Entirely new business models are emerging;", ref: "全新的商业模式正在涌现。" },
-    { num: "④", en: "three main ones were identified by the report’s authors.", ref: "报告作者明确指出了三种主要的模式。" },
-    { num: "⑤", en: "There is the so-called big deal, where institutional subscribers pay for access to a collection of online journal titles through site-licensing agreements.", ref: "第一种是所谓的“大订单”模式，机构订户通过网站许可协议付费获取一大批网络期刊的（阅读）权限。" },
-    { num: "⑥", en: "There is open-access publishing, typically supported by asking the author (or\u0003his employer) to pay for the paper to be published.", ref: "第二种是开放存取出版，通常依靠作者（或其所属机构）支付论文出版费用。" },
-    { num: "⑦", en: "Finally, there are open-access archives, where organizations such as universities or international laboratories support institutional repositories.", ref: "第三种是开放存取知识库，由大学或国际实验室这样的组织资助（建立）机构储存库。" },
-    { num: "⑧", en: "Other models exist that are hybrids of these three, such as delayed open-access, where journals allow only subscribers to read a paper for the first six months, before making it freely available to everyone who wishes to see it.", ref: "现有的其他模式是这三种的混合，如延期开放存取，即，期刊在（论文发表后的）前六个月只允许付费订调者阅读论文，之后免费提供给所有想阅读的人。" },
-    { num: "⑨", en: "All this could change the traditional form of the peer-review process, at least for the publication of papers.", ref: "所有这一切可能会改变传统的同行评议程序，至少对于论文出版是如此。" }
+    { num: "①", en: "This is now changing.", ref: "这一情形如今正在改变。",
+      ai: { backbone: "主语 This、系动词 is、表语 now changing", structure: ["时间副词 now：点明当下的变化"], collocations: ["now changing（正在改变）"] }},
+    { num: "②", en: "According to the OECD report, some 75% of scholarly journals are now online.", ref: "根据 OECD 的这份报告，目前已有约 75%的学术期刊上线。",
+      ai: { backbone: "主语 some 75% of scholarly journals、系动词 are、表语 online；According to 作状语", structure: ["介词短语 According to the OECD report：说明依据","时间副词 now：说明当下状态"], collocations: ["scholarly journals（学术期刊）","according to（根据）"] }},
+    { num: "③", en: "Entirely new business models are emerging;", ref: "全新的商业模式正在涌现。",
+      ai: { backbone: "主语 Entirely new business models、谓语 are emerging", structure: ["该句结构简单，无明显修饰成分"], collocations: ["business models（商业模式）","entirely new（全新的）","emerge（涌现）"] }},
+    { num: "④", en: "three main ones were identified by the report’s authors.", ref: "报告作者明确指出了三种主要的模式。",
+      ai: { backbone: "主语 three main ones、谓语 were identified；by 引出施动者", structure: ["介词短语 by the report's authors：说明识别者"], collocations: ["be identified by（由……识别）","the report's authors（报告作者）"] }},
+    { num: "⑤", en: "There is the so-called big deal, where institutional subscribers pay for access to a collection of online journal titles through site-licensing agreements.", ref: "第一种是所谓的“大订单”模式，机构订户通过网站许可协议付费获取一大批网络期刊的（阅读）权限。",
+      ai: { backbone: "There be 结构，主语 the so-called big deal；where 引导非限制性定语从句", structure: ["非限制性定语从句 where institutional subscribers pay for access...：具体说明 big deal 模式","介词短语 through site-licensing agreements：说明付费方式","介词短语 to a collection of online journal titles：说明访问对象"], collocations: ["the so-called big deal（所谓的大宗交易）","institutional subscribers（机构订阅者）","site-licensing agreements（站点许可协议）","a collection of（一批，一系列）"] }},
+    { num: "⑥", en: "There is open-access publishing, typically supported by asking the author (or\u0003his employer) to pay for the paper to be published.", ref: "第二种是开放存取出版，通常依靠作者（或其所属机构）支付论文出版费用。",
+      ai: { backbone: "There be 结构，主语 open-access publishing；后接过去分词作后置定语", structure: ["过去分词短语 typically supported by asking the author...to pay：作后置定语，说明其运作方式","方式状语 typically：说明典型做法","括号说明 (or his employer)：补充付费主体","不定式短语 to pay for the paper to be published：说明付费用途"], collocations: ["open-access publishing（开放获取出版）","pay for（支付……的费用）","be published（被发表）"] }},
+    { num: "⑦", en: "Finally, there are open-access archives, where organizations such as universities or international laboratories support institutional repositories.", ref: "第三种是开放存取知识库，由大学或国际实验室这样的组织资助（建立）机构储存库。",
+      ai: { backbone: "There be 结构，主语 open-access archives；where 引导非限制性定语从句", structure: ["非限制性定语从句 where organizations...support institutional repositories：说明档案模式","时间副词 Finally：表示最后一种模式","介词短语 such as universities or international laboratories：举例说明机构类型"], collocations: ["open-access archives（开放获取档案库）","institutional repositories（机构知识库）","international laboratories（国际实验室）"] }},
+    { num: "⑧", en: "Other models exist that are hybrids of these three, such as delayed open-access, where journals allow only subscribers to read a paper for the first six months, before making it freely available to everyone who wishes to see it.", ref: "现有的其他模式是这三种的混合，如延期开放存取，即，期刊在（论文发表后的）前六个月只允许付费订阅者阅读论文，之后免费提供给所有想阅读的人。",
+      ai: { backbone: "主语 Other models、谓语 exist；that 引导定语从句", structure: ["定语从句 that are hybrids of these three：修饰 models，说明其为混合模式","方式状语 such as delayed open-access：举例说明","非限制性定语从句 where journals allow only subscribers to read a paper...：说明延迟开放模式","时间状语 for the first six months：说明限制期","时间状语 before making it freely available...：说明之后免费开放","定语从句 who wishes to see it：修饰 everyone"], collocations: ["hybrids of（……的混合体）","delayed open-access（延迟开放获取）","freely available（免费提供）"] }},
+    { num: "⑨", en: "All this could change the traditional form of the peer-review process, at least for the publication of papers.", ref: "所有这一切可能会改变传统的同行评议程序，至少对于论文出版是如此。",
+      ai: { backbone: "主语 All this、谓语 could change、宾语 the traditional form of the peer-review process", structure: ["时间状语 at least：表示最低程度","介词短语 for the publication of papers：说明适用范围"], collocations: ["peer-review process（同行评审流程）","the traditional form（传统形式）","the publication of papers（论文发表）"] }}
     ],
     analysis: [
       {
@@ -1276,7 +1565,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 62,
     type: "英一",
     source: "2008 Text 3",
-    zh: "然而，体育界的这种趋势可能正在掩盖一个未被注意到的事实：美国人的身高总体上已停止增长。尽管比 140 年前普遍高约两英寸，但现在的美国人——尤其是那些出生于已在美国生活好几代的家庭中的美国人——在 20 世纪 60 年代初就明显已达身高极限。他们不大可能再有任何身高增长了。莱特州立大学的人类学家威廉·卡梅隆·查姆利称:“就当今总人群而言，在现有的基因和环境水平下，我们的身高几乎已达极限。”至于 NBA 球员，他们身高的增长似乎是“从世界各地招募球员”这种日益普遍做法的结果。",
+    zh: "然而，体育界的这种趋势可能正在掩盖一个未被注意到的事实：美国人的身高总体上已停止增长。尽管比 140 年前普遍高约两英寸，但现在的美国人——尤其是那些出生于已在美国生活好几代的家庭中的美国人——在 20 世纪 60 年代初就明显已达身高极限。他们不大可能再有任何身高增长了。莱特州立大学的人类学家威廉·卡梅隆·查姆利称:“就当今总人群而言，在现有的基因和环境水平下，我们的身高几乎已达极限。至于 NBA 球员，他们身高的增长似乎是“从世界各地招募球员”这种日益普遍做法的结果。",
     sentences: [
     { num: "①", en: "The trend in sports, though, may be obscuring an unrecognized reality: Americans have generally stopped growing.", ref: "然而，体育界的这种趋势可能正在掩盖一个未被注意到的事实：美国人的身高总体上已停止增长。" },
     { num: "②", en: "Though typically about two inches taller now than 140 years ago, today’s people—especially those born to families who have lived in the U.S. for many generations—apparently reached their limit in the early 1960s.", ref: "尽管比 140 年前普遍高约两英寸，但现在的美国人——尤其是那些出生于已在美国生活好几代的家庭中的美国人——在 20 世纪 60 年代初就明显已达身高极限。" },
@@ -1301,11 +1590,11 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 64,
     type: "英一",
     source: "2008 Text 3",
-    zh: "从基因角度来讲，避免身材过高是有好处的。分娩过程中，较大的婴儿更难通过产道。此外，尽管人类已经直主行走了几百万年，但两足和背部仍继续同两足行走的姿势相抗衡，因而难以轻易承受过大过长的肢体反复施加的压力。西北大学人类学家威廉·伦纳德称:“对身高的一些真正限制是由个体有机体的基因结构所设定的”。",
+    zh: "从基因角度来讲，避免身材过高是有好处的。分娩过程中，较大的婴儿更难通过产道。此外，尽管人类已经直立行走了几百万年，但两足和背部仍继续同两足行走的姿势相抗衡，因而难以轻易承受过大过长的肢体反复施加的压力。西北大学人类学家威廉·伦纳德称:“对身高的一些真正限制是由个体有机体的基因结构所设定的”。",
     sentences: [
     { num: "①", en: "Genetically speaking, there are advantages to avoiding substantial height.", ref: "从基因角度来讲，避免身材过高是有好处的。" },
     { num: "②", en: "During childbirth, larger babies have more difficulty passing through the birth canal.", ref: "分娩过程中，较大的婴儿更难通过产道。" },
-    { num: "③", en: "Moreover, even though humans have been upright for millions of years, our feet and back continue to struggle with bipedal posture and cannot easily withstand repeated strain imposed by oversize limbs.", ref: "此外，尽管人类已经直主行走了几百万年，但两足和背部仍继续同两足行走的姿势相抗衡，因而难以轻易承受过大过长的肢体反复施加的压力。" },
+    { num: "③", en: "Moreover, even though humans have been upright for millions of years, our feet and back continue to struggle with bipedal posture and cannot easily withstand repeated strain imposed by oversize limbs.", ref: "此外，尽管人类已经直立行走了几百万年，但两足和背部仍继续同两足行走的姿势相抗衡，因而难以轻易承受过大过长的肢体反复施加的压力。" },
     { num: "④", en: "“There are some real constraints that are set by the genetic architecture of the individual organism,” says anthropologist William Leonard of Northwestern University.", ref: "西北大学人类学家威廉·伦纳德称:“对身高的一些真正限制是由个体有机体的基因结构所设定的”。" }
     ],
     analysis: [
@@ -1331,9 +1620,9 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 65,
     type: "英一",
     source: "2008 Text 3",
-    zh: "基因最大值可能会改变，但别期望它根快就会发生。马萨诸塞州内蒂克陆军研究中心的资深人类学家克莱尔·戈登保证，90%的制服和工作台适合新兵，无需改动。她说，和篮球运动员的队服不同，军服尺寸一段时间以来从未改动。她还说，如果你需要预测在不久的将来人类的身高以设计一件装备，那基本上“你可以非常有把握地使用当前数据”",
+    zh: "基因最大值可能会改变，但别期望它很快就会发生。马萨诸塞州内蒂克陆军研究中心的资深人类学家克莱尔·戈登保证，90%的制服和工作台适合新兵，无需改动。她说，和篮球运动员的队服不同，军服尺寸一段时间以来从未改动。她还说，如果你需要预测在不久的将来人类的身高以设计一件装备，那基本上“你可以非常有把握地使用当前数据。”",
     sentences: [
-    { num: "①", en: "Genetic maximums can change, but don’t expect this to happen soon.", ref: "基因最大值可能会改变，但别期望它根快就会发生。" },
+    { num: "①", en: "Genetic maximums can change, but don’t expect this to happen soon.", ref: "基因最大值可能会改变，但别期望它很快就会发生。" },
     { num: "②", en: "Claire C. Gordon, senior anthropologist at the Army Research Center in Natick, Mass. , ensures that 90 percent of the uniforms and workstations fit recruits without alteration.", ref: "马萨诸塞州内蒂克陆军研究中心的资深人类学家克莱尔·戈登保证，90%的制服和工作台适合新兵，无需改动。" },
     { num: "③", en: "She says that, unlike those for basketball, the length of military uniforms has not changed for some time.", ref: "她说，和篮球运动员的队服不同，军服尺寸一段时间以来从未改动。" },
     { num: "④", en: "And if you need to predict human height in the near future to design a piece of equipment, Gordon says that by and large, “you could use today’s data and feel fairly confident.”", ref: "她还说，如果你需要预测在不久的将来人类的身高以设计一件装备，那基本上“你可以非常有把握地使用当前数据。”" }
@@ -1375,12 +1664,12 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 67,
     type: "英一",
     source: "2008 Text 4",
-    zh: "最为重要的是，历史学家表示，开国元勋们受到了他们那个时代文化的束缚。尽管华盛顿和杰斐逊私下表达过对奴隶制的反感，但他们也明白奴隶制是他们帮助创建的这个国家的政治与经济基石的一部分。一方面，南方承担不起放弃奴隶的后果。拥有奴隶就“如同拥有大额银行存款”，《不完美的偶像：乔治·华盛顿，他的奴隶和美利坚的创立》一书的作者温瑟柯说道。如果没有对这种“特别制度”的保护条款，其中包括一项出于国会代表权的目的而将一名奴隶视为 3/5 个人的条款，南方各州当时便不会签署宪法。",
+    zh: "最为重要的是，历史学家表示，开国元勋们受到了他们那个时代文化的束缚。尽管华盛顿和杰斐逊私下表达过对奴隶制的反感，但他们也明白奴隶制是他们帮助创建的这个国家的政治与经济基石的一部分。一方面，南方承担不起放弃奴隶的后果。拥有奴隶就“如同拥有大额银行存款”，《不完美的神：乔治·华盛顿，他的奴隶和美利坚的创立》一书的作者温瑟柯说道。如果没有对这种“特别制度”的保护条款，其中包括一项出于国会代表权的目的而将一名奴隶视为 3/5 个人的条款，南方各州当时便不会签署宪法。",
     sentences: [
     { num: "①", en: "More than anything, the historians say, the founders were hampered by the culture of their time.", ref: "最为重要的是，历史学家表示，开国元勋们受到了他们那个时代文化的束缚。" },
     { num: "②", en: "While Washington and Jefferson privately expressed distaste for slavery, they also understood that it was part of the political and economic bedrock of the country they helped to create.", ref: "尽管华盛顿和杰斐逊私下表达过对奴隶制的反感，但他们也明白奴隶制是他们帮助创建的这个国家的政治与经济基石的一部分。" },
     { num: "③", en: "For one thing, the South could not afford to part with its slaves.", ref: "一方面，南方承担不起放弃奴隶的后果。" },
-    { num: "④", en: "Owning slaves was “like having a large bank account,” says Wiencek, author of An Imperfect God: George Washington, His Slaves, and the Creation of America.", ref: "拥有奴隶就“如同拥有大额银行存款”，《不完美的偶像：乔治·华盛顿，他的奴隶和美利坚的创立》一书的作者温瑟柯说道。" },
+    { num: "④", en: "Owning slaves was “like having a large bank account,” says Wiencek, author of An Imperfect God: George Washington, His Slaves, and the Creation of America.", ref: "拥有奴隶就“如同拥有大额银行存款”，《不完美的神：乔治·华盛顿，他的奴隶和美利坚的创立》一书的作者温瑟柯说道。" },
     { num: "⑤", en: "The southern states would not have signed the Constitution without protections for the “peculiar institution,” including a clause that counted a slave as three fifths of a man for purposes of congressional representation.", ref: "如果没有对这种“特别制度”的保护条款，其中包括一项出于国会代表权的目的而将一名奴隶视为 3/5 个人的条款，南方各州当时便不会签署宪法。" }
     ]
   },
@@ -1420,7 +1709,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 69,
     type: "英一",
     source: "2009 Text 1",
-    zh: "习惯是个奇特的东西。我们机械地按其行事：将大脑设定为自动驾驶模式，放松地进入熟悉的常规所带来的无意识舒适状态。威廉·华兹华斯在 19 世纪曾说过:“不是选择而是习惯支配着那些不善思考的人们。”在不断变化的 21 世纪，甚至“习惯”这个词本身都带有负面含义。因此，将习惯同创造力和创新在同一语境下讨论似乎矛盾。但脑研究人员发现，当我们有意识地培养新习惯时，我们会在大脑中生成相应的（神经）通路，甚至生成全新的脑细胞，（这些新的通路和脑细胞）能使我们的思路跳上新的、创新的轨道。",
+    zh: "习惯是个奇特的东西。我们机械地按其行事：将大脑设定为自动驾驶模式，放松地进入熟悉的常规所带来的无意识舒适状态。威廉·华兹华斯在 19 世纪曾说过:“不是选择而是习惯支配着那些不善思考的人们。在不断变化的 21 世纪，甚至“习惯”这个词本身都带有负面含义。因此，将习惯同创造力和创新在同一语境下讨论似乎矛盾。但脑研究人员发现，当我们有意识地培养新习惯时，我们会在大脑中生成相应的（神经）通路，甚至生成全新的脑细胞，（这些新的通路和脑细胞）能使我们的思路跳上新的、创新的轨道。",
     sentences: [
     { num: "①", en: "Habits are a funny thing.", ref: "习惯是个奇特的东西。" },
     { num: "②", en: "We reach for them mindlessly, setting our brains on auto-pilot and relaxing into the unconscious comfort of familiar routine.", ref: "我们机械地按其行事：将大脑设定为自动驾驶模式，放松地进入熟悉的常规所带来的无意识舒适状态。" },
@@ -1469,10 +1758,10 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 71,
     type: "英一",
     source: "2009 Text 1",
-    zh: "但是，不必费力试图根除旧习惯。旦那些常规做法的“辙痕”被印入大脑，则它们将长久存在。相反，我们刻意培养的新习惯会在大脑中生成相似的通路，它们可以绕开那些旧的线路。《开放的思维》一书作者道娜·马尔科娃说:“创新所需的首要条件是强烈的好奇心。但我们却被教导去‘做决定’，正如我们的总统称自己是‘决策者’一样”。她又补充道，然而，“做决定是只保留一种可能而将其他可能全部扼杀。（但是，）一个出色的创新型思考者却总在探寻着其他多种可能性。”",
+    zh: "但是，不必费力试图根除旧习惯。一旦那些常规做法的“辙痕”被印入大脑，则它们将长久存在。相反，我们刻意培养的新习惯会在大脑中生成相似的通路，它们可以绕开那些旧的线路。《开放的思维》一书作者道娜·马尔科娃说:“创新所需的首要条件是强烈的好奇心。但我们却被教导去‘做决定’，正如我们的总统称自己是‘决策者’一样”。她又补充道，然而，“做决定是只保留一种可能而将其他可能全部扼杀。（但是，）一个出色的创新型思考者却总在探寻着其他多种可能性。”",
     sentences: [
     { num: "①", en: "But don’t bother trying to kill off old habits;", ref: "但是，不必费力试图根除旧习惯。" },
-    { num: "②", en: "once those ruts of procedure are worn into the brain, they’re there to stay.", ref: "旦那些常规做法的“辙痕”被印入大脑，则它们将长久存在。" },
+    { num: "②", en: "once those ruts of procedure are worn into the brain, they’re there to stay.", ref: "一旦那些常规做法的“辙痕”被印入大脑，则它们将长久存在。" },
     { num: "③", en: "Instead, the new habits we deliberately press into ourselves create parallel pathways that can bypass those old roads.", ref: "相反，我们刻意培养的新习惯会在大脑中生成相似的通路，它们可以绕开那些旧的线路。" },
     { num: "④", en: "“The first thing needed for innovation is a fascination with wonder,” says Dawna Markova, author of The Open Mind.", ref: "《开放的思维》一书作者道娜·马尔科娃说:“创新所需的首要条件是强烈的好奇心。" },
     { num: "⑤", en: "“But we are taught instead to ‘decide,’ just as our president calls himself ‘the Decider.’", ref: "但我们却被教导去‘做决定’，正如我们的总统称自己是‘决策者’一样”。" },
@@ -1495,7 +1784,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 73,
     type: "英一",
     source: "2009 Text 1",
-    zh: "当前对标准化测试的重视就是强调分析和流程，这意味着我们很少有人会本能地使用创新和协作的思维方式。“这打破了美国信仰体系中的主要准则——任何人可以做任何事，”2006年出版的《今年我打算……》一书的作者、马尔科娃女士的商业伙伴赖安说道。“这个准则是我们一直以来维系的一个谎言，它助长了平庸。了解你所擅长的并多加练习才能造就辉煌。”这正是培养新习惯的意义所在。",
+    zh: "当前对标准化测试的重视就是强调分析和流程，这意味着我们很少有人会本能地使用创新和协作的思维方式。“这打破了美国信仰体系中的主要准则——任何人可以做任何事，”2006年出版的《今年我打算……》一书的作者、马尔科娃女士的商业伙伴赖安说道。“这个准则是我们一直以来维系的一个谎言，它助长了平庸。了解你所擅长的并多加练习才能造就辉煌。这正是培养新习惯的意义所在。",
     sentences: [
     { num: "①", en: "The current emphasis on standardized testing highlights analysis and procedure, meaning that few of us inherently use our innovative and collaborative modes of thought.", ref: "当前对标准化测试的重视就是强调分析和流程，这意味着我们很少有人会本能地使用创新和协作的思维方式。" },
     { num: "②", en: "“This breaks the major rule in the American belief system — that anyone can do anything,” explains M. J. Ryan, author of the 2006 book This Year I Will... and Ms. Markova’s business partner.", ref: "“这打破了美国信仰体系中的主要准则——任何人可以做任何事，”2006年出版的《今年我打算……》一书的作者、马尔科娃女士的商业伙伴赖安说道。" },
@@ -1532,7 +1821,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 76,
     type: "英一",
     source: "2009 Text 2",
-    zh: "但一些观察家持怀疑态度。纽约大学社会学家特洛伊·达斯特说，“那些声称自己在做家谱检测的人所宣扬的是一种伪精确。”他指出，每个人都有许多位祖先——仅上溯几百年就数以百计。然而大部分家谱检测只考虑单一的谱系，或者是同一父系男性遗传的 Y 染色体，或者是仅通过母亲传递（给子女）的线粒体 DNA。这种 DNA 只能揭示一两位祖先的基因信息，尽管，譬如，仅上溯三代，每个人还有另外六位曾祖，上溯四代，还有另外十四位高祖。",
+    zh: "但一些观察家持怀疑态度。纽约大学社会学家特洛伊·达斯特说，“那些声称自己在做家谱检测的人所宣扬的是一种伪精确。他指出，每个人都有许多位祖先——仅上溯几百年就数以百计。然而大部分家谱检测只考虑单一的谱系，或者是同一父系男性遗传的 Y 染色体，或者是仅通过母亲传递（给子女）的线粒体 DNA。这种 DNA 只能揭示一两位祖先的基因信息，尽管，譬如，仅上溯三代，每个人还有另外六位曾祖，上溯四代，还有另外十四位高祖。",
     sentences: [
     { num: "①", en: "But some observers are skeptical.", ref: "但一些观察家持怀疑态度。" },
     { num: "②", en: "“There is a kind of false precision being hawked by people claiming they are doing ancestry testing,” says Troy Duster, a New York University sociologist.", ref: "纽约大学社会学家特洛伊·达斯特说，“那些声称自己在做家谱检测的人所宣扬的是一种伪精确。" },
@@ -1596,10 +1885,10 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 79,
     type: "英一",
     source: "2009 Text 3",
-    zh: "具有讽刺意味的是，这一观点最先在美国得到印证。不久前，随着美国经济进入衰退期而日本经济处于泡沫破灭前的顶峰，美国劳动大军被嘲调受教育水平低，（这一点）被看作是其经济表现不振的主要原因之一。从过去到现在，日本在汽车装配生产力方面一直都保持全球领先地位。然而研究表明，本田、日产、丰田（三家日本汽车商）在美国的工厂达到了日本本土工厂生产力的约 95%，这归功于美国工人接受的在职培训。",
+    zh: "具有讽刺意味的是，这一观点最先在美国得到印证。不久前，随着美国经济进入衰退期而日本经济处于泡沫破灭前的顶峰，美国劳动大军被嘲笑受教育水平低，（这一点）被看作是其经济表现不振的主要原因之一。从过去到现在，日本在汽车装配生产力方面一直都保持全球领先地位。然而研究表明，本田、日产、丰田（三家日本汽车商）在美国的工厂达到了日本本土工厂生产力的约 95%，这归功于美国工人接受的在职培训。",
     sentences: [
     { num: "①", en: "Ironically, the first evidence for this idea appeared in the United States.", ref: "具有讽刺意味的是，这一观点最先在美国得到印证。" },
-    { num: "②", en: "Not long ago, with the country entering a recession and Japan at its pre-bubble peak, the U.S. workforce was derided as poorly educated and one of primary causes of the poor U.S. economic performance.", ref: "不久前，随着美国经济进入衰退期而日本经济处于泡沫破灭前的顶峰，美国劳动大军被嘲调受教育水平低，（这一点）被看作是其经济表现不振的主要原因之一。" },
+    { num: "②", en: "Not long ago, with the country entering a recession and Japan at its pre-bubble peak, the U.S. workforce was derided as poorly educated and one of primary causes of the poor U.S. economic performance.", ref: "不久前，随着美国经济进入衰退期而日本经济处于泡沫破灭前的顶峰，美国劳动大军被嘲笑受教育水平低，（这一点）被看作是其经济表现不振的主要原因之一。" },
     { num: "③", en: "Japan was, and remains, the global leader in automotive-assembly productivity.", ref: "从过去到现在，日本在汽车装配生产力方面一直都保持全球领先地位。" },
     { num: "④", en: "Yet the research revealed that the U.S. factories of Honda, Nissan, and Toyota achieved about 95 percent of the productivity of their Japanese counterparts — a result of the training that U.S. workers received on the job.", ref: "然而研究表明，本田、日产、丰田（三家日本汽车商）在美国的工厂达到了日本本土工厂生产力的约 95%，这归功于美国工人接受的在职培训。" }
     ]
@@ -1630,7 +1919,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 82,
     type: "英一",
     source: "2009 Text 3",
-    zh: "随着教育的改善，人类生产力潜能也得到了提高。当竞争环境迫使我们的祖先去获得这种潜能时，他们反过来又能受得起更多教育。对出色经济表现所要求的复杂政治体制来说，这种日益提高的教育水平可能是一个必要但不充分条件。因此，如果不进行“只能靠更广泛正规教育才有可能实现”的政治变革，贫困国家可能无法摆脱其贫困牢笼。但是，正规教育的缺乏并不会限制发展中国家劳动人口在可预见的未来从本质上提高生产力；相反，对生产力提高的限制解释了为什么这些国家的教育没能发展得更快。",
+    zh: "随着教育的改善，人类生产力潜能也得到了提高。当竞争环境迫使我们的祖先去获得这种潜能时，他们反过来又能受得起更多教育。对出色经济表现所要求的复杂政治体制来说，这种日益提高的教育水平可能是一个必要但不充分条件。因此，如果不进行“只能靠更广泛正规教育才有可能实现”的政治变革，贫困国家可能无法摆脱其贫困牢笼。但是，正规教育的缺乏并不会限制发展中国家劳动人口在可预见的未来从本质上提高生产力。相反，对生产力提高的限制解释了为什么这些国家的教育没能发展得更快。",
     sentences: [
     { num: "①", en: "As education improved, humanity’s productivity potential increased as well.", ref: "随着教育的改善，人类生产力潜能也得到了提高。" },
     { num: "②", en: "When the competitive environment pushed our ancestors to achieve that potential, they could in turn afford more education.", ref: "当竞争环境迫使我们的祖先去获得这种潜能时，他们反过来又能受得起更多教育。" },
@@ -1701,7 +1990,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 86,
     type: "英一",
     source: "2009 Text 4",
-    zh: "然而，我们不该忘记，大多数新英格兰人并未受过良好教育。尽管很少有手工艺者和农民——更不用说侍从和仆人——留下可供分析的书面作品，但他们的观点显然不那么足够理智。他们的思维往往带有传统的迷信色彩。一位名叫约翰·丹奈的裁缝，于 17 世纪 30 年代后期移居新大陆，他所留下的关于离开英格兰原因的叙述里充满了神迹。性的困惑、经济挫折和宗教期望——所有这些都在某一关键性时刻一齐涌来，他打开《圣经》，告诉父亲他读到的第一行字将决定他的命运，接着便读到了以下神奇的语句:“从他们中走出来吧，不要沾染不洁之物，我愿成为你的上帝，你就是我的子民。”人们会纳闷，丹奈在清教教会里听那些精心诠释的布道文时作何感想。另一方面，很多移民并没有丹奈这么虔诚的宗教信仰，正如某一牧师在与沿海居民打交道时所意识到的那样。那些人嘲弄地说来新大陆并非为了宗教，“我们的主要目的是捕鱼。”",
+    zh: "然而，我们不该忘记，大多数新英格兰人并未受过良好教育。尽管很少有手工艺者和农民——更不用说侍从和仆人——留下可供分析的书面作品，但他们的观点显然不那么足够理智。他们的思维往往带有传统的迷信色彩。一位名叫约翰·丹奈的裁缝，于 17 世纪 30 年代后期移居新大陆，他所留下的关于离开英格兰原因的叙述里充满了神迹。性的困惑、经济挫折和宗教期望——所有这些都在某一关键性时刻一齐涌来，他打开《圣经》，告诉父亲他读到的第一行字将决定他的命运，接着便读到了以下神奇的语句:“从他们中走出来吧，不要沾染不洁之物，我愿成为你的上帝，你就是我的子民。人们会纳闷，丹奈在清教教会里听那些精心诠释的布道文时作何感想。另一方面，很多移民并没有丹奈这么虔诚的宗教信仰，正如某一牧师在与沿海居民打交道时所意识到的那样，那些人嘲弄地说他们来新大陆并非为了宗教。“我们的主要目的是捕鱼。”",
     sentences: [
     { num: "①", en: "We should not forget, however, that most New Englanders were less well educated.", ref: "然而，我们不该忘记，大多数新英格兰人并未受过良好教育。" },
     { num: "②", en: "While few crafts men or farmers, let alone dependents and servants, left literary compositions to be analyzed, it is obvious that their views were less fully intellectualized.", ref: "尽管很少有手工艺者和农民——更不用说侍从和仆人——留下可供分析的书面作品，但他们的观点显然不那么足够理智。" },
@@ -1709,8 +1998,8 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     { num: "④", en: "A tailor named John Dane, who emigrated in the late 1630s, left an account of his reasons for leaving England that is filled with signs.", ref: "一位名叫约翰·丹奈的裁缝，于 17 世纪 30 年代后期移居新大陆，他所留下的关于离开英格兰原因的叙述里充满了神迹。" },
     { num: "⑤", en: "Sexual confusion, economic frustrations, and religious hope — all came together in a decisive moment when he opened the Bible, told his father that the first line he saw would settle his fate, and read the magical words: “Come out from among them, touch no unclean thing, and I will be your God and you shall be my people.”", ref: "性的困惑、经济挫折和宗教期望——所有这些都在某一关键性时刻一齐涌来，他打开《圣经》，告诉父亲他读到的第一行字将决定他的命运，接着便读到了以下神奇的语句:“从他们中走出来吧，不要沾染不洁之物，我愿成为你的上帝，你就是我的子民。" },
     { num: "⑥", en: "One wonders what Dane thought of the careful sermons explaining the Bible that he heard in Puritan churches.", ref: "人们会纳闷，丹奈在清教教会里听那些精心诠释的布道文时作何感想。" },
-    { num: "⑦", en: "Meanwhile, many settlers had slighter religious commitments than Dane’s, as one clergyman learned in confronting folk along the coast who mocked that they had not come to the New World for religion.", ref: "另一方面，很多移民并没有丹奈这么虔诚的宗教信仰，正如某一牧师在与沿海居民打交道时所意识到的那样。" },
-    { num: "⑧", en: "“Our main end was to catch fish.”", ref: "那些人嘲弄地说来新大陆并非为了宗教，“我们的主要目的是捕鱼。”" }
+    { num: "⑦", en: "Meanwhile, many settlers had slighter religious commitments than Dane’s, as one clergyman learned in confronting folk along the coast who mocked that they had not come to the New World for religion.", ref: "另一方面，很多移民并没有丹奈这么虔诚的宗教信仰，正如某一牧师在与沿海居民打交道时所意识到的那样，那些人嘲弄地说他们来新大陆并非为了宗教。" },
+    { num: "⑧", en: "“Our main end was to catch fish.”", ref: "“我们的主要目的是捕鱼。”" }
     ],
     analysis: [
       {
@@ -1806,7 +2095,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 88,
     type: "英一",
     source: "2010 Text 1",
-    zh: "我们与 20 世纪初至二战前夕英国的杂感式报纸评论就更是无缘了，当时，新闻用纸价廉如土，风格独特的艺术评论被看作是对刊登它的出版物的一种装饰在那个遥远的年代，各大报纸的评论家们会对所报道的事件撰写详尽入微的评论这被视作理所当然。他们从事的是严肃的工作，人们信任，即便是那些以轻松活泼的方式展现自己学问的评论家，如萧伯纳和欧内斯特·纽曼，也都清楚自己在做什么。这些人相信新闻写作是他们的天职，并为自己的文章能发表在日报上而感到自豪。“能够拥有足够的智慧或文学天赋能尽职尽责做好新闻写作工作本分的作家是如此之少”，纽曼写道，“以至于我不禁想把‘新闻写作’定义成为‘没读者的作家对有读者作家的蔑称’”。",
+    zh: "我们与 20 世纪初至二战前夕英国的杂感式报纸评论就更是无缘了，当时，新闻用纸价廉如土，风格独特的艺术评论被看作是对刊登它的出版物的一种装饰。在那个遥远的年代，各大报纸的评论家们会对所报道的事件撰写详尽入微的评论这被视作理所当然。他们从事的是严肃的工作，人们信任，即便是那些以轻松活泼的方式展现自己学问的评论家，如萧伯纳和欧内斯特·纽曼，也都清楚自己在做什么。这些人相信新闻写作是他们的天职，并为自己的文章能发表在日报上而感到自豪。“能够拥有足够的智慧或文学天赋能尽职尽责做好新闻写作工作本分的作家是如此之少”，纽曼写道，“以至于我不禁想把‘新闻写作’定义成为‘没读者的作家对有读者作家的蔑称’”。",
     sentences: [
     { num: "①", en: "We are even farther removed from the unfocused newspaper reviews published in England between the turn of the 20th century and the eve of World War II, at a time when newsprint was dirt-cheap and stylish arts criticism was considered an ornament to the publications in which it appeared.", ref: "我们与 20 世纪初至二战前夕英国的杂感式报纸评论就更是无缘了，当时，新闻用纸价廉如土，风格独特的艺术评论被看作是对刊登它的出版物的一种装饰。" },
     { num: "②", en: "In those far-off days, it was taken for granted that the critics of major papers would write in detail and at length about the events they covered.", ref: "在那个遥远的年代，各大报纸的评论家们会对所报道的事件撰写详尽入微的评论这被视作理所当然。" },
@@ -1833,16 +2122,16 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 89,
     type: "英一",
     source: "2010 Text 1",
-    zh: "遗憾的是，这些评论家几乎被完全遗忘了，内维尔·卡达斯从 1917 年到 1975 年去世前不久，一直在为《曼彻斯特卫报》撰写评论文章，可现在仅以板球比赛短评撰写人为人所知。但是，在他的一生之中，他也是英国最优秀的古典音乐评论家之一，他同时还是一位文体家，如此之广受赞誉，以致于其《自传》（1947 年出版）成为一本畅销书。1967 年，他受封为爵士，是第一位享有如此殊荣的音乐评论家。然而现如今，他的著作中只有一本仍在印行，他大量的乐评作品除了专业人士之外，无人知晓。卡达斯的评论还有再度盛行的可能吗？前景似乎非常渺茫。早在他去世前的很长一段时间，新闻业的品味就已经改变。后现代的读者们几乎不再喜欢他所专长的极其华丽的维多利亚-爱德华时期风格的散文。更何况，音乐评论的业余传统已经迅速走向衰落。",
+    zh: "遗憾的是，这些评论家几乎被完全遗忘了。内维尔·卡达斯从 1917 年到 1975 年去世前不久，一直在为《曼彻斯特卫报》撰写评论文章，可现在仅以板球比赛短评撰写人为人所知。但是，在他的一生之中，他也是英国最优秀的古典音乐评论家之一，他同时还是一位文体家，如此之广受赞誉，以致于其《自传》（1947 年出版）成为一本畅销书。1967 年，他受封为爵士，是第一位享有如此殊荣的音乐评论家。然而现如今，他的著作中只有一本仍在印行，他大量的乐评作品除了专业人士之外，无人知晓。前景似乎非常渺茫。前景似乎非常渺茫。早在他去世前的很长一段时间，新闻业的品味就已经改变。后现代的读者们几乎不再喜欢他所专长的极其华丽的维多利亚-爱德华时期风格的散文。更何况，音乐评论的业余传统已经迅速走向衰落。",
     sentences: [
-    { num: "①", en: "Unfortunately, these critics are virtually forgotten.", ref: "遗憾的是，这些评论家几乎被完全遗忘了，内维尔·卡达斯从 1917 年到 1975 年去世前不久，一直在为《曼彻斯特卫报》撰写评论文章，可现在仅以板球比赛短评撰写人为人所知。" },
-    { num: "②", en: "Neville Cardus, who wrote for the Manchester Guardian from 1917 until shortly before his death in 1975, is now known solely as a writer of essays on the game of cricket.", ref: "但是，在他的一生之中，他也是英国最优秀的古典音乐评论家之一，他同时还是一位文体家，如此之广受赞誉，以致于其《自传》（1947 年出版）成为一本畅销书。" },
-    { num: "③", en: "During his lifetime, though, he was also one of England’s foremost classical-music critics, and a stylist so widely admired that his Autobiography (1947) became a best-seller.", ref: "1967 年，他受封为爵士，是第一位享有如此殊荣的音乐评论家。" },
-    { num: "④", en: "He was knighted in 1967, the first music critic to be so honored.", ref: "然而现如今，他的著作中只有一本仍在印行，他大量的乐评作品除了专业人士之外，无人知晓。" },
-    { num: "⑤", en: "Yet only one of his books is now in print, and his vast body of writings on music is unknown save to specialists.", ref: "卡达斯的评论还有再度盛行的可能吗？" },
+    { num: "①", en: "Unfortunately, these critics are virtually forgotten.", ref: "遗憾的是，这些评论家几乎被完全遗忘了。" },
+    { num: "②", en: "Neville Cardus, who wrote for the Manchester Guardian from 1917 until shortly before his death in 1975, is now known solely as a writer of essays on the game of cricket.", ref: "内维尔·卡达斯从 1917 年到 1975 年去世前不久，一直在为《曼彻斯特卫报》撰写评论文章，可现在仅以板球比赛短评撰写人为人所知。" },
+    { num: "③", en: "During his lifetime, though, he was also one of England’s foremost classical-music critics, and a stylist so widely admired that his Autobiography (1947) became a best-seller.", ref: "但是，在他的一生之中，他也是英国最优秀的古典音乐评论家之一，他同时还是一位文体家，如此之广受赞誉，以致于其《自传》（1947 年出版）成为一本畅销书。" },
+    { num: "④", en: "He was knighted in 1967, the first music critic to be so honored.", ref: "1967 年，他受封为爵士，是第一位享有如此殊荣的音乐评论家。" },
+    { num: "⑤", en: "Yet only one of his books is now in print, and his vast body of writings on music is unknown save to specialists.", ref: "然而现如今，他的著作中只有一本仍在印行，他大量的乐评作品除了专业人士之外，无人知晓。" },
     { num: "⑥", en: "Is there any chance that Cardus’s criticism will enjoy a revival?", ref: "前景似乎非常渺茫。" },
-    { num: "⑦", en: "The prospect seems remote.", ref: "早在他去世前的很长一段时间，新闻业的品味就已经改变。" },
-    { num: "⑧", en: "Journalistic tastes had changed long before his death, and postmodern readers have little use for the richly upholstered Vicwardian prose in which he specialized.", ref: "后现代的读者们几乎不再喜欢他所专长的极其华丽的维多利亚-爱德华时期风格的散文。" },
+    { num: "⑦", en: "The prospect seems remote.", ref: "前景似乎非常渺茫。" },
+    { num: "⑧", en: "Journalistic tastes had changed long before his death, and postmodern readers have little use for the richly upholstered Vicwardian prose in which he specialized.", ref: "早在他去世前的很长一段时间，新闻业的品味就已经改变。后现代的读者们几乎不再喜欢他所专长的极其华丽的维多利亚-爱德华时期风格的散文。" },
     { num: "⑨", en: "Moreover, the amateur tradition in music criticism has been in headlong retreat.", ref: "更何况，音乐评论的业余传统已经迅速走向衰落。" }
     ]
   },
@@ -1919,7 +2208,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 93,
     type: "英一",
     source: "2010 Text 2",
-    zh: "联邦巡回法院的（上述）行动紧随最高法院近期一连串缩小专利持有人受保护范围的决议之后。比如，去年 4 月，法官们表示太多的专利授给了平淡无奇的“发明”联邦巡回法院的法官们正在“对最高法院的反专利趋势作出反应”，身兼专利律师和乔治华盛顿大学法学院教授的哈拉尔德·C·韦格纳说。",
+    zh: "联邦巡回法院的（上述）行动紧随最高法院近期一连串缩小专利持有人受保护范围的决议之后。比如，去年 4 月，法官们表示太多的专利授给了平淡无奇的“发明”。联邦巡回法院的法官们正在“对最高法院的反专利趋势作出反应”，身兼专利律师和乔治华盛顿大学法学院教授的哈拉尔德·C·韦格纳说。",
     sentences: [
     { num: "①", en: "The Federal Circuit’s action comes in the wake of a series of recent decisions by the Supreme Court that has narrowed the scope of protections for patent holders.", ref: "联邦巡回法院的（上述）行动紧随最高法院近期一连串缩小专利持有人受保护范围的决议之后。" },
     { num: "②", en: "Last April, for example, the justices signaled that too many patents were being upheld for “inventions” that are obvious.", ref: "比如，去年 4 月，法官们表示太多的专利授给了平淡无奇的“发明”。" },
@@ -2093,7 +2382,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 102,
     type: "英二",
     source: "2010 Text 1",
-    zh: "赫斯特作品拍卖之后的一段时间内，任何种类的消费都变得极其不合时宜在艺术品领域，这意味着收藏家远离了画廊和拍卖场。2008 年当年截至 11 月，当代艺术品的销售额下降了2/3，而在其最热门的领域则下降了近 90%。几周之内，全球最大的两家拍卖行，苏富比和佳士得，不得不向那些将艺术品交由它们售卖的客户支付将近 2 亿美元的保证金。",
+    zh: "赫斯特作品拍卖之后的一段时间内，任何种类的消费都变得极其不合时宜。在艺术品领域，这意味着收藏家远离了画廊和拍卖场。2008 年当年截至 11 月，当代艺术品的销售额下降了2/3，而在其最热门的领域则下降了近 90%。几周之内，全球最大的两家拍卖行，苏富比和佳士得，不得不向那些将艺术品交由它们售卖的客户支付将近 2 亿美元的保证金。",
     sentences: [
     { num: "①", en: "In the weeks and months that followed Mr. Hirst’s sale, spending of any sort became deeply unfashionable.", ref: "赫斯特作品拍卖之后的一段时间内，任何种类的消费都变得极其不合时宜。" },
     { num: "②", en: "In the art world that meant collectors stayed away from galleries and salerooms.", ref: "在艺术品领域，这意味着收藏家远离了画廊和拍卖场。" },
@@ -2105,7 +2394,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 103,
     type: "英二",
     source: "2010 Text 1",
-    zh: "当前艺术品市场的下滑是自 1989 年底日本停止购买印象派作品以来最糟糕的一次。专家估计这次下滑使艺术品价值较之其峰值平均下跌了约 40%，不过有些艺术品价格的波动幅度更大。但是佳士得的首席执行官 Edward Dolman 说:“我非常肯定我们现在已处于谷底。”他说，此次衰退不同于上次的地方在于现在市场上仍然有买家。几乎所有接受此次特别报道的受访者都说，当前最大的问题不是缺少需求，而是缺少好的售卖作品。3D——死亡、债务和离婚——依然是将艺术品推向市场的三大因素。但那些不是非卖不可的人都在远离市场，等待市场信心的回转。",
+    zh: "当前艺术品市场的下滑是自 1989 年底日本停止购买印象派作品以来最糟糕的一次。专家估计这次下滑使艺术品价值较之其峰值平均下跌了约 40%，不过有些艺术品价格的波动幅度更大。但是佳士得的首席执行官 Edward Dolman 说:“我非常肯定我们现在已处于谷底。他说，此次衰退不同于上次的地方在于现在市场上仍然有买家。几乎所有接受此次特别报道的受访者都说，当前最大的问题不是缺少需求，而是缺少好的售卖作品。3D——死亡、债务和离婚——依然是将艺术品推向市场的三大因素。但那些不是非卖不可的人都在远离市场，等待市场信心的回转。",
     sentences: [
     { num: "①", en: "The current downturn in the art market is the worst since the Japanese stopped buying Impressionists at the end of 1989.", ref: "当前艺术品市场的下滑是自 1989 年底日本停止购买印象派作品以来最糟糕的一次。" },
     { num: "②", en: "This time experts reckon that prices are about 40% down on their peak on average, though some have been far more fluctuant.", ref: "专家估计这次下滑使艺术品价值较之其峰值平均下跌了约 40%，不过有些艺术品价格的波动幅度更大。" },
@@ -2120,7 +2409,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 104,
     type: "英二",
     source: "2010 Text 2",
-    zh: "在弗吉尼亚郊区一个住所的客厅里，我正在一次小型聚会上发言——那是一个女性团体，但也邀请了男性参加。整个晚上，有位男士表现得特别健谈，频繁地发表观点、讲述趣闻轶事，而他的妻子则静静地坐在他身旁的沙发上。聚会接近尾声时，我评论说，女人经常会抱怨丈夫不与自己交谈。这位男士立即点头表示同意。他指了指妻子说:“她是我们家的话匣子。”满屋哄堂大笑；这位男士一脸茫然和受伤。“这是真的，”他解释说。“我下班回家后总是无话可说。如果她不一直和我说话，我们整晚都会在沉默中度过。”这段情节证明了一种具有讽刺意味的现象确实存在：尽管美国男性在公共场合常常比女性更加健谈，在家里却比妻子话少。而正是这种模式正在严重破坏婚姻。",
+    zh: "在弗吉尼亚郊区一个住所的客厅里，我正在一次小型聚会上发言——那是一个女性团体，但也邀请了男性参加。整个晚上，有位男士表现得特别健谈，频繁地发表观点、讲述趣闻轶事，而他的妻子则静静地坐在他身旁的沙发上。聚会接近尾声时，我评论说，女人经常会抱怨丈夫不与自己交谈。这位男士立即点头表示同意。他指了指妻子说:“她是我们家的话匣子。满屋哄堂大笑；这位男士一脸茫然和受伤。“这是真的，”他解释说。“我下班回家后总是无话可说。如果她不一直和我说话，我们整晚都会在沉默中度过。这段情节证明了一种具有讽刺意味的现象确实存在：尽管美国男性在公共场合常常比女性更加健谈，在家里却比妻子话少。而正是这种模式正在严重破坏婚姻。",
     sentences: [
     { num: "①", en: "I was addressing a small gathering in a suburban Virginia living room—a women’s group that had invited men to join them.", ref: "在弗吉尼亚郊区一个住所的客厅里，我正在一次小型聚会上发言——那是一个女性团体，但也邀请了男性参加。" },
     { num: "②", en: "Throughout the evening, one man had been particularly talkative, frequently offering ideas and anecdotes, while his wife sat silently beside him on the couch.", ref: "整个晚上，有位男士表现得特别健谈，频繁地发表观点、讲述趣闻轶事，而他的妻子则静静地坐在他身旁的沙发上。" },
@@ -2228,7 +2517,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 110,
     type: "英二",
     source: "2010 Text 3",
-    zh: "最近从宝洁退休的消费心理学家卡罗尔·伯宁说:“如果能成为每天或每周的惯例，那我们的产品就成功了”。宝洁公司去年卖出了 760 亿美元的汰渍、佳洁士和其他产品。“生成积极习惯是改善消费者生活的重要部分，它也对使新产品具有商业可行性至关重要。”通过实验和观察，伯宁博士等社会科学家已了解到，通过大量无休止的广告将“某些行为”与“习惯暗示”联系起来的做法是有效的。随着这门新兴习惯科学的兴起，这些策略被用于销售价值尚属疑问的美容霜或者不健康的食品，从而引发了激烈辩论。",
+    zh: "最近从宝洁退休的消费心理学家卡罗尔·伯宁说：“如果能成为每天或每周的惯例，那我们的产品就成功了”。宝洁公司去年卖出了 760 亿美元的汰渍、佳洁士和其他产品。创建积极习惯是改善消费者生活的重要部分，它也对使新产品具有商业可行性至关重要。通过实验和观察，伯宁博士等社会科学家已了解到，通过大量无休止的广告将“某些行为”与“习惯暗示”联系起来的做法是有效的。随着这门新兴习惯科学的兴起，这些策略被用于销售价值尚属疑问的美容霜或者不健康的食品，从而引发了激烈辩论。",
     sentences: [
     { num: "①", en: "“Our products succeed when they become part of daily or weekly patterns,” said Carol Berning, a consumer psychologist who recently retired from Procter & Gamble, the company that sold $76 billion of Tide, Crest and other products last year.", ref: "最近从宝洁退休的消费心理学家卡罗尔·伯宁说：“如果能成为每天或每周的惯例，那我们的产品就成功了”。宝洁公司去年卖出了 760 亿美元的汰渍、佳洁士和其他产品。" },
     { num: "②", en: "“Creating positive habits is a huge part of improving our consumers’ lives, and it’s essential to making new products commercially viable.”", ref: "创建积极习惯是改善消费者生活的重要部分，它也对使新产品具有商业可行性至关重要。" },
@@ -2653,11 +2942,11 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 135,
     type: "英二",
     source: "2012 Text 2",
-    zh: "穿粉色好看：成年女性不记得自己曾如此痴迷这种颜色，然而它却充斥着我们年轻女孩的生活。并不是粉色本身不好，而是它只是七色彩虹中那么一丝而已。虽说粉色在某种程度上能为少女时代添色，但它也一而再地，强有力地将女孩特质与其外表相熔合此后，粉色就呈现出女孩间，甚至两岁女孩间的共性：纯真，而且粉色也被当成了女孩纯真的证明。环顾四周，我绝望地发现，人们对女孩生活和兴趣的想象是如此地贫乏。",
+    zh: "穿粉色好看：成年女性不记得自己曾如此痴迷这种颜色，然而它却充斥着我们年轻女孩的生活。并不是粉色本身不好，而是它只是七色彩虹中那么一丝而已；尽管粉色在某种程度上能为少女时代添色，但它也一而再、强有力地将女孩的身份与外表相融合。此后，粉色就呈现出女孩间，甚至两岁女孩间的共性：纯真，而且粉色也被当成了女孩纯真的证明。环顾四周，我绝望地发现，人们对女孩生活和兴趣的想象是如此地贫乏。",
     sentences: [
     { num: "①", en: "Pretty in pink: adult women do not remember being so obsessed with the color, yet it is pervasive in our young girls’ lives.", ref: "穿粉色好看：成年女性不记得自己曾如此痴迷这种颜色，然而它却充斥着我们年轻女孩的生活。" },
-    { num: "②", en: "It is not that pink is intrinsically bad, but it is such a tiny slice of the rainbow and, though it may celebrate girlhood in one way, it also repeatedly and firmly fuses girls’ identity to appearance.", ref: "并不是粉色本身不好，而是它只是七色彩虹中那么一丝而已。" },
-    { num: "③", en: "Then it presents that connection, even among two-year-olds, between girls as not only innocent but as evidence of innocence.", ref: "虽说粉色在某种程度上能为少女时代添色，但它也一而再地，强有力地将女孩特质与其外表相熔合此后，粉色就呈现出女孩间，甚至两岁女孩间的共性：纯真，而且粉色也被当成了女孩纯真的证明。" },
+    { num: "②", en: "It is not that pink is intrinsically bad, but it is such a tiny slice of the rainbow and, though it may celebrate girlhood in one way, it also repeatedly and firmly fuses girls’ identity to appearance.", ref: "并不是粉色本身不好，而是它只是七色彩虹中那么一丝而已；尽管粉色在某种程度上能为少女时代添色，但它也一而再、强有力地将女孩的身份与外表相融合。" },
+    { num: "③", en: "Then it presents that connection, even among two-year-olds, between girls as not only innocent but as evidence of innocence.", ref: "此后，粉色就呈现出女孩间，甚至两岁女孩间的共性：纯真，而且粉色也被当成了女孩纯真的证明。" },
     { num: "④", en: "Looking around, I despaired at the singular lack of imagination about girls’ lives and interests.", ref: "环顾四周，我绝望地发现，人们对女孩生活和兴趣的想象是如此地贫乏。" }
     ]
   },
@@ -2807,12 +3096,12 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 144,
     type: "英二",
     source: "2012 Text 4",
-    zh: "经济衰退时期的收入差距往往会有所缩小，但这一次例外。的确，此次经济疲软阶段可能加深阶级隔阂，减少阶级隔阂弥合的机会——对于年轻人来说更是如此。哥伦比亚大学经济学家蒂尔。冯·瓦赫特在报告中指出，不是所有坠入衰退时期的人都认为人生机会渺茫：那些毕业于名牌大学的人会相当快地到达其繁荣时期毕业时本该置身其中的位置，落后的是那些不如他们的普通大众。",
+    zh: "经济衰退时期的收入差距往往会有所缩小，但这一次例外。的确，此次经济疲软阶段可能加深阶级隔阂，减少阶级隔阂弥合的机会——对于年轻人来说更是如此。哥伦比亚大学经济学家蒂尔·冯·瓦赫特的研究表明，不是所有在衰退期毕业的人都会觉得人生机会黯淡：那些毕业于名牌大学的人会相当快地赶上如果他们是在经济繁荣时期毕业本会达到的位置；而落在后面的是那些不如他们的普通大众。",
     sentences: [
     { num: "①", en: "Income inequality usually falls during a recession, but it has not shrunk in this one.", ref: "经济衰退时期的收入差距往往会有所缩小，但这一次例外。" },
     { num: "②", en: "Indeed, this period of economic weakness may reinforce class divides, and decrease opportunities to cross them — especially for young people.", ref: "的确，此次经济疲软阶段可能加深阶级隔阂，减少阶级隔阂弥合的机会——对于年轻人来说更是如此。" },
-    { num: "③", en: "The research of Till Von Wachter, the economist at Columbia University, suggests that not all people graduating into a recession see their life chances dimmed: those with degrees from elite universities catch up fairly quickly to where they otherwise would have been if they had graduated in better times;", ref: "哥伦比亚大学经济学家蒂尔。" },
-    { num: "④", en: "it is the masses beneath them that are left behind.", ref: "冯·瓦赫特在报告中指出，不是所有坠入衰退时期的人都认为人生机会渺茫：那些毕业于名牌大学的人会相当快地到达其繁荣时期毕业时本该置身其中的位置，落后的是那些不如他们的普通大众。" }
+    { num: "③", en: "The research of Till Von Wachter, the economist at Columbia University, suggests that not all people graduating into a recession see their life chances dimmed: those with degrees from elite universities catch up fairly quickly to where they otherwise would have been if they had graduated in better times;", ref: "哥伦比亚大学经济学家蒂尔·冯·瓦赫特的研究表明，不是所有在衰退期毕业的人都会觉得人生机会黯淡：那些毕业于名牌大学的人会相当快地赶上如果他们是在经济繁荣时期毕业本会达到的位置；" },
+    { num: "④", en: "it is the masses beneath them that are left behind.", ref: "而落在后面的是那些不如他们的普通大众。" }
     ]
   },
   {
@@ -2832,7 +3121,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 146,
     type: "英二",
     source: "2013 Text 1",
-    zh: "《在美国制造》一文中，作者亚当·戴维森讲述了一个来自棉花产地、有关现代纺织厂自动化到达何种程度的笑话：普通纺织厂如今只有两名员工，“一个人和一只狗。人负责喂狗，而狗负责让人远离机器”戴维森此文只不过是新近涌现的诸多同类文章中的一篇，这些文章都提出这样一种观点：当前失业率居高不下以及中产阶级收入缩水，很大程度上是由于大萧条造成的需求大幅降低，但同时也由于全球化和信息技术革命的发展，这种发展使机器或外来雇工取代劳力的速度超过了以往任何时期。",
+    zh: "《在美国制造》一文中，作者亚当·戴维森讲述了一个来自棉花产地、有关现代纺织厂自动化到达何种程度的笑话：普通纺织厂如今只有两名员工，“一个人和一只狗。人负责喂狗，而狗负责让人远离机器。”戴维森此文只不过是新近涌现的诸多同类文章中的一篇，这些文章都提出这样一种观点：当前失业率居高不下以及中产阶级收入缩水，很大程度上是由于大萧条造成的需求大幅降低，但同时也由于全球化和信息技术革命的发展，这种发展使机器或外来雇工取代劳力的速度超过了以往任何时期。",
     sentences: [
     { num: "①", en: "In an essay entitled “Making It in America,” the author Adam Davidson relates a joke from cotton country about just how much a modern textile mill has been automated: The average mill has only two employees today, “a man and a dog.", ref: "《在美国制造》一文中，作者亚当·戴维森讲述了一个来自棉花产地、有关现代纺织厂自动化到达何种程度的笑话：普通纺织厂如今只有两名员工，“一个人和一只狗。" },
     { num: "②", en: "The man is there to feed the dog, and the dog is there to keep the man away from the machines.”", ref: "人负责喂狗，而狗负责让人远离机器。”" },
@@ -2888,9 +3177,9 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 148,
     type: "英二",
     source: "2013 Text 1",
-    zh: "变化将会永远存在——肃新岗位，新产品，新服务。但有一点我们确信无疑，随着全球化和信息技术革命的发展，最佳岗位将要求员工掌握更多更好的教育以使自己超越平庸。在一个已正式告别平庸的世界里，我们需要做很多事情以扶持就业，但对 21 世纪来讲，最重要的事情莫过于出台《美国退伍军人权利法案》之类的法案，以确保每个美国人都有机会接受高中后教育。",
+    zh: "变化将会永远存在——新岗位，新产品，新服务。但有一点我们确信无疑，随着全球化和信息技术革命的发展，最佳岗位将要求员工掌握更多更好的教育以使自己超越平庸。在一个已正式告别平庸的世界里，我们需要做很多事情以扶持就业，但对 21 世纪来讲，最重要的事情莫过于出台《美国退伍军人权利法案》之类的法案，以确保每个美国人都有机会接受高中后教育。",
     sentences: [
-    { num: "①", en: "There will always be change — new jobs, new products, new services.", ref: "变化将会永远存在——肃新岗位，新产品，新服务。" },
+    { num: "①", en: "There will always be change — new jobs, new products, new services.", ref: "变化将会永远存在——新岗位，新产品，新服务。" },
     { num: "②", en: "But the one thing we know for sure is that with each advance in globalization and the I. T. revolution, the best jobs will require workers to have more and better education to make themselves above average.", ref: "但有一点我们确信无疑，随着全球化和信息技术革命的发展，最佳岗位将要求员工掌握更多更好的教育以使自己超越平庸。" },
     { num: "③", en: "In a world where average is officially over, there are many things we need to do to support employment, but nothing would be more important than passing some kind of G. I. Bill for the 21st century that ensures that every American has access to post-high school education.", ref: "在一个已正式告别平庸的世界里，我们需要做很多事情以扶持就业，但对 21 世纪来讲，最重要的事情莫过于出台《美国退伍军人权利法案》之类的法案，以确保每个美国人都有机会接受高中后教育。" }
     ],
@@ -2913,7 +3202,7 @@ export const ENGLISH_DAILY: EnglishDay[] = [
     day: 149,
     type: "英二",
     source: "2013 Text 2",
-    zh: "一个世纪前，横跨大西洋来到美国的移民中既有定居者，也有旅居客。许多人希望在美国建立永久家园，但也有人无意长留于此，打算赚些钱后便回返家乡 1908 到 1915 年间，约有700 万人抵达美国，而离开的大约有 200 万人。例如，约有四分之一的意大利移民最终永久返回了意大利。他们甚至有个亲切的昵称 uccelli di passaggio，“候鸟”。",
+    zh: "一个世纪前，横跨大西洋来到美国的移民中既有定居者，也有旅居客。许多人希望在美国建立永久家园，但也有人无意长留于此，打算赚些钱后便回返家乡。1908 到 1915 年间，约有700 万人抵达美国，而离开的大约有 200 万人。例如，约有四分之一的意大利移民最终永久返回了意大利。他们甚至有个亲切的昵称 uccelli di passaggio，“候鸟”。",
     sentences: [
     { num: "①", en: "A century ago, the immigrants from across the Atlantic included settlers and sojourners.", ref: "一个世纪前，横跨大西洋来到美国的移民中既有定居者，也有旅居客。" },
     { num: "②", en: "Along with the many folks looking to make a permanent home in the United States came those who had no intention to stay, and those who would make some money and then go home.", ref: "许多人希望在美国建立永久家园，但也有人无意长留于此，打算赚些钱后便回返家乡。" },
