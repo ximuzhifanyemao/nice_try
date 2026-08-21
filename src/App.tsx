@@ -6,6 +6,8 @@ import Navbar from './components/Navbar'
 import BottomTab from './components/BottomTab'
 import ProtectedRoute from './components/ProtectedRoute'
 import UpdateChecker from './components/UpdateChecker'
+import AchievementNotifier from './components/AchievementNotifier'
+import { ToastProvider } from './lib/Toast'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 
@@ -83,12 +85,14 @@ function BackButtonHandler() {
 export default function App() {
   return (
     <HashRouter>
-      <BackButtonHandler />
-      <UpdateProvider>
-      <AuthProvider>
-        <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
+      <ToastProvider>
+        <BackButtonHandler />
+        <UpdateProvider>
+        <AuthProvider>
+          <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
           <ConfigBanner />
           <UpdateChecker />
+          <AchievementNotifier />
           <Navbar />
           <Suspense fallback={<PageLoading />}>
             <Routes>
@@ -116,6 +120,7 @@ export default function App() {
         </div>
       </AuthProvider>
       </UpdateProvider>
+      </ToastProvider>
     </HashRouter>
   )
 }

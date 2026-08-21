@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { loadVocabulary, removeWordFromVocabulary, clearVocabulary, type VocabDay } from '../lib/vocabulary'
+import { loadVocabulary, removeWordFromVocabulary, clearVocabulary, syncVocabularyFromCloud, removeWordFromCloud, clearVocabularyFromCloud, type VocabDay } from '../lib/vocabulary'
+import { useAuth } from '../contexts/AuthContext'
 import { ENGLISH_DAILY } from '../data/englishDaily'
 import { lookupWord, getCachedLookup, type WordLookup } from '../lib/wordLookup'
 
@@ -61,6 +62,7 @@ function LookupResultCard({ data }: { data: WordLookup }) {
 
 export default function VocabularyBook() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [vocab, setVocab] = useState<VocabDay[]>([])
   const [expandedDays, setExpandedDays] = useState<Set<number>>(new Set())
   const [confirmClear, setConfirmClear] = useState(false)
@@ -70,17 +72,29 @@ export default function VocabularyBook() {
   const [lookupError, setLookupError] = useState<string | null>(null)
 
   const refresh = () => setVocab(loadVocabulary())
+  const userId = user?.id
 
+  // 登录后进入页面时同步云端生词（合并本地+云端并回写）
   useEffect(() => {
     refresh()
-  }, [])
+    if (userId) {
+      syncVocabularyFromCloud(userId)
+        .then(setVocab)
+        .catch(() => {})
+    }
+  }, [userId])
 
-  const handleRemove = (day: number, word: string, sentence: string) => {
+  const handleRemove = async (day: number, word: string, sentence: string) => {
     const updated = removeWordFromVocabulary(day, word, sentence)
     setVocab(updated)
+    if (userId) {
+      try {
+        await removeWordFromCloud(userId, day, word, sentence)
+      } catch { /* 忽略 */ }
+    }
   }
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (!confirmClear) {
       setConfirmClear(true)
       return
@@ -88,6 +102,11 @@ export default function VocabularyBook() {
     clearVocabulary()
     setVocab([])
     setConfirmClear(false)
+    if (userId) {
+      try {
+        await clearVocabularyFromCloud(userId)
+      } catch { /* 忽略 */ }
+    }
   }
 
   // AI 查词：命中缓存直接展示，否则调用后端

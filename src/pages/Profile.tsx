@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useUpdateContext } from '../contexts/UpdateContext'
 import AppVersion from '../components/AppVersion'
+import { useToast } from '../lib/Toast'
+import { syncVocabularyFromCloud } from '../lib/vocabulary'
 import { Capacitor } from '@capacitor/core'
 
 export default function Profile() {
@@ -10,6 +12,25 @@ export default function Profile() {
   const navigate = useNavigate()
   const { status, checkForUpdate, downloadAndInstall, updateInfo, error } = useUpdateContext()
   const [checkingText, setCheckingText] = useState('')
+  const [syncing, setSyncing] = useState(false)
+  const { show } = useToast()
+
+  const handleSync = async () => {
+    if (!user) {
+      show('请先登录后再同步', { icon: '🔐' })
+      return
+    }
+    if (syncing) return
+    setSyncing(true)
+    try {
+      await syncVocabularyFromCloud(user.id)
+      show('数据同步完成', { icon: '✅' })
+    } catch {
+      show('同步失败，请稍后再试', { icon: '⚠️' })
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const handleSignOut = async () => {
     await signOut()
@@ -38,6 +59,19 @@ export default function Profile() {
           )}
         </div>
       </div>
+
+      {/* 同步数据 */}
+      <button
+        onClick={handleSync}
+        disabled={syncing}
+        className="w-full flex items-center gap-3 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 disabled:opacity-60 cursor-pointer"
+      >
+        <span className="text-xl leading-none">☁️</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-slate-200">
+          {syncing ? '正在同步...' : '同步数据'}
+        </span>
+        <span className="ml-auto text-gray-400 dark:text-slate-500 text-xs">同步生词本到云</span>
+      </button>
 
       {/* 成就入口 */}
       <Link

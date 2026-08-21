@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-/* Tailwind v4 dark 变体兜底（若默认 class 策略不生效则启用） */
-@custom variant dark (&:where(.dark, .dark *));
+/* Tailwind v4：dark 变体基于 .dark class（手动切换主题生效），而非跟随系统 */
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* 全局暗色基础样式 */
 html.dark {

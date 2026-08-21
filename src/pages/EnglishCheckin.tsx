@@ -3,7 +3,7 @@ import type { ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { ENGLISH_DAILY, type EnglishDay } from '../data/englishDaily'
 import { fetchMyCheckins, createCheckin, deleteCheckin } from '../lib/englishCheckin'
-import { loadMarkedWords, saveMarkedWords, addDayToVocabulary } from '../lib/vocabulary'
+import { loadMarkedWords, saveMarkedWords, addDayToVocabulary, pushVocabularyToCloud } from '../lib/vocabulary'
 import { supabase } from '../lib/supabase'
 import { postJson } from '../lib/httpRequest'
 
@@ -312,6 +312,13 @@ export default function EnglishCheckin() {
         }
         if (dayVocabWords.length > 0) {
           addDayToVocabulary(nextDay, dayVocabWords)
+          // 同步推送到云端生词本（登录用户）
+          try {
+            await pushVocabularyToCloud(
+              user.id,
+              dayVocabWords.map((w) => ({ ...w, day: nextDay })),
+            )
+          } catch { /* 忽略同步失败，本地已保存 */ }
         }
       }
 

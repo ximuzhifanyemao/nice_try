@@ -62,10 +62,17 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   // 计时器
   { id: 'timer_10', name: '沙漏', icon: '⏳', category: 'timer', desc: '用计时器学习累计 10 小时', target: 10 },
   { id: 'timer_50', name: '时钟', icon: '🕰️', category: 'timer', desc: '用计时器学习累计 50 小时', target: 50 },
+  { id: 'total_1', name: '萌芽', icon: '🌱', category: 'total', desc: '累计学习满 1 小时', target: 1 },
+  { id: 'total_5', name: '小矮人', icon: '⛏️', category: 'total', desc: '累计学习满 5 小时', target: 5 },
+  // 连续打卡
+  { id: 'streak_1', name: '起步', icon: '👟', category: 'streak', desc: '连续打卡 1 天', target: 1 },
+  // 单科深耕（补英语打卡相关）
+  { id: 'english_days_30', name: '英语角', icon: '🗣️', category: 'subject', desc: '英语累计打卡 30 天', target: 30 },
   // 趣味彩蛋
   { id: 'first_log', name: '初见', icon: '🎉', category: 'fun', desc: '完成第一次打卡', target: 1 },
   { id: 'late_night', name: '夜猫子', icon: '🌙', category: 'fun', desc: '在 23:00 后开始过一次学习', target: 1 },
   { id: 'weekend', name: '周末战士', icon: '🏖️', category: 'fun', desc: '某周周六、周日都打了卡', target: 1 },
+  { id: 'triple_subject', name: '三头六臂', icon: '🦑', category: 'fun', desc: '单日学习满 3 个不同科目', target: 1 },
 ]
 
 export interface StudyStats {
@@ -78,6 +85,8 @@ export interface StudyStats {
   timerHours: number
   lateNightCount: number
   weekendPairs: number
+  englishDays: number
+  multiSubjectDays: number
 }
 
 export interface AchievementState {
@@ -131,9 +140,12 @@ export function computeStudyStats(logs: DailyLog[]): StudyStats {
   let totalHours = 0
   let timerHours = 0
   let lateNightCount = 0
+  const englishSet = new Set<string>()
+  const multiSubjectSet = new Set<string>()
 
   for (const log of logs) {
     checkedDates.add(log.date)
+    const daySubjectIds = new Set<string>()
     for (const subj of log.subjects) {
       totalHours += subj.hours
       dateHoursMap.set(log.date, (dateHoursMap.get(log.date) ?? 0) + subj.hours)
@@ -143,7 +155,11 @@ export function computeStudyStats(logs: DailyLog[]): StudyStats {
         // HH:mm 零填充，字符串比较即可判断是否 23 点后开始
         if (subj.startTime >= '23:00') lateNightCount += 1
       }
+      // 某日纳入英语（含 408 之外的英语主题）与多科目统计
+      daySubjectIds.add(subj.id)
+      if (subj.id === 'english') englishSet.add(log.date)
     }
+    if (daySubjectIds.size >= 3) multiSubjectSet.add(log.date)
   }
 
   // 周末双打卡：存在某周六打卡且次日（周日）也打卡（或以周日为起点看前一天）
@@ -171,6 +187,8 @@ export function computeStudyStats(logs: DailyLog[]): StudyStats {
     timerHours,
     lateNightCount,
     weekendPairs,
+    englishDays: englishSet.size,
+    multiSubjectDays: multiSubjectSet.size,
   }
 }
 
@@ -190,6 +208,8 @@ function currentFor(def: AchievementDef, stats: StudyStats): number {
     case 'total_300':
     case 'total_600':
     case 'total_1000':
+    case 'total_1':
+    case 'total_5':
       return stats.totalHours
     case 'days_7':
     case 'days_30':
@@ -197,12 +217,15 @@ function currentFor(def: AchievementDef, stats: StudyStats): number {
     case 'days_200':
     case 'days_365':
       return stats.checkedDays
+    case 'streak_1':
     case 'streak_3':
     case 'streak_7':
     case 'streak_14':
     case 'streak_30':
     case 'streak_60':
       return stats.longestStreak
+    case 'english_days_30':
+      return stats.englishDays
     case 'math_50':
       return subjectOf('math')
     case 'english_50':
@@ -223,6 +246,8 @@ function currentFor(def: AchievementDef, stats: StudyStats): number {
       return stats.lateNightCount
     case 'weekend':
       return stats.weekendPairs
+    case 'triple_subject':
+      return stats.multiSubjectDays
     default:
       return 0
   }
