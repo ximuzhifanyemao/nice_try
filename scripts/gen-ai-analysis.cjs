@@ -122,15 +122,19 @@ function writeBack(results) {
   const lines = ts.split('\n')
   let curDay = 0
   let inserted = 0
+  let skipped = 0
   const out = []
-  for (const line of lines) {
-    const dm = line.match(/^\s*day: (\d+),$/)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const dm = line.match(/^\s*day: (\d+),\s*$/)
     if (dm) curDay = parseInt(dm[1], 10)
     const sm = line.match(/num: "([^"]+)"/)
     const isSent = sm && /^\s*\{ num: /.test(line)
     if (isSent && curDay >= 1 && curDay <= DAYS) {
+      const next = lines[i + 1] || ''
+      const alreadyHasAi = /^\s*ai: \{/.test(next)
       const ai = results[`${curDay}_${sm[1]}`]
-      if (ai && ai.ok) {
+      if (!alreadyHasAi && ai && ai.ok) {
         const closeIdx = line.lastIndexOf('}')
         const head = line.slice(0, closeIdx).replace(/\s+$/, '')
         const tail = line.slice(closeIdx)
@@ -143,12 +147,14 @@ function writeBack(results) {
         out.push(indent + '  ' + aiStr + tail)
         inserted++
         continue
+      } else if (alreadyHasAi) {
+        skipped++
       }
     }
     out.push(line)
   }
   fs.writeFileSync(P, out.join('\n'), 'utf-8')
-  console.log(`写回完成：共插入 ${inserted} 个句子的 ai 字段 → ${P}`)
+  console.log(`写回完成：共插入 ${inserted} 个句子的 ai 字段（跳过已存在 ${skipped} 个）→ ${P}`)
   return inserted
 }
 
