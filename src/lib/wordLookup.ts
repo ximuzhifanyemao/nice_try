@@ -1,4 +1,5 @@
-// 生词本 AI 查词：调用 AI 翻译批改云函数（腾讯云 SCF / Supabase Edge Function）查询考研单词释义
+// 生词本离线查词：优先本地离线考研词典（0 费用），词库未收录才回退 AI（腾讯云 SCF / Supabase Edge Function）
+import { OFFLINE_DICT } from '../data/offlineDict'
 import { supabase } from './supabase'
 import { postJson } from './httpRequest'
 
@@ -43,12 +44,46 @@ export function getCachedLookup(word: string): WordLookup | null {
   return loadLookupCache()[key] || null
 }
 
-// ---------- 调用后端查词 ----------
+// ---------- 本地离线词典查询（0 费用，优先于 AI） ----------
 
-/** 查询单词的考研释义，命中缓存直接返回，否则调用后端并写入缓存 */
+/** 简单词形还原，匹配离线词库中的原形词（不足 3 字母直接返回原样） */
+function stemWord(w: string): string {
+  if (w.length <= 3) return w
+  if (w.endsWith('ing') && w.length > 5) return w.slice(0, -3)
+  if (w.endsWith('ied') && w.length > 4) return w.slice(0, -3) + 'y'
+  if (w.endsWith('ed') && w.length > 4 && !w.endsWith('eed')) return w.slice(0, -2)
+  if (w.endsWith('ies') && w.length > 4) return w.slice(0, -3) + 'y'
+  if (w.endsWith('es') && w.length > 4 && OFFLINE_DICT[w.slice(0, -2)]) return w.slice(0, -2)
+  if (w.endsWith('s') && w.length > 3 && OFFLINE_DICT[w.slice(0, -1)] && !w.endsWith('ss') && !w.endsWith('us')) return w.slice(0, -1)
+  return w
+}
+
+/** 从离线词库查询释义（未收录返回 null） */
+export function lookupOffline(word: string): WordLookup | null {
+  const w = word.toLowerCase()
+  const meaning = OFFLINE_DICT[w] || OFFLINE_DICT[stemWord(w)]
+  if (!meaning) return null
+  return {
+    word: w,
+    phonetic: '',
+    meanings: meaning.split(/[；;]/).map((s) => s.trim()).filter(Boolean),
+    mnemonic: '',
+    collocations: [],
+    example: '',
+    examNote: '',
+  }
+}
+
+// ---------- 调用后端查词（离线未收录时兜底） ----------
+
+/** 查询单词的考研释义：缓存 → 本地离线词典 → AI 兜底 */
 export async function lookupWord(word: string): Promise<WordLookup> {
   const cached = getCachedLookup(word)
   if (cached) return cached
+
+  // 本地离线词典优先，0 费用
+  const offline = lookupOffline(word)
+  if (offline) return offline
 
   let result: WordLookup
   if (AI_CORRECT_URL) {
