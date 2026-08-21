@@ -1,24 +1,39 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { toggleTheme } from '../lib/theme'
 
 export default function Navbar() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
 
   const handleSignOut = async () => {
     await signOut()
     navigate('/')
   }
 
+  const handleToggleTheme = () => {
+    const next = toggleTheme()
+    setIsDark(next === 'dark')
+  }
+
   return (
     <nav className="bg-slate-700 dark:bg-slate-800 dark:border-b dark:border-slate-700 text-white shadow-md sticky top-0 z-50 transition-colors duration-200">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
         <Link to="/" className="text-lg sm:text-xl font-bold tracking-wide">
-          考研倒计时
+          大学深埋
         </Link>
 
         {/* Desktop nav */}
         <div className="hidden sm:flex items-center gap-3 text-sm">
+          <button
+            onClick={handleToggleTheme}
+            title={isDark ? '切换到亮色模式' : '切换到暗色模式'}
+            className="rounded bg-white/15 px-3 py-1 hover:bg-white/25 transition-colors cursor-pointer"
+          >
+            {isDark ? '☀️' : '🌙'}
+          </button>
           {user ? (
             <>
               <span className="text-white/70 truncate max-w-[160px]">{user.email}</span>

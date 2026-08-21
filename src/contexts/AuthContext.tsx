@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { loadUserSubjects, resetSubjectCache } from '../lib/subjects'
 import type { Session, User } from '@supabase/supabase-js'
 
 interface AuthContextValue {
@@ -59,6 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+      // 登录成功后加载该用户的云端自定义科目；登出时清空科目缓存
+      if (session?.user) {
+        loadUserSubjects(session.user.id)
+      } else {
+        resetSubjectCache()
+      }
     })
 
     return () => {

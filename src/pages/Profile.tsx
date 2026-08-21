@@ -57,6 +57,15 @@ export default function Profile() {
         <span className="text-sm font-medium text-gray-700 dark:text-slate-200">生词本</span>
       </Link>
 
+      {/* 设置入口 */}
+      <Link
+        to="/settings"
+        className="flex items-center gap-3 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700"
+      >
+        <span className="text-xl leading-none">⚙️</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-slate-200">设置（倒计时 · 科目 · 主题）</span>
+      </Link>
+
       {/* 目标与承诺金入口 */}
       <Link
         to="/goal"

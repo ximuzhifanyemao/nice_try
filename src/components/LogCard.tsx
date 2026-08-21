@@ -106,16 +106,10 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
         <p className="text-sm text-gray-400 dark:text-slate-500">暂无科目记录</p>
       )}
 
-      {log.summary ? (
+      {log.summary && (
         <p className="text-sm text-gray-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-6">
           {log.summary}
         </p>
-      ) : (
-        isOwner && !editingSummary && (
-          <div className="text-xs text-gray-400 dark:text-slate-500 bg-gray-50 dark:bg-slate-700/40 rounded-lg p-3 leading-relaxed">
-            写总结时填三件事就够了：<span className="text-gray-500 dark:text-slate-400">今天学了什么 → 卡在哪里 → 明天怎么做</span>，例如「数学完成第二章，英语阅读超时，明早复盘错题」。
-          </div>
-        )
       )}
 
       {isOwner && !editingSummary && (

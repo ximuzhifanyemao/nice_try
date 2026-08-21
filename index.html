@@ -1,17 +1,27 @@
 <!doctype html>
-<html lang="zh-CN" class="dark">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>考研倒计时 - 备考学习追踪</title>
-    <meta name="description" content="考研备考学习追踪工具：倒计时、学习打卡、科目时长统计、每周学习趋势分析。" />
+    <title>大学深埋 - 学习打卡追踪</title>
+    <meta name="description" content="通用学习打卡追踪工具：自定义倒计时、学习打卡、科目时长统计、每周学习趋势分析。" />
     <meta name="theme-color" content="#0f172a" />
-    <meta property="og:title" content="考研倒计时 - 备考学习追踪" />
-    <meta property="og:description" content="考研备考学习追踪工具：倒计时、学习打卡、科目时长统计、每周学习趋势分析。" />
+    <meta property="og:title" content="大学深埋 - 学习打卡追踪" />
+    <meta property="og:description" content="通用学习打卡追踪工具：自定义倒计时、学习打卡、科目时长统计、每周学习趋势分析。" />
     <meta property="og:type" content="website" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="48x48" />
     <link rel="apple-touch-icon" href="/apple-touch-icon-180x180.png" />
+    <script>
+      // 首帧前应用主题，避免闪烁（与 src/lib/theme.ts 逻辑保持一致）
+      (function () {
+        try {
+          var saved = localStorage.getItem('app_theme')
+          var dark = saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          if (dark) document.documentElement.classList.add('dark')
+        } catch (e) {}
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>
