@@ -14,6 +14,13 @@ interface SubjectRow {
   summary: string
 }
 
+/** 学习总结的快捷模板：label 为按钮文案，text 为填入内容，suffix 为追加时的衔接符 */
+const summaryTemplates: { label: string; text: string; suffix: string }[] = [
+  { label: '做了什么+收获', text: '今天学了 _ ，收获是 _ 。', suffix: ' ' },
+  { label: '卡在哪里', text: '我在 _ 上遇到了困难，原因是 _ ，打算明天重点解决。', suffix: ' ' },
+  { label: '状态打卡', text: '今天状态不错，超额完成了计划，继续保持。', suffix: ' ' },
+]
+
 interface LogFormProps {
   initialData?: DailyLogInput
   availableSubjects: Subject[]
@@ -265,9 +272,27 @@ export default function LogForm({
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           rows={4}
-          placeholder="今天学了什么？有什么收获或反思？"
+          placeholder="例：今天学了 X，卡在 Y，收获是 Z，明天打算改进……"
           className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400 resize-y"
         />
+        <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">不会写？点下面的模板一键填入：</p>
+        <div className="mt-1 flex flex-wrap gap-1.5">
+          {summaryTemplates.map((tpl) => (
+            <button
+              key={tpl.label}
+              type="button"
+              onClick={() =>
+                setSummary((prev) => {
+                  const text = prev.trim()
+                  return text ? text + tpl.suffix + tpl.text : tpl.text
+                })
+              }
+              className="px-2.5 py-1 text-xs rounded-full border border-blue-200 text-blue-600 hover:bg-blue-50 dark:border-blue-700 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors cursor-pointer"
+            >
+              {tpl.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* 按钮 */}
