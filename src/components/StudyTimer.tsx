@@ -1,6 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Capacitor } from '@capacitor/core'
-import { getAvailableSubjects, getSubjectById, getActivitiesForSubject } from '../lib/subjects'
+import {
+  createUserSubject,
+  deleteUserSubject,
+  fetchUserSubjects,
+  getActivitiesForSubject,
+  getAvailableSubjects,
+  getSubjectById,
+  loadUserSubjects,
+  updateUserSubject,
+  type Subject,
+  type UserSubject,
+} from '../lib/subjects'
 import { createLog, fetchLogByDate, isDuplicateDateError, mergeSubjects, sortSubjectsByStartTime, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
 import { formatDateCn, formatDuration, formatDurationShort, timeRangeHours, toTimeStr } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
@@ -104,7 +115,18 @@ function accumKey(subjectId: string, activity: string): string {
 /* ── 组件 ── */
 export default function StudyTimer() {
   const { user } = useAuth()
-  const subjects = getAvailableSubjects()
+  /* 可选择的科目（内置 + 自定义），随增删改实时刷新 */
+  const [availableSubjects, setAvailableSubjects] = useState<Subject[]>(() => getAvailableSubjects())
+  /* 自定义科目列表（管理用） */
+  const [customSubjects, setCustomSubjects] = useState<UserSubject[]>([])
+  const [subjectsLoading, setSubjectsLoading] = useState(false)
+  /* 新增科目表单 */
+  const [newName, setNewName] = useState('')
+  const [newActivities, setNewActivities] = useState('')
+  const [creating, setCreating] = useState(false)
+  /* 正在编辑的科目 */
+  const [editing, setEditing] = useState<UserSubject | null>(null)
+  const [editActivities, setEditActivities] = useState('')
 
   /* 当前运行中的计时器 */
   const [running, setRunning] = useState<TimerState | null>(loadRunningTimer)
@@ -316,6 +338,80 @@ export default function StudyTimer() {
     setAccumDate(todayStr())
   }
 
+  /* ── 科目管理（增删改后刷新科目列表） ── */
+  /** 重新从云端加载并更新科目缓存（内置 + 自定义） */
+  const refreshSubjects = useCallback(async () => {
+    if (user) await loadUserSubjects(user.id)
+    setAvailableSubjects(getAvailableSubjects())
+  }, [user])
+
+  /** 加载自定义科目列表（管理用） */
+  const loadCustomSubjects = useCallback(async () => {
+    if (!user) return
+    setSubjectsLoading(true)
+    try {
+      setCustomSubjects(await fetchUserSubjects(user.id))
+    } catch {
+      /* 忽略读取失败 */
+    } finally {
+      setSubjectsLoading(false)
+    }
+  }, [user])
+
+  /* 挂载/登录切换时加载本地自定义科目 */
+  useEffect(() => {
+    refreshSubjects()
+    loadCustomSubjects()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  const handleCreateSubject = async () => {
+    if (!user || !newName.trim()) return
+    setCreating(true)
+    try {
+      const activities = newActivities
+        .split(/[，,、\n]/)
+        .map((a) => a.trim())
+        .filter(Boolean)
+      await createUserSubject(user.id, { name: newName, activities })
+      setNewName('')
+      setNewActivities('')
+      await loadCustomSubjects()
+      await refreshSubjects()
+    } catch (err) {
+      alert('添加失败：' + (err instanceof Error ? err.message : '未知错误'))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const handleUpdateSubject = async () => {
+    if (!editing) return
+    try {
+      const activities = editActivities
+        .split(/[，,、\n]/)
+        .map((a) => a.trim())
+        .filter(Boolean)
+      await updateUserSubject(editing.id, { name: editing.name, activities })
+      setEditing(null)
+      await loadCustomSubjects()
+      await refreshSubjects()
+    } catch (err) {
+      alert('保存失败：' + (err instanceof Error ? err.message : '未知错误'))
+    }
+  }
+
+  const handleDeleteSubject = async (id: string) => {
+    if (!window.confirm('确定删除该科目？已记录的历史数据不受影响。')) return
+    try {
+      await deleteUserSubject(id)
+      await loadCustomSubjects()
+      await refreshSubjects()
+    } catch (err) {
+      alert('删除失败：' + (err instanceof Error ? err.message : '未知错误'))
+    }
+  }
+
   const totalSeconds = Object.values(accum).reduce((a, b) => a + b.seconds, 0)
   /** 是否补交：累计归属日期不是今天（跨午夜/隔天保存） */
   const isBackfill = accumDate !== todayStr()
@@ -337,7 +433,7 @@ export default function StudyTimer() {
           选择科目
         </label>
         <div className="flex flex-wrap gap-2">
-          {subjects.map((subj) => {
+          {availableSubjects.map((subj) => {
             const isActive = running?.subjectId === subj.id
             const isDisabled = running !== null && !isActive
             return (
@@ -487,6 +583,114 @@ export default function StudyTimer() {
               {saving ? '保存中...' : saved ? '✓ 已保存' : isBackfill ? `保存到${formatDateCn(accumDate)}` : '保存到今日记录'}
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 科目管理 */}
+      {user && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-4">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">计时科目管理</h3>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+            添加自定义科目及学习内容，删除后立即从上方科目中移除（历史记录不受影响）。
+          </p>
+
+          {/* 新增科目 */}
+          <div className="rounded-lg border border-dashed border-gray-300 dark:border-slate-600 p-3 space-y-2 mb-4">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="科目名称，如：专业课、工作、健身"
+              className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+            />
+            <input
+              value={newActivities}
+              onChange={(e) => setNewActivities(e.target.value)}
+              placeholder="学习内容（用逗号分隔），如：阅读，练习，复盘"
+              className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+            />
+            <button
+              onClick={handleCreateSubject}
+              disabled={creating || !newName.trim()}
+              className="px-4 py-2 bg-white dark:bg-slate-600 border border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-300 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-slate-500 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {creating ? '添加中...' : '+ 添加科目'}
+            </button>
+          </div>
+
+          {/* 自定义科目列表 */}
+          {subjectsLoading ? (
+            <p className="text-xs text-gray-400 dark:text-slate-500">加载中...</p>
+          ) : customSubjects.length === 0 ? (
+            <p className="text-xs text-gray-400 dark:text-slate-500">
+              暂无自定义科目，内置科目（政治/英语/数学/408）始终可用。
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {customSubjects.map((s) => (
+                <li key={s.id} className="rounded-lg border border-gray-100 dark:border-slate-700 p-3">
+                  {editing?.id === s.id ? (
+                    <div className="space-y-2">
+                      <input
+                        value={editing.name}
+                        onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                        className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+                      />
+                      <input
+                        value={editActivities}
+                        onChange={(e) => setEditActivities(e.target.value)}
+                        placeholder="学习内容（逗号分隔）"
+                        className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleUpdateSubject}
+                          className="px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+                        >
+                          保存
+                        </button>
+                        <button
+                          onClick={() => setEditing(null)}
+                          className="px-3 py-1 text-xs text-gray-500 hover:text-gray-700 dark:hover:text-slate-300 cursor-pointer"
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-800 dark:text-slate-100">{s.name}</p>
+                        {s.activities.length > 0 ? (
+                          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                            内容：{s.activities.join('、')}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">无学习内容</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            setEditing(s)
+                            setEditActivities(s.activities.join('、'))
+                          }}
+                          className="px-3 py-1 text-xs text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer"
+                        >
+                          编辑
+                        </button>
+                        <button
+                          onClick={() => handleDeleteSubject(s.id)}
+                          className="px-3 py-1 text-xs text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-slate-700 cursor-pointer"
+                        >
+                          删除
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

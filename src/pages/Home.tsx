@@ -51,7 +51,7 @@ export default function Home() {
   const progress = weekTarget && weekTarget > 0 ? Math.min(100, (actualHours / weekTarget) * 100) : 0
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-4 space-y-4">
+    <div className="mx-auto max-w-5xl px-4 py-3 sm:py-4 space-y-3 sm:space-y-4">
       {user && (
         <>
           {/* 打卡提醒（单行紧凑） */}

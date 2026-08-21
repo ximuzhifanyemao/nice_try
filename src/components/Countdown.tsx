@@ -98,19 +98,36 @@ export default function Countdown({ title }: CountdownProps) {
       {timeLeft === null ? (
         <p className="text-3xl font-bold text-blue-700 dark:text-blue-400">倒计时已结束！</p>
       ) : (
-        <div className="grid grid-cols-4 gap-1.5 sm:gap-3">
-          {TIME_UNITS.map(({ key, label, color }) => (
-            <div
-              key={key}
-              className={`flex flex-col items-center justify-center bg-gradient-to-b ${color} text-white rounded-lg sm:rounded-2xl px-2 sm:px-5 py-1.5 sm:py-4 min-w-[52px] sm:min-w-[80px] shadow sm:shadow-lg`}
-            >
-              <span className="text-lg sm:text-4xl font-bold tabular-nums leading-tight">
-                {pad(timeLeft[key])}
-              </span>
-              <span className="text-[10px] sm:text-sm text-white/70 mt-0.5 sm:mt-1">{label}</span>
-            </div>
-          ))}
-        </div>
+        <>
+          {/* 移动端：横向紧凑单行，减少纵向占用 */}
+          <div className="flex items-stretch sm:hidden">
+            {TIME_UNITS.map(({ key, label, color }) => (
+              <div
+                key={key}
+                className={`flex flex-col items-center justify-center bg-gradient-to-b ${color} text-white rounded-md px-2 py-1 min-w-[46px] shadow-sm`}
+              >
+                <span className="text-lg font-bold tabular-nums leading-tight">
+                  {pad(timeLeft[key])}
+                </span>
+                <span className="text-[9px] text-white/70 mt-0.5 leading-none">{label}</span>
+              </div>
+            ))}
+          </div>
+          {/* 桌面端：四格大色块 */}
+          <div className="hidden sm:grid grid-cols-4 gap-3">
+            {TIME_UNITS.map(({ key, label, color }) => (
+              <div
+                key={key}
+                className={`flex flex-col items-center justify-center bg-gradient-to-b ${color} text-white rounded-2xl px-5 py-4 min-w-[80px] shadow-lg`}
+              >
+                <span className="text-4xl font-bold tabular-nums leading-tight">
+                  {pad(timeLeft[key])}
+                </span>
+                <span className="text-sm text-white/70 mt-1">{label}</span>
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       <p className="text-xs sm:text-sm text-gray-400 dark:text-slate-500">
