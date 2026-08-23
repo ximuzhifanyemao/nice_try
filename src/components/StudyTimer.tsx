@@ -17,6 +17,7 @@ import { formatDateCn, formatDuration, formatDurationShort, timeRangeHours, toTi
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 import { TimerForeground } from '../plugins/timer-foreground'
+import { connectBleTimer, disconnectBleTimer } from '../lib/bleTimer'
 
 
 /* ── 类型 ── */
@@ -144,6 +145,12 @@ export default function StudyTimer() {
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  /* ── BLE 计时器连接状态 ── */
+  const [bleConnected, setBleConnected] = useState(false)
+  const [bleError, setBleError] = useState('')
+  /* 始终指向最新的 handleStop，供 BLE/通知栏回调使用，避免闭包捕获过期状态 */
+  const handleStopRef = useRef<() => void>(() => {})
+
   /* ── 监听通知栏"停止"按钮 ── */
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
@@ -164,6 +171,30 @@ export default function StudyTimer() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running])
+
+  /* ── 连接 BLE 计时器（原生 App 上自动连接，收到"结束"即触发 handleStop） ── */
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return
+    let removed = false
+
+    const connect = async () => {
+      try {
+        await connectBleTimer({
+          onStop: () => { if (!removed) handleStopRef.current() },
+          onDisconnect: () => { if (!removed) setBleConnected(false) },
+        })
+        if (!removed) setBleConnected(true)
+      } catch (err) {
+        if (!removed) setBleError(err instanceof Error ? err.message : '蓝牙连接失败')
+      }
+    }
+    connect()
+    return () => {
+      removed = true
+      disconnectBleTimer()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   /* ── 实时更新 elapsed ── */
   useEffect(() => {
@@ -241,6 +272,9 @@ export default function StudyTimer() {
       TimerForeground.stopTimer()
     }
   }, [running, accum])
+
+  /* 每次渲染都把最新 handleStop 写入 ref，供 BLE/通知栏回调使用 */
+  handleStopRef.current = handleStop
 
   /* ── 保存到数据库 ── */
   const handleSaveToDB = async () => {
@@ -427,6 +461,22 @@ export default function StudyTimer() {
 
   return (
     <div className="space-y-6">
+      {/* 蓝牙计时器状态（仅原生 App） */}
+      {Capacitor.isNativePlatform() && (
+        <div className={`px-3 py-2 rounded-lg text-xs border ${
+          bleConnected
+            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
+            : bleError
+              ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300'
+              : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'
+        }`}>
+          {bleConnected
+            ? '硬件计时器已连接：在设备上按「结束」即可记入打卡'
+            : bleError
+              ? `硬件计时器未连接：${bleError}`
+              : '正在查找硬件计时器…'}
+        </div>
+      )}
       {/* 科目选择 */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
