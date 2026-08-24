@@ -153,6 +153,8 @@ export default function StudyTimer() {
   const [bleSearching, setBleSearching] = useState(true)
   /* 今日累计里 408 是否汇总显示 */
   const [agg408, setAgg408] = useState(true)
+  /* 科目选择里 408 分组是否展开 */
+  const [show408, setShow408] = useState(true)
   /* 始终指向最新的 handleStop，供 BLE/通知栏回调使用，避免闭包捕获过期状态 */
   const handleStopRef = useRef<() => void>(() => {})
 
@@ -598,13 +600,28 @@ export default function StudyTimer() {
           {subjectSections.map(([cat, subs]) =>
             cat === '408' ? (
               <div key={cat}>
-                <div className="text-xs font-semibold text-gray-400 dark:text-slate-500 mb-1.5 flex items-center gap-1.5">
-                  408
-                  <span className="font-normal text-gray-300 dark:text-slate-600">计算机专业基础综合 · 听课 / 练习</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {subs.map(renderSubjectButton)}
-                </div>
+                <button
+                  onClick={() => setShow408((v) => !v)}
+                  className="w-full flex items-center justify-between gap-2 py-1 cursor-pointer group"
+                >
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 dark:text-slate-500">
+                    <span
+                      className={`inline-block transition-transform ${show408 ? 'rotate-90' : ''} text-gray-300 dark:text-slate-600`}
+                    >▶</span>
+                    408
+                    <span className="font-normal text-gray-400 dark:text-slate-500">计算机专业基础综合（听课 / 练习）</span>
+                  </span>
+                  {agg408Total > 0 && (
+                    <span className="text-xs font-mono text-gray-500 dark:text-slate-400 group-hover:text-gray-700 dark:group-hover:text-slate-200">
+                      {formatDurationShort(agg408Total)}
+                    </span>
+                  )}
+                </button>
+                {show408 && (
+                  <div className="mt-1 pl-3 border-l-2 border-gray-100 dark:border-slate-700 flex flex-wrap gap-2">
+                    {subs.map(renderSubjectButton)}
+                  </div>
+                )}
               </div>
             ) : (
               <div key={cat} className="flex flex-wrap gap-2">
