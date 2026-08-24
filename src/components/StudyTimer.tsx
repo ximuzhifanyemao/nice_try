@@ -597,8 +597,16 @@ export default function StudyTimer() {
           选择科目
         </label>
         <div className="space-y-3">
-          {subjectSections.map(([cat, subs]) =>
-            cat === '408' ? (
+          {/* 政治 / 英语 / 数学 等非 408 科目一排 */}
+          <div className="flex flex-wrap gap-2">
+            {availableSubjects
+              .filter((s) => s.category !== '408')
+              .map(renderSubjectButton)}
+          </div>
+          {/* 408 折叠分组 */}
+          {subjectSections
+            .filter(([cat]) => cat === '408')
+            .map(([cat, subs]) => (
               <div key={cat}>
                 <button
                   onClick={() => setShow408((v) => !v)}
@@ -623,12 +631,7 @@ export default function StudyTimer() {
                   </div>
                 )}
               </div>
-            ) : (
-              <div key={cat} className="flex flex-wrap gap-2">
-                {subs.map(renderSubjectButton)}
-              </div>
-            ),
-          )}
+            ))}
         </div>
 
         {/* 选择学习内容 */}
