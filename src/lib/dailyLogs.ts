@@ -53,6 +53,32 @@ export function isDuplicateDateError(err: unknown): boolean {
   return code === '23505' || (err instanceof Error && /duplicate key|already exists/i.test(err.message))
 }
 
+/**
+ * 单行查询 .single() 匹配到 0 行的服务端错误（PGRST116）。
+ * 常见于登录态缺失/过期时：SELECT 策略是公开的仍能读到记录，
+ * 但 UPDATE/INSERT 的 RLS（auth.uid() = user_id）会过滤掉该行 → 0 行 → 投递失败。
+ * 此处把晦涩的英文报错转成可行动的提示，避免用户误以为数据丢失。
+ */
+const ACTION_EMPTY_MSG =
+  '保存未生效：登录状态已失效或记录已被删除，请重新登录后再试（本次学习时长已保留，不会丢失）'
+
+export function isActionEmptyRowError(err: unknown): boolean {
+  const e = (err ?? {}) as { code?: string; message?: string }
+  return (
+    e?.code === 'PGRST116' ||
+    (err instanceof Error && /cannot coerce the result to a single json object/i.test(err.message))
+  )
+}
+
+/** 写入操作的错误归一：PGRST116（0 行）转成友好提示，其余原样抛出 */
+function throwActionError(err: unknown): never {
+  if (isActionEmptyRowError(err)) {
+    throw new Error(ACTION_EMPTY_MSG)
+  }
+  const message = ((err ?? {}) as { message?: string }).message
+  throw new Error(message ?? '未知错误')
+}
+
 /** 合并科目时长：仅当 (科目, 学习内容, 时间段) 完全一致时合并相加，避免把多次独立学习会话压成「最早~最晚」 */
 export function mergeSubjects(base: DailyLogSubject[], incoming: DailyLogSubject[]): DailyLogSubject[] {
   const merged = [...base]
@@ -219,7 +245,7 @@ export async function createLog(userId: string, logData: DailyLogInput): Promise
     .single()
 
   if (error) {
-    throw new Error(error.message)
+    throwActionError(error)
   }
 
   return data as DailyLog
@@ -238,7 +264,7 @@ export async function updateLog(logId: string, logData: DailyLogInput): Promise<
     .single()
 
   if (error) {
-    throw new Error(error.message)
+    throwActionError(error)
   }
 
   return data as DailyLog
