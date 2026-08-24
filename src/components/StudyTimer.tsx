@@ -113,6 +113,9 @@ function accumKey(subjectId: string, activity: string): string {
   return `${subjectId}::${activity}`
 }
 
+/** 属于 408 综合卷、支持汇总/分开两种显示的科目 id */
+const AGG_408_IDS = ['ds', 'co', 'os', 'cn']
+
 /* ── 组件 ── */
 export default function StudyTimer() {
   const { user } = useAuth()
@@ -147,7 +150,10 @@ export default function StudyTimer() {
 
   /* ── BLE 计时器连接状态 ── */
   const [bleConnected, setBleConnected] = useState(false)
+  const [bleSearching, setBleSearching] = useState(true)
   const [bleError, setBleError] = useState('')
+  /* 今日累计里 408 是否汇总显示 */
+  const [agg408, setAgg408] = useState(true)
   /* 始终指向最新的 handleStop，供 BLE/通知栏回调使用，避免闭包捕获过期状态 */
   const handleStopRef = useRef<() => void>(() => {})
 
@@ -185,7 +191,10 @@ export default function StudyTimer() {
         })
         if (!removed) setBleConnected(true)
       } catch (err) {
+        // 未连接/找不到设备不影响手机上直接计时，这里只记录，不打断用户
         if (!removed) setBleError(err instanceof Error ? err.message : '蓝牙连接失败')
+      } finally {
+        if (!removed) setBleSearching(false)
       }
     }
     connect()
@@ -372,6 +381,23 @@ export default function StudyTimer() {
     setAccumDate(todayStr())
   }
 
+  /* 重新扫描/连接硬件计时器（硬件到位后手动重试） */
+  const handleReconnectBle = async () => {
+    setBleSearching(true)
+    setBleError('')
+    try {
+      await connectBleTimer({
+        onStop: () => handleStopRef.current(),
+        onDisconnect: () => setBleConnected(false),
+      })
+      setBleConnected(true)
+    } catch (err) {
+      setBleError(err instanceof Error ? err.message : '蓝牙连接失败')
+    } finally {
+      setBleSearching(false)
+    }
+  }
+
   /* ── 科目管理（增删改后刷新科目列表） ── */
   /** 重新从云端加载并更新科目缓存（内置 + 自定义） */
   const refreshSubjects = useCallback(async () => {
@@ -459,22 +485,62 @@ export default function StudyTimer() {
       .filter(([key]) => key.startsWith(id + '::'))
       .reduce((a, [, entry]) => a + entry.seconds, 0)
 
+  /** 今日累计条目（过滤 >0，按秒数降序） */
+  const todayEntries = Object.entries(accum)
+    .filter(([, entry]) => entry.seconds > 0)
+    .sort(([, a], [, b]) => b.seconds - a.seconds)
+  /** 408 各科目今天的累计秒数 */
+  const agg408BySubject = (() => {
+    const map: Record<string, number> = {}
+    for (const [key, entry] of todayEntries) {
+      const id = key.split('::')[0]
+      if (AGG_408_IDS.includes(id)) map[id] = (map[id] ?? 0) + entry.seconds
+    }
+    return map
+  })()
+  /** 408 总秒数 */
+  const agg408Total = Object.values(agg408BySubject).reduce((a, b) => a + b, 0)
+  const has408 = agg408Total > 0
+  /** 非 408 的累计条目 */
+  const non408Entries = todayEntries.filter(([key]) => !AGG_408_IDS.includes(key.split('::')[0]))
+  /** 单条累计的渲染（供非 408 与"分开"模式复用） */
+  const renderEntry = ([key, entry]: [string, AccumEntry]) => {
+    const [id, activity] = key.split('::')
+    const subj = getSubjectById(id)
+    const label = (subj?.name ?? id) + (activity ? `·${activity}` : '')
+    return (
+      <div key={key} className="flex justify-between items-center text-sm">
+        <span className="text-gray-600 dark:text-slate-400">{label}</span>
+        <span className="font-mono text-gray-800 dark:text-slate-200">{formatDurationShort(entry.seconds)}</span>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 蓝牙计时器状态（仅原生 App） */}
       {Capacitor.isNativePlatform() && (
-        <div className={`px-3 py-2 rounded-lg text-xs border ${
+        <div className={`px-3 py-2 rounded-lg text-xs border flex items-center gap-2 justify-between ${
           bleConnected
             ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300'
-            : bleError
-              ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300'
-              : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'
+            : 'bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700 text-gray-500 dark:text-slate-400'
         }`}>
-          {bleConnected
-            ? '硬件计时器已连接：在设备上按「结束」即可记入打卡'
-            : bleError
-              ? `硬件计时器未连接：${bleError}`
-              : '正在查找硬件计时器…'}
+          <span>
+            {bleConnected
+              ? '硬件计时器已连接：在设备上按「结束」即可记入打卡'
+              : bleSearching
+                ? '正在查找硬件计时器…'
+                : '硬件计时器未连接（可选），可在手机上直接计时'}
+          </span>
+          {!bleConnected && (
+            <button
+              onClick={handleReconnectBle}
+              disabled={bleSearching}
+              className="shrink-0 px-2 py-1 rounded-md border border-gray-300 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {bleSearching ? '查找中…' : '重新连接'}
+            </button>
+          )}
         </div>
       )}
       {/* 科目选择 */}
@@ -555,37 +621,37 @@ export default function StudyTimer() {
       </div>
 
       {/* 计时器面板 */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 text-center">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 text-center">
         {running ? (
-          <p className="text-sm text-gray-500 dark:text-slate-400 mb-2">
+          <p className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
             正在学习：<span className="font-semibold text-gray-700 dark:text-slate-200">{currentSubject}</span>
           </p>
         ) : (
-          <p className="text-sm text-gray-400 dark:text-slate-500 mb-2">
+          <p className="text-xs text-gray-400 dark:text-slate-500 mb-1.5">
             {Object.keys(accum).length > 0 ? '选择科目继续计时' : '点击上方科目开始学习'}
           </p>
         )}
 
-        <div className="text-5xl sm:text-7xl font-mono font-bold tabular-nums text-gray-900 dark:text-slate-100 my-6 tracking-wider">
+        <div className="text-5xl sm:text-6xl font-mono font-bold tabular-nums text-gray-900 dark:text-slate-100 my-3 tracking-wider">
           {running ? formatDuration(elapsed) : '00:00:00'}
         </div>
 
         {running ? (
           <button
             onClick={handleStop}
-            className="px-8 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold text-lg transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20 cursor-pointer"
+            className="px-8 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20 cursor-pointer"
           >
             ■ 结束学习
           </button>
         ) : (
-          <p className="text-sm text-gray-400 dark:text-slate-500">点击科目开始</p>
+          <p className="text-xs text-gray-400 dark:text-slate-500">点击科目开始</p>
         )}
       </div>
 
       {/* 今日累计 */}
       {Object.keys(accum).length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
                 {isBackfill ? `${formatDateCn(accumDate)}（补交）` : '今日累计'}
@@ -596,25 +662,50 @@ export default function StudyTimer() {
                 </p>
               )}
             </div>
-            <span className="text-lg font-bold text-gray-900 dark:text-slate-100">
-              {formatDuration(totalSeconds)}
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              {has408 && (
+                <button
+                  onClick={() => setAgg408(!agg408)}
+                  className="px-2 py-1 text-xs rounded-md border border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer"
+                >
+                  {agg408 ? '408 拆开' : '408 汇总'}
+                </button>
+              )}
+              <span className="text-lg font-bold text-gray-900 dark:text-slate-100">
+                {formatDuration(totalSeconds)}
+              </span>
+            </div>
           </div>
           <div className="space-y-2">
-            {Object.entries(accum)
-              .filter(([, entry]) => entry.seconds > 0)
-              .sort(([, a], [, b]) => b.seconds - a.seconds)
-              .map(([key, entry]) => {
-                const [id, activity] = key.split('::')
-                const subj = getSubjectById(id)
-                const label = (subj?.name ?? id) + (activity ? `·${activity}` : '')
-                return (
-                  <div key={key} className="flex justify-between items-center text-sm">
-                    <span className="text-gray-600 dark:text-slate-400">{label}</span>
-                    <span className="font-mono text-gray-800 dark:text-slate-200">{formatDurationShort(entry.seconds)}</span>
+            {!agg408 || !has408 ? (
+              todayEntries.map(renderEntry)
+            ) : (
+              <>
+                {non408Entries.map(renderEntry)}
+                {/* 408 汇总，可点标题切回分开 */}
+                <div>
+                  <button
+                    onClick={() => setAgg408(false)}
+                    className="w-full flex justify-between items-center text-sm py-0.5 cursor-pointer group"
+                  >
+                    <span className="font-medium text-blue-600 dark:text-blue-300 group-hover:underline">
+                      408 · 数据结构/组成/操作系统/计网
+                    </span>
+                    <span className="font-mono font-semibold text-gray-800 dark:text-slate-200">
+                      {formatDurationShort(agg408Total)}
+                    </span>
+                  </button>
+                  <div className="mt-1 pl-4 border-l-2 border-blue-200 dark:border-blue-700 space-y-1">
+                    {AGG_408_IDS.filter((id) => agg408BySubject[id] > 0).map((id) => (
+                      <div key={id} className="flex justify-between items-center text-xs text-gray-500 dark:text-slate-400">
+                        <span>{getSubjectById(id)?.name}</span>
+                        <span className="font-mono">{formatDurationShort(agg408BySubject[id])}</span>
+                      </div>
+                    ))}
                   </div>
-                )
-              })}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex gap-2 pt-2 border-t border-gray-100 dark:border-slate-700">

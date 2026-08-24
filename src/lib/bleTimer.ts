@@ -58,7 +58,8 @@ export async function connectBleTimer(events?: BleTimerEvents): Promise<string> 
   if (events) handlers = { ...handlers, ...events }
   if (connectedDeviceId) return connectedDeviceId
 
-  await BleClient.initialize()
+  // 蓝牙扫描已声明 neverForLocation，无需定位权限即可扫描
+  await BleClient.initialize({ androidNeverForLocation: true })
   const device = await scanForDevice()
 
   // 连接，并注册断线回调
