@@ -151,7 +151,6 @@ export default function StudyTimer() {
   /* ── BLE 计时器连接状态 ── */
   const [bleConnected, setBleConnected] = useState(false)
   const [bleSearching, setBleSearching] = useState(true)
-  const [bleError, setBleError] = useState('')
   /* 今日累计里 408 是否汇总显示 */
   const [agg408, setAgg408] = useState(true)
   /* 始终指向最新的 handleStop，供 BLE/通知栏回调使用，避免闭包捕获过期状态 */
@@ -190,9 +189,8 @@ export default function StudyTimer() {
           onDisconnect: () => { if (!removed) setBleConnected(false) },
         })
         if (!removed) setBleConnected(true)
-      } catch (err) {
-        // 未连接/找不到设备不影响手机上直接计时，这里只记录，不打断用户
-        if (!removed) setBleError(err instanceof Error ? err.message : '蓝牙连接失败')
+      } catch {
+        // 未连接/找不到设备不影响手机上直接计时，这里静默处理
       } finally {
         if (!removed) setBleSearching(false)
       }
@@ -384,15 +382,14 @@ export default function StudyTimer() {
   /* 重新扫描/连接硬件计时器（硬件到位后手动重试） */
   const handleReconnectBle = async () => {
     setBleSearching(true)
-    setBleError('')
     try {
       await connectBleTimer({
         onStop: () => handleStopRef.current(),
         onDisconnect: () => setBleConnected(false),
       })
       setBleConnected(true)
-    } catch (err) {
-      setBleError(err instanceof Error ? err.message : '蓝牙连接失败')
+    } catch {
+      // 未连接/找不到设备不影响手机上直接计时，这里静默处理
     } finally {
       setBleSearching(false)
     }
