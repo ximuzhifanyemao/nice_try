@@ -512,6 +512,55 @@ export default function StudyTimer() {
       </div>
     )
   }
+  /** 单个科目按钮（含当前计时高亮、今日累计展示） */
+  const renderSubjectButton = (subj: Subject) => {
+    const isActive = running?.subjectId === subj.id
+    const isDisabled = running !== null && !isActive
+    return (
+      <button
+        key={subj.id}
+        onClick={() => {
+          if (isActive) {
+            handleStop()
+          } else if (!running) {
+            const activities = getActivitiesForSubject(subj.id)
+            if (activities.length > 0) {
+              setPendingSubject(pendingSubject === subj.id ? null : subj.id)
+            } else {
+              handleStart(subj.id, '')
+            }
+          }
+        }}
+        disabled={isDisabled}
+        className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer
+          ${isActive
+            ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-slate-900 scale-105 shadow-md ' + getButtonColor(getSubjectById(subj.id)?.category)
+            : isDisabled
+              ? 'opacity-40 cursor-not-allowed border-gray-200 dark:border-slate-700 text-gray-400 dark:text-slate-500'
+              : pendingSubject === subj.id
+                ? 'ring-2 ring-offset-2 ring-blue-300 dark:ring-offset-slate-900 ' + getButtonColor(getSubjectById(subj.id)?.category)
+                : getButtonColor(getSubjectById(subj.id)?.category)
+          }`}
+      >
+        <span className="flex flex-col items-center gap-0.5 leading-tight">
+          <span>{subj.name}</span>
+          {subjectTotal(subj.id) > 0 && (
+            <span className="text-xs opacity-75">({formatDurationShort(subjectTotal(subj.id))})</span>
+          )}
+        </span>
+      </button>
+    )
+  }
+  /** 按类别分组科目（408 单独一组，其余按各自类别） */
+  const subjectSections = (() => {
+    const map = new Map<string, Subject[]>()
+    for (const s of availableSubjects) {
+      const list = map.get(s.category) ?? []
+      list.push(s)
+      map.set(s.category, list)
+    }
+    return Array.from(map.entries())
+  })()
 
   return (
     <div className="space-y-4">
@@ -545,45 +594,24 @@ export default function StudyTimer() {
         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
           选择科目
         </label>
-        <div className="flex flex-wrap gap-2">
-          {availableSubjects.map((subj) => {
-            const isActive = running?.subjectId === subj.id
-            const isDisabled = running !== null && !isActive
-            return (
-              <button
-                key={subj.id}
-                onClick={() => {
-                  if (isActive) {
-                    handleStop()
-                  } else if (!running) {
-                    const activities = getActivitiesForSubject(subj.id)
-                    if (activities.length > 0) {
-                      setPendingSubject(pendingSubject === subj.id ? null : subj.id)
-                    } else {
-                      handleStart(subj.id, '')
-                    }
-                  }
-                }}
-                disabled={isDisabled}
-                className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer
-                  ${isActive
-                    ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-slate-900 scale-105 shadow-md ' + getButtonColor(getSubjectById(subj.id)?.category)
-                    : isDisabled
-                      ? 'opacity-40 cursor-not-allowed border-gray-200 dark:border-slate-700 text-gray-400 dark:text-slate-500'
-                      : pendingSubject === subj.id
-                        ? 'ring-2 ring-offset-2 ring-blue-300 dark:ring-offset-slate-900 ' + getButtonColor(getSubjectById(subj.id)?.category)
-                        : getButtonColor(getSubjectById(subj.id)?.category)
-                  }`}
-              >
-                <span className="flex flex-col items-center gap-0.5 leading-tight">
-                  <span>{subj.name}</span>
-                  {subjectTotal(subj.id) > 0 && (
-                    <span className="text-xs opacity-75">({formatDurationShort(subjectTotal(subj.id))})</span>
-                  )}
-                </span>
-              </button>
-            )
-          })}
+        <div className="space-y-3">
+          {subjectSections.map(([cat, subs]) =>
+            cat === '408' ? (
+              <div key={cat}>
+                <div className="text-xs font-semibold text-gray-400 dark:text-slate-500 mb-1.5 flex items-center gap-1.5">
+                  408
+                  <span className="font-normal text-gray-300 dark:text-slate-600">计算机专业基础综合 · 听课 / 练习</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {subs.map(renderSubjectButton)}
+                </div>
+              </div>
+            ) : (
+              <div key={cat} className="flex flex-wrap gap-2">
+                {subs.map(renderSubjectButton)}
+              </div>
+            ),
+          )}
         </div>
 
         {/* 选择学习内容 */}
