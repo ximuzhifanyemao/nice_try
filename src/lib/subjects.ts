@@ -45,9 +45,10 @@ export function resetSubjectCache() {
 /**
  * 从云端加载并缓存当前用户的科目。登录后调用；返回是否成功。
  * 不改变内置科目，仅在内存中追加自定义科目。
+ * force=true 时忽略缓存强制重新拉取（增删改科目后调用，保证立即生效）。
  */
-export async function loadUserSubjects(userId: string): Promise<boolean> {
-  if (userSubjectsOwner === userId && userSubjectsCache !== null) return true
+export async function loadUserSubjects(userId: string, force = false): Promise<boolean> {
+  if (!force && userSubjectsOwner === userId && userSubjectsCache !== null) return true
   resetSubjectCache()
   userSubjectsOwner = userId
   try {

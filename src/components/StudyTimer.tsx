@@ -125,6 +125,7 @@ export default function StudyTimer() {
   const [customSubjects, setCustomSubjects] = useState<UserSubject[]>([])
   const [subjectsLoading, setSubjectsLoading] = useState(false)
   /* 新增科目表单 */
+  const [showAddModal, setShowAddModal] = useState(false)
   const [newName, setNewName] = useState('')
   const [newActivities, setNewActivities] = useState('')
   const [creating, setCreating] = useState(false)
@@ -400,7 +401,7 @@ export default function StudyTimer() {
   /* ── 科目管理（增删改后刷新科目列表） ── */
   /** 重新从云端加载并更新科目缓存（内置 + 自定义） */
   const refreshSubjects = useCallback(async () => {
-    if (user) await loadUserSubjects(user.id)
+    if (user) await loadUserSubjects(user.id, true)
     setAvailableSubjects(getAvailableSubjects())
   }, [user])
 
@@ -435,6 +436,7 @@ export default function StudyTimer() {
       await createUserSubject(user.id, { name: newName, activities })
       setNewName('')
       setNewActivities('')
+      setShowAddModal(false)
       await loadCustomSubjects()
       await refreshSubjects()
     } catch (err) {
@@ -781,27 +783,13 @@ export default function StudyTimer() {
           </p>
 
           {/* 新增科目 */}
-          <div className="rounded-lg border border-dashed border-gray-300 dark:border-slate-600 p-3 space-y-2 mb-4">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="科目名称，如：专业课、工作、健身"
-              className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
-            />
-            <input
-              value={newActivities}
-              onChange={(e) => setNewActivities(e.target.value)}
-              placeholder="学习内容（用逗号分隔），如：阅读，练习，复盘"
-              className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
-            />
-            <button
-              onClick={handleCreateSubject}
-              disabled={creating || !newName.trim()}
-              className="px-4 py-2 bg-white dark:bg-slate-600 border border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-300 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-slate-500 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {creating ? '添加中...' : '+ 添加科目'}
-            </button>
-          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            disabled={creating}
+            className="w-full px-4 py-2.5 bg-white dark:bg-slate-600 border border-dashed border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-300 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-slate-500 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+          >
+            + 添加科目
+          </button>
 
           {/* 自定义科目列表 */}
           {subjectsLoading ? (
@@ -884,6 +872,58 @@ export default function StudyTimer() {
         <p className="text-center text-sm text-gray-400 dark:text-slate-500">
           请先登录后使用计时器
         </p>
+      )}
+
+      {/* 添加科目弹窗 */}
+      {showAddModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+          onClick={() => setShowAddModal(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-semibold text-gray-800 dark:text-slate-100">添加科目</h3>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 text-xl leading-none cursor-pointer"
+                aria-label="关闭"
+              >
+                ×
+              </button>
+            </div>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="科目名称，如：专业课、工作、健身"
+              autoFocus
+              className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+            />
+            <input
+              value={newActivities}
+              onChange={(e) => setNewActivities(e.target.value)}
+              placeholder="学习内容（用逗号分隔），如：阅读，练习，复盘"
+              className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+            />
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="flex-1 px-4 py-2 text-sm text-gray-600 dark:text-slate-300 border border-gray-300 dark:border-slate-600 rounded-lg hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleCreateSubject}
+                disabled={creating || !newName.trim()}
+                className="flex-1 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
+              >
+                {creating ? '添加中...' : '确认添加'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
