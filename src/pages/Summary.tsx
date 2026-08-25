@@ -57,6 +57,9 @@ const Summary: React.FC = () => {
     <div className="mx-auto max-w-4xl px-4 py-4 space-y-4">
       <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">统计</h1>
 
+      {/* 本周学习时长图：固定放在范围选择器上方；仅在本周模式下展示，避免干扰本月/自定义数据 */}
+      {!loading && !error && range.mode === 'week' && <WeeklyChart logs={logs} />}
+
       <RangePicker value={range} onChange={setRange} />
 
       {loading && (
@@ -99,8 +102,6 @@ const Summary: React.FC = () => {
 
       {!loading && !error && (
         <>
-          <WeeklyChart logs={logs} />
-
           {summary.totalHours === 0 ? (
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 text-center">
               <p className="text-gray-500 dark:text-slate-400">本时间段暂无学习记录</p>

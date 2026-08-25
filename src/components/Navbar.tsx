@@ -19,7 +19,8 @@ export default function Navbar() {
   }
 
   return (
-    <nav className="bg-slate-700 dark:bg-slate-800 dark:border-b dark:border-slate-700 text-white shadow-md sticky top-0 z-50 transition-colors duration-200">
+    // 移动端隐藏顶部横幅（导航由底部 Tab 承担），桌面端保留导航栏
+    <nav className="hidden sm:block bg-slate-700 dark:bg-slate-800 dark:border-b dark:border-slate-700 text-white shadow-md sticky top-0 z-50 transition-colors duration-200">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
         <Link to="/" className="text-lg sm:text-xl font-bold tracking-wide">
           大学深埋
