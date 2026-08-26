@@ -1,5 +1,5 @@
 import { BleClient } from '@capacitor-community/bluetooth-le'
-import type { BleDevice } from '@capacitor-community/bluetooth-le'
+import type { BleDevice, ScanMode } from '@capacitor-community/bluetooth-le'
 import { Capacitor } from '@capacitor/core'
 import { TimerForeground } from '../plugins/timer-foreground'
 
@@ -107,15 +107,28 @@ export async function connectBleTimer(events?: BleTimerEvents): Promise<string> 
 }
 
 /**
- * 扫描目标设备。优先按名字/UUID 命中；若广播缺名字（固件把名字放 scan response，
- * Android 常拿不到，扫描结果里显示为「无名称」），则退而逐个连接候选设备，
- * 通过读取服务列表校验 SERVICE_UUID 来认领计时器。
+ * 扫描目标设备。按以下层次兜底，直到命中计时器：
+ *   1) 普通 10 秒扫描（LOW_LATENCY 模式），按名字/UUID 命中
+ *   2) 兜底探测：对扫描到的候选逐个连接，读取服务列表校验 SERVICE_UUID 认领
+ *   3) 兜底：检查系统已配对（bonded）设备，按名字前缀命中并探测
+ *   4) 终极兜底：BleClient.requestDevice 调系统原生「选择设备」弹窗，
+ *      弹窗会用系统自己的扫描器（不是插件的 requestLEScan 回调），
+ *      系统蓝牙能看到 DiveDeep，弹窗里一定能选到。
  */
 async function scanForDevice(): Promise<BleDevice> {
-  // 1) 扫描收集候选设备
+  // 1) 扫描收集候选设备（LOW_LATENCY 扫描，更稳定拿到广播里的名字/uuid）
   const candidates: BleDevice[] = []
   const seenIds = new Set<string>()
+  const seenDisplay = new Map<string, string>()
   const namedHits: BleDevice[] = []
+
+  const formatDevice = (r: { device: BleDevice; localName?: string }): string => {
+    const id = r.device.deviceId
+    const name = r.localName || r.device.name
+    const oui = id.slice(0, 8).toUpperCase()
+    const esp = ESPRESSIF_OUIS.some((o) => o === oui) ? ' 🟡ESP32' : ''
+    return name ? `${name}(${id})${esp}` : `<无名称>${id}${esp}`
+  }
 
   await new Promise<void>((resolve, reject) => {
     const cleanup = () => {
@@ -124,14 +137,25 @@ async function scanForDevice(): Promise<BleDevice> {
         scanTimer = null
       }
     }
-    BleClient.requestLEScan({ allowDuplicates: true }, (result) => {
-      const id = result.device.deviceId
-      if (!seenIds.has(id)) {
-        seenIds.add(id)
-        candidates.push(result.device)
+    // SCAN_MODE_LOW_LATENCY = 2：最高频率报告，更容易命中 scan response 里的名字
+    BleClient.requestLEScan(
+      { allowDuplicates: true, scanMode: 2 as ScanMode },
+      (result) => {
+        const id = result.device.deviceId
+        if (!seenIds.has(id)) {
+          seenIds.add(id)
+          candidates.push(result.device)
+          seenDisplay.set(id, formatDevice(result))
+        } else {
+          const prev = seenDisplay.get(id) || ''
+          const hadName = prev && !prev.startsWith('<无名称>')
+          if (!hadName && (result.localName || result.device.name)) {
+            seenDisplay.set(id, formatDevice(result))
+          }
+        }
+        if (isTarget(result)) namedHits.push(result.device)
       }
-      if (isTarget(result)) namedHits.push(result.device)
-    }).catch((err) => {
+    ).catch((err) => {
       cleanup()
       reject(err instanceof Error ? err : new Error(String(err)))
     })
@@ -143,25 +167,43 @@ async function scanForDevice(): Promise<BleDevice> {
     }, SCAN_TIMEOUT_MS)
   })
 
-  // 2) 名字/UUID 命中最优先
   if (namedHits.length > 0) return namedHits[0]
 
-  // 3) 兜底：广播缺名字时，逐个连接候选校验服务 UUID。
-  //    为少走弯路，优先探测目标设备最可能的候选（无名字 + Espressif 厂商 MAC）。
-  const ordered = [...candidates].sort((a, b) => {
-    const ax = rankCandidate(a)
-    const bx = rankCandidate(b)
-    return bx - ax
-  })
+  // 2) 兜底探测扫描到的候选
+  const ordered = [...candidates].sort((a, b) => rankCandidate(b) - rankCandidate(a))
   for (const c of ordered) {
     if (await probeHasOurService(c.deviceId)) return c
   }
 
+  // 3) 兜底：系统已配对设备（可能之前配对过，现在看不到广播但连接有效）
+  try {
+    const bonded = await BleClient.getBondedDevices()
+    const matching = bonded.filter(
+      (d) => (d.name || '').startsWith(DEVICE_NAME_PREFIX) || ESPRESSIF_OUIS.some((o) => o === d.deviceId.slice(0, 8).toUpperCase())
+    )
+    for (const b of matching) {
+      if (await probeHasOurService(b.deviceId)) return b
+    }
+  } catch {
+    /* 忽略绑定列表异常 */
+  }
+
+  // 4) 终极兜底：让系统弹窗让你手动点选 DiveDeep（系统扫描器能看到就能选到）
+  try {
+    const picked = await BleClient.requestDevice({ namePrefix: DEVICE_NAME_PREFIX })
+    if (picked) return picked
+  } catch {
+    /* 用户取消或系统异常，继续走到最后报错 */
+  }
+
   const seenText = seenIds.size
-    ? [...seenIds].map((id) => id).slice(0, 12).join('、')
-    : '（未扫描到任何设备，手机可能没看到任何 BLE 设备）'
+    ? candidates
+        .slice(0, 12)
+        .map((d) => seenDisplay.get(d.deviceId) || d.deviceId)
+        .join('、')
+    : '（未扫描到任何设备，计时器可能没在广播——请重新上电并确认手机系统蓝牙已取消配对）'
   throw new Error(
-    `未找到 DiveDeep 计时器设备。10 秒内扫描到的设备：${seenText}。请确认计时器已上电靠近手机；若系统蓝牙已配对该设备请先取消配对`
+    `未找到 DiveDeep 计时器设备。10 秒内扫描到的设备（🟡=疑似ESP32计时器）：${seenText}。若系统蓝牙里仍能看到 DiveDeep，请先把它取消配对，再点「重新连接」——连接前一定不要手动配对！`
   )
 }
 
