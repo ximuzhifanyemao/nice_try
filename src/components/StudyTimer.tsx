@@ -152,6 +152,8 @@ export default function StudyTimer() {
   /* ── BLE 计时器连接状态 ── */
   const [bleConnected, setBleConnected] = useState(false)
   const [bleSearching, setBleSearching] = useState(true)
+  /* 最近一次连接/扫描失败的具体原因（用于定位问题） */
+  const [bleError, setBleError] = useState<string | null>(null)
   /* 今日累计里 408 是否汇总显示 */
   const [agg408, setAgg408] = useState(true)
   /* 科目选择里 408 分组是否展开 */
@@ -192,8 +194,10 @@ export default function StudyTimer() {
           onDisconnect: () => { if (!removed) setBleConnected(false) },
         })
         if (!removed) setBleConnected(true)
-      } catch {
+        if (!removed) setBleError(null)
+      } catch (err) {
         // 未连接/找不到设备不影响手机上直接计时，这里静默处理
+        if (!removed) setBleError(err instanceof Error ? err.message : '连接失败')
       } finally {
         if (!removed) setBleSearching(false)
       }
@@ -385,14 +389,16 @@ export default function StudyTimer() {
   /* 重新扫描/连接硬件计时器（硬件到位后手动重试） */
   const handleReconnectBle = async () => {
     setBleSearching(true)
+    setBleError(null)
     try {
       await connectBleTimer({
         onStop: () => handleStopRef.current(),
         onDisconnect: () => setBleConnected(false),
       })
       setBleConnected(true)
-    } catch {
+    } catch (err) {
       // 未连接/找不到设备不影响手机上直接计时，这里静默处理
+      setBleError(err instanceof Error ? err.message : '连接失败')
     } finally {
       setBleSearching(false)
     }
@@ -580,7 +586,9 @@ export default function StudyTimer() {
               ? '硬件计时器已连接：在设备上按「结束」即可记入打卡'
               : bleSearching
                 ? '正在查找硬件计时器…'
-                : '硬件计时器未连接（可选），可在手机上直接计时'}
+                : bleError
+                  ? `未连接：${bleError}`
+                  : '硬件计时器未连接（可选），可在手机上直接计时'}
           </span>
           {!bleConnected && (
             <button

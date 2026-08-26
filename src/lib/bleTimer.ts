@@ -14,7 +14,7 @@ import { Capacitor } from '@capacitor/core'
 
 const SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb'
 const STATE_CHAR_UUID = '2a19'
-const DEVICE_NAME_PREFIX = 'KaoYan-Timer'
+const DEVICE_NAME_PREFIX = 'DiveDeep'
 
 const SCAN_TIMEOUT_MS = 10000
 

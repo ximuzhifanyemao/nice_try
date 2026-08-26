@@ -38,9 +38,44 @@
 // 蜂鸣器：无源（压电/电磁）— 需用 PWM 方波驱动，频率可变
 // 配 3 脚无源蜂鸣器模块时接 I/O→GPIO13；配裸无源蜂鸣器时一端接 GPIO13、另一端接 GND
 #define BEEP_PIN     PIN_BUZZER   // 复用 GPIO13
-#define BEEP_CHANNEL 0            // ESP32 LEDC 通道
+#define BEEP_CHANNEL 0            // ESP32 LEDC 通道（core 2.x 用）
 #define BEEP_FREQ    2000         // 提示音默认频率(Hz)，音调越细越尖
 #define BEEP_RES     8            // LEDC 分辨率(bit)
+
+// LEDC API 兼容：ESP32 Arduino core 2.x 用 ledcSetup/ledcAttachPin + 通道句柄，
+// core 3.x 起改为 ledcAttach + 引脚句柄（ledcWrite 参数从通道变为引脚）。
+// 用 ESP_ARDUINO_VERSION_MAJOR 判断（core 2.0.4+ 起已定义）。
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  #define LEDC_HANDLE BEEP_PIN       // 3.x：以引脚为句柄
+#else
+  #define LEDC_HANDLE BEEP_CHANNEL   // 2.x：以通道为句柄
+#endif
+
+// 统一入口：按当前 core 版本初始化/设频/写占空比
+void ledcInitBuzzer() {
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcAttach(BEEP_PIN, BEEP_FREQ, BEEP_RES);
+  ledcWrite(BEEP_PIN, 0);
+#else
+  ledcSetup(BEEP_CHANNEL, BEEP_FREQ, BEEP_RES);
+  ledcAttachPin(BEEP_PIN, BEEP_CHANNEL);
+  ledcWrite(BEEP_CHANNEL, 0);
+#endif
+}
+void ledcBuzzerFreq(uint16_t freq) {
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcChangeFrequency(BEEP_PIN, freq, BEEP_RES);
+#else
+  ledcChangeFrequency(BEEP_CHANNEL, freq, BEEP_RES);
+#endif
+}
+void ledcBuzzerWrite(uint32_t duty) {
+#if ESP_ARDUINO_VERSION_MAJOR >= 3
+  ledcWrite(BEEP_PIN, duty);
+#else
+  ledcWrite(BEEP_CHANNEL, duty);
+#endif
+}
 
 // 屏幕
 #define SCREEN_WIDTH   128
@@ -78,10 +113,10 @@ void notifyState(bool on) {
 
 /** 无源蜂鸣器提示音：以指定频率响 ms 毫秒后静音 */
 void beep(uint16_t freq = BEEP_FREQ, unsigned long ms = 200) {
-  ledcChangeFrequency(BEEP_CHANNEL, freq, BEEP_RES);
-  ledcWrite(BEEP_CHANNEL, 128);  // 50% 占空比，方波即有音量
+  ledcBuzzerFreq(freq);
+  ledcBuzzerWrite(128);      // 50% 占空比，方波即有音量
   delay(ms);
-  ledcWrite(BEEP_CHANNEL, 0);    // 停响
+  ledcBuzzerWrite(0);        // 停响
 }
 
 /** 更新 OLED 显示（mm:ss 或 hh:mm:ss） */
@@ -116,10 +151,8 @@ void setup() {
   pinMode(PIN_START_BTN, INPUT_PULLUP);
   pinMode(PIN_STOP_BTN, INPUT_PULLUP);
 
-  // 无源蜂鸣器：LEDC PWM 通道配置，默认先静音（占空比 0）
-  ledcSetup(BEEP_CHANNEL, BEEP_FREQ, BEEP_RES);
-  ledcAttachPin(BEEP_PIN, BEEP_CHANNEL);
-  ledcWrite(BEEP_CHANNEL, 0);
+  // 无源蜂鸣器：LEDC PWM 配置，默认先静音（占空比 0）
+  ledcInitBuzzer();
 
   // OLED 初始化
   if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDR)) {
@@ -129,7 +162,7 @@ void setup() {
   renderScreen();
 
   // BLE 初始化
-  BLEDevice::init("KaoYan-Timer");
+  BLEDevice::init("DiveDeep");
   BLEServer *server = BLEDevice::createServer();
   server->setCallbacks(new MyServerCallbacks());
 
@@ -148,7 +181,7 @@ void setup() {
   ad->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
 
-  Serial.println("KaoYan-Timer BLE ready");
+  Serial.println("DiveDeep BLE ready");
 }
 
 void loop() {
