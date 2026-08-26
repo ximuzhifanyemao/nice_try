@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, createContext, useContext, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, createContext, type ReactNode } from 'react'
 import { HashRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { UpdateProvider } from './contexts/UpdateContext'
