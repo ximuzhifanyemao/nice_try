@@ -60,6 +60,16 @@ export default function Profile() {
         </div>
       </div>
 
+      {/* 扫码登录电脑（App 内置扫码器） */}
+      <Link
+        to="/scan-qr"
+        className="flex items-center gap-3 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700 transition-colors hover:bg-gray-50 dark:hover:bg-slate-700"
+      >
+        <span className="text-xl leading-none">📱</span>
+        <span className="text-sm font-medium text-gray-700 dark:text-slate-200">扫码登录电脑</span>
+        <span className="ml-auto text-gray-400 dark:text-slate-500 text-xs">扫电脑二维码，确认登录</span>
+      </Link>
+
       {/* 同步数据 */}
       <button
         onClick={handleSync}

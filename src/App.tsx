@@ -28,6 +28,7 @@ const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
 const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
 const Settings = lazy(() => import('./pages/Settings'))
 const QrLogin = lazy(() => import('./pages/QrLogin'))
+const ScanQr = lazy(() => import('./pages/ScanQr'))
 
 function PageLoading() {
   return (
@@ -114,6 +115,7 @@ export default function App({ hideBottomTab = false, hideNavbar = false }: { hid
                 <Route path="/english-checkin" element={<EnglishCheckin />} />
                 <Route path="/vocabulary" element={<VocabularyBook />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/scan-qr" element={<ScanQr />} />
               </Route>
               <Route path="*" element={<NotFound />} />
             </Routes>

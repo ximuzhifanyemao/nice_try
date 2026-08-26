@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { checkQrToken, confirmQrLogin } from '../lib/qrLogin'
-import { supabase } from '../lib/supabase'
 
 export default function QrLogin() {
   const [searchParams] = useSearchParams()

@@ -1,7 +1,7 @@
 {
   "name": "kaoyan-tracker",
   "private": true,
-  "version": "1.8.8",
+  "version": "1.8.9",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -28,6 +28,7 @@
     "@tauri-apps/api": "^2.11.1",
     "@types/qrcode": "^1.5.6",
     "date-fns": "^4.4.0",
+    "html5-qrcode": "^2.3.8",
     "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
