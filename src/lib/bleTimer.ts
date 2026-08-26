@@ -13,7 +13,8 @@ import { Capacitor } from '@capacitor/core'
  */
 
 const SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb'
-const STATE_CHAR_UUID = '2a19'
+// 插件只接受 128 位 UUID 字符串（'2a19' 会被 parseUUID 拒绝）
+const STATE_CHAR_UUID = '00002a19-0000-1000-8000-00805f9b34fb'
 const DEVICE_NAME_PREFIX = 'DiveDeep'
 
 const SCAN_TIMEOUT_MS = 10000
@@ -41,10 +42,14 @@ export function isBleTimerConnected(): boolean {
   return connectedDeviceId !== null
 }
 
-/** 从扫描结果里匹配我们的计时器设备 */
-function isTarget(result: { device: BleDevice; localName?: string }): boolean {
+/** 从扫描结果里匹配我们的计时器设备：设备名前缀或广播的服务 UUID 任一命中 */
+function isTarget(result: { device: BleDevice; localName?: string; uuids?: string[] }): boolean {
   const name = result.localName ?? result.device.name ?? ''
-  return name.startsWith(DEVICE_NAME_PREFIX)
+  if (name.startsWith(DEVICE_NAME_PREFIX)) return true
+  // 设备名在 scan response 中，部分手机（硬件过滤/被动扫描）拿不到名字，
+  // 用广播包里的服务 UUID 兜底匹配
+  const uuids = result.uuids ?? []
+  return uuids.some((u) => u.toLowerCase() === SERVICE_UUID)
 }
 
 /**
@@ -102,19 +107,29 @@ async function scanForDevice(): Promise<BleDevice> {
     }
 
     BleClient.requestLEScan(
-      { services: [SERVICE_UUID], allowDuplicates: false },
+      // 不用 services/name 做原生过滤：设备名在 scan response 里，
+      // 部分手机按服务 UUID 硬件过滤后拿不到名字/不回调，改为收全量广播由 isTarget 匹配。
+      // allowDuplicates: true 保证同一设备后续广播（带 scan response 名字/UUID）也能触发回调。
+      { allowDuplicates: true },
       (result) => {
         if (found || !isTarget(result)) return
         found = result.device
         cleanup()
         BleClient.stopLEScan().finally(() => resolve(found as BleDevice))
       }
-    ).catch(reject)
+    ).catch((err) => {
+      cleanup()
+      reject(err instanceof Error ? err : new Error(String(err)))
+    })
 
     scanTimer = setTimeout(() => {
       cleanup()
       BleClient.stopLEScan().catch(() => undefined)
-      reject(new Error('未找到计时器设备，请确认已开机且靠近手机'))
+      reject(
+        new Error(
+          '未找到计时器设备，请确认设备已开机且靠近手机；若手机系统蓝牙中已配对该设备，请先取消配对（被占用时设备会停止广播）'
+        )
+      )
     }, SCAN_TIMEOUT_MS)
   })
 }
@@ -124,6 +139,8 @@ export async function disconnectBleTimer(): Promise<void> {
   if (scanTimer) {
     clearTimeout(scanTimer)
     scanTimer = null
+    // 还在扫描时退出页面：停掉扫描，避免后台持续耗电
+    BleClient.stopLEScan().catch(() => undefined)
   }
   if (connectedDeviceId) {
     const id = connectedDeviceId
