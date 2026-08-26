@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useContext, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { HomeLayoutContext } from '../App'
 import Countdown from '../components/Countdown'
 import Calendar from '../components/Calendar'
 import type { DailyLog } from '../lib/dailyLogs'
@@ -11,6 +12,7 @@ import { fetchMyCheckins } from '../lib/englishCheckin'
 
 export default function Home() {
   const { user } = useAuth()
+  const { twoCol } = useContext(HomeLayoutContext)
   const [logs, setLogs] = useState<DailyLog[]>([])
   const [loading, setLoading] = useState(true)
   const [weekTarget, setWeekTarget] = useState<number | null>(null)
@@ -132,7 +134,7 @@ export default function Home() {
         </Link>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4 items-start">
+      <div className={`grid gap-4 items-start ${twoCol ? 'grid-cols-[1fr_280px]' : 'grid-cols-1 lg:grid-cols-[1fr_280px]'}`}>
         <div>
           <Countdown />
         </div>

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, createContext, useContext, type ReactNode } from 'react'
 import { HashRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { UpdateProvider } from './contexts/UpdateContext'
@@ -29,6 +29,9 @@ const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
 const Settings = lazy(() => import('./pages/Settings'))
 const QrLogin = lazy(() => import('./pages/QrLogin'))
 const ScanQr = lazy(() => import('./pages/ScanQr'))
+
+/** 首页布局上下文：桌面端「全部功能」全功能模式下强制双栏布局 */
+export const HomeLayoutContext = createContext<{ twoCol: boolean }>({ twoCol: false })
 
 function PageLoading() {
   return (
@@ -89,6 +92,7 @@ export default function App({
   hideNavbar = false,
   sidebar = null,
   fillHeight = false,
+  forceTwoCol = false,
 }: {
   hideBottomTab?: boolean
   hideNavbar?: boolean
@@ -96,6 +100,8 @@ export default function App({
    */ sidebar?: ReactNode | null
   /** 桌面展开模式下用 100% 高度替代 100vh，配合滚动容器避免页面底部被裁切 */
   fillHeight?: boolean
+  /** 桌面「全部功能」全功能模式下强制首页双栏布局（无视视口宽度） */
+  forceTwoCol?: boolean
 }) {
   const pageHeight = fillHeight ? 'min-h-full' : 'min-h-screen'
   return (
@@ -113,6 +119,7 @@ export default function App({
               <AchievementNotifier />
               {!hideNavbar && <Navbar />}
               <Suspense fallback={<PageLoading />}>
+                <HomeLayoutContext.Provider value={{ twoCol: forceTwoCol }}>
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
@@ -135,6 +142,7 @@ export default function App({
                   </Route>
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                </HomeLayoutContext.Provider>
               </Suspense>
               {!hideBottomTab && <BottomTab />}
             </div>

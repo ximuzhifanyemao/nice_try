@@ -63,7 +63,7 @@ export default function WidgetApp() {
     try {
       if (next) {
         await appWindow.setSize(new PhysicalSize(FULL_W, FULL_H))
-        await appWindow.setResizable(true)
+        await appWindow.setResizable(false)
         await appWindow.setAlwaysOnTop(false)
       } else {
         await appWindow.setAlwaysOnTop(true)
@@ -116,14 +116,11 @@ export default function WidgetApp() {
   if (fullMode) {
     return (
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-        {/* 顶部标题栏（可拖拽） */}
-        <div
-          data-tauri-drag-region
-          className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none"
-        >
-          <div data-tauri-drag-region className="flex items-center gap-2">
+        {/* 顶部标题栏（全功能模式：固定窗口，不可拖拽） */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none">
+          <div className="flex items-center gap-2">
             <Logo size={18} />
-            <span data-tauri-drag-region className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+            <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
               DiveDeep
             </span>
           </div>
@@ -155,7 +152,7 @@ export default function WidgetApp() {
         {/* 侧边栏 + App 内容（Sidebar 必须在 Router 内部，由 App 接收） */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <FullAppBoundary>
-            <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight />
+            <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight forceTwoCol />
           </FullAppBoundary>
         </div>
       </div>

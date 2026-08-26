@@ -2,7 +2,7 @@
 // OTA 更新上传脚本（APK 模式）
 // 用法：node scripts/upload-ota.mjs
 // 前提：设置环境变量 SUPABASE_URL 和 SUPABASE_SERVICE_KEY
-//       APK 文件需已构建到 apk/kaoyan-tracker.apk
+//       APK 文件需已构建到 apk/DiveDeep.apk
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js'
@@ -40,8 +40,8 @@ const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY // 需要 service_role key（非 anon key）
 const BUCKET_NAME = 'ota-bundles'
 const VERSION = pkg.version
-const APK_PATH = join(__dirname, '..', 'apk', 'kaoyan-tracker.apk')
-const APK_STORAGE_NAME = 'kaoyan-tracker.apk' // bucket 中使用固定文件名
+const APK_PATH = join(__dirname, '..', 'apk', 'DiveDeep.apk')
+const APK_STORAGE_NAME = 'DiveDeep.apk' // bucket 中使用固定文件名
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error('❌ 请设置环境变量 SUPABASE_URL 和 SUPABASE_SERVICE_KEY')

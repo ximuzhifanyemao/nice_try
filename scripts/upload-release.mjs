@@ -1,7 +1,7 @@
 // ============================================================
 // 上传产物到 GitHub Releases 脚本
 // 用法：node scripts/upload-release.mjs
-// 前提：apk/kaoyan-tracker.apk 与
+// 前提：apk/DiveDeep.apk 与
 //       src-tauri/target/release/bundle/nsis/*.exe、bundle/msi/*.msi 已构建
 // 认证：优先 GITHUB_TOKEN / GH_TOKEN 环境变量，或 .env.ota 中配置，
 //       否则回退到 git 凭据管理器（HTTPS 推送时用的同款令牌）
@@ -40,8 +40,8 @@ const OWNER = process.env.GITHUB_OWNER || 'ximuzhifanyemao'
 const REPO = process.env.GITHUB_REPO || 'nice_try'
 const VERSION = pkg.version
 const TAG = `v${VERSION}`
-const APK_PATH = join(__dirname, '..', 'apk', 'kaoyan-tracker.apk')
-const ASSET_NAME = 'kaoyan-tracker.apk'
+const APK_PATH = join(__dirname, '..', 'apk', 'DiveDeep.apk')
+const ASSET_NAME = 'DiveDeep.apk'
 const NSIS_DIR = join(__dirname, '..', 'src-tauri', 'target', 'release', 'bundle', 'nsis')
 const MSI_DIR = join(__dirname, '..', 'src-tauri', 'target', 'release', 'bundle', 'msi')
 const API = `https://api.github.com/repos/${OWNER}/${REPO}`
