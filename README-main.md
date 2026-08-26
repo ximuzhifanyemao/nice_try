@@ -1,6 +1,6 @@
 # 考研追踪
 
-备考学习追踪应用，支持每日学习记录、计时器、数据统计、每周目标承诺等功能。
+备考学习追踪应用，支持每日学习记录、计时器、数据统计、每周目标承诺等功能。电脑软件/网站支持账号密码与手机扫码双方式登录。
 
 ## 技术栈
 
@@ -65,6 +65,10 @@ npm run dev
 - 为 `daily_logs` 添加 `deleted_at` 列
 - 将原 UNIQUE 约束改为部分唯一索引（仅对未删除记录生效）
 - 更新 SELECT 策略：公开记录任何人可读，回收站记录仅本人可见
+
+**Step 4: `supabase-migration-qr-login.sql`**（可选，启用电脑软件/网站扫码登录）
+
+扫码登录会话表 `qr_login_sessions`：电脑端生成 token，手机扫码确认后写入 session，电脑端轮询拿回登录态。字段：`token`、`status`(pending/confirmed/expired)、`session_access_token`、`session_refresh_token`、`user_id`、`confirmed_at`。RLS 允许匿名创建与读取，仅登录用户可 UPDATE。
 
 ### 3. 配置 Authentication
 

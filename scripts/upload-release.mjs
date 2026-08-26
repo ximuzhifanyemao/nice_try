@@ -9,7 +9,7 @@
 import { readFileSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
-import { execSync } from 'child_process'
+import { execSync, execFileSync } from 'child_process'
 import { createRequire } from 'module'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -90,6 +90,32 @@ async function ghApi(path, options = {}, token, base = API) {
   return json
 }
 
+// ========== 生成版本更新日志（自上一个 tag 以来的提交） ==========
+function buildChangelog() {
+  try {
+    const tags = execFileSync('git', ['tag', '--sort=-v:refname'], { encoding: 'utf-8' })
+      .trim().split('\n').filter(Boolean)
+    const prevTag = tags.find((t) => t !== `v${VERSION}`) || null
+    // 当前 tag 尚未打时，第一个 tag 即上一版本；否则取其后的提交范围
+    const range = prevTag ? `${prevTag}..HEAD` : 'HEAD'
+    const lines = execFileSync('git', ['log', '--pretty=%s', '-30', range], { encoding: 'utf-8' })
+      .trim().split('\n').filter(Boolean)
+    return lines
+  } catch {
+    return []
+  }
+}
+
+function buildReleaseBody() {
+  const changelog = buildChangelog()
+  let body = `考研追踪 App v${VERSION}（Android APK）\n\n`
+  if (changelog.length) {
+    body += `## 更新日志\n${changelog.map((l) => `- ${l}`).join('\n')}\n\n`
+  }
+  body += `安装包：${ASSET_NAME}`
+  return body
+}
+
 // ========== 核心：上传 APK 到 Release ==========
 export async function uploadApkToGithubRelease({ apkPath = APK_PATH } = {}) {
   if (!existsSync(apkPath)) {
@@ -100,6 +126,8 @@ export async function uploadApkToGithubRelease({ apkPath = APK_PATH } = {}) {
   if (!token) {
     throw new Error('未找到 GitHub 令牌（请设置 GITHUB_TOKEN，或配置 git 凭据管理器）')
   }
+
+  const body = buildReleaseBody()
 
   console.log(`   APK: ${apkPath} (${(apk.length / 1024 / 1024).toFixed(2)} MB)`)
 
@@ -115,6 +143,8 @@ export async function uploadApkToGithubRelease({ apkPath = APK_PATH } = {}) {
   if (release?.id) {
     releaseId = release.id
     console.log(`   已有 Release ${TAG}，复用 (id=${releaseId})`)
+    // 同步更新正文（含版本更新日志）
+    await ghApi(`/releases/${releaseId}`, { method: 'PATCH', body: JSON.stringify({ body }) }, token)
     // 删除同名旧 asset（同名文件无法重复上传）
     const oldAsset = release.assets?.find((a) => a.name === ASSET_NAME)
     if (oldAsset) {
@@ -127,7 +157,7 @@ export async function uploadApkToGithubRelease({ apkPath = APK_PATH } = {}) {
       body: JSON.stringify({
         tag_name: TAG,
         name: TAG,
-        body: `考研追踪 App v${VERSION}（Android APK）\n\n安装包：${ASSET_NAME}`,
+        body,
         draft: false,
         prerelease: false,
       }),

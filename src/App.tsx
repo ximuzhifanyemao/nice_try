@@ -27,6 +27,7 @@ const GoalPage = lazy(() => import('./pages/GoalPage'))
 const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
 const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
 const Settings = lazy(() => import('./pages/Settings'))
+const QrLogin = lazy(() => import('./pages/QrLogin'))
 
 function PageLoading() {
   return (
@@ -82,23 +83,24 @@ function BackButtonHandler() {
   return null
 }
 
-export default function App() {
+export default function App({ hideBottomTab = false, hideNavbar = false }: { hideBottomTab?: boolean; hideNavbar?: boolean }) {
   return (
     <HashRouter>
       <ToastProvider>
         <BackButtonHandler />
         <UpdateProvider>
-        <AuthProvider>
-          <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-900 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
+          <AuthProvider>
+          <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
           <ConfigBanner />
           <UpdateChecker />
           <AchievementNotifier />
-          <Navbar />
+          {!hideNavbar && <Navbar />}
           <Suspense fallback={<PageLoading />}>
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/qr-login" element={<QrLogin />} />
               <Route element={<ProtectedRoute />}>
                 <Route path="/my-records" element={<MyRecords />} />
                 <Route path="/profile" element={<Profile />} />
@@ -116,7 +118,7 @@ export default function App() {
               <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
-          <BottomTab />
+          {!hideBottomTab && <BottomTab />}
         </div>
       </AuthProvider>
       </UpdateProvider>

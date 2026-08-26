@@ -48,3 +48,7 @@ jdk-*/
 
 # AI 解析批量生成缓存（scripts/gen-ai-analysis.cjs 断点续跑用，体积大不进 git）
 scripts/_ai-results.json
+
+# Rust 工具链（Tauri 桌面端，装在项目下避免越权限；体积大不进 git）
+/.rustup/
+/.cargo/

@@ -37,14 +37,14 @@ export default function BottomTab() {
   const activeKey = getActiveKey()
 
   return (
-    <nav className="flex sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-800 border-t border-gray-200 dark:border-slate-700">
+    <nav className="flex sm:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-slate-800">
       {tabs.map((tab) => (
         <button
           key={tab.key}
           onClick={() => navigate(tab.path)}
           aria-current={activeKey === tab.key ? 'page' : undefined}
           className={`flex-1 flex flex-col items-center justify-center py-2 text-xs transition-colors cursor-pointer ${
-            activeKey === tab.key ? 'text-blue-500' : 'text-gray-400 dark:text-gray-500'
+            activeKey === tab.key ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-400 dark:text-slate-600'
           }`}
         >
           <span className="text-lg leading-none">{tab.icon}</span>

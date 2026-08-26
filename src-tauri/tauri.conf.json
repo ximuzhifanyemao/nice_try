@@ -1,0 +1,49 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "DiveDeep",
+  "version": "1.8.7",
+  "identifier": "com.kaoyan.tracker",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build:deploy"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "⏱ 计时器",
+        "width": 380,
+        "height": 520,
+        "minWidth": 340,
+        "minHeight": 400,
+        "resizable": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["SimpChinese"]
+      },
+      "wix": {
+        "language": ["zh-CN"]
+      }
+    }
+  }
+}
