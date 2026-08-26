@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 
 const config: CapacitorConfig = {
   appId: 'com.kaoyan.tracker',
-  appName: '考研追踪',
+  appName: 'DiveDeep',
   webDir: 'dist',
   android: {
     backgroundColor: '#ffffffff',

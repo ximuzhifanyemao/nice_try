@@ -1,6 +1,7 @@
 import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { toggleTheme } from '../lib/theme'
+import Logo from './Logo'
 import { useState } from 'react'
 
 interface NavItem {
@@ -61,10 +62,10 @@ export default function Sidebar() {
       <Link
         to="/"
         className="flex items-center justify-start gap-2 px-3 h-11 border-b border-gray-200 dark:border-slate-800 text-sm font-semibold text-gray-700 dark:text-slate-200 shrink-0"
-        title="大学深埋"
+        title="DiveDeep"
       >
-        <span className="text-base">📚</span>
-        <span className="truncate">大学深埋</span>
+        <Logo size={18} />
+        <span className="truncate">DiveDeep</span>
       </Link>
 
       {/* 导航项 */}

@@ -23,7 +23,7 @@ export default function Navbar() {
     <nav className="hidden sm:block bg-slate-800 dark:bg-slate-900 dark:border-b dark:border-slate-800 text-white sticky top-0 z-50 transition-colors duration-200">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
         <Link to="/" className="text-lg sm:text-xl font-bold tracking-wide">
-          大学深埋
+          DiveDeep
         </Link>
 
         {/* Desktop nav */}

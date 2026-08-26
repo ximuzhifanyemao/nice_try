@@ -59,7 +59,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 // ========== 主流程 ==========
 async function main() {
-  console.log(`\n📦 考研追踪 OTA 更新上传（APK 模式） - v${VERSION}\n`)
+  console.log(`\n📦 DiveDeep OTA 更新上传（APK 模式） - v${VERSION}\n`)
 
   // 1. 构建项目（用于网站）
   console.log('🔨 构建 Web 项目...')

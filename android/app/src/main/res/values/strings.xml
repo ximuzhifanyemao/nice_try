@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">大学深埋</string>
-    <string name="title_activity_main">大学深埋</string>
+    <string name="app_name">DiveDeep</string>
+    <string name="title_activity_main">DiveDeep</string>
     <string name="package_name">com.kaoyan.tracker</string>
     <string name="custom_url_scheme">com.kaoyan.tracker</string>
 </resources>

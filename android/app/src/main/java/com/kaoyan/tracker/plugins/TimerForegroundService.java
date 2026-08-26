@@ -116,7 +116,7 @@ public class TimerForegroundService extends Service {
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_icon)
-            .setContentTitle("考研追踪")
+            .setContentTitle("DiveDeep")
             .setContentText(content)
             .setOngoing(true)
             .setContentIntent(appPendingIntent)

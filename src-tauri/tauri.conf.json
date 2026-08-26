@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DiveDeep",
-  "version": "1.13.5",
+  "version": "1.13.7",
   "identifier": "com.kaoyan.tracker",
   "build": {
     "frontendDist": "../dist",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "⏱ 计时器",
+        "title": "DiveDeep",
         "width": 380,
         "height": 520,
         "resizable": false,

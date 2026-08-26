@@ -142,7 +142,7 @@ function collectAssets() {
 }
 
 function buildReleaseBody(changelog, assets) {
-  let body = `考研追踪 v${VERSION}\n\n`
+  let body = `DiveDeep v${VERSION}\n\n`
   if (changelog.length) {
     body += `## 更新日志\n${changelog.map((l) => `- ${l}`).join('\n')}\n\n`
   }

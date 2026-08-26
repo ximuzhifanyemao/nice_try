@@ -88,20 +88,24 @@ export default function App({
   hideBottomTab = false,
   hideNavbar = false,
   sidebar = null,
+  fillHeight = false,
 }: {
   hideBottomTab?: boolean
   hideNavbar?: boolean
   /** 需要侧边栏导航时传入（如桌面端展开模式）；必须在 Router 内部渲染，故由 App 接收）
    */ sidebar?: ReactNode | null
+  /** 桌面展开模式下用 100% 高度替代 100vh，配合滚动容器避免页面底部被裁切 */
+  fillHeight?: boolean
 }) {
+  const pageHeight = fillHeight ? 'min-h-full' : 'min-h-screen'
   return (
     <HashRouter>
       <ToastProvider>
         <BackButtonHandler />
         <UpdateProvider>
           <AuthProvider>
-          <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
-          <div className="flex min-h-screen">
+          <div className={`${pageHeight} bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0`}>
+          <div className={`flex ${pageHeight}`}>
             {sidebar}
             <div className="flex-1 min-w-0">
               <ConfigBanner />

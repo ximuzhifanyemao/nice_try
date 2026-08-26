@@ -2,6 +2,7 @@ import { Component, useState, useCallback, useEffect, type ReactNode } from 'rea
 import { getCurrentWindow, PhysicalSize, LogicalPosition } from '@tauri-apps/api/window'
 import DesktopTimer from './DesktopTimer'
 import Sidebar from '../components/Sidebar'
+import Logo from '../components/Logo'
 import App from '../App'
 
 const WIDGET_W = 380
@@ -120,15 +121,26 @@ export default function WidgetApp() {
           data-tauri-drag-region
           className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none"
         >
-          <span data-tauri-drag-region className="text-sm font-semibold text-gray-700 dark:text-slate-300">
-            大学深埋
-          </span>
+          <div data-tauri-drag-region className="flex items-center gap-2">
+            <Logo size={18} />
+            <span data-tauri-drag-region className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+              DiveDeep
+            </span>
+          </div>
           <div className="flex items-center gap-1">
             <button
               onClick={toggleMode}
               className="flex items-center gap-1 px-2.5 h-7 rounded-md text-xs text-gray-500 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
             >
               ⤙ 精简计时
+            </button>
+            <button
+              onClick={() => appWindow.minimize()}
+              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-600 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+              aria-label="最小化"
+              title="最小化"
+            >
+              ─
             </button>
             <button
               onClick={() => appWindow.close()}
@@ -141,9 +153,9 @@ export default function WidgetApp() {
         </div>
 
         {/* 侧边栏 + App 内容（Sidebar 必须在 Router 内部，由 App 接收） */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <FullAppBoundary>
-            <App hideBottomTab hideNavbar sidebar={<Sidebar />} />
+            <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight />
           </FullAppBoundary>
         </div>
       </div>
@@ -158,9 +170,9 @@ export default function WidgetApp() {
         className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 shrink-0 select-none"
       >
         <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+          <Logo size={14} />
           <span data-tauri-drag-region className="text-xs font-semibold text-gray-600 dark:text-slate-400">
-            计时器
+            DiveDeep
           </span>
         </div>
         <div className="flex items-center gap-1">
@@ -169,6 +181,14 @@ export default function WidgetApp() {
             className="flex items-center gap-1 px-2 h-6 rounded-md text-[11px] text-gray-500 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
           >
             全部功能 ⤢
+          </button>
+          <button
+            onClick={() => appWindow.minimize()}
+            className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-600 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+            aria-label="最小化"
+            title="最小化"
+          >
+            ─
           </button>
           <button
             onClick={() => appWindow.close()}
