@@ -36,16 +36,25 @@ export default function ScanQr() {
       streamRef.current = null
     }
 
+    // 带超时的 getUserMedia：部分 Android WebView 对 facingMode 约束会一直 pending，
+    // 若 5 秒内未就绪则回退到默认摄像头，避免永远停在「正在启动摄像头…」
+    const getStream = (constraints: MediaStreamConstraints): Promise<MediaStream | null> =>
+      new Promise((resolve) => {
+        navigator.mediaDevices.getUserMedia(constraints).then(resolve).catch(() => resolve(null))
+      })
+
     const start = async () => {
       setStatus('starting')
-      let stream: MediaStream
-      try {
-        // 优先后置摄像头（手机扫电脑屏幕）
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: { ideal: 'environment' } },
-          audio: false,
-        })
-      } catch {
+      // 优先后置摄像头（手机扫电脑屏幕）
+      let stream: MediaStream | null = await Promise.race([
+        getStream({ video: { facingMode: { ideal: 'environment' } }, audio: false }),
+        new Promise<null>((r) => setTimeout(() => r(null), 5000)),
+      ])
+      // 后置不可用/超时 → 回退默认摄像头
+      if (!stream) {
+        stream = await getStream({ video: true, audio: false })
+      }
+      if (!stream) {
         if (disposed) return
         setStatus('denied')
         return
@@ -253,7 +262,7 @@ export default function ScanQr() {
                   autoPlay
                 />
                 {/* 解码用的离屏 canvas */}
-                <canvas ref={canvasRef} width={720} height={720} className="hidden" />
+                <canvas ref={canvasRef} width={500} height={500} className="hidden" />
                 {/* 扫描框提示 */}
                 <div className="absolute inset-x-8 top-6 bottom-6 border border-white/70 rounded-lg pointer-events-none" />
                 <div className="absolute inset-0 flex items-end justify-center pb-4 pointer-events-none">

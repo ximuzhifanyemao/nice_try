@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, type ReactNode } from 'react'
 import { HashRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { UpdateProvider } from './contexts/UpdateContext'
@@ -84,7 +84,16 @@ function BackButtonHandler() {
   return null
 }
 
-export default function App({ hideBottomTab = false, hideNavbar = false }: { hideBottomTab?: boolean; hideNavbar?: boolean }) {
+export default function App({
+  hideBottomTab = false,
+  hideNavbar = false,
+  sidebar = null,
+}: {
+  hideBottomTab?: boolean
+  hideNavbar?: boolean
+  /** 需要侧边栏导航时传入（如桌面端展开模式）；必须在 Router 内部渲染，故由 App 接收）
+   */ sidebar?: ReactNode | null
+}) {
   return (
     <HashRouter>
       <ToastProvider>
@@ -92,36 +101,41 @@ export default function App({ hideBottomTab = false, hideNavbar = false }: { hid
         <UpdateProvider>
           <AuthProvider>
           <div className="min-h-screen bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0">
-          <ConfigBanner />
-          <UpdateChecker />
-          <AchievementNotifier />
-          {!hideNavbar && <Navbar />}
-          <Suspense fallback={<PageLoading />}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/qr-login" element={<QrLogin />} />
-              <Route element={<ProtectedRoute />}>
-                <Route path="/my-records" element={<MyRecords />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/summary" element={<Summary />} />
-                <Route path="/my-records/new" element={<NewRecord />} />
-                <Route path="/my-records/:id/edit" element={<EditRecord />} />
-                <Route path="/timer" element={<TimerPage />} />
-                <Route path="/trash" element={<Trash />} />
-                <Route path="/achievements" element={<Achievements />} />
-                <Route path="/goal" element={<GoalPage />} />
-                <Route path="/english-checkin" element={<EnglishCheckin />} />
-                <Route path="/vocabulary" element={<VocabularyBook />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/scan-qr" element={<ScanQr />} />
-              </Route>
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Suspense>
-          {!hideBottomTab && <BottomTab />}
-        </div>
+          <div className="flex min-h-screen">
+            {sidebar}
+            <div className="flex-1 min-w-0">
+              <ConfigBanner />
+              <UpdateChecker />
+              <AchievementNotifier />
+              {!hideNavbar && <Navbar />}
+              <Suspense fallback={<PageLoading />}>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
+                  <Route path="/qr-login" element={<QrLogin />} />
+                  <Route element={<ProtectedRoute />}>
+                    <Route path="/my-records" element={<MyRecords />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/summary" element={<Summary />} />
+                    <Route path="/my-records/new" element={<NewRecord />} />
+                    <Route path="/my-records/:id/edit" element={<EditRecord />} />
+                    <Route path="/timer" element={<TimerPage />} />
+                    <Route path="/trash" element={<Trash />} />
+                    <Route path="/achievements" element={<Achievements />} />
+                    <Route path="/goal" element={<GoalPage />} />
+                    <Route path="/english-checkin" element={<EnglishCheckin />} />
+                    <Route path="/vocabulary" element={<VocabularyBook />} />
+                    <Route path="/settings" element={<Settings />} />
+                    <Route path="/scan-qr" element={<ScanQr />} />
+                  </Route>
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+              {!hideBottomTab && <BottomTab />}
+            </div>
+          </div>
+          </div>
       </AuthProvider>
       </UpdateProvider>
       </ToastProvider>
