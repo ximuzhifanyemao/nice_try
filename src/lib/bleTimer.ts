@@ -106,30 +106,32 @@ export async function connectBleTimer(events?: BleTimerEvents): Promise<string> 
   return device.deviceId
 }
 
-/** 扫描目标设备（按设备名前缀匹配），超时后抛出 */
+/**
+ * 扫描目标设备。优先按名字/UUID 命中；若广播缺名字（固件把名字放 scan response，
+ * Android 常拿不到，扫描结果里显示为「无名称」），则退而逐个连接候选设备，
+ * 通过读取服务列表校验 SERVICE_UUID 来认领计时器。
+ */
 async function scanForDevice(): Promise<BleDevice> {
-  return new Promise<BleDevice>((resolve, reject) => {
-    let found: BleDevice | null = null
+  // 1) 扫描收集候选设备
+  const candidates: BleDevice[] = []
+  const seenIds = new Set<string>()
+  const namedHits: BleDevice[] = []
 
+  await new Promise<void>((resolve, reject) => {
     const cleanup = () => {
       if (scanTimer) {
         clearTimeout(scanTimer)
         scanTimer = null
       }
     }
-
-    BleClient.requestLEScan(
-      // 不用 services/name 做原生过滤：设备名在 scan response 里，
-      // 部分手机按服务 UUID 硬件过滤后拿不到名字/不回调，改为收全量广播由 isTarget 匹配。
-      // allowDuplicates: true 保证同一设备后续广播（带 scan response 名字/UUID）也能触发回调。
-      { allowDuplicates: true },
-      (result) => {
-        if (found || !isTarget(result)) return
-        found = result.device
-        cleanup()
-        BleClient.stopLEScan().finally(() => resolve(found as BleDevice))
+    BleClient.requestLEScan({ allowDuplicates: true }, (result) => {
+      const id = result.device.deviceId
+      if (!seenIds.has(id)) {
+        seenIds.add(id)
+        candidates.push(result.device)
       }
-    ).catch((err) => {
+      if (isTarget(result)) namedHits.push(result.device)
+    }).catch((err) => {
       cleanup()
       reject(err instanceof Error ? err : new Error(String(err)))
     })
@@ -137,13 +139,66 @@ async function scanForDevice(): Promise<BleDevice> {
     scanTimer = setTimeout(() => {
       cleanup()
       BleClient.stopLEScan().catch(() => undefined)
-      reject(
-        new Error(
-          '未找到计时器设备，请确认设备已开机且靠近手机；若手机系统蓝牙中已配对该设备，请先取消配对（被占用时设备会停止广播）'
-        )
-      )
+      resolve()
     }, SCAN_TIMEOUT_MS)
   })
+
+  // 2) 名字/UUID 命中最优先
+  if (namedHits.length > 0) return namedHits[0]
+
+  // 3) 兜底：广播缺名字时，逐个连接候选校验服务 UUID。
+  //    为少走弯路，优先探测目标设备最可能的候选（无名字 + Espressif 厂商 MAC）。
+  const ordered = [...candidates].sort((a, b) => {
+    const ax = rankCandidate(a)
+    const bx = rankCandidate(b)
+    return bx - ax
+  })
+  for (const c of ordered) {
+    if (await probeHasOurService(c.deviceId)) return c
+  }
+
+  const seenText = seenIds.size
+    ? [...seenIds].map((id) => id).slice(0, 12).join('、')
+    : '（未扫描到任何设备，手机可能没看到任何 BLE 设备）'
+  throw new Error(
+    `未找到 DiveDeep 计时器设备。10 秒内扫描到的设备：${seenText}。请确认计时器已上电靠近手机；若系统蓝牙已配对该设备请先取消配对`
+  )
+}
+
+// Espressif（ESP32 生产商）常见 MAC OUI 前缀，用于兜底命中的优先排序
+const ESPRESSIF_OUIS = [
+  '00:04:EA', '24:0A:C4', '84:CC:A8', '30:AE:A4', '34:85:18',
+  '3C:A9:F4', '7C:9E:BD', '8C:AA:B5', 'AC:D0:74', 'B4:E6:2D',
+  'CC:50:E3', 'DC:4F:22', 'E0:98:06', 'F4:CF:A2',
+]
+
+/** 候选优先级打分：无名字或 Espressif MAC 的设备更可能是计时器（0-3 分） */
+function rankCandidate(device: BleDevice): number {
+  let score = 0
+  const oui = device.deviceId.slice(0, 8).toUpperCase()
+  const isEspressif = ESPRESSIF_OUIS.some((o) => o === oui)
+  if (!device.name) score += 2
+  if (isEspressif) score += 2
+  return score
+}
+
+/** 连接候选设备并校验是否含本计时器的 SERVICE_UUID。命中返回 true，并断开交回主流程重连 */
+async function probeHasOurService(deviceId: string): Promise<boolean> {
+  try {
+    await BleClient.connect(deviceId, () => undefined, { timeout: 4000 })
+    await BleClient.discoverServices(deviceId)
+    const services = await BleClient.getServices(deviceId)
+    const hit = services.some((s) => s.uuid.toLowerCase() === SERVICE_UUID)
+    await BleClient.disconnect(deviceId).catch(() => undefined)
+    return hit
+  } catch {
+    try {
+      await BleClient.disconnect(deviceId).catch(() => undefined)
+    } catch {
+      /* 忽略 */
+    }
+    return false
+  }
 }
 
 /** 断开连接 */
