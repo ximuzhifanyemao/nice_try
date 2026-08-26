@@ -66,7 +66,6 @@ export default function ScanQr() {
               setStatus('not-login')
               return
             }
-            const hostMatch = /^https?:\/\/([^/]+)/.exec(decodedText)
             let url: URL
             try {
               url = new URL(decodedText)
