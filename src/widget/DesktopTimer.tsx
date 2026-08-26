@@ -19,6 +19,7 @@ import {
 import { formatDuration, toTimeStr } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
+import { isAuthSessionMissingError } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { createQrSession, pollQrSession } from '../lib/qrLogin'
 
@@ -92,6 +93,8 @@ export default function DesktopTimer() {
     setQrStatus('loading')
     setQrError('')
     try {
+      // 以纯匿名身份创建扫码会话：先本地清除可能残留的失效会话，避免 setSession 触发 session_not_found
+      await supabase.auth.signOut({ scope: 'local' })
       const { token, qrUrl } = await createQrSession()
       const dataUrl = await QRCode.toDataURL(qrUrl, {
         width: 200,
@@ -110,8 +113,15 @@ export default function DesktopTimer() {
           refresh_token: result.refreshToken,
         })
         if (error) {
-          setQrStatus('error')
-          setQrError('登录失败：' + error.message)
+          // 会话已失效（session_not_found）：本地清除并提示重新扫码，而非展示英文错误死路
+          if (isAuthSessionMissingError(error) || error?.message?.includes('Auth session missing')) {
+            await supabase.auth.signOut({ scope: 'local' })
+            setQrStatus('error')
+            setQrError('会话已过期，请重新扫码')
+          } else {
+            setQrStatus('error')
+            setQrError('登录失败：' + error.message)
+          }
         } else {
           setTimeout(() => {
             setShowQr(false)
@@ -138,6 +148,8 @@ export default function DesktopTimer() {
       return
     }
     setPwdLoading(true)
+    // 本地清除残留的失效会话后再登录，避免 signIn 时携带过期 session 触发 session_not_found
+    await supabase.auth.signOut({ scope: 'local' })
     const { error } = await signIn(pwdEmail, pwdPassword)
     setPwdLoading(false)
     if (error) {
@@ -358,7 +370,7 @@ export default function DesktopTimer() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-slate-950">
+    <div className="flex h-full flex-col bg-gray-50 dark:bg-slate-950">
       {/* 计时面板 */}
       <div className="px-4 pt-4 pb-3 text-center">
         {/* 状态行 */}
@@ -366,7 +378,7 @@ export default function DesktopTimer() {
           {running && (
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
           )}
-          <p className="text-xs text-slate-500 truncate">
+          <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
             {running
               ? currentSubject
               : pendingSubject
@@ -375,7 +387,7 @@ export default function DesktopTimer() {
           </p>
         </div>
         {/* 大号计时数字 */}
-        <div className={`font-bold tabular-nums text-4xl tracking-tight transition-colors duration-300 ${running ? 'text-slate-50' : 'text-slate-600'}`}>
+        <div className={`font-bold tabular-nums text-4xl tracking-tight transition-colors duration-300 ${running ? 'text-slate-900 dark:text-slate-50' : 'text-gray-300 dark:text-slate-600'}`}>
           {running ? formatDuration(elapsed) : '00:00:00'}
         </div>
         {/* 操作区 */}
@@ -390,20 +402,20 @@ export default function DesktopTimer() {
             </button>
           ) : (
             notice && (
-              <p className="text-xs text-emerald-400/80">{notice}</p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>
             )
           )}
         </div>
       </div>
 
       {/* 分隔线 */}
-      <div className="h-px bg-slate-800/80 mx-4" />
+      <div className="h-px bg-gray-200 dark:bg-slate-800/80 mx-4" />
 
       {/* 科目选择区 */}
       <div className="px-3 py-3 space-y-2 overflow-y-auto flex-1">
         {!user && (
-          <div className="flex flex-col items-center gap-2 pb-2 mb-1 border-b border-slate-800/60">
-            <p className="text-center text-[11px] text-slate-500">登录后可同步数据到云端</p>
+          <div className="flex flex-col items-center gap-2 pb-2 mb-1 border-b border-gray-200 dark:border-slate-800/60">
+            <p className="text-center text-[11px] text-gray-400 dark:text-slate-500">登录后可同步数据到云端</p>
             <div className="flex gap-2">
               <button
                 onClick={startQrLogin}
@@ -416,7 +428,7 @@ export default function DesktopTimer() {
                   setShowPwd(true)
                   setPwdError('')
                 }}
-                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
               >
                 🔑 账号密码
               </button>
@@ -427,8 +439,8 @@ export default function DesktopTimer() {
           <div className="flex items-center justify-center py-8">
             <div className="flex flex-col items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <p className="text-xs text-slate-500">计时进行中</p>
-              <p className="text-[11px] text-slate-600">点击「结束并打卡」停止</p>
+              <p className="text-xs text-gray-400 dark:text-slate-500">计时进行中</p>
+              <p className="text-[11px] text-gray-400 dark:text-slate-600">点击「结束并打卡」停止</p>
             </div>
           </div>
         ) : (
@@ -437,19 +449,19 @@ export default function DesktopTimer() {
               {subjects.filter((s) => s.category !== '408').map(renderSubjectButton)}
             </div>
             <div>
-              <p className="text-[10px] font-medium text-slate-600 uppercase tracking-wider mb-1.5">408 综合</p>
+              <p className="text-[10px] font-medium text-gray-400 dark:text-slate-600 uppercase tracking-wider mb-1.5">408 综合</p>
               <div className="flex flex-wrap gap-1.5">
                 {subjects.filter((s) => s.category === '408').map(renderSubjectButton)}
               </div>
             </div>
             {pendingSubject && (
-              <div className="rounded-lg border border-slate-800 bg-slate-900/60 px-2.5 py-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
+              <div className="rounded-lg border border-gray-200 bg-gray-100 dark:border-slate-800 dark:bg-slate-900/60 px-2.5 py-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
                 <div className="flex flex-wrap gap-1.5">
                   {getActivitiesForSubject(pendingSubject).map((act) => (
                     <button
                       key={act}
                       onClick={() => handleStart(pendingSubject, act)}
-                      className="px-2.5 py-1 text-xs rounded-md bg-slate-800 text-slate-300 border border-slate-700 hover:border-indigo-500 hover:text-indigo-300 transition-all cursor-pointer"
+                      className="px-2.5 py-1 text-xs rounded-md bg-gray-200 text-gray-600 border border-gray-200 hover:border-indigo-500 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:border-indigo-500 dark:hover:text-indigo-300 transition-all cursor-pointer"
                     >
                       {act}
                     </button>

@@ -58,14 +58,15 @@ export default function Sidebar() {
   const items = user ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.key === 'home' || i.key === 'profile')
 
   return (
-    <aside className="flex w-14 flex-col bg-slate-900 border-r border-slate-800 h-full shrink-0">
+    <aside className="flex w-48 flex-col bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 h-full shrink-0">
       {/* Logo */}
       <Link
         to="/"
-        className="flex items-center justify-center h-11 border-b border-slate-800 text-base shrink-0"
+        className="flex items-center justify-start gap-2 px-3 h-11 border-b border-gray-200 dark:border-slate-800 text-sm font-semibold text-gray-700 dark:text-slate-200 shrink-0"
         title="大学深埋"
       >
-        📚
+        <span className="text-base">📚</span>
+        <span className="truncate">大学深埋</span>
       </Link>
 
       {/* 导航项 */}
@@ -75,53 +76,55 @@ export default function Sidebar() {
             key={item.key}
             onClick={() => navigate(item.path)}
             title={item.label}
-            className={`flex flex-col items-center justify-center w-full py-2 px-1 text-[10px] transition-all cursor-pointer relative ${
+            className={`flex items-center gap-2 w-full px-3 py-2 text-[13px] text-left transition-all cursor-pointer relative ${
               activeKey === item.key
-                ? 'text-indigo-400 bg-slate-800/50'
-                : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/30'
+                ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                : 'text-gray-600 dark:text-slate-300 hover:text-slate-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800/40'
             }`}
           >
             {activeKey === item.key && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r bg-indigo-400" />
+              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r bg-indigo-500" />
             )}
-            <span className="text-sm leading-none">{item.icon}</span>
-            <span className="mt-0.5">{item.label}</span>
+            <span className="text-sm leading-none shrink-0">{item.icon}</span>
+            <span className="truncate">{item.label}</span>
           </button>
         ))}
       </nav>
 
       {/* 底部：主题切换 + 登录/登出 + 关闭 */}
-      <div className="border-t border-slate-800 py-2 flex flex-col items-center gap-1 shrink-0">
+      <div className="border-t border-gray-200 dark:border-slate-800 py-2 flex flex-col gap-1 shrink-0">
         <button
           onClick={handleToggleTheme}
           title={isDark ? '亮色' : '暗色'}
-          className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer text-xs"
+          className="flex items-center gap-2 w-full px-3 h-8 rounded-md text-[13px] text-gray-600 dark:text-slate-300 hover:text-slate-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
         >
-          {isDark ? '☀️' : '🌙'}
+          <span className="text-sm leading-none">{isDark ? '☀️' : '🌙'}</span>
+          <span>{isDark ? '亮色' : '暗色'}</span>
         </button>
         {user ? (
           <button
             onClick={handleSignOut}
-            title="登出"
-            className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-red-400 hover:bg-slate-800/50 transition-colors cursor-pointer text-xs"
+            className="flex items-center gap-2 w-full px-3 h-8 rounded-md text-[13px] text-red-500 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
           >
-            🚪
+            <span className="text-sm leading-none">🚪</span>
+            <span>登出</span>
           </button>
         ) : (
           <Link
             to="/login"
-            title="登录"
-            className="w-7 h-7 flex items-center justify-center rounded-md text-slate-500 hover:text-indigo-400 hover:bg-slate-800/50 transition-colors text-xs"
+            className="flex items-center justify-center gap-2 w-full mx-auto px-3 h-8 max-w-[146px] rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[13px] font-medium transition-colors"
           >
-            🔑
+            <span className="text-sm leading-none">🔑</span>
+            <span>登录</span>
           </Link>
         )}
         <button
           onClick={() => appWindow.close()}
           title="关闭"
-          className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:text-red-400 hover:bg-slate-800/50 transition-colors cursor-pointer text-xs"
+          className="flex items-center gap-2 w-full px-3 h-7 rounded-md text-[13px] text-gray-400 dark:text-slate-600 hover:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
         >
-          ✕
+          <span className="text-sm leading-none">✕</span>
+          <span>关闭</span>
         </button>
       </div>
     </aside>

@@ -1,14 +1,29 @@
-import { Component, useState, useCallback, type ReactNode } from 'react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
-import { PhysicalSize } from '@tauri-apps/api/window'
+import { Component, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { getCurrentWindow, PhysicalSize, LogicalPosition } from '@tauri-apps/api/window'
 import DesktopTimer from './DesktopTimer'
 import Sidebar from '../components/Sidebar'
 import App from '../App'
 
 const WIDGET_W = 380
 const WIDGET_H = 520
-const FULL_W = 960
-const FULL_H = 640
+const FULL_W = 1120
+const FULL_H = 760
+
+/** 精简模式下窗口位置的持久化存储键 */
+const WIDGET_POS_KEY = 'kaoyan_widget_pos'
+
+/** 读取保存的精简窗口位置（{x,y}），无则返回 null */
+function loadCompactPosition(): { x: number; y: number } | null {
+  try {
+    const raw = localStorage.getItem(WIDGET_POS_KEY)
+    if (!raw) return null
+    const pos = JSON.parse(raw)
+    if (typeof pos?.x === 'number' && typeof pos?.y === 'number') return pos
+  } catch {
+    // ignore
+  }
+  return null
+}
 
 /** 「全部功能」模式下的容错边界：任一页面运行时出错时给出可见提示，避免整窗黑屏 */
 class FullAppBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
@@ -47,37 +62,77 @@ export default function WidgetApp() {
     try {
       if (next) {
         await appWindow.setSize(new PhysicalSize(FULL_W, FULL_H))
+        await appWindow.setResizable(true)
         await appWindow.setAlwaysOnTop(false)
       } else {
         await appWindow.setAlwaysOnTop(true)
+        await appWindow.setResizable(false)
         await appWindow.setSize(new PhysicalSize(WIDGET_W, WIDGET_H))
+        // 恢复保存的精简窗口位置
+        const pos = loadCompactPosition()
+        if (pos) {
+          await appWindow.setPosition(new LogicalPosition(pos.x, pos.y))
+        }
       }
     } catch {
       // 尺寸/置顶切换失败不阻塞 UI
     }
   }, [fullMode, appWindow])
 
+  // 组件挂载时（精简模式）恢复保存的位置
+  useEffect(() => {
+    if (fullMode) return
+    const pos = loadCompactPosition()
+    if (pos) {
+      appWindow.setPosition(new LogicalPosition(pos.x, pos.y)).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 精简模式下监听窗口移动，把位置持久化到 localStorage
+  useEffect(() => {
+    if (fullMode) return
+    let unlisten: (() => void) | undefined
+    let cancelled = false
+    appWindow
+      .onMoved(({ payload }) => {
+        if (cancelled) return
+        try {
+          localStorage.setItem(WIDGET_POS_KEY, JSON.stringify({ x: payload.x, y: payload.y }))
+        } catch {
+          // 写入失败不影响使用
+        }
+      })
+      .then((fn) => {
+        unlisten = fn
+      })
+    return () => {
+      cancelled = true
+      unlisten?.()
+    }
+  }, [fullMode, appWindow])
+
   if (fullMode) {
     return (
-      <div className="flex h-screen w-screen flex-col overflow-hidden bg-slate-950 text-slate-100">
+      <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         {/* 顶部标题栏（可拖拽） */}
         <div
           data-tauri-drag-region
-          className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800 shrink-0 select-none"
+          className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none"
         >
-          <span data-tauri-drag-region className="text-sm font-semibold text-slate-300">
+          <span data-tauri-drag-region className="text-sm font-semibold text-gray-700 dark:text-slate-300">
             大学深埋
           </span>
           <div className="flex items-center gap-1">
             <button
               onClick={toggleMode}
-              className="flex items-center gap-1 px-2.5 h-7 rounded-md text-xs text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2.5 h-7 rounded-md text-xs text-gray-500 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
             >
               ⤙ 精简计时
             </button>
             <button
               onClick={() => appWindow.close()}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-slate-600 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-600 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
               aria-label="关闭"
             >
               ✕
@@ -96,28 +151,28 @@ export default function WidgetApp() {
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden rounded-xl border border-slate-800 bg-slate-950 text-slate-100 shadow-2xl">
+    <div className="flex h-screen w-screen flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-2xl">
       {/* 可拖拽标题栏 */}
       <div
         data-tauri-drag-region
-        className="flex items-center justify-between px-3 py-2 border-b border-slate-800/80 shrink-0 select-none"
+        className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 shrink-0 select-none"
       >
         <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-          <span data-tauri-drag-region className="text-xs font-semibold text-slate-400">
+          <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+          <span data-tauri-drag-region className="text-xs font-semibold text-gray-600 dark:text-slate-400">
             计时器
           </span>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={toggleMode}
-            className="flex items-center gap-1 px-2 h-6 rounded-md text-[11px] text-slate-500 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer"
+            className="flex items-center gap-1 px-2 h-6 rounded-md text-[11px] text-gray-500 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
           >
             全部功能 ⤢
           </button>
           <button
             onClick={() => appWindow.close()}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-slate-600 hover:text-slate-200 hover:bg-slate-800/50 transition-colors cursor-pointer"
+            className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-600 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
             aria-label="关闭"
           >
             ✕
