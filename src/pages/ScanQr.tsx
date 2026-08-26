@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import jsQR from 'jsqr'
+import { Capacitor } from '@capacitor/core'
+import { BarcodeScanner, BarcodeFormat, LensFacing } from '@capacitor-mlkit/barcode-scanning'
+import type { PluginListenerHandle } from '@capacitor/core'
 import { useAuth } from '../contexts/AuthContext'
 import { confirmQrLogin } from '../lib/qrLogin'
+import './scan-overlay.css'
 
 type Status = 'idle' | 'decoding' | 'confirming' | 'success' | 'error' | 'not-login' | 'no-camera'
+
+/** 是否为 App 原生环境（Android/iOS）。原生走 @capacitor-mlkit 实时取景，浏览器走 getUserMedia + jsQR */
+const isNative = Capacitor.isNativePlatform()
 
 /** 从扫码文本中解析出 token（二维码内容形如 https://.../#/qr-login?token=xxx） */
 function extractToken(text: string): string | null {
@@ -50,6 +58,7 @@ export default function ScanQr() {
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState('')
   const [startingStream, setStartingStream] = useState(true)
+  const [nativeScanning, setNativeScanning] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -57,16 +66,110 @@ export default function ScanQr() {
   const rafRef = useRef<number | null>(null)
   const lastDecodeRef = useRef(0)
   const decodingRef = useRef(false)
+  const nativeListenerRef = useRef<PluginListenerHandle | null>(null)
+  const handlingNativeRef = useRef(false)
 
-  // 组件挂载后立即启动相机实时取景；卸载时停止流、关闭所有轨道，避免相机常开/泄漏
+  // 组件挂载后立即启动扫码：
+  // - 原生 App：走 @capacitor-mlkit 的 startScan（实时取景，像微信扫一扫）
+  // - 浏览器：getUserMedia + jsQR 逐帧解码
+  // 卸载时分别做对应清理，避免相机常开/泄漏。
   useEffect(() => {
-    startCamera()
+    if (isNative) {
+      startNativeScan()
+    } else {
+      startCamera()
+    }
     return () => {
       stopStream(streamRef.current)
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+      if (isNative) {
+        void cleanupNativeScan()
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /** 原生扫码：请求相机权限 → 隐藏 WebView 内容（露出原生相机）→ 监听识别结果 */
+  const startNativeScan = async () => {
+    setStartingStream(true)
+    setError('')
+    try {
+      // 1. 相机权限（AndroidManifest 已声明 CAMERA）
+      let perms = await BarcodeScanner.checkPermissions()
+      if (perms.camera !== 'granted') {
+        perms = await BarcodeScanner.requestPermissions()
+        if (perms.camera !== 'granted') {
+          setStatus('no-camera')
+          setError('未获相机权限，请到系统设置中开启相机权限后重试')
+          return
+        }
+      }
+
+      // 2. 隐藏 WebView 内容并让背景透明，露出原生相机预览
+      document.body.classList.add('barcode-scanner-active')
+
+      // 3. 监听识别结果（插件事先做了多帧投票，避免误报）
+      const listener = await BarcodeScanner.addListener('barcodesScanned', async (event) => {
+        if (handlingNativeRef.current) return
+        const barcode = event.barcodes?.[0]
+        const raw = barcode?.rawValue ?? barcode?.displayValue
+        if (!raw) return
+        handlingNativeRef.current = true
+        await cleanupNativeScan()
+        try {
+          await handleDecoded(raw)
+        } finally {
+          handlingNativeRef.current = false
+        }
+      })
+      nativeListenerRef.current = listener
+
+      // 4. 打开相机实时扫描（仅识别 QR_CODE）
+      setNativeScanning(true)
+      setStatus('idle')
+      await BarcodeScanner.startScan({
+        formats: [BarcodeFormat.QrCode],
+        lensFacing: LensFacing.Back,
+      })
+    } catch (e) {
+      document.body.classList.remove('barcode-scanner-active')
+      setNativeScanning(false)
+      setStatus('no-camera')
+      setError(e instanceof Error ? e.message : '无法打开相机')
+    } finally {
+      setStartingStream(false)
+    }
+  }
+
+  /** 停止原生扫码：移除遮罩类、移除监听、关闭相机 */
+  const cleanupNativeScan = async () => {
+    document.body.classList.remove('barcode-scanner-active')
+    setNativeScanning(false)
+    if (nativeListenerRef.current) {
+      try {
+        await nativeListenerRef.current.remove()
+      } catch {
+        /* ignore */
+      }
+      nativeListenerRef.current = null
+    }
+    try {
+      await BarcodeScanner.removeAllListeners()
+    } catch {
+      /* ignore */
+    }
+    try {
+      await BarcodeScanner.stopScan()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /** 原生扫码界面里的“取消/关闭” */
+  const cancelNativeScan = async () => {
+    await cleanupNativeScan()
+    navigate(-1)
+  }
 
   /** 启动后置摄像头实时取景 */
   const startCamera = async () => {
@@ -285,22 +388,27 @@ export default function ScanQr() {
                 )
               )}
 
-              {/* 兜底入口：实时取景失效时可拍照识别；识别失败时可重开相机 */}
+              {/* 兜底入口：实时取景失效时可拍照识别；识别失败时可重开相机（原生走原生扫码重试） */}
               <div className="mt-3 flex justify-center gap-2">
                 {!isCameraActive && (
                   <button
-                    onClick={startCamera}
+                    onClick={() => {
+                      if (isNative) void startNativeScan()
+                      else startCamera()
+                    }}
                     className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors cursor-pointer"
                   >
-                    重新开启相机
+                    {isNative ? '重新开始扫码' : '重新开启相机'}
                   </button>
                 )}
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-sm font-medium text-gray-700 dark:text-slate-200 transition-colors cursor-pointer"
-                >
-                  拍照识别
-                </button>
+                {!isNative && (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 rounded-lg bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 text-sm font-medium text-gray-700 dark:text-slate-200 transition-colors cursor-pointer"
+                  >
+                    拍照识别
+                  </button>
+                )}
               </div>
 
               {/* 隐藏的文件输入：capture=environment 调起后置相机；浏览器下可选文件 */}
@@ -353,6 +461,43 @@ export default function ScanQr() {
           )}
         </div>
       </div>
+
+      {/* 原生扫码遮罩：挂在 document.body 上，和相机预览同层；#root 此时已隐藏 */}
+      {isNative &&
+        nativeScanning &&
+        createPortal(
+          <div
+            className="scan-overlay flex flex-col items-center justify-between px-6 py-10"
+            style={{ color: '#fff' }}
+          >
+            <div className="pt-4">
+              <p className="text-center text-white/90 font-medium text-base drop-shadow-md">
+                将二维码对准屏幕中央
+              </p>
+            </div>
+
+            {/* 扫描框四角 */}
+            <div className="relative w-64 h-64">
+              <span className="absolute top-0 left-0 w-10 h-10 border-t-4 border-l-4 border-white/90 rounded-tl-xl pointer-events-none" />
+              <span className="absolute top-0 right-0 w-10 h-10 border-t-4 border-r-4 border-white/90 rounded-tr-xl pointer-events-none" />
+              <span className="absolute bottom-0 left-0 w-10 h-10 border-b-4 border-l-4 border-white/90 rounded-bl-xl pointer-events-none" />
+              <span className="absolute bottom-0 right-0 w-10 h-10 border-b-4 border-r-4 border-white/90 rounded-br-xl pointer-events-none" />
+              <div className="absolute inset-x-0 -bottom-12 flex justify-center">
+                <span className="text-xs text-white/90 bg-black/50 px-3 py-1 rounded-full">
+                  {startingStream ? '正在开启相机…' : '扫描中…'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={cancelNativeScan}
+              className="mt-8 mb-6 px-12 py-3 rounded-full bg-white/95 text-slate-800 text-base font-medium cursor-pointer active:scale-95 transition-transform"
+            >
+              取消
+            </button>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

@@ -1,0 +1,22 @@
+/*
+ * 原生扫码（@capacitor-mlkit/barcode-scanning startScan）时：
+ * 插件的 CameraX 预览被加到 WebView 之后，需要把 WebView 里的 App 内容藏起来、
+ * 背景变透明，相机才会透过 WebView 显示。扫描中给 document.body 加
+ * `barcode-scanner-active` 类，扫描结束（或离开页面）移除。
+ */
+html.barcode-scanner-active,
+body.barcode-scanner-active {
+  background: transparent !important;
+}
+
+body.barcode-scanner-active #root {
+  display: none !important;
+}
+
+/* 覆盖层挂到 body 上的 portal，不受上面 #root 隐藏规则影响 */
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: transparent;
+}

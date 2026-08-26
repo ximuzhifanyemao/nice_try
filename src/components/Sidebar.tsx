@@ -2,7 +2,6 @@ import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { toggleTheme } from '../lib/theme'
 import { useState } from 'react'
-import { getCurrentWindow } from '@tauri-apps/api/window'
 
 interface NavItem {
   key: string
@@ -28,7 +27,6 @@ export default function Sidebar() {
   const location = useLocation()
   const navigate = useNavigate()
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
-  const appWindow = getCurrentWindow()
 
   const getActiveKey = (): string => {
     const { pathname } = location
@@ -118,14 +116,6 @@ export default function Sidebar() {
             <span>登录</span>
           </Link>
         )}
-        <button
-          onClick={() => appWindow.close()}
-          title="关闭"
-          className="flex items-center gap-2 w-full px-3 h-7 rounded-md text-[13px] text-gray-400 dark:text-slate-600 hover:text-red-400 hover:bg-gray-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
-        >
-          <span className="text-sm leading-none">✕</span>
-          <span>关闭</span>
-        </button>
       </div>
     </aside>
   )
