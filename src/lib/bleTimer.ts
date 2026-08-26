@@ -1,6 +1,7 @@
 import { BleClient } from '@capacitor-community/bluetooth-le'
 import type { BleDevice } from '@capacitor-community/bluetooth-le'
 import { Capacitor } from '@capacitor/core'
+import { TimerForeground } from '../plugins/timer-foreground'
 
 /**
  * 考研打卡计时器 - App 侧 BLE 工具
@@ -62,6 +63,17 @@ export async function connectBleTimer(events?: BleTimerEvents): Promise<string> 
   }
   if (events) handlers = { ...handlers, ...events }
   if (connectedDeviceId) return connectedDeviceId
+
+  // Android 12+ 必须先授予「附近设备」/ 旧版定位权限，否则扫描会静默失败。
+  // 这里主动弹窗申请，避免用户手动去系统设置里找权限入口。
+  try {
+    const perm = await TimerForeground.requestPermissions()
+    if (perm?.bluetooth === 'denied') {
+      throw new Error('未获得蓝牙权限：请点击「重新连接」并允许「附近设备」/定位权限')
+    }
+  } catch {
+    // 权限 API 可能未响应（Web/异常），继续往下走，靠扫描结果暴露问题
+  }
 
   // 蓝牙扫描已声明 neverForLocation，无需定位权限即可扫描
   await BleClient.initialize({ androidNeverForLocation: true })

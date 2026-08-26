@@ -14,8 +14,21 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
 
-@CapacitorPlugin(name = "TimerForeground")
+@CapacitorPlugin(
+    name = "TimerForeground",
+    permissions = {
+        // BLE 扫描/连接所需运行时权限：
+        //  - Android 12+ (API 31) 需要 BLUETOOTH_SCAN + BLUETOOTH_CONNECT（对应系统「附近设备」权限）
+        //  - Android 11 及以下需要定位权限才能扫描
+        @Permission(alias = "bluetooth", strings = {
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.BLUETOOTH_SCAN,
+            Manifest.permission.BLUETOOTH_CONNECT
+        })
+    }
+)
 public class TimerForegroundPlugin extends Plugin {
 
     private BroadcastReceiver stopReceiver;

@@ -1,4 +1,4 @@
-import type { PluginListenerHandle, TimerForegroundPlugin } from './definitions'
+import type { PluginListenerHandle, TimerForegroundPlugin, BluetoothPermissionStatus } from './definitions'
 
 export class WebTimerForeground implements TimerForegroundPlugin {
   async startTimer(): Promise<void> {
@@ -9,6 +9,12 @@ export class WebTimerForeground implements TimerForegroundPlugin {
   }
   async updateTimer(): Promise<void> {
     // Web 端无需前台服务
+  }
+  async requestPermissions(): Promise<BluetoothPermissionStatus> {
+    return { bluetooth: 'granted' }
+  }
+  async checkPermissions(): Promise<BluetoothPermissionStatus> {
+    return { bluetooth: 'granted' }
   }
   async addListener(): Promise<PluginListenerHandle> {
     return { remove: async () => {} }
