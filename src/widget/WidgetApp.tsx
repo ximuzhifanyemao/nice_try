@@ -2,7 +2,6 @@ import { Component, useState, useCallback, useEffect, type ReactNode } from 'rea
 import { getCurrentWindow, PhysicalSize, LogicalPosition, type Window } from '@tauri-apps/api/window'
 import DesktopTimer from './DesktopTimer'
 import Sidebar from '../components/Sidebar'
-import Logo from '../components/Logo'
 import DesktopLogo from '../components/DesktopLogo'
 import App from '../App'
 
@@ -212,7 +211,7 @@ export default function WidgetApp() {
         className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 shrink-0 select-none"
       >
         <div className="flex items-center gap-1.5">
-          <Logo size={14} />
+          <DesktopLogo size={16} />
           <span data-tauri-drag-region className="text-xs font-semibold text-gray-600 dark:text-slate-400">
             DiveDeep
           </span>

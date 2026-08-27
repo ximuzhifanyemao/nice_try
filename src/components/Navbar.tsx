@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { toggleTheme } from '../lib/theme'
+import DesktopLogo from './DesktopLogo'
+import { BlueIcons } from './BlueCircleIcon'
 
 export default function Navbar() {
   const { user, signOut } = useAuth()
@@ -22,7 +24,8 @@ export default function Navbar() {
     // 移动端隐藏顶部横幅（导航由底部 Tab 承担），桌面端保留导航栏
     <nav className="hidden sm:block bg-slate-800 dark:bg-slate-900 dark:border-b dark:border-slate-800 text-white sticky top-0 z-50 transition-colors duration-200">
       <div className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-        <Link to="/" className="text-lg sm:text-xl font-bold tracking-wide">
+        <Link to="/" className="flex items-center gap-2 text-lg sm:text-xl font-bold tracking-wide">
+          <DesktopLogo size={24} />
           DiveDeep
         </Link>
 
@@ -33,31 +36,43 @@ export default function Navbar() {
             title={isDark ? '切换到亮色模式' : '切换到暗色模式'}
             className="rounded-md bg-white/10 px-2.5 py-1 hover:bg-white/20 transition-colors cursor-pointer"
           >
-            {isDark ? '☀️' : '🌙'}
+            {isDark ? BlueIcons.moon : BlueIcons.sun}
           </button>
           {user ? (
             <>
               <span className="text-white/60 truncate max-w-[160px]">{user.email}</span>
-              <Link to="/" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">🏠 首页</Link>
-              <Link to="/my-records" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">📝 记录</Link>
-              <Link to="/timer" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">⏱️ 计时</Link>
-              <Link to="/summary" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">📊 统计</Link>
-              <Link to="/profile" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">👤 我的</Link>
+              <Link to="/" className="flex items-center gap-1 hover:text-slate-200 dark:hover:text-slate-300 transition-colors">
+                {BlueIcons.home}<span>首页</span>
+              </Link>
+              <Link to="/my-records" className="flex items-center gap-1 hover:text-slate-200 dark:hover:text-slate-300 transition-colors">
+                {BlueIcons.records}<span>记录</span>
+              </Link>
+              <Link to="/timer" className="flex items-center gap-1 hover:text-slate-200 dark:hover:text-slate-300 transition-colors">
+                {BlueIcons.timer}<span>计时</span>
+              </Link>
+              <Link to="/summary" className="flex items-center gap-1 hover:text-slate-200 dark:hover:text-slate-300 transition-colors">
+                {BlueIcons.summary}<span>统计</span>
+              </Link>
+              <Link to="/profile" className="flex items-center gap-1 hover:text-slate-200 dark:hover:text-slate-300 transition-colors">
+                {BlueIcons.profile}<span>我的</span>
+              </Link>
               <button
                 onClick={handleSignOut}
-                className="rounded-md bg-white/10 px-2.5 py-1 hover:bg-white/20 transition-colors cursor-pointer"
+                className="rounded-md bg-white/10 px-2.5 py-1 hover:bg-white/20 transition-colors cursor-pointer flex items-center gap-1"
               >
-                登出
+                {BlueIcons.logout}<span>登出</span>
               </button>
             </>
           ) : (
             <>
-              <Link to="/login" className="hover:text-slate-200 dark:hover:text-slate-300 transition-colors">登录</Link>
+              <Link to="/login" className="flex items-center gap-1 hover:text-slate-200 dark:hover:text-slate-300 transition-colors">
+                {BlueIcons.login}<span>登录</span>
+              </Link>
               <Link
                 to="/register"
-                className="rounded-md bg-white/10 px-2.5 py-1 hover:bg-white/20 transition-colors"
+                className="rounded-md bg-white/10 px-2.5 py-1 hover:bg-white/20 transition-colors flex items-center gap-1"
               >
-                注册
+                {BlueIcons.settings}<span>注册</span>
               </Link>
             </>
           )}
