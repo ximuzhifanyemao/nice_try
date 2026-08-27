@@ -57,6 +57,21 @@ export interface HealthProfile {
   updated_at?: string
 }
 
+/** 收藏的常用食品（营养数据按每100g存） */
+export interface FavoriteFood {
+  id?: string
+  user_id: string
+  food_name: string
+  energy_kj_per100g?: number | null
+  protein_g_per100g?: number | null
+  fat_g_per100g?: number | null
+  carbs_g_per100g?: number | null
+  sugar_g_per100g?: number | null
+  usage_count?: number
+  created_at?: string
+  updated_at?: string
+}
+
 export const MEAL_TYPE_LABELS: Record<MealType, string> = {
   breakfast: '早餐',
   lunch: '午餐',
@@ -212,7 +227,6 @@ export async function createMeal(
         fat_g_per100g: it.fat_g_per100g ?? null,
         carbs_g_per100g: it.carbs_g_per100g ?? null,
         sugar_g_per100g: it.sugar_g_per100g ?? null,
-        nrv_percent: it.nrv_percent ?? null,
       })),
     )
     if (itemErr) throw new Error(itemErr.message)
@@ -249,7 +263,6 @@ export async function updateMeal(
         fat_g_per100g: it.fat_g_per100g ?? null,
         carbs_g_per100g: it.carbs_g_per100g ?? null,
         sugar_g_per100g: it.sugar_g_per100g ?? null,
-        nrv_percent: it.nrv_percent ?? null,
       })),
     )
     if (insErr) throw new Error(insErr.message)
@@ -269,18 +282,137 @@ export async function deleteMealItem(itemId: string): Promise<void> {
 }
 
 // ============================================
+// 食物收藏 CRUD
+// ============================================
+
+/** 获取用户全部收藏（按使用次数降序） */
+export async function fetchFavorites(userId: string): Promise<FavoriteFood[]> {
+  const { data, error } = await supabase
+    .from('favorites')
+    .select('*')
+    .eq('user_id', userId)
+    .order('usage_count', { ascending: false })
+    .order('updated_at', { ascending: false })
+  if (error) throw new Error(error.message)
+  return (data as FavoriteFood[]) ?? []
+}
+
+/** 按名称模糊搜索收藏 */
+export async function searchFavorites(userId: string, keyword: string): Promise<FavoriteFood[]> {
+  const { data, error } = await supabase
+    .from('favorites')
+    .select('*')
+    .eq('user_id', userId)
+    .ilike('food_name', `%${keyword}%`)
+    .order('usage_count', { ascending: false })
+    .limit(30)
+  if (error) throw new Error(error.message)
+  return (data as FavoriteFood[]) ?? []
+}
+
+/** 收藏一个食品（同名则更新营养数据并累加 usage_count） */
+export async function upsertFavorite(
+  userId: string,
+  input: {
+    food_name: string
+    energy_kj_per100g?: number | null
+    protein_g_per100g?: number | null
+    fat_g_per100g?: number | null
+    carbs_g_per100g?: number | null
+    sugar_g_per100g?: number | null
+  },
+): Promise<FavoriteFood> {
+  // 先查是否已有同名收藏
+  const { data: existing } = await supabase
+    .from('favorites')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('food_name', input.food_name)
+    .maybeSingle()
+
+  if (existing) {
+    const { data, error } = await supabase
+      .from('favorites')
+      .update({
+        energy_kj_per100g: input.energy_kj_per100g ?? existing.energy_kj_per100g,
+        protein_g_per100g: input.protein_g_per100g ?? existing.protein_g_per100g,
+        fat_g_per100g: input.fat_g_per100g ?? existing.fat_g_per100g,
+        carbs_g_per100g: input.carbs_g_per100g ?? existing.carbs_g_per100g,
+        sugar_g_per100g: input.sugar_g_per100g ?? existing.sugar_g_per100g,
+        usage_count: (existing.usage_count ?? 0) + 1,
+      })
+      .eq('id', existing.id)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return data as FavoriteFood
+  }
+
+  const { data, error } = await supabase
+    .from('favorites')
+    .insert({
+      user_id: userId,
+      food_name: input.food_name,
+      energy_kj_per100g: input.energy_kj_per100g ?? null,
+      protein_g_per100g: input.protein_g_per100g ?? null,
+      fat_g_per100g: input.fat_g_per100g ?? null,
+      carbs_g_per100g: input.carbs_g_per100g ?? null,
+      sugar_g_per100g: input.sugar_g_per100g ?? null,
+      usage_count: 1,
+    })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as FavoriteFood
+}
+
+/** 食品使用次数 +1（每次添加餐次时调用，便于按常用排序） */
+export async function bumpFavoriteUsage(userId: string, foodName: string): Promise<void> {
+  const { error } = await supabase.rpc('bump_favorite_usage', {
+    p_user_id: userId,
+    p_food_name: foodName,
+  })
+  if (error) {
+    // RPC 未注册则忽略（收藏功能仍可用，只是排序按创建时间）
+    console.warn('[health] bumpFavoriteUsage RPC 未注册，跳过使用次数累加', error.message)
+  }
+}
+
+/** 删除收藏 */
+export async function deleteFavorite(id: string): Promise<void> {
+  const { error } = await supabase.from('favorites').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+// ============================================
 // 计算工具（热量 / 营养聚合 / BMR / TDEE）
 // ============================================
 
 const KJ_PER_KCAL = 4.184
 
+/** 中国居民每日能量 NRV 参考值（kJ/天）——国标 2000 kcal ≈ 8400 kJ */
+export const NRV_REFERENCE_KJ = 8400
+
 export function kjToKcal(kj: number | null | undefined): number {
   return kj ? kj / KJ_PER_KCAL : 0
 }
 
-/** 单个食品：按实际克数折算的 kcal 及各营养（g） */
+/** 根据每100g能量(kJ)计算 NRV%（国标 8400 kJ/天 基准） */
+export function nrvPercentPer100g(energyKjPer100g: number | null | undefined): number {
+  if (!energyKjPer100g) return 0
+  return Math.round((energyKjPer100g / NRV_REFERENCE_KJ) * 100)
+}
+
+/** 单个食品：按实际克数折算的 kcal */
 export function itemKcal(item: MealItem): number {
   return item.energy_kj_per100g ? (item.energy_kj_per100g / KJ_PER_KCAL) * (item.amount_g / 100) : 0
+}
+
+/** 单个食品：按实际克数折算的 NRV%（占每日推荐摄入百分比） */
+export function itemNrvPercent(item: MealItem): number {
+  if (!item.energy_kj_per100g) return 0
+  const per100 = nrvPercentPer100g(item.energy_kj_per100g)
+  return Math.round(per100 * (item.amount_g / 100) * 10) / 10
 }
 
 export interface NutrientTotals {
@@ -289,15 +421,17 @@ export interface NutrientTotals {
   fat_g: number
   carbs_g: number
   sugar_g: number
+  nrv_percent: number
 }
 
-/** 一组食品的营养合计（kcal 与 g，四舍五入到.01） */
+/** 一组食品的营养合计（kcal 与 g，NRV% 取加权合计） */
 export function sumItems(items: MealItem[]): NutrientTotals {
   let kcal = 0
   let protein = 0
   let fat = 0
   let carbs = 0
   let sugar = 0
+  let nrvSum = 0
   for (const it of items) {
     const ratio = it.amount_g / 100
     kcal += itemKcal(it)
@@ -305,9 +439,17 @@ export function sumItems(items: MealItem[]): NutrientTotals {
     fat += (it.fat_g_per100g ?? 0) * ratio
     carbs += (it.carbs_g_per100g ?? 0) * ratio
     sugar += (it.sugar_g_per100g ?? 0) * ratio
+    nrvSum += itemNrvPercent(it)
   }
   const round = (n: number) => Math.round(n * 100) / 100
-  return { kcal: round(kcal), protein_g: round(protein), fat_g: round(fat), carbs_g: round(carbs), sugar_g: round(sugar) }
+  return {
+    kcal: round(kcal),
+    protein_g: round(protein),
+    fat_g: round(fat),
+    carbs_g: round(carbs),
+    sugar_g: round(sugar),
+    nrv_percent: Math.round(nrvSum * 10) / 10,
+  }
 }
 
 /** 单独一餐的营养合计 */
