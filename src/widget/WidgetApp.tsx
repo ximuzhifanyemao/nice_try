@@ -1,5 +1,5 @@
 import { Component, useState, useCallback, useEffect, type ReactNode } from 'react'
-import { getCurrentWindow, PhysicalSize, LogicalPosition, type Window } from '@tauri-apps/api/window'
+import { getCurrentWindow, PhysicalSize, LogicalPosition, currentMonitor, type Window } from '@tauri-apps/api/window'
 import DesktopTimer from './DesktopTimer'
 import Sidebar from '../components/Sidebar'
 import DesktopLogo from '../components/DesktopLogo'
@@ -33,13 +33,12 @@ function loadSavedPosition(key: string): { x: number; y: number } | null {
  * 返回 null 让调用方回退到居中，避免「任务栏有程序但看不到窗口」。
  */
 async function sanitizePosition(
-  appWindow: Window,
   pos: { x: number; y: number },
   w: number,
   h: number
 ): Promise<{ x: number; y: number } | null> {
   try {
-    const monitor = await appWindow.currentMonitor()
+    const monitor = await currentMonitor()
     if (!monitor) return pos // 拿不到显示器信息时按原值恢复
     const { width, height } = monitor.size
     // 窗口必须与屏幕工作区有交集（每个方向留 20px 安全边）
@@ -94,7 +93,7 @@ export default function WidgetApp() {
         await appWindow.setAlwaysOnTop(false)
         // 恢复保存的全功能窗口位置（若跑到屏幕外则居中）
         const pos = loadSavedPosition(FULL_POS_KEY)
-        if (pos && (await sanitizePosition(appWindow, pos, FULL_W, FULL_H))) {
+        if (pos && (await sanitizePosition(pos, FULL_W, FULL_H))) {
           await appWindow.setPosition(new LogicalPosition(pos.x, pos.y))
         } else {
           await appWindow.center()
@@ -106,7 +105,7 @@ export default function WidgetApp() {
         await appWindow.setResizable(false)
         // 恢复保存的精简窗口位置（若跑到屏幕外则居中）
         const pos = loadSavedPosition(WIDGET_POS_KEY)
-        if (pos && (await sanitizePosition(appWindow, pos, WIDGET_W, WIDGET_H))) {
+        if (pos && (await sanitizePosition(pos, WIDGET_W, WIDGET_H))) {
           await appWindow.setPosition(new LogicalPosition(pos.x, pos.y))
         } else {
           await appWindow.center()
