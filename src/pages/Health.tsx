@@ -203,7 +203,7 @@ export default function Health() {
           nrv_percent: toNum(it.nrv_percent),
         }
       })
-      .filter((it): it is MealItem => it !== null)
+      .filter((it) => it !== null)
 
     if (items.length === 0) {
       show('请至少填写一个食品（名称+克数）', { icon: '⚠️' })
