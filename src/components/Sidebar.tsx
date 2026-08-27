@@ -2,7 +2,115 @@ import { useLocation, useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { toggleTheme } from '../lib/theme'
 import Logo from './Logo'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+
+/** 统一的线性 SVG 图标集合（lucide 风格描边），保证所有入口视觉一致 */
+function SvgIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      className="w-[18px] h-[18px] shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {children}
+    </svg>
+  )
+}
+
+const ICONS: Record<string, ReactNode> = {
+  home: (
+    <SvgIcon>
+      <path d="M3 10.5 12 3l9 7.5" />
+      <path d="M5 9.5V21h14V9.5" />
+      <path d="M9 21v-6h6v6" />
+    </SvgIcon>
+  ),
+  timer: (
+    <SvgIcon>
+      <circle cx="12" cy="13" r="8" />
+      <path d="M12 9v4l3 2" />
+      <path d="M9 2h6" />
+    </SvgIcon>
+  ),
+  checkin: (
+    <SvgIcon>
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    </SvgIcon>
+  ),
+  records: (
+    <SvgIcon>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5l4 4L7 21H3v-4L16.5 3.5z" />
+    </SvgIcon>
+  ),
+  summary: (
+    <SvgIcon>
+      <path d="M3 3v18h18" />
+      <path d="M7 16v-5" />
+      <path d="M12 16V8" />
+      <path d="M17 16v-3" />
+    </SvgIcon>
+  ),
+  vocab: (
+    <SvgIcon>
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+      <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </SvgIcon>
+  ),
+  achievements: (
+    <SvgIcon>
+      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+      <path d="M4 22h16" />
+      <path d="M10 14.6V22h4v-7.4" />
+      <path d="M12 14.6A5.5 5.5 0 0 0 18 9V6H6v3a5.5 5.5 0 0 0 6 5.6z" />
+    </SvgIcon>
+  ),
+  goal: (
+    <SvgIcon>
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="2" />
+    </SvgIcon>
+  ),
+  profile: (
+    <SvgIcon>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c0-4 3.5-6 8-6s8 2 8 6" />
+    </SvgIcon>
+  ),
+  sun: (
+    <SvgIcon>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+    </SvgIcon>
+  ),
+  moon: (
+    <SvgIcon>
+      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+    </SvgIcon>
+  ),
+  login: (
+    <SvgIcon>
+      <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+      <path d="M10 17l5-5-5-5" />
+      <path d="M15 12H3" />
+    </SvgIcon>
+  ),
+  logout: (
+    <SvgIcon>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <path d="M16 17l5-5-5-5" />
+      <path d="M21 12H9" />
+    </SvgIcon>
+  ),
+}
 
 interface NavItem {
   key: string
@@ -12,15 +120,15 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { key: 'home', label: '首页', icon: '🏠', path: '/' },
-  { key: 'timer', label: '计时', icon: '⏱️', path: '/timer' },
-  { key: 'checkin', label: '打卡', icon: '📖', path: '/english-checkin' },
-  { key: 'records', label: '记录', icon: '📝', path: '/my-records' },
-  { key: 'summary', label: '统计', icon: '📊', path: '/summary' },
-  { key: 'vocab', label: '生词', icon: '📕', path: '/vocabulary' },
-  { key: 'achievements', label: '成就', icon: '🏆', path: '/achievements' },
-  { key: 'goal', label: '目标', icon: '🎯', path: '/goal' },
-  { key: 'profile', label: '我的', icon: '👤', path: '/profile' },
+  { key: 'home', label: '首页', icon: 'home', path: '/' },
+  { key: 'timer', label: '计时', icon: 'timer', path: '/timer' },
+  { key: 'checkin', label: '打卡', icon: 'checkin', path: '/english-checkin' },
+  { key: 'records', label: '记录', icon: 'records', path: '/my-records' },
+  { key: 'summary', label: '统计', icon: 'summary', path: '/summary' },
+  { key: 'vocab', label: '生词', icon: 'vocab', path: '/vocabulary' },
+  { key: 'achievements', label: '成就', icon: 'achievements', path: '/achievements' },
+  { key: 'goal', label: '目标', icon: 'goal', path: '/goal' },
+  { key: 'profile', label: '我的', icon: 'profile', path: '/profile' },
 ]
 
 export default function Sidebar() {
@@ -84,7 +192,7 @@ export default function Sidebar() {
             {activeKey === item.key && (
               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r bg-indigo-500" />
             )}
-            <span className="text-sm leading-none shrink-0">{item.icon}</span>
+            <span className="shrink-0 text-indigo-500 dark:text-indigo-400">{ICONS[item.icon]}</span>
             <span className="truncate">{item.label}</span>
           </button>
         ))}
@@ -97,7 +205,7 @@ export default function Sidebar() {
           title={isDark ? '亮色' : '暗色'}
           className="flex items-center gap-2 w-full px-3 h-8 rounded-md text-[13px] text-gray-600 dark:text-slate-300 hover:text-slate-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
         >
-          <span className="text-sm leading-none">{isDark ? '☀️' : '🌙'}</span>
+          <span className="shrink-0 text-gray-500 dark:text-slate-400">{isDark ? ICONS.sun : ICONS.moon}</span>
           <span>{isDark ? '亮色' : '暗色'}</span>
         </button>
         {user ? (
@@ -105,7 +213,7 @@ export default function Sidebar() {
             onClick={handleSignOut}
             className="flex items-center gap-2 w-full px-3 h-8 rounded-md text-[13px] text-red-500 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
           >
-            <span className="text-sm leading-none">🚪</span>
+            <span className="shrink-0 text-red-500">{ICONS.logout}</span>
             <span>登出</span>
           </button>
         ) : (
@@ -113,7 +221,7 @@ export default function Sidebar() {
             to="/login"
             className="flex items-center justify-center gap-2 w-full mx-auto px-3 h-8 max-w-[146px] rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[13px] font-medium transition-colors"
           >
-            <span className="text-sm leading-none">🔑</span>
+            <span className="shrink-0">{ICONS.login}</span>
             <span>登录</span>
           </Link>
         )}

@@ -3,20 +3,22 @@ import { getCurrentWindow, PhysicalSize, LogicalPosition } from '@tauri-apps/api
 import DesktopTimer from './DesktopTimer'
 import Sidebar from '../components/Sidebar'
 import Logo from '../components/Logo'
+import DesktopLogo from '../components/DesktopLogo'
 import App from '../App'
-
-const WIDGET_W = 380
-const WIDGET_H = 520
-const FULL_W = 1120
-const FULL_H = 760
 
 /** 精简模式下窗口位置的持久化存储键 */
 const WIDGET_POS_KEY = 'kaoyan_widget_pos'
+/** 全功能模式下窗口位置的持久化存储键 */
+const FULL_POS_KEY = 'kaoyan_widget_full_pos'
+const FULL_W = 1360
+const FULL_H = 800
+const WIDGET_W = 380
+const WIDGET_H = 520
 
-/** 读取保存的精简窗口位置（{x,y}），无则返回 null */
-function loadCompactPosition(): { x: number; y: number } | null {
+/** 读取保存的窗口位置（{x,y}），无则返回 null */
+function loadSavedPosition(key: string): { x: number; y: number } | null {
   try {
-    const raw = localStorage.getItem(WIDGET_POS_KEY)
+    const raw = localStorage.getItem(key)
     if (!raw) return null
     const pos = JSON.parse(raw)
     if (typeof pos?.x === 'number' && typeof pos?.y === 'number') return pos
@@ -24,6 +26,30 @@ function loadCompactPosition(): { x: number; y: number } | null {
     // ignore
   }
   return null
+}
+
+/**
+ * 校验保存的位置是否落在屏幕可见区域内（含一定的安全边距）。
+ * 若窗口完全在屏幕外（例如之前被拖到副屏/边缘，或副屏已断开），
+ * 返回 null 让调用方回退到居中，避免「任务栏有程序但看不到窗口」。
+ */
+async function sanitizePosition(
+  appWindow: ReturnType<typeof getCurrentWindow>,
+  pos: { x: number; y: number },
+  w: number,
+  h: number
+): Promise<{ x: number; y: number } | null> {
+  try {
+    const monitor = await appWindow.currentMonitor()
+    if (!monitor) return pos // 拿不到显示器信息时按原值恢复
+    const { width, height } = monitor.size
+    // 窗口必须与屏幕工作区有交集（每个方向留 20px 安全边）
+    const visibleX = pos.x + w > 20 && pos.x < width - 20
+    const visibleY = pos.y + h > 20 && pos.y < height - 20
+    return visibleX && visibleY ? pos : null
+  } catch {
+    return pos
+  }
 }
 
 /** 「全部功能」模式下的容错边界：任一页面运行时出错时给出可见提示，避免整窗黑屏 */
@@ -62,17 +88,29 @@ export default function WidgetApp() {
     // 先改尺寸、再切换置顶：部分平台在扩容时置顶切换会触发 WebView 重绘异常，导致黑屏
     try {
       if (next) {
+        // 窗口默认 resizable:false，直接 setSize 会无效；必须先允许 resize 再改尺寸
+        await appWindow.setResizable(true)
         await appWindow.setSize(new PhysicalSize(FULL_W, FULL_H))
         await appWindow.setResizable(false)
         await appWindow.setAlwaysOnTop(false)
+        // 恢复保存的全功能窗口位置（若跑到屏幕外则居中）
+        const pos = loadSavedPosition(FULL_POS_KEY)
+        if (pos && (await sanitizePosition(appWindow, pos, FULL_W, FULL_H))) {
+          await appWindow.setPosition(new LogicalPosition(pos.x, pos.y))
+        } else {
+          await appWindow.center()
+        }
       } else {
         await appWindow.setAlwaysOnTop(true)
-        await appWindow.setResizable(false)
+        await appWindow.setResizable(true)
         await appWindow.setSize(new PhysicalSize(WIDGET_W, WIDGET_H))
-        // 恢复保存的精简窗口位置
-        const pos = loadCompactPosition()
-        if (pos) {
+        await appWindow.setResizable(false)
+        // 恢复保存的精简窗口位置（若跑到屏幕外则居中）
+        const pos = loadSavedPosition(WIDGET_POS_KEY)
+        if (pos && (await sanitizePosition(appWindow, pos, WIDGET_W, WIDGET_H))) {
           await appWindow.setPosition(new LogicalPosition(pos.x, pos.y))
+        } else {
+          await appWindow.center()
         }
       }
     } catch {
@@ -80,26 +118,30 @@ export default function WidgetApp() {
     }
   }, [fullMode, appWindow])
 
-  // 组件挂载时（精简模式）恢复保存的位置
+  // 启动时始终让精简窗口居中显示（满足「默认应用启动窗口在屏幕中间」）
   useEffect(() => {
     if (fullMode) return
-    const pos = loadCompactPosition()
-    if (pos) {
-      appWindow.setPosition(new LogicalPosition(pos.x, pos.y)).catch(() => {})
+    let cancelled = false
+    ;(async () => {
+      if (!cancelled) {
+        appWindow.center().catch(() => {})
+      }
+    })()
+    return () => {
+      cancelled = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 精简模式下监听窗口移动，把位置持久化到 localStorage
+  // 监听窗口移动，把当前位置持久化到 localStorage（精简/全功能各存各的 key）
   useEffect(() => {
-    if (fullMode) return
     let unlisten: (() => void) | undefined
     let cancelled = false
     appWindow
       .onMoved(({ payload }) => {
         if (cancelled) return
         try {
-          localStorage.setItem(WIDGET_POS_KEY, JSON.stringify({ x: payload.x, y: payload.y }))
+          localStorage.setItem(fullMode ? FULL_POS_KEY : WIDGET_POS_KEY, JSON.stringify({ x: payload.x, y: payload.y }))
         } catch {
           // 写入失败不影响使用
         }
@@ -116,11 +158,14 @@ export default function WidgetApp() {
   if (fullMode) {
     return (
       <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-        {/* 顶部标题栏（全功能模式：固定窗口，不可拖拽） */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none">
-          <div className="flex items-center gap-2">
-            <Logo size={18} />
-            <span className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+        {/* 顶部标题栏（全功能模式：可拖动窗口） */}
+        <div
+          data-tauri-drag-region
+          className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none"
+        >
+          <div data-tauri-drag-region className="flex items-center gap-2">
+            <DesktopLogo size={22} />
+            <span data-tauri-drag-region className="text-sm font-semibold text-gray-700 dark:text-slate-300">
               DiveDeep
             </span>
           </div>

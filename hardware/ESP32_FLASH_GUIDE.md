@@ -57,7 +57,7 @@
 
 - 打开 **Tools → Serial Monitor**，波特率选 `115200`，复位开发板应看到：
   ```
-  KaoYan-Timer BLE ready
+  DiveDeep BLE ready
   ```
-- OLED 显示倒计时；按开始/结束键，蜂鸣器短鸣两次；手机 App 能扫描到 `KaoYan-Timer` 并同步计时。
+- OLED 显示倒计时；按开始/结束键，蜂鸣器短鸣两次；手机 App 能扫描到 `DiveDeep` 并同步计时。
 ```

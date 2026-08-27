@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, createContext, type ReactNode } from 'react'
-import { HashRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect, createContext, useRef, useState, type ReactNode } from 'react'
+import { HashRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { UpdateProvider } from './contexts/UpdateContext'
 import Navbar from './components/Navbar'
@@ -32,6 +32,53 @@ const ScanQr = lazy(() => import('./pages/ScanQr'))
 
 /** 首页布局上下文：桌面端「全部功能」全功能模式下强制双栏布局 */
 export const HomeLayoutContext = createContext<{ twoCol: boolean }>({ twoCol: false })
+
+/**
+ * 桌面「全部功能」模式下，让页面内容按内容高度自适应缩放填满窗口（一屏显示不滚动）。
+ * 首页本身已用 forceTwoCol 双栏单屏，无需缩放，故跳过首页。
+ */
+function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const location = useLocation()
+  const outerRef = useRef<HTMLDivElement>(null)
+  const innerRef = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(1)
+
+  useEffect(() => {
+    if (!enabled) return
+    const outer = outerRef.current
+    const inner = innerRef.current
+    if (!outer || !inner) return
+    const apply = () => {
+      const ow = outer.clientWidth
+      const oh = outer.clientHeight
+      const ih = inner.scrollHeight
+      if (ow <= 0 || oh <= 0 || ih <= 0) return
+      // 按高度缩放，必要时再按宽度兜底，保证一屏且不横向溢出
+      let s = oh / ih
+      if (inner.scrollWidth * s > ow) s = ow / inner.scrollWidth
+      setScale(Math.min(1, s))
+    }
+    apply()
+    const ro = new ResizeObserver(apply)
+    ro.observe(outer)
+    ro.observe(inner)
+    return () => ro.disconnect()
+  }, [location.pathname, enabled])
+
+  // 非桌面全功能模式，或首页已双栏单屏，直接渲染不缩放
+  if (!enabled || location.pathname === '/') return <>{children}</>
+
+  return (
+    <div ref={outerRef} className="w-full h-full overflow-hidden min-h-0">
+      <div
+        ref={innerRef}
+        style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: scale < 1 ? `${100 / scale}%` : '100%' }}
+      >
+        {children}
+      </div>
+    </div>
+  )
+}
 
 function PageLoading() {
   return (
@@ -120,6 +167,7 @@ export default function App({
               {!hideNavbar && <Navbar />}
               <Suspense fallback={<PageLoading />}>
                 <HomeLayoutContext.Provider value={{ twoCol: forceTwoCol }}>
+                <ScaleToFit enabled={forceTwoCol}>
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
@@ -142,6 +190,7 @@ export default function App({
                   </Route>
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                </ScaleToFit>
                 </HomeLayoutContext.Provider>
               </Suspense>
               {!hideBottomTab && <BottomTab />}

@@ -9,7 +9,7 @@
 
 ---
 
-## 一、最终接线总览
+## 一、最终接线总览（5 键 + 蜂鸣器版）
 
 | 外设 | 引脚 | 接 ESP32 | 说明 |
 |---|---|---|---|
@@ -17,11 +17,14 @@
 | OLED | VDD | 3V3 | 电源 |
 | OLED | SCK（=SCL） | GPIO22 | I2C 时钟 |
 | OLED | SDA | GPIO21 | I2C 数据 |
-| 按键1（开始） | 一脚 | GPIO12 | 另一正对角脚接 GND |
-| 按键2（结束） | 一脚 | GPIO14 | 另一正对角脚接 GND |
-| 蜂鸣器 | I/O | GPIO13 | VCC→3V3、GND→GND |
+| 上翻键▲ | 一脚 | GPIO32 | 待机：上翻选科目；另一正对角脚接 GND |
+| 下翻键▼ | 一脚 | GPIO33 | 待机：下翻选科目；另一正对角脚接 GND |
+| 确认/暂停键 | 一脚 | GPIO25 | 待机：确认选中科目；计时中：暂停/继续；另一正对角脚接 GND |
+| 开始键 | 一脚 | GPIO12 | 待机：用高亮科目开始计时；另一正对角脚接 GND |
+| 结束键 | 一脚 | GPIO14 | 任意：停止并记入打卡；另一正对角脚接 GND |
+| 蜂鸣器 | I/O | GPIO13 | 无源型：正极→GPIO13、负极→GND；3 脚模块：I/O→GPIO13、VCC→3V3、GND→GND |
 
-> 引脚分配见固件顶部注释 [`esp32_timer.ino`](esp32_timer/esp32_timer.ino) 第 34–36 行。
+> 引脚分配见固件顶部注释 [`esp32_timer.ino`](esp32_timer/esp32_timer.ino) 第 53–59 行。
 
 ---
 
@@ -74,8 +77,8 @@ OLED 落在 30 行 e 列一带：`GND=30e VDD=29e SCK=28e SDA=27e`，每行只�
    ```
    https://espressif.github.io/arduino-esp32/package_esp32_index.json
    ```
-2. Boards Manager 安装 **esp32 by Espressif Systems**；库管理器安装
-   **Adafruit SSD1306** 与 **Adafruit GFX**（首次提示装 BusIO 一并装）。
+2. Boards Manager 安装 **esp32 by Espressif Systems**；库管理器安装 **U8g2**
+   （OLED 显示，含中文字库 `u8g2_font_wqy12_t_gb2312`，用于 OLED 中文科目菜单）。
 3. 打开 [`esp32_timer.ino`](esp32_timer/esp32_timer.ino)，
    Tools→Board→**ESP32 Dev Module**（经典 ESP32）。
 4. 用**能传数据**的 USB 数据线连电脑，Tools→Port 选出 CH340/CP210x 的 COM 口
@@ -133,11 +136,13 @@ Copy-Item -Path "android\app\build\outputs\apk\release\app-release.apk" -Destina
 
 ## 八、验证清单
 
-- [ ] 串口输出 `DiveDeep BLE ready`（固件在跑）
-- [ ] OLED 显示 `READY`，按开始键变 `STUDYING...` 倒计时
-- [ ] 按结束键停表且蜂鸣器响两声
+- [ ] 串口输出 `DiveDeep BLE ready (v2.0 5-key)`（固件在跑）
+- [ ] 上电 OLED 显示「选择科目」中文菜单
+- [ ] 用 App 连接后，OLED 显示 App 推送的科目列表，▲▼ 翻页、OK 确认高亮项
+- [ ] 按开始键开始计时：OLED 倒计时、蜂鸣器响一声、App 联动开始计时
+- [ ] 计时中按 OK 键暂停/继续，App 同步「已暂停/继续」状态
+- [ ] 按结束键停表且蜂鸣器响两声，App 停止计时并写入当日打卡（Supabase `daily_logs`）
 - [ ] App 计时页显示「硬件计时器已连接」
-- [ ] 硬件结束键触发 App 停止计时并写入当日打卡（Supabase `daily_logs`）
 
 ---
 
@@ -146,7 +151,8 @@ Copy-Item -Path "android\app\build\outputs\apk\release\app-release.apk" -Destina
 | 现象 | 处理 |
 |---|---|
 | 电脑不识别 COM | 装 CH340/CP210x 驱动；换能传数据的线 |
-| OLED 不显示 | 确认 VDD→3V3、GND→GND、SCK→GPIO22、SDA→GPIO21；或把 `OLED_ADDR 0x3C` 换 `0x3D` 重烧 |
+| OLED 不显示 | 确认 VDD→3V3、GND→GND、SCK→GPIO22、SDA→GPIO21；或把 I2C 地址 `0x3C` 换 `0x3D` 重烧 |
+| OLED 中文乱码/方块 | 库管理器安装 **U8g2**（固件用 `u8g2_font_wqy12_t_gb2312` 中文字库）；缺库会编译失败 |
 | 只接 VDD/GND 不亮 | 正常，需烧固件 + 接好 SDA/SCK 才亮 |
 | 按键没反应 | 换另一组对角的两脚接线 |
 | LEDC 编译报错 | 用 `ESP_ARDUINO_VERSION_MAJOR` 条件编译（见上文第五节） |

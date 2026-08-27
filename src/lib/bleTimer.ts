@@ -6,9 +6,10 @@ import { TimerForeground } from '../plugins/timer-foreground'
 /**
  * 考研打卡计时器 - App 侧 BLE 工具
  *
- * 连接 ESP32 计时器，监听 GATT 状态特征的通知：
- *   - 收到 '1'：计时开始
- *   - 收到 '0'：计时结束（由调用方走已有 handleStop 逻辑）
+ * 连接 ESP32 计时器（v2.0 五键版），监听 GATT 状态/科目特征的通知：
+ *   stateChar  '1' 开始 / '0' 结束 / '2' 暂停 / '3' 继续
+ *   subjChar   'SEL:<科目名>' 硬件上选中的科目
+ * 并向设备推送科目列表（cmdChar Write：'C'/'S:..'/'E'）。
  *
  * UUID 需与硬件固件 hardware/esp32_timer/esp32_timer.ino 保持一致。
  */
@@ -16,15 +17,25 @@ import { TimerForeground } from '../plugins/timer-foreground'
 const SERVICE_UUID = '0000180f-0000-1000-8000-00805f9b34fb'
 // 插件只接受 128 位 UUID 字符串（'2a19' 会被 parseUUID 拒绝）
 const STATE_CHAR_UUID = '00002a19-0000-1000-8000-00805f9b34fb'
+const SUBJECT_CHAR_UUID = '00002a1f-0000-1000-8000-00805f9b34fb'
+const CMD_CHAR_UUID = '00002a1d-0000-1000-8000-00805f9b34fb'
 const DEVICE_NAME_PREFIX = 'DiveDeep'
 
 const SCAN_TIMEOUT_MS = 10000
+/** 固件 MAX_NAME_LEN = 24 字节，中文按 3 字节/字，最多 8 个汉字 */
+const MAX_SUBJECT_NAME_LEN = 8
 
 export interface BleTimerEvents {
   /** 计时器开始 */
   onStart?: () => void
   /** 计时器结束 */
   onStop?: () => void
+  /** 计时器暂停 */
+  onPause?: () => void
+  /** 计时器继续 */
+  onResume?: () => void
+  /** 硬件上选中了某个科目（固件发送 'SEL:<科目名>'） */
+  onSubjectSelected?: (subjectName: string) => void
   /** 设备断开 */
   onDisconnect?: (deviceId: string) => void
 }
@@ -54,7 +65,7 @@ function isTarget(result: { device: BleDevice; localName?: string; uuids?: strin
 }
 
 /**
- * 扫描并连接计时器设备，成功后监听状态特征并开始轮询通知。
+ * 扫描并连接计时器设备，成功后监听状态/科目特征并开始轮询通知。
  * 只应在原生 App（Capacitor）里调用，Web 浏览器没有蓝牙 API。
  */
 export async function connectBleTimer(events?: BleTimerEvents): Promise<string> {
@@ -65,7 +76,6 @@ export async function connectBleTimer(events?: BleTimerEvents): Promise<string> 
   if (connectedDeviceId) return connectedDeviceId
 
   // Android 12+ 必须先授予「附近设备」/ 旧版定位权限，否则扫描会静默失败。
-  // 这里主动弹窗申请，避免用户手动去系统设置里找权限入口。
   try {
     const perm = await TimerForeground.requestPermissions()
     if (perm?.bluetooth === 'denied') {
@@ -80,30 +90,96 @@ export async function connectBleTimer(events?: BleTimerEvents): Promise<string> 
   const device = await scanForDevice()
 
   // 连接，并注册断线回调
-  await BleClient.connect(device.deviceId, (id) => {
+  const onDisconnectCb = (id: string) => {
     connectedDeviceId = null
     handlers.onDisconnect?.(id)
-  })
+  }
+  await BleClient.connect(device.deviceId, onDisconnectCb)
 
-  // 订阅状态特征变化：'1' 开始 / '0' 结束
-  await BleClient.startNotifications(
-    device.deviceId,
-    SERVICE_UUID,
-    STATE_CHAR_UUID,
-    (value) => {
-      let ch = ''
-      try {
-        ch = String.fromCharCode(value.getUint8(0))
-      } catch {
-        return
+  // 订阅状态特征（'1'开始/'0'结束/'2'暂停/'3'继续）与科目特征（'SEL:..'）。
+  // Android BLE 首次订阅偶发失败（"Setting notification failed"），
+  // 失败时断开重连清掉残留 GATT 状态后再订阅，最多重试 3 次
+  const subscribeAll = async () => {
+    await BleClient.startNotifications(
+      device.deviceId,
+      SERVICE_UUID,
+      STATE_CHAR_UUID,
+      (value) => {
+        let ch = ''
+        try {
+          ch = String.fromCharCode(value.getUint8(0))
+        } catch {
+          return
+        }
+        if (ch === '1') handlers.onStart?.()
+        else if (ch === '0') handlers.onStop?.()
+        else if (ch === '2') handlers.onPause?.()
+        else if (ch === '3') handlers.onResume?.()
       }
-      if (ch === '1') handlers.onStart?.()
-      else if (ch === '0') handlers.onStop?.()
+    )
+    await BleClient.startNotifications(
+      device.deviceId,
+      SERVICE_UUID,
+      SUBJECT_CHAR_UUID,
+      (value) => {
+        try {
+          const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength)
+          let s = ''
+          for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i])
+          if (s.startsWith('SEL:')) handlers.onSubjectSelected?.(s.slice(4))
+        } catch {
+          /* 忽略解析失败 */
+        }
+      }
+    )
+  }
+
+  const MAX_SUBSCRIBE_ATTEMPTS = 3
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await subscribeAll()
+      break
+    } catch (err) {
+      if (attempt >= MAX_SUBSCRIBE_ATTEMPTS) throw err
+      // 断开重连后再试，清掉可能残留的 GATT 状态
+      try {
+        await BleClient.disconnect(device.deviceId)
+      } catch {
+        /* 忽略断开异常 */
+      }
+      await BleClient.connect(device.deviceId, onDisconnectCb)
     }
-  )
+  }
 
   connectedDeviceId = device.deviceId
   return device.deviceId
+}
+
+/**
+ * 向计时器推送科目列表（供 OLED 菜单显示）。
+ * 协议：'C' 清空 → 'S:<科目名>' 逐条追加 → 'E' 结束。
+ * 单条名称限制在 8 个汉字内（固件 MAX_NAME_LEN=24 字节），避免超出默认 MTU。
+ */
+export async function pushSubjects(subjects: string[]): Promise<void> {
+  if (!connectedDeviceId) return
+  const enc = new TextEncoder()
+  const write = async (s: string) => {
+    if (!connectedDeviceId) return
+    const data = enc.encode(s)
+    await BleClient.write(connectedDeviceId, SERVICE_UUID, CMD_CHAR_UUID, new DataView(data.buffer, data.byteOffset, data.byteLength))
+  }
+  try {
+    await write('C')
+    for (const name of subjects) {
+      if (!name) continue
+      // 中文按码点截断到 8 字，避免超 MTU 或固件缓冲区
+      const limited = [...name].slice(0, MAX_SUBJECT_NAME_LEN).join('')
+      await write('S:' + limited)
+    }
+    await write('E')
+  } catch {
+    /* 推送失败不影响已连接的计时/结束功能 */
+  }
 }
 
 /**
@@ -111,9 +187,7 @@ export async function connectBleTimer(events?: BleTimerEvents): Promise<string> 
  *   1) 普通 10 秒扫描（LOW_LATENCY 模式），按名字/UUID 命中
  *   2) 兜底探测：对扫描到的候选逐个连接，读取服务列表校验 SERVICE_UUID 认领
  *   3) 兜底：检查系统已配对（bonded）设备，按名字前缀命中并探测
- *   4) 终极兜底：BleClient.requestDevice 调系统原生「选择设备」弹窗，
- *      弹窗会用系统自己的扫描器（不是插件的 requestLEScan 回调），
- *      系统蓝牙能看到 DiveDeep，弹窗里一定能选到。
+ *   4) 终极兜底：BleClient.requestDevice 调系统原生「选择设备」弹窗
  */
 async function scanForDevice(): Promise<BleDevice> {
   // 1) 扫描收集候选设备（LOW_LATENCY 扫描，更稳定拿到广播里的名字/uuid）
@@ -188,7 +262,7 @@ async function scanForDevice(): Promise<BleDevice> {
     /* 忽略绑定列表异常 */
   }
 
-  // 4) 终极兜底：让系统弹窗让你手动点选 DiveDeep（系统扫描器能看到就能选到）
+  // 4) 终极兜底：让系统弹窗让你手动点选 DiveDeep
   try {
     const picked = await BleClient.requestDevice({ namePrefix: DEVICE_NAME_PREFIX })
     if (picked) return picked

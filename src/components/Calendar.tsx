@@ -24,9 +24,11 @@ import { Link } from 'react-router-dom'
 interface CalendarProps {
   logs: DailyLog[]
   loading: boolean
+  /** 桌面「全部功能」模式下放大日历：填满可用高度，日期格子更大 */
+  expanded?: boolean
 }
 
-export default function Calendar({ logs, loading }: CalendarProps) {
+export default function Calendar({ logs, loading, expanded = false }: CalendarProps) {
   const { user } = useAuth()
   const [currentMonth, setCurrentMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -84,7 +86,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
   }
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-3 space-y-2">
+    <div className={`bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-3 space-y-2 ${expanded ? 'h-full flex flex-col' : ''}`}>
       {/* 月份导航 */}
       <div className="flex items-center justify-between">
         <button
@@ -96,7 +98,7 @@ export default function Calendar({ logs, loading }: CalendarProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
         </button>
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-200">{monthLabel}</h3>
+        <h3 className={`font-semibold text-gray-800 dark:text-slate-200 ${expanded ? 'text-base' : 'text-sm'}`}>{monthLabel}</h3>
         <button
           type="button"
           onClick={handleNextMonth}
@@ -109,16 +111,16 @@ export default function Calendar({ logs, loading }: CalendarProps) {
       </div>
 
       {/* 星期标题 */}
-      <div className="grid grid-cols-7 text-center">
+      <div className={`grid grid-cols-7 text-center ${expanded ? 'pb-1' : ''}`}>
         {weekDays.map((d) => (
-          <div key={d} className="text-[11px] font-medium text-gray-400 dark:text-slate-500 py-1">
+          <div key={d} className={`font-medium text-gray-400 dark:text-slate-500 py-1 ${expanded ? 'text-xs' : 'text-[11px]'}`}>
             {d}
           </div>
         ))}
       </div>
 
       {/* 日期网格 */}
-      <div className="grid grid-cols-7 text-center gap-y-0.5">
+      <div className={`grid grid-cols-7 text-center gap-y-0.5 ${expanded ? 'flex-1 grid-rows-[repeat(6,1fr)] gap-1.5' : ''}`}>
         {days.map((day) => {
           const dateKey = format(day, 'yyyy-MM-dd')
           const hasLogs = logsByDate.has(dateKey)
@@ -134,7 +136,8 @@ export default function Calendar({ logs, loading }: CalendarProps) {
               disabled={!hasLogs && !isToday(day)}
               aria-label={`${format(day, 'yyyy年M月d日')}${hasLogs ? '，有学习记录' : ''}`}
               aria-pressed={isSelected ?? false}
-              className={`relative flex flex-col items-center justify-center h-8 rounded-lg text-xs transition-colors cursor-pointer
+              className={`relative flex flex-col items-center justify-center rounded-lg transition-colors cursor-pointer
+                ${expanded ? 'h-full text-sm' : 'h-8 text-xs'}
                 ${!inMonth ? 'text-gray-300 dark:text-slate-600' : 'text-gray-700 dark:text-slate-300'}
                 ${today ? 'font-bold text-blue-600 dark:text-blue-400' : ''}
                 ${isSelected ? 'bg-blue-100 ring-1 ring-blue-300 dark:bg-blue-900/40 dark:ring-blue-700' : 'hover:bg-gray-50 dark:hover:bg-slate-700/50'}
@@ -142,14 +145,14 @@ export default function Calendar({ logs, loading }: CalendarProps) {
               `}
             >
               {today ? (
-                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-600 dark:bg-blue-500 text-white text-[11px] font-bold">
+                <span className={`flex items-center justify-center rounded-full bg-blue-600 dark:bg-blue-500 text-white font-bold ${expanded ? 'w-8 h-8 text-sm' : 'w-6 h-6 text-[11px]'}`}>
                   {format(day, 'd')}
                 </span>
               ) : (
-                <span>{format(day, 'd')}</span>
+                <span className={expanded ? 'text-sm' : ''}>{format(day, 'd')}</span>
               )}
               {hasLogs && (
-                <span className={`absolute bottom-0.5 w-1 h-1 rounded-full ${today ? 'bg-blue-400' : 'bg-blue-500 dark:bg-blue-400'}`} />
+                <span className={`absolute rounded-full ${expanded ? 'bottom-1 w-1.5 h-1.5' : 'bottom-0.5 w-1 h-1'} ${today ? 'bg-blue-400' : 'bg-blue-500 dark:bg-blue-400'}`} />
               )}
             </button>
           )

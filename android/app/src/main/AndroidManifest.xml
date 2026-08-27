@@ -34,7 +34,8 @@
         <service
             android:name=".plugins.TimerForegroundService"
             android:foregroundServiceType="specialUse"
-            android:exported="false" />
+            android:exported="false"
+        />
     </application>
 
     <!-- Permissions -->

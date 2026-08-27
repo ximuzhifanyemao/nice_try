@@ -17,7 +17,7 @@ import { formatDateCn, formatDuration, formatDurationShort, timeRangeHours, toTi
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 import { TimerForeground } from '../plugins/timer-foreground'
-import { connectBleTimer, disconnectBleTimer } from '../lib/bleTimer'
+import { connectBleTimer, disconnectBleTimer, pushSubjects } from '../lib/bleTimer'
 
 
 /* ── 类型 ── */
@@ -25,6 +25,9 @@ interface TimerState {
   subjectId: string | null
   activity: string
   startTime: number // Date.now()
+  paused?: boolean // 是否暂停中（硬件 OK 键）
+  pausedMs?: number // 累计已暂停的毫秒数
+  pausedAt?: number | null // 本次暂停的开始时间戳
 }
 
 /** 一次计时会话的时间段（HH:mm） */
@@ -92,7 +95,14 @@ function loadRunningTimer(): TimerState | null {
       localStorage.removeItem(RUNNING_KEY)
       return null
     }
-    return { subjectId: parsed.subjectId ?? null, activity: parsed.activity ?? '', startTime: parsed.startTime }
+    return {
+      subjectId: parsed.subjectId ?? null,
+      activity: parsed.activity ?? '',
+      startTime: parsed.startTime,
+      paused: parsed.paused ?? false,
+      pausedMs: parsed.pausedMs ?? 0,
+      pausedAt: parsed.pausedAt ?? null,
+    }
   } catch {
     return null
   }
@@ -154,12 +164,30 @@ export default function StudyTimer() {
   const [bleSearching, setBleSearching] = useState(true)
   /* 最近一次连接/扫描失败的具体原因（用于定位问题） */
   const [bleError, setBleError] = useState<string | null>(null)
+  /* 硬件上通过 OLED 菜单选中的科目（固件 SEL 事件） */
+  const [bleSelectedSubject, setBleSelectedSubject] = useState<string | null>(null)
   /* 今日累计里 408 是否汇总显示 */
   const [agg408, setAgg408] = useState(true)
   /* 科目选择里 408 分组是否展开 */
   const [show408, setShow408] = useState(true)
   /* 始终指向最新的 handleStop，供 BLE/通知栏回调使用，避免闭包捕获过期状态 */
   const handleStopRef = useRef<() => void>(() => {})
+  /* 硬件 BLE 事件的最新处理函数集合（每渲染更新，回调固定引用 ref 拿到最新） */
+  const hardwareCbRef = useRef<{
+    onStart: () => void
+    onStop: () => void
+    onPause: () => void
+    onResume: () => void
+    onSubjectSelected: (name: string) => void
+    onDisconnect: () => void
+  }>({
+    onStart: () => {},
+    onStop: () => {},
+    onPause: () => {},
+    onResume: () => {},
+    onSubjectSelected: () => {},
+    onDisconnect: () => {},
+  })
 
   /* ── 监听通知栏"停止"按钮 ── */
   useEffect(() => {
@@ -182,7 +210,7 @@ export default function StudyTimer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running])
 
-  /* ── 连接 BLE 计时器（原生 App 上自动连接，收到"结束"即触发 handleStop） ── */
+  /* ── 连接 BLE 计时器（原生 App 上自动连接，联动硬件开始/结束/暂停/选科目） ── */
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
     let removed = false
@@ -190,11 +218,19 @@ export default function StudyTimer() {
     const connect = async () => {
       try {
         await connectBleTimer({
-          onStop: () => { if (!removed) handleStopRef.current() },
-          onDisconnect: () => { if (!removed) setBleConnected(false) },
+          onStart: () => { if (!removed) hardwareCbRef.current.onStart() },
+          onStop: () => { if (!removed) hardwareCbRef.current.onStop() },
+          onPause: () => { if (!removed) hardwareCbRef.current.onPause() },
+          onResume: () => { if (!removed) hardwareCbRef.current.onResume() },
+          onSubjectSelected: (name) => { if (!removed) hardwareCbRef.current.onSubjectSelected(name) },
+          onDisconnect: () => { if (!removed) hardwareCbRef.current.onDisconnect() },
         })
-        if (!removed) setBleConnected(true)
-        if (!removed) setBleError(null)
+        if (!removed) {
+          setBleConnected(true)
+          setBleError(null)
+          // 把当前科目列表推给硬件 OLED 菜单（支持自定义科目）
+          pushSubjects(getAvailableSubjects().map((s) => s.name))
+        }
       } catch (err) {
         // 未连接/找不到设备不影响手机上直接计时，这里静默处理
         if (!removed) setBleError(err instanceof Error ? err.message : '连接失败')
@@ -217,7 +253,10 @@ export default function StudyTimer() {
       return
     }
     const tick = () => {
-      const e = Math.floor((Date.now() - running.startTime) / 1000)
+      // 暂停期间时间不走：扣除已暂停时长；暂停中取暂停时刻
+      const pausedMs = running.pausedMs ?? 0
+      const now = running.paused ? (running.pausedAt ?? Date.now()) : Date.now()
+      const e = Math.floor((now - running.startTime - pausedMs) / 1000)
       setElapsed(e)
       // 原生端同步更新通知栏显示
       if (Capacitor.isNativePlatform()) {
@@ -258,7 +297,10 @@ export default function StudyTimer() {
   /* ── 结束计时 ── */
   const handleStop = useCallback(() => {
     if (!running) return
-    const seconds = Math.floor((Date.now() - running.startTime) / 1000)
+    // 暂停期间不计时：时长 = 开始到当前 - 累计暂停
+    const pausedMs = running.pausedMs ?? 0
+    const endNow = running.paused ? (running.pausedAt ?? Date.now()) : Date.now()
+    const seconds = Math.floor((endNow - running.startTime - pausedMs) / 1000)
     if (seconds < 1) {
       // 小于 1 秒不记录，直接取消
       setRunning(null)
@@ -268,7 +310,7 @@ export default function StudyTimer() {
     const key = accumKey(running.subjectId!, running.activity ?? '')
     const range: TimeRange = {
       start: toTimeStr(new Date(running.startTime)),
-      end: toTimeStr(new Date()),
+      end: toTimeStr(new Date(endNow)),
     }
     const prev = accum[key]
     const newAccum = { ...accum }
@@ -289,6 +331,48 @@ export default function StudyTimer() {
 
   /* 每次渲染都把最新 handleStop 写入 ref，供 BLE/通知栏回调使用 */
   handleStopRef.current = handleStop
+
+  /* ── 硬件事件处理（暂停/继续/硬件开始） ── */
+  /** 暂停：冻结计时（时长不累计，恢复后继续走） */
+  const handlePause = () => {
+    if (!running || running.paused) return
+    const next: TimerState = { ...running, paused: true, pausedAt: Date.now() }
+    setRunning(next)
+    saveRunningTimer(next)
+  }
+  /** 继续：把本次暂停时长累计进 pausedMs */
+  const handleResume = () => {
+    if (!running || !running.paused) return
+    const add = Date.now() - (running.pausedAt ?? Date.now())
+    const next: TimerState = {
+      ...running,
+      paused: false,
+      pausedAt: null,
+      pausedMs: (running.pausedMs ?? 0) + add,
+    }
+    setRunning(next)
+    saveRunningTimer(next)
+  }
+  /** 硬件开始键：用硬件上选中的科目开始计时 */
+  const handleHardwareStart = () => {
+    const name = bleSelectedSubject
+    if (!name) return
+    const subj = getAvailableSubjects().find((s) => s.name === name)
+    if (subj) {
+      handleStart(subj.id, '')
+    } else {
+      alert(`硬件选择了科目「${name}」，但 App 中未找到，请重新连接或在手机上选择科目`)
+    }
+  }
+  /* 每渲染把最新处理函数写入 ref，供 BLE 回调拿到最新闭包 */
+  hardwareCbRef.current = {
+    onStart: handleHardwareStart,
+    onStop: () => handleStopRef.current(),
+    onPause: handlePause,
+    onResume: handleResume,
+    onSubjectSelected: (name) => setBleSelectedSubject(name),
+    onDisconnect: () => setBleConnected(false),
+  }
 
   /* ── 保存到数据库 ── */
   const handleSaveToDB = async () => {
@@ -392,10 +476,16 @@ export default function StudyTimer() {
     setBleError(null)
     try {
       await connectBleTimer({
-        onStop: () => handleStopRef.current(),
-        onDisconnect: () => setBleConnected(false),
+        onStart: () => hardwareCbRef.current.onStart(),
+        onStop: () => hardwareCbRef.current.onStop(),
+        onPause: () => hardwareCbRef.current.onPause(),
+        onResume: () => hardwareCbRef.current.onResume(),
+        onSubjectSelected: (name) => hardwareCbRef.current.onSubjectSelected(name),
+        onDisconnect: () => hardwareCbRef.current.onDisconnect(),
       })
       setBleConnected(true)
+      // 重连后重新推送科目列表，保证硬件 OLED 菜单与 App 一致
+      pushSubjects(getAvailableSubjects().map((s) => s.name))
     } catch (err) {
       // 未连接/找不到设备不影响手机上直接计时，这里静默处理
       setBleError(err instanceof Error ? err.message : '连接失败')
@@ -583,7 +673,9 @@ export default function StudyTimer() {
         }`}>
           <span>
             {bleConnected
-              ? '硬件计时器已连接：在设备上按「结束」即可记入打卡'
+              ? bleSelectedSubject
+                ? `硬件已选「${bleSelectedSubject}」，按硬件「开始」键计时`
+                : '硬件计时器已连接：在硬件 OLED 上选科目，按「开始」键计时'
               : bleSearching
                 ? '正在查找硬件计时器…'
                 : bleError
@@ -680,6 +772,9 @@ export default function StudyTimer() {
         {running ? (
           <p className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
             正在学习：<span className="font-semibold text-gray-700 dark:text-slate-200">{currentSubject}</span>
+            {running.paused && (
+              <span className="ml-1 text-amber-600 dark:text-amber-400 font-medium">（已暂停）</span>
+            )}
           </p>
         ) : (
           <p className="text-xs text-gray-400 dark:text-slate-500 mb-1.5">
@@ -692,12 +787,20 @@ export default function StudyTimer() {
         </div>
 
         {running ? (
-          <button
-            onClick={handleStop}
-            className="px-8 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20 cursor-pointer"
-          >
-            ■ 结束学习
-          </button>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => (running.paused ? handleResume() : handlePause())}
+              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-500/20 cursor-pointer"
+            >
+              {running.paused ? '▶ 继续' : '⏸ 暂停'}
+            </button>
+            <button
+              onClick={handleStop}
+              className="px-8 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20 cursor-pointer"
+            >
+              ■ 结束学习
+            </button>
+          </div>
         ) : (
           <p className="text-xs text-gray-400 dark:text-slate-500">点击科目开始</p>
         )}
