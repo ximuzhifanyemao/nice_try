@@ -123,6 +123,12 @@ export default function Profile() {
         <Row icon="📖" label="生词本" desc="背单词与复习" to="/vocabulary" />
       </div>
 
+      {/* 健康生活 */}
+      <GroupLabel>健康生活</GroupLabel>
+      <div className="space-y-2 pt-1.5">
+        <Row icon="🩺" label="健康" desc="体重 · 饮食 · 热量" to="/health" />
+      </div>
+
       {/* 设备与数据 */}
       <GroupLabel>设备与数据</GroupLabel>
       <div className="space-y-2 pt-1.5">

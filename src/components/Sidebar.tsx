@@ -21,6 +21,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'vocab', label: '生词', iconKey: 'vocab', path: '/vocabulary' },
   { key: 'achievements', label: '成就', iconKey: 'achievements', path: '/achievements' },
   { key: 'goal', label: '目标', iconKey: 'goal', path: '/goal' },
+  { key: 'health', label: '健康', iconKey: 'health', path: '/health' },
   { key: 'profile', label: '我的', iconKey: 'profile', path: '/profile' },
 ]
 
@@ -40,6 +41,7 @@ export default function Sidebar() {
     if (pathname === '/vocabulary') return 'vocab'
     if (pathname === '/achievements') return 'achievements'
     if (pathname === '/goal') return 'goal'
+    if (pathname === '/health') return 'health'
     return pathname === '/profile' ? 'profile' : ''
   }
 

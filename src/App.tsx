@@ -27,6 +27,7 @@ const GoalPage = lazy(() => import('./pages/GoalPage'))
 const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
 const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
 const Settings = lazy(() => import('./pages/Settings'))
+const Health = lazy(() => import('./pages/Health'))
 const QrLogin = lazy(() => import('./pages/QrLogin'))
 const ScanQr = lazy(() => import('./pages/ScanQr'))
 
@@ -186,6 +187,7 @@ export default function App({
                     <Route path="/english-checkin" element={<EnglishCheckin />} />
                     <Route path="/vocabulary" element={<VocabularyBook />} />
                     <Route path="/settings" element={<Settings />} />
+                    <Route path="/health" element={<Health />} />
                     <Route path="/scan-qr" element={<ScanQr />} />
                   </Route>
                   <Route path="*" element={<NotFound />} />
