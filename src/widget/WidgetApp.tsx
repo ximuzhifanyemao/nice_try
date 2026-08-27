@@ -1,5 +1,5 @@
 import { Component, useState, useCallback, useEffect, type ReactNode } from 'react'
-import { getCurrentWindow, PhysicalSize, LogicalPosition } from '@tauri-apps/api/window'
+import { getCurrentWindow, PhysicalSize, LogicalPosition, type Window } from '@tauri-apps/api/window'
 import DesktopTimer from './DesktopTimer'
 import Sidebar from '../components/Sidebar'
 import Logo from '../components/Logo'
@@ -34,7 +34,7 @@ function loadSavedPosition(key: string): { x: number; y: number } | null {
  * 返回 null 让调用方回退到居中，避免「任务栏有程序但看不到窗口」。
  */
 async function sanitizePosition(
-  appWindow: ReturnType<typeof getCurrentWindow>,
+  appWindow: Window,
   pos: { x: number; y: number },
   w: number,
   h: number
@@ -79,7 +79,7 @@ class FullAppBoundary extends Component<{ children: ReactNode }, { error: string
 }
 
 export default function WidgetApp() {
-  const appWindow = getCurrentWindow()
+  const appWindow: Window = getCurrentWindow()
   const [fullMode, setFullMode] = useState(false)
 
   const toggleMode = useCallback(async () => {
