@@ -31,7 +31,14 @@ import {
   itemNrvPercent,
   nrvPercentPer100g,
   NRV_REFERENCE_KJ,
+  fetchWaterByDate,
+  fetchWaterTrend,
+  setWaterCups,
+  WATER_ML_PER_CUP,
+  WATER_GOAL_ML,
+  type WaterLog,
 } from '../lib/health'
+import { FOOD_PRESETS, type FoodPreset } from '../lib/foodPresets'
 
 type TabKey = 'weight' | 'diet'
 
@@ -89,6 +96,10 @@ export default function Health() {
   const [favorites, setFavorites] = useState<FavoriteFood[]>([])
   const [loading, setLoading] = useState(true)
 
+  // 饮水记录
+  const [waterCups, setWaterCupsState] = useState(0)
+  const [waterTrend, setWaterTrend] = useState<WaterLog[]>([])
+
   // 体重表单
   const [wInput, setWInput] = useState({ weight: '', bodyFat: '', muscle: '', bmi: '' })
 
@@ -111,22 +122,28 @@ export default function Health() {
 
   // 收藏搜索状态
   const [favSearch, setFavSearch] = useState('')
+  // 常用食物预设搜索状态
+  const [presSearch, setPresSearch] = useState('')
 
   const userId = user?.id
 
   const loadAll = async (id: string) => {
-    const [w, tr, pf, ms, fvs] = await Promise.all([
+    const [w, tr, pf, ms, fvs, wtr, wtrTrend] = await Promise.all([
       fetchBodyMetricByDate(id, today),
       fetchBodyTrend(id, 14),
       fetchHealthProfile(id),
       fetchMealsByDate(id, today),
       fetchFavorites(id).catch(() => [] as FavoriteFood[]),
+      fetchWaterByDate(id, today).catch(() => null),
+      fetchWaterTrend(id, 7).catch(() => [] as WaterLog[]),
     ])
     setWeight(w)
     setTrend(tr)
     setProfile(pf)
     setMeals(ms)
     setFavorites(fvs)
+    setWaterCupsState(wtr?.cups ?? 0)
+    setWaterTrend(wtrTrend)
     if (w) {
       setWInput({
         weight: String(w.weight_kg ?? ''),
@@ -166,6 +183,42 @@ export default function Health() {
     const kw = favSearch.trim().toLowerCase()
     return favorites.filter((f) => f.food_name.toLowerCase().includes(kw))
   }, [favorites, favSearch])
+
+  // 常用食物预设搜索结果（按分类分组）
+  const filteredPresets = useMemo(() => {
+    const kw = presSearch.trim().toLowerCase()
+    const list = kw
+      ? FOOD_PRESETS.filter((p) => p.name.toLowerCase().includes(kw) || p.category.includes(presSearch.trim()))
+      : FOOD_PRESETS
+    const groups: { category: FoodPreset['category']; items: FoodPreset[] }[] = []
+    for (const p of list) {
+      const g = groups.find((x) => x.category === p.category)
+      if (g) g.items.push(p)
+      else groups.push({ category: p.category, items: [p] })
+    }
+    return groups
+  }, [presSearch])
+
+  /** 从预设库添加一条食品到当前表单 */
+  const addFromPreset = (preset: FoodPreset) => {
+    setMealForm({
+      ...mealForm,
+      items: [
+        ...mealForm.items,
+        {
+          key: Math.random().toString(36).slice(2),
+          food_name: preset.name,
+          amount_g: preset.suggest_grams ? String(preset.suggest_grams) : '',
+          energy_kj_per100g: String(preset.energy_kj_per100g),
+          protein_g_per100g: preset.protein_g_per100g != null ? String(preset.protein_g_per100g) : '',
+          fat_g_per100g: preset.fat_g_per100g != null ? String(preset.fat_g_per100g) : '',
+          carbs_g_per100g: preset.carbs_g_per100g != null ? String(preset.carbs_g_per100g) : '',
+          sugar_g_per100g: preset.sugar_g_per100g != null ? String(preset.sugar_g_per100g) : '',
+        },
+      ],
+    })
+    setPresSearch('')
+  }
 
   const saveWeight = async () => {
     if (!userId) return
@@ -301,6 +354,25 @@ export default function Health() {
     }
   }
 
+  /** 饮水 +1/-1 杯 */
+  const adjustWater = async (delta: number) => {
+    if (!userId) return
+    const next = Math.max(0, waterCups + delta)
+    setWaterCupsState(next)
+    try {
+      await setWaterCups(userId, today, next)
+      setWaterTrend((prev) => {
+        const rest = prev.filter((w) => w.date !== today)
+        return [...rest, { user_id: userId, date: today, cups: next }].sort((a, b) =>
+          a.date < b.date ? -1 : 1,
+        )
+      })
+    } catch {
+      setWaterCupsState(waterCups) // 回滚
+      show('保存失败，请稍后再试', { icon: '⚠️' })
+    }
+  }
+
   const removeMeal = async (id: string) => {
     if (!userId) return
     try {
@@ -404,6 +476,61 @@ export default function Health() {
           <p className="mt-3 text-xs text-gray-400 dark:text-slate-500">
             建议每日摄入 {suggestedKcal} kcal（NRV 基准 {NRV_REFERENCE_KJ} kJ / 2000 kcal）
           </p>
+        )}
+      </Card>
+
+      {/* 今日饮水 */}
+      <SectionLabel>今日饮水</SectionLabel>
+      <Card className="p-4">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => adjustWater(-1)}
+            className="w-12 h-12 rounded-xl bg-gray-100 dark:bg-slate-800 text-2xl text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 cursor-pointer transition-colors"
+            aria-label="减一杯"
+          >
+            −
+          </button>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-sky-500 dark:text-sky-400">
+              {Math.round((waterCups * WATER_ML_PER_CUP) / 100) / 10}
+              <span className="text-sm font-normal text-gray-400"> L</span>
+            </p>
+            <p className="text-xs text-gray-400 dark:text-slate-500">
+              {waterCups * WATER_ML_PER_CUP} / {WATER_GOAL_ML} ml（{Math.min(100, Math.round((waterCups * WATER_ML_PER_CUP) / WATER_GOAL_ML * 100))}%）
+            </p>
+          </div>
+          <button
+            onClick={() => adjustWater(1)}
+            className="w-12 h-12 rounded-xl bg-sky-500 text-white text-2xl hover:bg-sky-400 cursor-pointer transition-colors"
+            aria-label="加一杯"
+          >
+            +
+          </button>
+        </div>
+        <div className="mt-3 h-2 rounded-full bg-gray-100 dark:bg-slate-800 overflow-hidden">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-sky-400 to-cyan-500 transition-all"
+            style={{ width: `${Math.min(100, (waterCups * WATER_ML_PER_CUP) / WATER_GOAL_ML * 100)}%` }}
+          />
+        </div>
+        <p className="mt-2 text-[10px] text-gray-400 dark:text-slate-500">
+          每杯 {WATER_ML_PER_CUP} ml · 建议每日 {WATER_GOAL_ML} ml
+        </p>
+        {waterTrend.length > 0 && (
+          <div className="mt-3 flex items-end gap-1.5 h-14">
+            {waterTrend.map((w) => {
+              const ml = w.cups * WATER_ML_PER_CUP
+              const h = Math.min(100, (ml / WATER_GOAL_ML) * 100)
+              return (
+                <div
+                  key={w.date}
+                  className="flex-1 rounded-t bg-sky-200 dark:bg-sky-900/60"
+                  style={{ height: `${Math.max(4, h)}%` }}
+                  title={`${w.date}: ${ml}ml`}
+                />
+              )
+            })}
+          </div>
         )}
       </Card>
 
@@ -555,6 +682,49 @@ export default function Health() {
               </div>
             )
           })}
+
+          {/* 常用食物预设库 */}
+          <SectionLabel>常用食物 / 菜品预设</SectionLabel>
+          <Card className="p-3">
+            <div className="flex gap-2 mb-2">
+              <input
+                className={inputCls}
+                placeholder="搜索预设（如 鸡蛋、番茄）..."
+                value={presSearch}
+                onChange={(e) => setPresSearch(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {filteredPresets.map((g) => (
+                <div key={g.category} className="w-full">
+                  <p className="mt-1 mb-1.5 text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                    {g.category}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {g.items.map((p) => (
+                      <div
+                        key={p.id}
+                        className="inline-flex items-center gap-1 rounded-lg bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-900 px-2 py-1 cursor-pointer hover:bg-teal-100 dark:hover:bg-teal-900/40 transition-colors"
+                        onClick={() => addFromPreset(p)}
+                        title={p.suggest_grams ? `点选带入 (参考 ${p.suggest_grams}g)` : '点选带入营养数据'}
+                      >
+                        <span className="text-xs text-teal-700 dark:text-teal-300 font-medium">{p.name}</span>
+                        <span className="text-[10px] text-gray-400">
+                          {p.energy_kj_per100g}kJ/{nrvPercentPer100g(p.energy_kj_per100g)}%NRV
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              {filteredPresets.length === 0 && (
+                <span className="text-xs text-gray-400">无匹配结果</span>
+              )}
+            </div>
+            <p className="mt-2 text-[10px] text-gray-400 dark:text-slate-500">
+              点击填入营养数据与参考克数 · NRV 由能量自动计算
+            </p>
+          </Card>
 
           {/* 收藏快捷入口 */}
           <SectionLabel>我的收藏</SectionLabel>

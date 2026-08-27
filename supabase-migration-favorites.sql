@@ -44,11 +44,21 @@ CREATE POLICY "Users can delete own favorites"
   USING (auth.uid() = user_id);
 
 -- 自动更新 updated_at 时间戳
+CREATE OR REPLACE FUNCTION public.set_favorites_updated_at()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 DROP TRIGGER IF EXISTS set_favorites_updated_at ON public.favorites;
 CREATE TRIGGER set_favorites_updated_at
   BEFORE UPDATE ON public.favorites
   FOR EACH ROW
-  EXECUTE FUNCTION set_updated_at();
+  EXECUTE FUNCTION public.set_favorites_updated_at();
 
 -- RPC: 收藏使用次数 +1（安全地按 (user_id, food_name) 原子累加）
 CREATE OR REPLACE FUNCTION public.bump_favorite_usage(p_user_id UUID, p_food_name TEXT)

@@ -492,3 +492,58 @@ export const ACTIVITY_LABELS: Record<HealthProfile['activity_level'], string> = 
   high: '高度（每周6-7次）',
   very_high: '极高（体力工作/每天）',
 }
+
+// ============================================
+// 饮水记录（water_intake，按天一杯数）
+// ============================================
+
+/** 每日饮水记录（cups 为 250ml 一标准杯的杯数） */
+export interface WaterLog {
+  user_id: string
+  date: string
+  cups: number
+  updated_at?: string
+}
+
+/** 一标准杯的毫升数 */
+export const WATER_ML_PER_CUP = 250
+/** 每日建议饮水量（ml） */
+export const WATER_GOAL_ML = 2000
+
+/** 查询某人某日饮水记录 */
+export async function fetchWaterByDate(userId: string, date: string): Promise<WaterLog | null> {
+  const { data, error } = await supabase
+    .from('water_intake')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('date', date)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return (data as WaterLog | null) ?? null
+}
+
+/** 查询某人最近 N 天饮水记录（升序，便于画趋势） */
+export async function fetchWaterTrend(userId: string, days: number): Promise<WaterLog[]> {
+  const from = new Date()
+  from.setDate(from.getDate() - (days - 1))
+  const fromStr = from.toISOString().slice(0, 10)
+  const { data, error } = await supabase
+    .from('water_intake')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('date', fromStr)
+    .order('date', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data as WaterLog[]) ?? []
+}
+
+/** 设置某人某日的杯数（同天覆盖） */
+export async function setWaterCups(userId: string, date: string, cups: number): Promise<WaterLog> {
+  const { data, error } = await supabase
+    .from('water_intake')
+    .upsert({ user_id: userId, date, cups: Math.max(0, Math.floor(cups)) }, { onConflict: 'user_id,date' })
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as WaterLog
+}
