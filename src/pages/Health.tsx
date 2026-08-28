@@ -25,6 +25,9 @@ import {
   upsertFavorite,
   bumpFavoriteUsage,
   deleteFavorite,
+  fetchCustomPresets,
+  upsertCustomPreset,
+  deleteCustomPreset,
   dayTotals,
   mealTotals,
   tdee,
@@ -38,7 +41,39 @@ import {
   WATER_GOAL_ML,
   type WaterLog,
 } from '../lib/health'
+import type { CustomPreset } from '../lib/health'
 import { FOOD_PRESETS, type FoodPreset } from '../lib/foodPresets'
+
+/** kg 转斤（1 斤 = 0.5 kg，保留 1 位小数） */
+function kgToJin(kg: number | null | undefined): string {
+  if (kg == null) return '--'
+  return String(Math.round(kg * 2 * 10) / 10)
+}
+
+/** 自定义预设表单 */
+interface CpForm {
+  id: string | null
+  name: string
+  suggest_grams: string
+  energy_kj_per100g: string
+  protein_g_per100g: string
+  fat_g_per100g: string
+  carbs_g_per100g: string
+  sugar_g_per100g: string
+}
+
+function emptyCpForm(): CpForm {
+  return {
+    id: null,
+    name: '',
+    suggest_grams: '',
+    energy_kj_per100g: '',
+    protein_g_per100g: '',
+    fat_g_per100g: '',
+    carbs_g_per100g: '',
+    sugar_g_per100g: '',
+  }
+}
 
 type TabKey = 'weight' | 'diet'
 
@@ -94,6 +129,7 @@ export default function Health() {
   const [meals, setMeals] = useState<MealLog[]>([])
   const [profile, setProfile] = useState<HealthProfile | null>(null)
   const [favorites, setFavorites] = useState<FavoriteFood[]>([])
+  const [customPresets, setCustomPresets] = useState<CustomPreset[]>([])
   const [loading, setLoading] = useState(true)
 
   // 饮水记录
@@ -124,16 +160,20 @@ export default function Health() {
   const [favSearch, setFavSearch] = useState('')
   // 常用食物预设搜索状态
   const [presSearch, setPresSearch] = useState('')
+  // 自定义预设表单
+  const [cpEdit, setCpEdit] = useState(false)
+  const [cpForm, setCpForm] = useState<CpForm>(emptyCpForm())
 
   const userId = user?.id
 
   const loadAll = async (id: string) => {
-    const [w, tr, pf, ms, fvs, wtr, wtrTrend] = await Promise.all([
+    const [w, tr, pf, ms, fvs, cps, wtr, wtrTrend] = await Promise.all([
       fetchBodyMetricByDate(id, today),
       fetchBodyTrend(id, 14),
       fetchHealthProfile(id),
       fetchMealsByDate(id, today),
       fetchFavorites(id).catch(() => [] as FavoriteFood[]),
+      fetchCustomPresets(id).catch(() => [] as CustomPreset[]),
       fetchWaterByDate(id, today).catch(() => null),
       fetchWaterTrend(id, 7).catch(() => [] as WaterLog[]),
     ])
@@ -142,13 +182,14 @@ export default function Health() {
     setProfile(pf)
     setMeals(ms)
     setFavorites(fvs)
+    setCustomPresets(cps)
     setWaterCupsState(wtr?.cups ?? 0)
     setWaterTrend(wtrTrend)
     if (w) {
       setWInput({
-        weight: String(w.weight_kg ?? ''),
+        weight: kgToJin(w.weight_kg),
         bodyFat: w.body_fat_percent != null ? String(w.body_fat_percent) : '',
-        muscle: w.muscle_kg != null ? String(w.muscle_kg) : '',
+        muscle: w.muscle_kg != null ? kgToJin(w.muscle_kg) : '',
         bmi: w.bmi != null ? String(w.bmi) : '',
       })
     } else {
@@ -230,9 +271,10 @@ export default function Health() {
     try {
       await upsertBodyMetric(userId, {
         date: today,
-        weight_kg: w,
+        // 输入为斤，存储统一用 kg（1 斤 = 0.5 kg）
+        weight_kg: w / 2,
         body_fat_percent: toNum(wInput.bodyFat),
-        muscle_kg: toNum(wInput.muscle),
+        muscle_kg: toNum(wInput.muscle) != null ? toNum(wInput.muscle)! / 2 : null,
         bmi: toNum(wInput.bmi),
       })
       show('体重已保存', { icon: '✅' })
@@ -278,6 +320,94 @@ export default function Health() {
       ],
     })
     setFavSearch('')
+  }
+
+  /** 从自定义预设添加一条食品到当前表单 */
+  const addFromCustom = (cp: CustomPreset) => {
+    setMealForm({
+      ...mealForm,
+      items: [
+        ...mealForm.items,
+        {
+          key: Math.random().toString(36).slice(2),
+          food_name: cp.name,
+          amount_g: cp.suggest_grams != null ? String(cp.suggest_grams) : '',
+          energy_kj_per100g: cp.energy_kj_per100g != null ? String(cp.energy_kj_per100g) : '',
+          protein_g_per100g: cp.protein_g_per100g != null ? String(cp.protein_g_per100g) : '',
+          fat_g_per100g: cp.fat_g_per100g != null ? String(cp.fat_g_per100g) : '',
+          carbs_g_per100g: cp.carbs_g_per100g != null ? String(cp.carbs_g_per100g) : '',
+          sugar_g_per100g: cp.sugar_g_per100g != null ? String(cp.sugar_g_per100g) : '',
+        },
+      ],
+    })
+  }
+
+  /** 打开“新增自定义预设”表单 */
+  const startCpAdd = () => {
+    setCpForm(emptyCpForm())
+    setCpEdit(true)
+  }
+
+  /** 打开“编辑自定义预设”表单 */
+  const startCpEdit = (cp: CustomPreset) => {
+    setCpForm({
+      id: cp.id ?? null,
+      name: cp.name,
+      suggest_grams: cp.suggest_grams != null ? String(cp.suggest_grams) : '',
+      energy_kj_per100g: cp.energy_kj_per100g != null ? String(cp.energy_kj_per100g) : '',
+      protein_g_per100g: cp.protein_g_per100g != null ? String(cp.protein_g_per100g) : '',
+      fat_g_per100g: cp.fat_g_per100g != null ? String(cp.fat_g_per100g) : '',
+      carbs_g_per100g: cp.carbs_g_per100g != null ? String(cp.carbs_g_per100g) : '',
+      sugar_g_per100g: cp.sugar_g_per100g != null ? String(cp.sugar_g_per100g) : '',
+    })
+    setCpEdit(true)
+  }
+
+  /** 保存自定义预设（新增或修改同名） */
+  const saveCustomPreset = async () => {
+    if (!userId) return
+    if (cpForm.name.trim() === '') {
+      show('请填写名称', { icon: '⚠️' })
+      return
+    }
+    try {
+      await upsertCustomPreset(userId, {
+        name: cpForm.name.trim(),
+        energy_kj_per100g: toNum(cpForm.energy_kj_per100g),
+        protein_g_per100g: toNum(cpForm.protein_g_per100g),
+        fat_g_per100g: toNum(cpForm.fat_g_per100g),
+        carbs_g_per100g: toNum(cpForm.carbs_g_per100g),
+        sugar_g_per100g: toNum(cpForm.sugar_g_per100g),
+        suggest_grams: toNum(cpForm.suggest_grams),
+      })
+      setCpEdit(false)
+      setCpForm(emptyCpForm())
+      show('自定义预设已保存', { icon: '✅' })
+      setCustomPresets(await fetchCustomPresets(userId).catch(() => []))
+    } catch {
+      show('保存失败，请稍后再试', { icon: '⚠️' })
+    }
+  }
+
+  /** 删除自定义预设 */
+  const removeCustomPreset = async (id: string) => {
+    if (!userId || !id) return
+    try {
+      await deleteCustomPreset(id)
+      setCustomPresets((prev) => prev.filter((cp) => cp.id !== id))
+      if (cpForm.id === id) {
+        setCpEdit(false)
+        setCpForm(emptyCpForm())
+      }
+      show('已删除', { icon: '🗑️' })
+    } catch {
+      show('删除失败', { icon: '⚠️' })
+    }
+  }
+
+  const cancelCpEdit = () => {
+    setCpEdit(false)
+    setCpForm(emptyCpForm())
   }
 
   /** 手动添加食品（空行） */
@@ -454,9 +584,9 @@ export default function Health() {
           <div>
             <p className="text-[11px] text-gray-400 dark:text-slate-500">体重</p>
             <p className="text-lg font-bold text-gray-800 dark:text-slate-100">
-              {weight ? weight.weight_kg : '--'}
+              {kgToJin(weight?.weight_kg)}
             </p>
-            <p className="text-[10px] text-gray-400 dark:text-slate-500">kg</p>
+            <p className="text-[10px] text-gray-400 dark:text-slate-500">斤</p>
           </div>
         </div>
 
@@ -563,13 +693,13 @@ export default function Health() {
           <Card className="p-4">
             <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="text-xs text-gray-500 dark:text-slate-400">体重 (kg) *</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400">体重 (斤) *</span>
                 <input
                   className={inputCls}
                   inputMode="decimal"
                   value={wInput.weight}
                   onChange={(e) => setWInput({ ...wInput, weight: e.target.value })}
-                  placeholder="如 65.5"
+                  placeholder="如 131.0"
                 />
               </label>
               <label className="block">
@@ -583,13 +713,13 @@ export default function Health() {
                 />
               </label>
               <label className="block">
-                <span className="text-xs text-gray-500 dark:text-slate-400">肌肉量 (kg)</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400">肌肉量 (斤)</span>
                 <input
                   className={inputCls}
                   inputMode="decimal"
                   value={wInput.muscle}
                   onChange={(e) => setWInput({ ...wInput, muscle: e.target.value })}
-                  placeholder="如 50.2"
+                  placeholder="如 100.4"
                 />
               </label>
               <label className="block">
@@ -721,8 +851,158 @@ export default function Health() {
                 <span className="text-xs text-gray-400">无匹配结果</span>
               )}
             </div>
+
+            {/* 自定义预设：可新增/修改/删除 */}
+            <div className="mt-3 border-t border-gray-100 dark:border-slate-800 pt-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  自定义预设（随你买到的食品自定）
+                </p>
+                <button
+                  onClick={cpEdit ? cancelCpEdit : startCpAdd}
+                  className="text-xs text-indigo-600 dark:text-indigo-400 cursor-pointer font-medium"
+                >
+                  {cpEdit ? '取消' : '＋ 新增'}
+                </button>
+              </div>
+
+              {cpEdit && (
+                <div className="rounded-xl border border-indigo-100 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/30 p-3 mb-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="col-span-2 block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">名称 *</span>
+                      <input
+                        className={inputCls}
+                        value={cpForm.name}
+                        onChange={(e) => setCpForm({ ...cpForm, name: e.target.value })}
+                        placeholder="如 特制鸡胸肉"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">建议克数 (g)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={cpForm.suggest_grams}
+                        onChange={(e) => setCpForm({ ...cpForm, suggest_grams: e.target.value })}
+                        placeholder="如 150"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">每100g能量 (kJ)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={cpForm.energy_kj_per100g}
+                        onChange={(e) => setCpForm({ ...cpForm, energy_kj_per100g: e.target.value })}
+                        placeholder="如 690"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">蛋白质/100g (g)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={cpForm.protein_g_per100g}
+                        onChange={(e) => setCpForm({ ...cpForm, protein_g_per100g: e.target.value })}
+                        placeholder="如 7"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">脂肪/100g (g)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={cpForm.fat_g_per100g}
+                        onChange={(e) => setCpForm({ ...cpForm, fat_g_per100g: e.target.value })}
+                        placeholder="如 0.8"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">碳水/100g (g)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={cpForm.carbs_g_per100g}
+                        onChange={(e) => setCpForm({ ...cpForm, carbs_g_per100g: e.target.value })}
+                        placeholder="如 25"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">糖/100g (g)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={cpForm.sugar_g_per100g}
+                        onChange={(e) => setCpForm({ ...cpForm, sugar_g_per100g: e.target.value })}
+                        placeholder="如 5"
+                      />
+                    </label>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={saveCustomPreset}
+                      className="flex-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium py-2 cursor-pointer transition-colors"
+                    >
+                      保存预设
+                    </button>
+                    <button
+                      onClick={cancelCpEdit}
+                      className="rounded-lg border border-gray-300 dark:border-slate-600 text-sm px-3 cursor-pointer"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {customPresets.length === 0 && !cpEdit ? (
+                <p className="text-xs text-gray-400 dark:text-slate-500">
+                  还没有自定义预设。点击右上角“＋ 新增”添加你常吃、但不含在内置选项里的食品。
+                </p>
+              ) : customPresets.length > 0 ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {customPresets.map((cp) => (
+                    <div
+                      key={cp.id}
+                      className="group inline-flex items-center gap-1 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-100 dark:border-amber-900 px-2 py-1 cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors"
+                      onClick={() => addFromCustom(cp)}
+                      title="点击填入营养数据与参考克数"
+                    >
+                      <span className="text-xs text-amber-700 dark:text-amber-300 font-medium">{cp.name}</span>
+                      {cp.energy_kj_per100g != null && (
+                        <span className="text-[10px] text-gray-400">
+                          {cp.energy_kj_per100g}kJ/{nrvPercentPer100g(cp.energy_kj_per100g)}%NRV
+                        </span>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          startCpEdit(cp)
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-[10px] text-violet-500 hover:text-violet-700 transition-opacity"
+                        title="编辑"
+                      >
+                        ✎
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (cp.id) removeCustomPreset(cp.id)
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-[10px] text-red-400 hover:text-red-600 transition-opacity"
+                        title="删除"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
             <p className="mt-2 text-[10px] text-gray-400 dark:text-slate-500">
-              点击填入营养数据与参考克数 · NRV 由能量自动计算
+              点击填入营养数据与参考克数 · NRV 由能量自动计算 · 自定义预设可随时新增、修改或删除
             </p>
           </Card>
 
@@ -1116,22 +1396,35 @@ function emptyItem(): EditableItem {
   }
 }
 
-/** 简洁的体重趋势柱状图（近 N 天） */
+/** 体重趋势柱状图（近 N 天，单位斤） */
 function WeightTrend({ data }: { data: BodyMetric[] }) {
   const max = Math.max(...data.map((d) => d.weight_kg))
   const min = Math.min(...data.map((d) => d.weight_kg))
-  const range = max - min > 0 ? max - min : 1
+  const range = max - min > 0 ? max - min : 0.0001
   return (
     <div>
       <div className="flex items-end gap-1.5 h-28">
-        {data.map((d) => {
-          const h = 16 + ((d.weight_kg - min) / range) * 100
+        {data.map((d, i) => {
+          const isLast = i === data.length - 1
+          // 斤 = kg × 2，并放大视觉区分度
+          const h = 8 + ((d.weight_kg - min) / range) * 64 + (isLast ? 0 : 0)
+          const jin = Math.round(d.weight_kg * 2 * 10) / 10
           return (
             <div key={d.date} className="flex-1 flex flex-col items-center justify-end gap-1">
-              <span className="text-[9px] text-gray-400 dark:text-slate-500">{d.weight_kg}</span>
+              <span
+                className={`text-[10px] font-semibold ${
+                  isLast ? 'text-violet-600 dark:text-violet-300' : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                {jin}
+              </span>
               <div
-                className="w-full rounded-t bg-gradient-to-t from-indigo-500 to-violet-400"
-                style={{ height: `${h}%`, minHeight: 8 }}
+                className={`w-full rounded-t ${
+                  isLast
+                    ? 'bg-gradient-to-t from-violet-600 to-fuchsia-500 ring-1 ring-violet-300 dark:ring-violet-700'
+                    : 'bg-gradient-to-t from-indigo-500 to-violet-400'
+                }`}
+                style={{ height: `${Math.min(100, h)}%`, minHeight: 10 }}
               />
             </div>
           )
@@ -1144,6 +1437,7 @@ function WeightTrend({ data }: { data: BodyMetric[] }) {
           </div>
         ))}
       </div>
+      <p className="mt-1 text-[10px] text-gray-400 dark:text-slate-500 text-center">单位：斤 · 右侧高亮为最新</p>
     </div>
   )
 }

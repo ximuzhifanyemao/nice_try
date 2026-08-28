@@ -72,6 +72,21 @@ export interface FavoriteFood {
   updated_at?: string
 }
 
+/** 自定义食物预设（用户自行添加，可随口味修改，营养数据按每100g存） */
+export interface CustomPreset {
+  id?: string
+  user_id: string
+  name: string
+  energy_kj_per100g?: number | null
+  protein_g_per100g?: number | null
+  fat_g_per100g?: number | null
+  carbs_g_per100g?: number | null
+  sugar_g_per100g?: number | null
+  suggest_grams?: number | null
+  created_at?: string
+  updated_at?: string
+}
+
 export const MEAL_TYPE_LABELS: Record<MealType, string> = {
   breakfast: '早餐',
   lunch: '午餐',
@@ -381,6 +396,61 @@ export async function bumpFavoriteUsage(userId: string, foodName: string): Promi
 /** 删除收藏 */
 export async function deleteFavorite(id: string): Promise<void> {
   const { error } = await supabase.from('favorites').delete().eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+// ============================================
+// 自定义预设 CRUD（用户自建/修改的常用食物）
+// ============================================
+
+/** 获取用户全部自定义预设（按创建时间升序） */
+export async function fetchCustomPresets(userId: string): Promise<CustomPreset[]> {
+  const { data, error } = await supabase
+    .from('custom_presets')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data as CustomPreset[]) ?? []
+}
+
+/** 新增或更新一个自定义预设（同用户同名则覆盖） */
+export async function upsertCustomPreset(
+  userId: string,
+  input: {
+    name: string
+    energy_kj_per100g?: number | null
+    protein_g_per100g?: number | null
+    fat_g_per100g?: number | null
+    carbs_g_per100g?: number | null
+    sugar_g_per100g?: number | null
+    suggest_grams?: number | null
+  },
+): Promise<CustomPreset> {
+  const { data, error } = await supabase
+    .from('custom_presets')
+    .upsert(
+      {
+        user_id: userId,
+        name: input.name,
+        energy_kj_per100g: input.energy_kj_per100g ?? null,
+        protein_g_per100g: input.protein_g_per100g ?? null,
+        fat_g_per100g: input.fat_g_per100g ?? null,
+        carbs_g_per100g: input.carbs_g_per100g ?? null,
+        sugar_g_per100g: input.sugar_g_per100g ?? null,
+        suggest_grams: input.suggest_grams ?? null,
+      },
+      { onConflict: 'user_id,name' },
+    )
+    .select()
+    .single()
+  if (error) throw new Error(error.message)
+  return data as CustomPreset
+}
+
+/** 删除自定义预设 */
+export async function deleteCustomPreset(id: string): Promise<void> {
+  const { error } = await supabase.from('custom_presets').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }
 
