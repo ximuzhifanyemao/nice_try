@@ -116,4 +116,4 @@ export const supabase = createClient(
 /** 最新 APK 下载地址（Supabase Storage 公开桶，作为网站/App 的 APK 下载源） */
 export const apkDownloadUrl = supabase.storage
   .from('ota-bundles')
-  .getPublicUrl('kaoyan-tracker.apk').data.publicUrl
+  .getPublicUrl('DiveDeep.apk').data.publicUrl

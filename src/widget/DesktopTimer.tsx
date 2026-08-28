@@ -103,9 +103,10 @@ export default function DesktopTimer() {
       })
       setQrDataUrl(dataUrl)
       setQrStatus('waiting')
-      const result = await pollQrSession(token, (status) => {
+      const { promise } = pollQrSession(token, (status) => {
         if (status === 'expired') setQrStatus('expired')
       })
+      const result = await promise
       if (result) {
         setQrStatus('success')
         const { error } = await supabase.auth.setSession({

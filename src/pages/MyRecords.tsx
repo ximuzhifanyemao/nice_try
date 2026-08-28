@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useLogs } from '../contexts/LogsContext'
+import { useToast } from '../lib/Toast'
 import LogCard from '../components/LogCard'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchMyLogsPaginated, deleteLog, todayStr } from '../lib/dailyLogs'
@@ -9,6 +11,8 @@ const PAGE_SIZE = 20
 
 export default function MyRecords() {
   const { user } = useAuth()
+  const { refetch } = useLogs()
+  const toast = useToast()
   const navigate = useNavigate()
   const [logs, setLogs] = useState<DailyLog[]>([])
   const [loading, setLoading] = useState(true)
@@ -47,7 +51,7 @@ export default function MyRecords() {
       setPage(nextPage)
       setTotalCount(result.total)
     } catch {
-      alert('加载更多失败')
+      toast.show('加载更多失败', { icon: '❌' })
     } finally {
       setLoadingMore(false)
     }
@@ -63,10 +67,11 @@ export default function MyRecords() {
       await deleteLog(logId)
       setLogs((prev) => prev.filter((l) => l.id !== logId))
       setTotalCount((prev) => Math.max(0, prev - 1))
+      refetch()
     } catch {
-      alert('删除失败，请重试')
+      toast.show('删除失败，请重试', { icon: '❌' })
     }
-  }, [])
+  }, [refetch])
 
   const handleEdit = useCallback((logId: string) => {
     navigate(`/my-records/${logId}/edit`)

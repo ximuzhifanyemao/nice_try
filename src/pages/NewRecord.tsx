@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useLogs } from '../contexts/LogsContext'
+import { useToast } from '../lib/Toast'
 import LogForm from '../components/LogForm'
 import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLogInput } from '../lib/dailyLogs'
@@ -8,6 +10,8 @@ import { formatDateCn } from '../lib/format'
 
 export default function NewRecord() {
   const { user } = useAuth()
+  const { refetch } = useLogs()
+  const toast = useToast()
   const navigate = useNavigate()
 
   const handleSubmit = async (data: DailyLogInput) => {
@@ -17,18 +21,19 @@ export default function NewRecord() {
       if (data.date === todayStr()) {
         const prev = await fetchLogBeforeDate(user.id, todayStr())
         if (prev && !(prev.summary ?? '').trim()) {
-          alert(`请先在「记录」页补写 ${formatDateCn(prev.date)} 的学习总结，才能提交今日记录`)
+          toast.show(`请先在「记录」页补写 ${formatDateCn(prev.date)} 的学习总结，才能提交今日记录`, { icon: '⚠️' })
           navigate('/my-records')
           return
         }
       }
       await createLog(user.id, data)
+      refetch()
       navigate('/my-records')
     } catch (err) {
       if (isDuplicateDateError(err)) {
-        alert('该日期已有记录，请选择其他日期')
+        toast.show('该日期已有记录，请选择其他日期', { icon: '⚠️' })
       } else {
-        alert(err instanceof Error ? err.message : '提交失败，请重试')
+        toast.show(err instanceof Error ? err.message : '提交失败，请重试', { icon: '❌' })
       }
     }
   }

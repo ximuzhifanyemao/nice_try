@@ -1,11 +1,11 @@
 import { useContext, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useLogs } from '../contexts/LogsContext'
 import { HomeLayoutContext } from '../App'
 import Countdown from '../components/Countdown'
 import Calendar from '../components/Calendar'
-import type { DailyLog } from '../lib/dailyLogs'
-import { fetchMyLogs, todayStr } from '../lib/dailyLogs'
+import { todayStr } from '../lib/dailyLogs'
 import { computeStudyStats, computeStreak } from '../lib/achievements'
 import { fetchCommitments, getWeekStartStr, getWeekEndStr, sumHoursInRange } from '../lib/commitments'
 import { fetchMyCheckins } from '../lib/englishCheckin'
@@ -15,8 +15,7 @@ import { fetchUserSettings } from '../lib/settings'
 export default function Home() {
   const { user } = useAuth()
   const { twoCol } = useContext(HomeLayoutContext)
-  const [logs, setLogs] = useState<DailyLog[]>([])
-  const [loading, setLoading] = useState(true)
+  const { logs, loading } = useLogs()
   const [weekTarget, setWeekTarget] = useState<number | null>(null)
   const [checkinCount, setCheckinCount] = useState(0)
   const [targetDate, setTargetDate] = useState<Date>(() => new Date('2026-12-20T00:00:00'))
@@ -31,17 +30,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) {
-      setLogs([])
       setWeekTarget(null)
       setCheckinCount(0)
       setTargetDate(DEFAULT_TARGET)
-      setLoading(false)
       return
     }
-    fetchMyLogs(user.id)
-      .then(setLogs)
-      .catch(() => setLogs([]))
-      .finally(() => setLoading(false))
     // 本周目标（承诺金）
     fetchCommitments(user.id)
       .then((list) => {

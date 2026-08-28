@@ -40,9 +40,18 @@ export default function Login() {
       if (cancelledRef.current) return
       setQrDataUrl(dataUrl)
       setQrStatus('waiting')
-      const result = await pollQrSession(token, (status) => {
+      const { promise, handle } = pollQrSession(token, (status) => {
         if (status === 'expired') setQrStatus('expired')
       })
+      // 组件卸载时取消轮询
+      const checkCancelled = setInterval(() => {
+        if (cancelledRef.current) {
+          handle.cancelled = true
+          clearInterval(checkCancelled)
+        }
+      }, 500)
+      const result = await promise
+      clearInterval(checkCancelled)
       if (cancelledRef.current) return
       if (result) {
         setQrStatus('success')

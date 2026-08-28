@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useLogs } from '../contexts/LogsContext'
+import { useToast } from '../lib/Toast'
 import LogCard from '../components/LogCard'
 import ConfirmDialog from '../components/ConfirmDialog'
 import type { DailyLog } from '../lib/dailyLogs'
@@ -18,6 +20,8 @@ const NOOP = () => {}
 
 export default function Trash() {
   const { user } = useAuth()
+  const { refetch } = useLogs()
+  const toast = useToast()
   const [logs, setLogs] = useState<DailyLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -41,11 +45,12 @@ export default function Trash() {
     try {
       await restoreLog(logId)
       loadLogs()
+      refetch()
     } catch (err) {
       if (isDuplicateDateError(err)) {
-        alert('恢复失败：该日期已有正常记录，请先处理当天记录后再试')
+        toast.show('恢复失败：该日期已有正常记录，请先处理当天记录后再试', { icon: '⚠️' })
       } else {
-        alert('恢复失败，请重试')
+        toast.show('恢复失败，请重试', { icon: '❌' })
       }
     }
   }
@@ -55,8 +60,9 @@ export default function Trash() {
     try {
       await purgeLog(logId)
       loadLogs()
+      refetch()
     } catch {
-      alert('删除失败，请重试')
+      toast.show('删除失败，请重试', { icon: '❌' })
     }
   }
 

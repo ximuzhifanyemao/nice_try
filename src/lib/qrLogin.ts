@@ -37,15 +37,28 @@ export async function createQrSession(): Promise<{ token: string; qrUrl: string 
   }
 }
 
+/** 轮询控制句柄：调用方可通过 cancelled = true 终止轮询 */
+export interface PollHandle {
+  cancelled: boolean
+}
+
 /** 桌面端：轮询扫码状态，成功时返回 session tokens */
 export function pollQrSession(
   token: string,
   onStatus: (status: string) => void,
-): Promise<{ accessToken: string; refreshToken: string } | null> {
-  return new Promise((resolve, reject) => {
+): { promise: Promise<{ accessToken: string; refreshToken: string } | null>; handle: PollHandle } {
+  const handle: PollHandle = { cancelled: false }
+
+  const promise = new Promise<{ accessToken: string; refreshToken: string } | null>((resolve, reject) => {
     const startedAt = Date.now()
+    let timerId: ReturnType<typeof setTimeout> | null = null
 
     const poll = async () => {
+      if (handle.cancelled) {
+        resolve(null)
+        return
+      }
+
       if (Date.now() - startedAt > TIMEOUT_MS) {
         onStatus('expired')
         resolve(null)
@@ -58,6 +71,11 @@ export function pollQrSession(
         .eq('token', token)
         .maybeSingle()
 
+      if (handle.cancelled) {
+        resolve(null)
+        return
+      }
+
       if (error) {
         reject(new Error('查询扫码状态失败：' + error.message))
         return
@@ -68,11 +86,14 @@ export function pollQrSession(
         return
       }
 
-      onStatus(data.status)
+      const status = data.status as 'pending' | 'confirmed' | 'expired'
+      onStatus(status)
 
-      if (data.status === 'confirmed' && data.session_access_token && data.session_refresh_token) {
-        // 拿到 session 后删除该行
-        await supabase.from('qr_login_sessions').delete().eq('token', token)
+      if (status === 'confirmed' && data.session_access_token && data.session_refresh_token) {
+        const { error: delErr } = await supabase.from('qr_login_sessions').delete().eq('token', token)
+        if (delErr) {
+          console.warn('[qr-login] 删除已消费的 token 行失败，session tokens 可能仍存在于数据库中', delErr)
+        }
         resolve({
           accessToken: data.session_access_token,
           refreshToken: data.session_refresh_token,
@@ -80,16 +101,24 @@ export function pollQrSession(
         return
       }
 
-      if (data.status === 'expired') {
+      if (status === 'expired') {
         resolve(null)
         return
       }
 
-      setTimeout(poll, POLL_INTERVAL)
+      timerId = setTimeout(poll, POLL_INTERVAL)
     }
 
     poll()
+
+    // 暴露清理：handle.cancelled = true 时下一次 poll 会提前 return
+    // 同时提供 cleanup 让调用方可清除残留 timer
+    return () => {
+      if (timerId) clearTimeout(timerId)
+    }
   })
+
+  return { promise, handle }
 }
 
 /** 手机端：确认登录，将当前 session 写入扫码会话 */

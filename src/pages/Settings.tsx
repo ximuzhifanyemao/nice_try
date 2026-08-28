@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../lib/Toast'
 import { toggleTheme } from '../lib/theme'
 import { fetchUserSettings, saveUserSettings } from '../lib/settings'
 
 export default function Settings() {
   const { user } = useAuth()
+  const toast = useToast()
   const userId = user?.id
 
   /* ── 倒计时设置 ── */
@@ -40,7 +42,7 @@ export default function Settings() {
       await saveUserSettings(userId, { countdown_title: title, target_date: targetDate || null })
       setSettingsSaved(true)
     } catch (err) {
-      alert('保存失败：' + (err instanceof Error ? err.message : '未知错误'))
+      toast.show('保存失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
     } finally {
       setSettingsSaving(false)
     }

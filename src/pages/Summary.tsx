@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import { fetchMyLogs, type DailyLog } from '../lib/dailyLogs'
+import { useLogs } from '../contexts/LogsContext'
 import { getWeekRange, filterLogsByRange, computeSummary, type SummaryRange, type SummaryResult } from '../lib/summary'
 import RangePicker from '../components/RangePicker'
 import WeeklyChart from '../components/WeeklyChart'
@@ -10,31 +9,14 @@ import { getChipColor, getBarColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
 
 const Summary: React.FC = () => {
-  const { user } = useAuth()
+  const { logs, loading, error, refetch } = useLogs()
   const [range, setRange] = useState<SummaryRange>({
     mode: 'week',
     ...getWeekRange(),
   })
-  const [logs, setLogs] = useState<DailyLog[]>([])
-  const [loading, setLoading] = useState<boolean>(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadData = useCallback(() => {
-    if (!user) return
-    setLoading(true)
-    setError(null)
-    fetchMyLogs(user.id)
-      .then(setLogs)
-      .catch((err) => setError(err.message || '加载失败'))
-      .finally(() => setLoading(false))
-  }, [user])
-
-  useEffect(() => {
-    loadData()
-  }, [loadData])
 
   const handleRetry = () => {
-    loadData()
+    refetch()
   }
 
   const filteredLogs = useMemo(

@@ -17,9 +17,14 @@ export default function QrLogin() {
       setTokenValid(false)
       return
     }
-    checkQrToken(token).then((s) => {
-      setTokenValid(!!s && s.status === 'pending')
-    })
+    checkQrToken(token)
+      .then((s) => {
+        setTokenValid(!!s && s.status === 'pending')
+      })
+      .catch(() => {
+        setTokenValid(false)
+        setError('网络错误，请检查连接后重试')
+      })
   }, [token])
 
   const handleConfirm = async () => {

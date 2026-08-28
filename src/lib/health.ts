@@ -1,5 +1,12 @@
 import { supabase } from './supabase'
 
+function toLocalDateStr(d: Date): string {
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 // ============================================
 // 类型定义
 // ============================================
@@ -145,7 +152,7 @@ export async function upsertBodyMetric(
 export async function fetchBodyTrend(userId: string, days: number): Promise<BodyMetric[]> {
   const from = new Date()
   from.setDate(from.getDate() - (days - 1))
-  const fromStr = from.toISOString().slice(0, 10)
+  const fromStr = toLocalDateStr(from)
   const { data, error } = await supabase
     .from('body_metrics')
     .select('*')
@@ -244,29 +251,40 @@ export async function createMeal(
         sodium_mg_per100g: it.sodium_mg_per100g ?? null,
       })),
     )
-    if (itemErr) throw new Error(itemErr.message)
+    if (itemErr) {
+      await supabase.from('meal_logs').delete().eq('id', meal.id)
+      throw new Error(itemErr.message)
+    }
   }
 
   return { ...(meal as MealLog), items: input.items }
 }
 
-/** 更新一餐：整餐替换策略（更新备注，删旧食品条目后重插） */
+/** 更新一餐：整餐替换策略（更新备注，先插新条目再删旧，失败时保留旧数据） */
 export async function updateMeal(
   mealId: string,
   input: { note?: string; items: MealItem[] },
 ): Promise<void> {
+  const { data: meal, error: mealErr } = await supabase
+    .from('meal_logs')
+    .select('user_id')
+    .eq('id', mealId)
+    .single()
+  if (mealErr || !meal) throw new Error(mealErr?.message ?? '餐次不存在')
+
   const { error: noteErr } = await supabase
     .from('meal_logs')
     .update({ note: input.note ?? null })
     .eq('id', mealId)
   if (noteErr) throw new Error(noteErr.message)
 
-  const { data: meal } = await supabase.from('meal_logs').select('user_id').eq('id', mealId).single()
+  const { data: oldItems } = await supabase
+    .from('meal_items')
+    .select('id')
+    .eq('meal_id', mealId)
+  const oldIds = (oldItems ?? []).map((r: { id: string }) => r.id)
 
-  const { error: delErr } = await supabase.from('meal_items').delete().eq('meal_id', mealId)
-  if (delErr) throw new Error(delErr.message)
-
-  if (input.items.length > 0 && meal) {
+  if (input.items.length > 0) {
     const { error: insErr } = await supabase.from('meal_items').insert(
       input.items.map((it) => ({
         meal_id: mealId,
@@ -281,6 +299,11 @@ export async function updateMeal(
       })),
     )
     if (insErr) throw new Error(insErr.message)
+  }
+
+  if (oldIds.length > 0) {
+    const { error: delErr } = await supabase.from('meal_items').delete().in('id', oldIds)
+    if (delErr) throw new Error(delErr.message)
   }
 }
 
@@ -596,7 +619,7 @@ export async function fetchWaterByDate(userId: string, date: string): Promise<Wa
 export async function fetchWaterTrend(userId: string, days: number): Promise<WaterLog[]> {
   const from = new Date()
   from.setDate(from.getDate() - (days - 1))
-  const fromStr = from.toISOString().slice(0, 10)
+  const fromStr = toLocalDateStr(from)
   const { data, error } = await supabase
     .from('water_intake')
     .select('*')

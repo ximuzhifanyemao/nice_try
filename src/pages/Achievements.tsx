@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useAuth } from '../contexts/AuthContext'
-import { fetchMyLogs, type DailyLog } from '../lib/dailyLogs'
+import { useMemo } from 'react'
+import { useLogs } from '../contexts/LogsContext'
 import {
   ACHIEVEMENT_CATEGORIES,
   computeAchievements,
@@ -42,24 +41,7 @@ function Badge({ state }: { state: AchievementState }) {
 }
 
 export default function Achievements() {
-  const { user } = useAuth()
-  const [logs, setLogs] = useState<DailyLog[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  const loadData = useCallback(() => {
-    if (!user) return
-    setLoading(true)
-    setError(null)
-    fetchMyLogs(user.id)
-      .then(setLogs)
-      .catch((err) => setError(err.message || '加载失败'))
-      .finally(() => setLoading(false))
-  }, [user])
-
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  const { logs, loading, error, refetch } = useLogs()
 
   const states = useMemo(() => computeAchievements(logs), [logs])
   const stats = useMemo(() => computeStudyStats(logs), [logs])
@@ -90,7 +72,7 @@ export default function Achievements() {
           <p className="text-red-500 dark:text-red-400">{error}</p>
           <button
             type="button"
-            onClick={loadData}
+            onClick={refetch}
             className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg mt-3 transition-colors cursor-pointer"
           >
             重试

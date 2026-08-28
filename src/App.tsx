@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useLayoutEffect, createContext, useRef, useS
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { UpdateProvider } from './contexts/UpdateContext'
+import { LogsProvider } from './contexts/LogsContext'
 import Navbar from './components/Navbar'
 import BottomTab from './components/BottomTab'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -38,8 +39,10 @@ export const HomeLayoutContext = createContext<{ twoCol: boolean }>({ twoCol: fa
 const MIN_FIT_SCALE = 0.4
 
 /**
- * 桌面「全部功能」模式下，让页面内容按内容高度自适应缩放填满窗口（一屏显示不滚动）。
+ * 桌面「全部功能」模式下，让页面内容按内容高度自适应缩放填满窗口。
  * 首页本身已用 forceTwoCol 双栏单屏，无需缩放，故跳过首页。
+ *
+ * 当内容高度超过视口 1.2 倍时，允许纵向滚动而非继续缩小，保证长页面可读性。
  *
  * 关键约束：内容层必须始终保持固定布局宽度（100%），绝不能用 `width: 100% / scale`
  * 反向补偿缩放后的视觉宽度。否则会形成正反馈——
@@ -73,6 +76,11 @@ function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNo
         const ih = inner.scrollHeight
         const iw = inner.scrollWidth
         if (ow <= 0 || oh <= 0 || ih <= 0 || iw <= 0) return
+        // 内容超高（超过视口 1.2 倍）时允许滚动，不再继续缩小
+        if (ih > oh * 1.2) {
+          setScale(1)
+          return
+        }
         // 按高度缩放，同时用宽度兜底保证不横向溢出；不放大（上限 1）
         const next = Math.max(MIN_FIT_SCALE, Math.min(1, oh / ih, ow / iw))
         // 变化极小则忽略，避免浮点误差引起无意义的重渲染
@@ -94,7 +102,7 @@ function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNo
   if (!enabled || location.pathname === '/') return <>{children}</>
 
   return (
-    <div ref={outerRef} className="w-full h-full overflow-hidden min-h-0">
+    <div ref={outerRef} className="w-full h-full overflow-y-auto min-h-0">
       <div
         ref={innerRef}
         style={{ transform: `scale(${scale})`, transformOrigin: 'top center', width: '100%' }}
@@ -182,9 +190,10 @@ export default function App({
         <BackButtonHandler />
         <UpdateProvider>
           <AuthProvider>
+          <LogsProvider>
           <div className={`${pageHeight} bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0`}>
           <div className={`flex ${pageHeight}`}>
-            {sidebar && <div className="sticky top-0 self-start h-[calc(100dvh-45px)] shrink-0">{sidebar}</div>}
+            {sidebar && <div className="sticky top-0 self-start h-full shrink-0">{sidebar}</div>}
             <div className="flex-1 min-w-0">
               <ConfigBanner />
               <UpdateChecker />
@@ -223,6 +232,7 @@ export default function App({
             </div>
           </div>
           </div>
+          </LogsProvider>
       </AuthProvider>
       </UpdateProvider>
       </ToastProvider>

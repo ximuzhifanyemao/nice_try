@@ -16,6 +16,8 @@ import { createLog, fetchLogByDate, isDuplicateDateError, mergeSubjects, sortSub
 import { formatDateCn, formatDuration, formatDurationShort, timeRangeHours, toTimeStr } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
+import { useLogs } from '../contexts/LogsContext'
+import { useToast } from '../lib/Toast'
 import { TimerForeground } from '../plugins/timer-foreground'
 import { connectBleTimer, disconnectBleTimer, pushSubjects } from '../lib/bleTimer'
 
@@ -129,6 +131,8 @@ const AGG_408_IDS = ['ds', 'co', 'os', 'cn']
 /* ── 组件 ── */
 export default function StudyTimer() {
   const { user } = useAuth()
+  const { refetch } = useLogs()
+  const toast = useToast()
   /* 可选择的科目（内置 + 自定义），随增删改实时刷新 */
   const [availableSubjects, setAvailableSubjects] = useState<Subject[]>(() => getAvailableSubjects())
   /* 自定义科目列表（管理用） */
@@ -272,7 +276,7 @@ export default function StudyTimer() {
     return () => {
       if (intervalRef.current !== null) clearInterval(intervalRef.current)
     }
-  }, [running?.startTime, running?.subjectId, running?.activity])
+  }, [running?.startTime, running?.subjectId, running?.activity, running?.paused, running?.pausedAt, running?.pausedMs])
 
   /* ── 开始计时 ── */
   const handleStart = (subjectId: string, activity: string) => {
@@ -361,7 +365,7 @@ export default function StudyTimer() {
     if (subj) {
       handleStart(subj.id, '')
     } else {
-      alert(`硬件选择了科目「${name}」，但 App 中未找到，请重新连接或在手机上选择科目`)
+      toast.show(`硬件选择了科目「${name}」，但 App 中未找到，请重新连接或在手机上选择科目`, { icon: '⚠️' })
     }
   }
   /* 每渲染把最新处理函数写入 ref，供 BLE 回调拿到最新闭包 */
@@ -445,6 +449,8 @@ export default function StudyTimer() {
         })
       }
 
+      refetch()
+
       // 清空累计
       setAccum({})
       saveAccum({})
@@ -453,9 +459,9 @@ export default function StudyTimer() {
       setSaved(true)
     } catch (err) {
       if (isDuplicateDateError(err)) {
-        alert('该日期已有记录，请刷新后重试')
+        toast.show('该日期已有记录，请刷新后重试', { icon: '⚠️' })
       } else {
-        alert('保存失败：' + (err instanceof Error ? err.message : '未知错误'))
+        toast.show('保存失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
       }
     } finally {
       setSaving(false)
@@ -536,7 +542,7 @@ export default function StudyTimer() {
       await loadCustomSubjects()
       await refreshSubjects()
     } catch (err) {
-      alert('添加失败：' + (err instanceof Error ? err.message : '未知错误'))
+      toast.show('添加失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
     } finally {
       setCreating(false)
     }
@@ -554,7 +560,7 @@ export default function StudyTimer() {
       await loadCustomSubjects()
       await refreshSubjects()
     } catch (err) {
-      alert('保存失败：' + (err instanceof Error ? err.message : '未知错误'))
+      toast.show('保存失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
     }
   }
 
@@ -565,7 +571,7 @@ export default function StudyTimer() {
       await loadCustomSubjects()
       await refreshSubjects()
     } catch (err) {
-      alert('删除失败：' + (err instanceof Error ? err.message : '未知错误'))
+      toast.show('删除失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
     }
   }
 

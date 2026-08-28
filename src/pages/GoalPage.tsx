@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchMyLogs, type DailyLog } from '../lib/dailyLogs'
+import { useLogs } from '../contexts/LogsContext'
+import { useToast } from '../lib/Toast'
 import {
   fetchWallet,
   fetchCommitments,
@@ -28,10 +29,11 @@ const TX_TYPE_COLORS: Record<string, string> = {
 
 export default function GoalPage() {
   const { user } = useAuth()
+  const { logs, loading: logsLoading } = useLogs()
+  const toast = useToast()
   const [wallet, setWallet] = useState<Wallet | null>(null)
   const [commitments, setCommitments] = useState<WeeklyCommitment[]>([])
   const [transactions, setTransactions] = useState<WalletTransaction[]>([])
-  const [logs, setLogs] = useState<DailyLog[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -48,16 +50,14 @@ export default function GoalPage() {
     try {
       // 先结算过期承诺（幂等：已结算的不会重复处理）
       await settleExpiredCommitments(user.id)
-      const [walletData, commitmentsData, txData, logData] = await Promise.all([
+      const [walletData, commitmentsData, txData] = await Promise.all([
         fetchWallet(user.id),
         fetchCommitments(user.id),
         fetchTransactions(user.id),
-        fetchMyLogs(user.id),
       ])
       setWallet(walletData)
       setCommitments(commitmentsData)
       setTransactions(txData)
-      setLogs(logData)
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败')
     } finally {
@@ -68,6 +68,8 @@ export default function GoalPage() {
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  const isLoading = loading || logsLoading
 
   const weekStart = getWeekStartStr()
   const weekEnd = getWeekEndStr()
@@ -87,7 +89,7 @@ export default function GoalPage() {
     if (raw === null) return
     const amount = Number(raw)
     if (!Number.isFinite(amount) || amount <= 0) {
-      alert('请输入有效的正数金额')
+      toast.show('请输入有效的正数金额', { icon: '⚠️' })
       return
     }
     setBusy(true)
@@ -95,7 +97,7 @@ export default function GoalPage() {
       await rechargeWallet(user.id, amount)
       await loadData()
     } catch (err) {
-      alert('充值失败：' + (err instanceof Error ? err.message : '未知错误'))
+      toast.show('充值失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
     } finally {
       setBusy(false)
     }
@@ -106,11 +108,11 @@ export default function GoalPage() {
     const target = Number(targetInput)
     const deposit = Number(depositInput)
     if (!Number.isFinite(target) || target <= 0) {
-      alert('请输入有效的目标时长')
+      toast.show('请输入有效的目标时长', { icon: '⚠️' })
       return
     }
     if (!Number.isFinite(deposit) || deposit <= 0) {
-      alert('请输入有效的承诺金额')
+      toast.show('请输入有效的承诺金额', { icon: '⚠️' })
       return
     }
     setBusy(true)
@@ -119,7 +121,7 @@ export default function GoalPage() {
       setEditing(false)
       await loadData()
     } catch (err) {
-      alert('保存失败：' + (err instanceof Error ? err.message : '未知错误'))
+      toast.show('保存失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
     } finally {
       setBusy(false)
     }
@@ -141,13 +143,13 @@ export default function GoalPage() {
     <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
       <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">🎯 目标与承诺金</h1>
 
-      {loading && (
+      {isLoading && (
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:border-slate-700 border-t-blue-600 dark:border-t-blue-500" />
         </div>
       )}
 
-      {error && !loading && (
+      {error && !isLoading && (
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 text-center">
           <p className="text-red-500 dark:text-red-400">{error}</p>
           <button
@@ -160,7 +162,7 @@ export default function GoalPage() {
         </div>
       )}
 
-      {!loading && !error && (
+      {!isLoading && !error && (
         <>
           {/* 钱包 */}
           <div className="rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white p-5 shadow-md">

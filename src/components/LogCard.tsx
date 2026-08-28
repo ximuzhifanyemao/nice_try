@@ -4,6 +4,7 @@ import { sortSubjectsByStartTime, updateLog } from '../lib/dailyLogs'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 import { formatDateShort, formatTimeRange } from '../lib/format'
+import { useToast } from '../lib/Toast'
 import ConfirmDialog from './ConfirmDialog'
 
 interface LogCardProps {
@@ -16,6 +17,7 @@ interface LogCardProps {
 }
 
 function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProps) {
+  const toast = useToast()
   const [editingSummary, setEditingSummary] = useState(false)
   const [summaryDraft, setSummaryDraft] = useState('')
   const [savingSummary, setSavingSummary] = useState(false)
@@ -46,7 +48,7 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
       setEditingSummary(false)
       onSummarySaved?.()
     } catch {
-      alert('保存失败，请重试')
+      toast.show('保存失败，请重试', { icon: '❌' })
     } finally {
       setSavingSummary(false)
     }

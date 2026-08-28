@@ -1,7 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useLogs } from '../contexts/LogsContext'
+import { useToast } from '../lib/Toast'
 import LogForm from '../components/LogForm'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLog, DailyLogInput } from '../lib/dailyLogs'
 import { fetchLogById, fetchLogByDate, updateLog, purgeLog, mergeSubjects, isDuplicateDateError } from '../lib/dailyLogs'
@@ -16,10 +19,14 @@ function combineSummary(a: string, b: string): string {
 export default function EditRecord() {
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
+  const { refetch } = useLogs()
+  const toast = useToast()
   const navigate = useNavigate()
   const [log, setLog] = useState<DailyLog | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [mergeConfirm, setMergeConfirm] = useState<{ open: boolean; data?: DailyLogInput; target?: DailyLog }>({ open: false })
+  const pendingRef = useRef<{ data: DailyLogInput; target: DailyLog } | null>(null)
 
   useEffect(() => {
     if (!user || !id) return
@@ -38,32 +45,50 @@ export default function EditRecord() {
       .finally(() => setLoading(false))
   }, [user, id])
 
+  const doMerge = async (data: DailyLogInput, target: DailyLog) => {
+    if (!id) return
+    try {
+      await updateLog(target.id, {
+        date: data.date,
+        subjects: mergeSubjects(target.subjects, data.subjects),
+        summary: combineSummary(target.summary, data.summary),
+      })
+      await purgeLog(id)
+      refetch()
+      navigate('/my-records')
+    } catch (err) {
+      toast.show(err instanceof Error ? err.message : '保存失败，请重试', { icon: '❌' })
+    }
+  }
+
   const handleSubmit = async (data: DailyLogInput) => {
     if (!id || !user) return
     try {
-      // 改到已有记录的日期时，将编辑内容合并进该日记录，并删除原记录
       if (log && data.date !== log.date) {
         const target = await fetchLogByDate(user.id, data.date)
         if (target) {
-          await updateLog(target.id, {
-            date: data.date,
-            subjects: mergeSubjects(target.subjects, data.subjects),
-            summary: combineSummary(target.summary, data.summary),
-          })
-          // 内容已合并进目标记录，原记录彻底删除（不进回收站）
-          await purgeLog(id)
-          navigate('/my-records')
+          pendingRef.current = { data, target }
+          setMergeConfirm({ open: true, data, target })
           return
         }
       }
       await updateLog(id, data)
+      refetch()
       navigate('/my-records')
     } catch (err) {
       if (isDuplicateDateError(err)) {
-        alert('该日期已有记录，请选择其他日期')
+        toast.show('该日期已有记录，请选择其他日期', { icon: '⚠️' })
       } else {
-        alert(err instanceof Error ? err.message : '保存失败，请重试')
+        toast.show(err instanceof Error ? err.message : '保存失败，请重试', { icon: '❌' })
       }
+    }
+  }
+
+  const handleMergeConfirm = () => {
+    setMergeConfirm({ open: false })
+    if (pendingRef.current) {
+      doMerge(pendingRef.current.data, pendingRef.current.target)
+      pendingRef.current = null
     }
   }
 
@@ -101,6 +126,15 @@ export default function EditRecord() {
         availableSubjects={getAvailableSubjects()}
         onSubmit={handleSubmit}
         onCancel={handleCancel}
+      />
+      <ConfirmDialog
+        open={mergeConfirm.open}
+        title="合并并删除原记录"
+        message={`该日期（${mergeConfirm.target?.date}）已有记录。确认后将把当前编辑内容合并进该记录，并永久删除原记录（不可恢复）。`}
+        confirmText="确认合并"
+        danger
+        onConfirm={handleMergeConfirm}
+        onCancel={() => setMergeConfirm({ open: false })}
       />
     </div>
   )

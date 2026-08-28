@@ -169,14 +169,8 @@ export default function WidgetApp() {
         {/* 顶部标题栏（全功能模式：可拖动窗口） */}
         <div
           data-tauri-drag-region
-          className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none"
+          className="flex items-center justify-end px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none"
         >
-          <div data-tauri-drag-region className="flex items-center gap-2">
-            <DesktopLogo size={22} />
-            <span data-tauri-drag-region className="text-sm font-semibold text-gray-700 dark:text-slate-300">
-              DiveDeep
-            </span>
-          </div>
           <div className="flex items-center gap-1">
             <button
               onClick={toggleMode}
