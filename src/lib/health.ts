@@ -30,7 +30,7 @@ export interface MealItem {
   protein_g_per100g?: number | null
   fat_g_per100g?: number | null
   carbs_g_per100g?: number | null
-  sugar_g_per100g?: number | null
+  sodium_mg_per100g?: number | null
   nrv_percent?: number | null
 }
 
@@ -66,7 +66,7 @@ export interface FavoriteFood {
   protein_g_per100g?: number | null
   fat_g_per100g?: number | null
   carbs_g_per100g?: number | null
-  sugar_g_per100g?: number | null
+  sodium_mg_per100g?: number | null
   usage_count?: number
   created_at?: string
   updated_at?: string
@@ -81,7 +81,7 @@ export interface CustomPreset {
   protein_g_per100g?: number | null
   fat_g_per100g?: number | null
   carbs_g_per100g?: number | null
-  sugar_g_per100g?: number | null
+  sodium_mg_per100g?: number | null
   suggest_grams?: number | null
   created_at?: string
   updated_at?: string
@@ -241,7 +241,7 @@ export async function createMeal(
         protein_g_per100g: it.protein_g_per100g ?? null,
         fat_g_per100g: it.fat_g_per100g ?? null,
         carbs_g_per100g: it.carbs_g_per100g ?? null,
-        sugar_g_per100g: it.sugar_g_per100g ?? null,
+        sodium_mg_per100g: it.sodium_mg_per100g ?? null,
       })),
     )
     if (itemErr) throw new Error(itemErr.message)
@@ -277,7 +277,7 @@ export async function updateMeal(
         protein_g_per100g: it.protein_g_per100g ?? null,
         fat_g_per100g: it.fat_g_per100g ?? null,
         carbs_g_per100g: it.carbs_g_per100g ?? null,
-        sugar_g_per100g: it.sugar_g_per100g ?? null,
+        sodium_mg_per100g: it.sodium_mg_per100g ?? null,
       })),
     )
     if (insErr) throw new Error(insErr.message)
@@ -334,7 +334,7 @@ export async function upsertFavorite(
     protein_g_per100g?: number | null
     fat_g_per100g?: number | null
     carbs_g_per100g?: number | null
-    sugar_g_per100g?: number | null
+    sodium_mg_per100g?: number | null
   },
 ): Promise<FavoriteFood> {
   // 先查是否已有同名收藏
@@ -353,7 +353,7 @@ export async function upsertFavorite(
         protein_g_per100g: input.protein_g_per100g ?? existing.protein_g_per100g,
         fat_g_per100g: input.fat_g_per100g ?? existing.fat_g_per100g,
         carbs_g_per100g: input.carbs_g_per100g ?? existing.carbs_g_per100g,
-        sugar_g_per100g: input.sugar_g_per100g ?? existing.sugar_g_per100g,
+        sodium_mg_per100g: input.sodium_mg_per100g ?? existing.sodium_mg_per100g,
         usage_count: (existing.usage_count ?? 0) + 1,
       })
       .eq('id', existing.id)
@@ -372,7 +372,7 @@ export async function upsertFavorite(
       protein_g_per100g: input.protein_g_per100g ?? null,
       fat_g_per100g: input.fat_g_per100g ?? null,
       carbs_g_per100g: input.carbs_g_per100g ?? null,
-      sugar_g_per100g: input.sugar_g_per100g ?? null,
+      sodium_mg_per100g: input.sodium_mg_per100g ?? null,
       usage_count: 1,
     })
     .select()
@@ -423,7 +423,7 @@ export async function upsertCustomPreset(
     protein_g_per100g?: number | null
     fat_g_per100g?: number | null
     carbs_g_per100g?: number | null
-    sugar_g_per100g?: number | null
+    sodium_mg_per100g?: number | null
     suggest_grams?: number | null
   },
 ): Promise<CustomPreset> {
@@ -437,7 +437,7 @@ export async function upsertCustomPreset(
         protein_g_per100g: input.protein_g_per100g ?? null,
         fat_g_per100g: input.fat_g_per100g ?? null,
         carbs_g_per100g: input.carbs_g_per100g ?? null,
-        sugar_g_per100g: input.sugar_g_per100g ?? null,
+        sodium_mg_per100g: input.sodium_mg_per100g ?? null,
         suggest_grams: input.suggest_grams ?? null,
       },
       { onConflict: 'user_id,name' },
@@ -490,7 +490,7 @@ export interface NutrientTotals {
   protein_g: number
   fat_g: number
   carbs_g: number
-  sugar_g: number
+  sodium_mg: number
   nrv_percent: number
 }
 
@@ -500,7 +500,7 @@ export function sumItems(items: MealItem[]): NutrientTotals {
   let protein = 0
   let fat = 0
   let carbs = 0
-  let sugar = 0
+  let sodium = 0
   let nrvSum = 0
   for (const it of items) {
     const ratio = it.amount_g / 100
@@ -508,7 +508,7 @@ export function sumItems(items: MealItem[]): NutrientTotals {
     protein += (it.protein_g_per100g ?? 0) * ratio
     fat += (it.fat_g_per100g ?? 0) * ratio
     carbs += (it.carbs_g_per100g ?? 0) * ratio
-    sugar += (it.sugar_g_per100g ?? 0) * ratio
+    sodium += (it.sodium_mg_per100g ?? 0) * ratio
     nrvSum += itemNrvPercent(it)
   }
   const round = (n: number) => Math.round(n * 100) / 100
@@ -517,7 +517,7 @@ export function sumItems(items: MealItem[]): NutrientTotals {
     protein_g: round(protein),
     fat_g: round(fat),
     carbs_g: round(carbs),
-    sugar_g: round(sugar),
+    sodium_mg: round(sodium),
     nrv_percent: Math.round(nrvSum * 10) / 10,
   }
 }

@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.favorites (
   protein_g_per100g NUMERIC(6,2),
   fat_g_per100g NUMERIC(6,2),
   carbs_g_per100g NUMERIC(6,2),
-  sugar_g_per100g NUMERIC(6,2),
+  sodium_mg_per100g NUMERIC(7,1),
   usage_count INTEGER NOT NULL DEFAULT 1,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),

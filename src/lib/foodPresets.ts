@@ -19,8 +19,8 @@ export interface FoodPreset {
   fat_g_per100g?: number
   /** 每100g 碳水 g */
   carbs_g_per100g?: number
-  /** 每100g 糖 g */
-  sugar_g_per100g?: number
+  /** 每100g 钠 mg */
+  sodium_mg_per100g?: number
   /** 常见一份参考克数，选填提示用 */
   suggest_grams?: number
 }
@@ -47,7 +47,7 @@ export const FOOD_PRESETS: FoodPreset[] = [
   { id: 'p_shrimp', name: '虾', category: '肉蛋水产', energy_kj_per100g: 400, protein_g_per100g: 18, fat_g_per100g: 1.5, carbs_g_per100g: 2 },
   { id: 'p_tofu', name: '北豆腐', category: '肉蛋水产', energy_kj_per100g: 400, protein_g_per100g: 9.6, fat_g_per100g: 5.4, carbs_g_per100g: 2 },
   { id: 'p_soymilk', name: '豆浆', category: '饮品', energy_kj_per100g: 140, protein_g_per100g: 1.8, fat_g_per100g: 0.7, carbs_g_per100g: 4.5, suggest_grams: 300 },
-  { id: 'p_yogurt_ambrosial', name: '安慕希酸奶', category: '饮品', energy_kj_per100g: 383, protein_g_per100g: 3.1, fat_g_per100g: 3.4, carbs_g_per100g: 12, sugar_g_per100g: 8, suggest_grams: 205 },
+  { id: 'p_yogurt_ambrosial', name: '安慕希酸奶', category: '饮品', energy_kj_per100g: 383, protein_g_per100g: 3.1, fat_g_per100g: 3.4, carbs_g_per100g: 12, suggest_grams: 205 },
 
   // —— 蔬菜 ——
   { id: 'p_tomato', name: '番茄/西红柿', category: '蔬菜', energy_kj_per100g: 80, protein_g_per100g: 0.9, fat_g_per100g: 0.2, carbs_g_per100g: 4 },
@@ -61,7 +61,7 @@ export const FOOD_PRESETS: FoodPreset[] = [
   { id: 'p_carrot', name: '胡萝卜', category: '蔬菜', energy_kj_per100g: 160, protein_g_per100g: 1, fat_g_per100g: 0.2, carbs_g_per100g: 8.8 },
 
   // —— 水果 ——
-  { id: 'p_orange', name: '橘子', category: '水果', energy_kj_per100g: 184, protein_g_per100g: 0.7, fat_g_per100g: 0.2, carbs_g_per100g: 10.5, sugar_g_per100g: 9, suggest_grams: 150 },
+  { id: 'p_orange', name: '橘子', category: '水果', energy_kj_per100g: 184, protein_g_per100g: 0.7, fat_g_per100g: 0.2, carbs_g_per100g: 10.5, suggest_grams: 150 },
 
   // —— 常见家常菜（含油估算） ——
   { id: 'd_tomato_egg_rice', name: '番茄鸡蛋饭', category: '家常菜', energy_kj_per100g: 490, protein_g_per100g: 3, fat_g_per100g: 4, carbs_g_per100g: 17, suggest_grams: 400 },

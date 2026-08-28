@@ -59,7 +59,7 @@ interface CpForm {
   protein_g_per100g: string
   fat_g_per100g: string
   carbs_g_per100g: string
-  sugar_g_per100g: string
+  sodium_mg_per100g: string
 }
 
 function emptyCpForm(): CpForm {
@@ -71,7 +71,7 @@ function emptyCpForm(): CpForm {
     protein_g_per100g: '',
     fat_g_per100g: '',
     carbs_g_per100g: '',
-    sugar_g_per100g: '',
+    sodium_mg_per100g: '',
   }
 }
 
@@ -94,7 +94,7 @@ interface EditableItem {
   protein_g_per100g: string
   fat_g_per100g: string
   carbs_g_per100g: string
-  sugar_g_per100g: string
+  sodium_mg_per100g: string
 }
 
 /** 品类小标题 */
@@ -257,7 +257,7 @@ export default function Health() {
           protein_g_per100g: preset.protein_g_per100g != null ? String(preset.protein_g_per100g) : '',
           fat_g_per100g: preset.fat_g_per100g != null ? String(preset.fat_g_per100g) : '',
           carbs_g_per100g: preset.carbs_g_per100g != null ? String(preset.carbs_g_per100g) : '',
-          sugar_g_per100g: preset.sugar_g_per100g != null ? String(preset.sugar_g_per100g) : '',
+          sodium_mg_per100g: preset.sodium_mg_per100g != null ? String(preset.sodium_mg_per100g) : '',
         },
       ],
     })
@@ -318,7 +318,7 @@ export default function Health() {
           protein_g_per100g: fav.protein_g_per100g != null ? String(fav.protein_g_per100g) : '',
           fat_g_per100g: fav.fat_g_per100g != null ? String(fav.fat_g_per100g) : '',
           carbs_g_per100g: fav.carbs_g_per100g != null ? String(fav.carbs_g_per100g) : '',
-          sugar_g_per100g: fav.sugar_g_per100g != null ? String(fav.sugar_g_per100g) : '',
+          sodium_mg_per100g: fav.sodium_mg_per100g != null ? String(fav.sodium_mg_per100g) : '',
         },
       ],
     })
@@ -339,7 +339,7 @@ export default function Health() {
           protein_g_per100g: cp.protein_g_per100g != null ? String(cp.protein_g_per100g) : '',
           fat_g_per100g: cp.fat_g_per100g != null ? String(cp.fat_g_per100g) : '',
           carbs_g_per100g: cp.carbs_g_per100g != null ? String(cp.carbs_g_per100g) : '',
-          sugar_g_per100g: cp.sugar_g_per100g != null ? String(cp.sugar_g_per100g) : '',
+          sodium_mg_per100g: cp.sodium_mg_per100g != null ? String(cp.sodium_mg_per100g) : '',
         },
       ],
     })
@@ -361,7 +361,7 @@ export default function Health() {
       protein_g_per100g: cp.protein_g_per100g != null ? String(cp.protein_g_per100g) : '',
       fat_g_per100g: cp.fat_g_per100g != null ? String(cp.fat_g_per100g) : '',
       carbs_g_per100g: cp.carbs_g_per100g != null ? String(cp.carbs_g_per100g) : '',
-      sugar_g_per100g: cp.sugar_g_per100g != null ? String(cp.sugar_g_per100g) : '',
+      sodium_mg_per100g: cp.sodium_mg_per100g != null ? String(cp.sodium_mg_per100g) : '',
     })
     setCpEdit(true)
   }
@@ -380,7 +380,7 @@ export default function Health() {
         protein_g_per100g: toNum(cpForm.protein_g_per100g),
         fat_g_per100g: toNum(cpForm.fat_g_per100g),
         carbs_g_per100g: toNum(cpForm.carbs_g_per100g),
-        sugar_g_per100g: toNum(cpForm.sugar_g_per100g),
+        sodium_mg_per100g: toNum(cpForm.sodium_mg_per100g),
         suggest_grams: toNum(cpForm.suggest_grams),
       })
       setCpEdit(false)
@@ -432,7 +432,7 @@ export default function Health() {
           protein_g_per100g: toNum(it.protein_g_per100g),
           fat_g_per100g: toNum(it.fat_g_per100g),
           carbs_g_per100g: toNum(it.carbs_g_per100g),
-          sugar_g_per100g: toNum(it.sugar_g_per100g),
+          sodium_mg_per100g: toNum(it.sodium_mg_per100g),
         }
       })
       .filter((it) => it !== null) as MealItem[]
@@ -469,7 +469,7 @@ export default function Health() {
             protein_g_per100g: it.protein_g_per100g,
             fat_g_per100g: it.fat_g_per100g,
             carbs_g_per100g: it.carbs_g_per100g,
-            sugar_g_per100g: it.sugar_g_per100g,
+            sodium_mg_per100g: it.sodium_mg_per100g,
           })
         } catch {
           // 收藏失败不影响主流程
@@ -539,7 +539,7 @@ export default function Health() {
               protein_g_per100g: it.protein_g_per100g != null ? String(it.protein_g_per100g) : '',
               fat_g_per100g: it.fat_g_per100g != null ? String(it.fat_g_per100g) : '',
               carbs_g_per100g: it.carbs_g_per100g != null ? String(it.carbs_g_per100g) : '',
-              sugar_g_per100g: it.sugar_g_per100g != null ? String(it.sugar_g_per100g) : '',
+              sodium_mg_per100g: it.sodium_mg_per100g != null ? String(it.sodium_mg_per100g) : '',
             }))
           : [emptyItem()],
     })
@@ -604,7 +604,7 @@ export default function Health() {
           <span>蛋白质 <b className="text-gray-800 dark:text-slate-100">{daily.protein_g}g</b></span>
           <span>脂肪 <b className="text-gray-800 dark:text-slate-100">{daily.fat_g}g</b></span>
           <span>碳水 <b className="text-gray-800 dark:text-slate-100">{daily.carbs_g}g</b></span>
-          <span>糖 <b className="text-gray-800 dark:text-slate-100">{daily.sugar_g}g</b></span>
+          <span>钠 <b className="text-gray-800 dark:text-slate-100">{daily.sodium_mg}mg</b></span>
         </div>
 
         {remainingKcal != null && (
@@ -934,20 +934,20 @@ export default function Health() {
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">糖/100g (g)</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400">钠/100g (mg)</span>
                       <input
                         className={inputCls}
                         inputMode="decimal"
-                        value={it.sugar_g_per100g}
+                        value={it.sodium_mg_per100g}
                         onChange={(e) =>
                           setMealForm({
                             ...mealForm,
                             items: mealForm.items.map((x, i) =>
-                              i === idx ? { ...x, sugar_g_per100g: e.target.value } : x,
+                              i === idx ? { ...x, sodium_mg_per100g: e.target.value } : x,
                             ),
                           })
                         }
-                        placeholder="如 5"
+                        placeholder="如 500"
                       />
                     </label>
                     {/* NRV 自动计算显示，不再手填 */}
@@ -1131,13 +1131,13 @@ export default function Health() {
                       />
                     </label>
                     <label className="block">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">糖/100g (g)</span>
+                      <span className="text-xs text-gray-500 dark:text-slate-400">钠/100g (mg)</span>
                       <input
                         className={inputCls}
                         inputMode="decimal"
-                        value={cpForm.sugar_g_per100g}
-                        onChange={(e) => setCpForm({ ...cpForm, sugar_g_per100g: e.target.value })}
-                        placeholder="如 5"
+                        value={cpForm.sodium_mg_per100g}
+                        onChange={(e) => setCpForm({ ...cpForm, sodium_mg_per100g: e.target.value })}
+                        placeholder="如 500"
                       />
                     </label>
                   </div>
@@ -1419,7 +1419,7 @@ function emptyItem(): EditableItem {
     protein_g_per100g: '',
     fat_g_per100g: '',
     carbs_g_per100g: '',
-    sugar_g_per100g: '',
+    sodium_mg_per100g: '',
   }
 }
 

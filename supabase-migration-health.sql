@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS public.meal_items (
   protein_g_per100g NUMERIC(6,2),
   fat_g_per100g NUMERIC(6,2),
   carbs_g_per100g NUMERIC(6,2),
-  sugar_g_per100g NUMERIC(6,2),
+  sodium_mg_per100g NUMERIC(7,1),
   nrv_percent NUMERIC(5,1),
   created_at TIMESTAMPTZ DEFAULT now()
 );

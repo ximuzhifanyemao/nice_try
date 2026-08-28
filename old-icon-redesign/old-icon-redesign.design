@@ -1,0 +1,171 @@
+{
+  "data": [
+    {
+      "id": "image-001",
+      "title": "原图标",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1787812965788,
+      "canvasData": {
+        "x": -624,
+        "y": -216,
+        "naturalSize": {
+          "width": 147,
+          "height": 125
+        }
+      },
+      "devMetadata": {
+        "imageSrc": "assets/old.png"
+      }
+    },
+    {
+      "id": "image-002",
+      "title": "去角标图标",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1787813707733,
+      "canvasData": {
+        "x": -624,
+        "y": 396,
+        "naturalSize": {
+          "width": 147,
+          "height": 125
+        }
+      },
+      "devMetadata": {
+        "imageSrc": "assets/old-no-arrow.png"
+      }
+    },
+    {
+      "id": "image-007",
+      "title": "方案五：高清还原",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1787815838910,
+      "canvasData": {
+        "x": -612,
+        "y": 984,
+        "naturalSize": {
+          "width": 1920,
+          "height": 1920
+        }
+      },
+      "devMetadata": {
+        "imageSrc": "assets/old-hd-replica.jpg"
+      }
+    },
+    {
+      "id": "image-008",
+      "title": "方案五下雪版",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1787816100949,
+      "canvasData": {
+        "x": 36,
+        "y": 972,
+        "naturalSize": {
+          "width": 1920,
+          "height": 1920
+        }
+      },
+      "devMetadata": {
+        "imageSrc": "assets/old-hd-replica-snow.jpg"
+      }
+    },
+    {
+      "id": "image-009",
+      "title": "蓝白图标",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1787816370528,
+      "canvasData": {
+        "x": 816,
+        "y": 996,
+        "naturalSize": {
+          "width": 1920,
+          "height": 1920
+        }
+      },
+      "devMetadata": {
+        "imageSrc": "assets/old-hd-replica-snow-blue-white.jpg"
+      }
+    },
+    {
+      "id": "image-010",
+      "title": "变体：深蓝粗环",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1787816728500,
+      "canvasData": {
+        "x": 12,
+        "y": 1716,
+        "naturalSize": {
+          "width": 1920,
+          "height": 1920
+        }
+      },
+      "devMetadata": {
+        "imageSrc": "assets/variant-dark-blue-thick.jpg"
+      }
+    },
+    {
+      "id": "image-011",
+      "title": "变体：绿色细线",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1787816728501,
+      "canvasData": {
+        "x": -600,
+        "y": 1716,
+        "naturalSize": {
+          "width": 1920,
+          "height": 1920
+        }
+      },
+      "devMetadata": {
+        "imageSrc": "assets/variant-green-thin.jpg"
+      }
+    },
+    {
+      "id": "image-012",
+      "title": "变体：紫粉中等",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1787816728502,
+      "canvasData": {
+        "x": 648,
+        "y": 1704,
+        "naturalSize": {
+          "width": 1920,
+          "height": 1920
+        }
+      },
+      "devMetadata": {
+        "imageSrc": "assets/variant-purple-pink-medium.jpg"
+      }
+    },
+    {
+      "id": "image-013",
+      "title": "变体：黑白极细",
+      "type": "image",
+      "version": 1,
+      "createdAt": 1787816728503,
+      "canvasData": {
+        "x": 1260,
+        "y": 1728,
+        "naturalSize": {
+          "width": 1920,
+          "height": 1920
+        }
+      },
+      "devMetadata": {
+        "imageSrc": "assets/variant-black-white-ultrathin.jpg"
+      }
+    }
+  ],
+  "config": {
+    "autoLayout": false,
+    "deviceType": "freeSize",
+    "projectName": "旧图标重绘"
+  }
+}
