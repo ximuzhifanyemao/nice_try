@@ -442,12 +442,19 @@ export default function Health() {
       if (editingMealId) {
         await updateMeal(editingMealId, { note: mealForm.note, items })
       } else {
-        await createMeal(userId, {
-          date: today,
-          meal_type: mealForm.meal_type,
-          note: mealForm.note,
-          items,
-        })
+        // 同一天同餐次的记录合并到一个框：已有早餐/午餐/加餐则直接并入，不新建第二个框
+        const existing = meals.find((m) => m.meal_type === mealForm.meal_type && m.id)
+        if (existing) {
+          const mergedItems = [...(existing.items ?? []), ...items]
+          await updateMeal(existing.id!, { note: existing.note ?? (mealForm.note || undefined), items: mergedItems })
+        } else {
+          await createMeal(userId, {
+            date: today,
+            meal_type: mealForm.meal_type,
+            note: mealForm.note,
+            items,
+          })
+        }
       }
 
       // 自动收藏 + 使用次数累加
@@ -625,9 +632,6 @@ export default function Health() {
               {Math.round((waterCups * WATER_ML_PER_CUP) / 100) / 10}
               <span className="text-sm font-normal text-gray-400"> L</span>
             </p>
-            <p className="text-xs text-gray-400 dark:text-slate-500">
-              {waterCups * WATER_ML_PER_CUP} / {WATER_GOAL_ML} ml（{Math.min(100, Math.round((waterCups * WATER_ML_PER_CUP) / WATER_GOAL_ML * 100))}%）
-            </p>
           </div>
           <button
             onClick={() => adjustWater(1)}
@@ -757,61 +761,236 @@ export default function Health() {
       {/* ============ 饮食 ============ */}
       {tab === 'diet' && (
         <div className="space-y-3">
-          {/* 过往餐次 */}
-          {MEAL_TYPE_ORDER.filter((mt) => meals.some((m) => m.meal_type === mt)).map((mt) => {
-            const groupMeals = meals
-              .filter((m) => m.meal_type === mt)
-              .sort((a, b) => (a.created_at! < b.created_at! ? 1 : -1))
-            return (
-              <div key={mt}>
-                <SectionLabel>{MEAL_TYPE_LABELS[mt]}</SectionLabel>
-                {groupMeals.map((m) => {
-                  const tot = mealTotals(m)
-                  return (
-                    <Card key={m.id} className="mt-1.5 p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold text-gray-800 dark:text-slate-100">
-                          {MEAL_TYPE_LABELS[m.meal_type]}
-                          {m.note ? ` · ${m.note}` : ''}
-                        </span>
-                        <span className="text-sm font-bold text-amber-500">{Math.round(tot.kcal)} kcal</span>
-                      </div>
-                      <ul className="mt-2 space-y-1">
-                        {(m.items ?? []).map((it) => (
-                          <li key={it.id} className="flex justify-between text-xs text-gray-500 dark:text-slate-400">
-                            <span>
-                              {it.food_name} × {it.amount_g}g
-                              {it.energy_kj_per100g != null && (
-                                <span className="ml-1 text-emerald-500">
-                                  NRV {itemNrvPercent(it)}%
-                                </span>
-                              )}
-                            </span>
-                            <span>
-                              {it.energy_kj_per100g != null
-                                ? `≈${Math.round((it.energy_kj_per100g / 4.184) * (it.amount_g / 100))} kcal`
-                                : ''}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          onClick={() => startEditMeal(m)}
-                          className="text-xs text-indigo-600 dark:text-indigo-400 cursor-pointer"
-                        >
-                          编辑
-                        </button>
-                        <button onClick={() => removeMeal(m.id)} className="text-xs text-red-500 cursor-pointer">
-                          删除
-                        </button>
-                      </div>
-                    </Card>
-                  )
-                })}
-              </div>
-            )
-          })}
+          {/* 新增 / 编辑餐次（先选餐次，再点下方预设填食品） */}
+          <SectionLabel>{editingMealId ? '编辑餐次' : '添加餐次'}</SectionLabel>
+          <Card className="p-4">
+            <div className="flex flex-wrap gap-2">
+              {MEAL_TYPE_ORDER.map((mt) => (
+                <button
+                  key={mt}
+                  onClick={() => setMealForm({ ...mealForm, meal_type: mt })}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors ${
+                    mealForm.meal_type === mt
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'
+                  }`}
+                >
+                  {MEAL_TYPE_LABELS[mt]}
+                </button>
+              ))}
+            </div>
+
+            {/* 备注 */}
+            <label className="block mt-3">
+              <span className="text-xs text-gray-500 dark:text-slate-400">备注（可选）</span>
+              <input
+                className={inputCls}
+                value={mealForm.note}
+                onChange={(e) => setMealForm({ ...mealForm, note: e.target.value })}
+                placeholder="如 加班加餐"
+              />
+            </label>
+
+            {mealForm.items.map((it, idx) => {
+              // 计算 NRV%（派生自能量）
+              const ePer100 = toNum(it.energy_kj_per100g)
+              const amt = toNum(it.amount_g)
+              const nrv100g = nrvPercentPer100g(ePer100)
+              const itemNrv = ePer100 && amt ? Math.round(nrv100g * (amt / 100) * 10) / 10 : 0
+              const itemKcal =
+                ePer100 && amt ? Math.round((ePer100 / 4.184) * (amt / 100)) : 0
+
+              return (
+                <div key={it.key} className="mt-3 rounded-xl border border-gray-100 dark:border-slate-800 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-gray-500 dark:text-slate-400">
+                      食品 #{idx + 1}
+                    </span>
+                    {itemKcal > 0 && (
+                      <span className="text-xs text-amber-500">
+                        ≈ {itemKcal} kcal · NRV {itemNrv}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="col-span-2 block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">食品名称 *</span>
+                      <input
+                        className={inputCls}
+                        value={it.food_name}
+                        onChange={(e) =>
+                          setMealForm({
+                            ...mealForm,
+                            items: mealForm.items.map((x, i) => (i === idx ? { ...x, food_name: e.target.value } : x)),
+                          })
+                        }
+                        placeholder="如 米饭"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">吃了多少 (g) *</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={it.amount_g}
+                        onChange={(e) =>
+                          setMealForm({
+                            ...mealForm,
+                            items: mealForm.items.map((x, i) => (i === idx ? { ...x, amount_g: e.target.value } : x)),
+                          })
+                        }
+                        placeholder="如 150"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">每100g能量 (kJ)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={it.energy_kj_per100g}
+                        onChange={(e) =>
+                          setMealForm({
+                            ...mealForm,
+                            items: mealForm.items.map((x, i) =>
+                              i === idx ? { ...x, energy_kj_per100g: e.target.value } : x,
+                            ),
+                          })
+                        }
+                        placeholder="如 690"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">蛋白质/100g (g)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={it.protein_g_per100g}
+                        onChange={(e) =>
+                          setMealForm({
+                            ...mealForm,
+                            items: mealForm.items.map((x, i) =>
+                              i === idx ? { ...x, protein_g_per100g: e.target.value } : x,
+                            ),
+                          })
+                        }
+                        placeholder="如 7"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">脂肪/100g (g)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={it.fat_g_per100g}
+                        onChange={(e) =>
+                          setMealForm({
+                            ...mealForm,
+                            items: mealForm.items.map((x, i) =>
+                              i === idx ? { ...x, fat_g_per100g: e.target.value } : x,
+                            ),
+                          })
+                        }
+                        placeholder="如 0.8"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">碳水/100g (g)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={it.carbs_g_per100g}
+                        onChange={(e) =>
+                          setMealForm({
+                            ...mealForm,
+                            items: mealForm.items.map((x, i) =>
+                              i === idx ? { ...x, carbs_g_per100g: e.target.value } : x,
+                            ),
+                          })
+                        }
+                        placeholder="如 25"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-xs text-gray-500 dark:text-slate-400">糖/100g (g)</span>
+                      <input
+                        className={inputCls}
+                        inputMode="decimal"
+                        value={it.sugar_g_per100g}
+                        onChange={(e) =>
+                          setMealForm({
+                            ...mealForm,
+                            items: mealForm.items.map((x, i) =>
+                              i === idx ? { ...x, sugar_g_per100g: e.target.value } : x,
+                            ),
+                          })
+                        }
+                        placeholder="如 5"
+                      />
+                    </label>
+                    {/* NRV 自动计算显示，不再手填 */}
+                    <div className="col-span-2 mt-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 px-3 py-2">
+                      <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                        <span className="font-medium">NRV 自动计算</span>
+                        {ePer100 ? (
+                          <>
+                            {' '}· 每100g NRV ≈ <b>{nrv100g}%</b>
+                            {amt ? (
+                              <>
+                                {' '}· 本份 ({amt}g) ≈ <b>{itemNrv}%</b> 每日推荐
+                              </>
+                            ) : (
+                              <span className="text-gray-400">（填写克数即可折算）</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-400">（填写能量 kJ 即可自动计算）</span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  {mealForm.items.length > 1 && (
+                    <button
+                      onClick={() =>
+                        setMealForm({
+                          ...mealForm,
+                          items: mealForm.items.filter((_, i) => i !== idx),
+                        })
+                      }
+                      className="mt-2 text-xs text-red-500 cursor-pointer"
+                    >
+                      移除该食品
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={addEmptyFood}
+                className="flex-1 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 py-2 text-sm text-gray-400 dark:text-slate-400 cursor-pointer"
+              >
+                + 添加食品
+              </button>
+            </div>
+
+            <div className="mt-3 flex gap-2">
+              <button
+                onClick={submitMeal}
+                className="flex-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium py-2.5 cursor-pointer transition-colors"
+              >
+                保存餐次
+              </button>
+              {editingMealId && (
+                <button
+                  onClick={cancelMealEdit}
+                  className="rounded-lg border border-gray-300 dark:border-slate-600 text-sm px-4 cursor-pointer"
+                >
+                  取消
+                </button>
+              )}
+            </div>
+          </Card>
 
           {/* 常用食物预设库 */}
           <SectionLabel>常用食物 / 菜品预设</SectionLabel>
@@ -1055,242 +1234,67 @@ export default function Health() {
                   )}
                 </div>
                 <p className="mt-2 text-[10px] text-gray-400 dark:text-slate-500">
-                  点击标签自动填入营养数据（仅需补充克数）· 使用 {favorites.length} 种
-                </p>
+              点击标签自动填入营养数据（仅需补充克数）· 使用 {favorites.length} 种
+            </p>
               </>
             )}
           </Card>
 
-          {/* 新增 / 编辑餐次 */}
-          <SectionLabel>{editingMealId ? '编辑餐次' : '添加餐次'}</SectionLabel>
-          <Card className="p-4">
-            <div className="flex flex-wrap gap-2">
-              {MEAL_TYPE_ORDER.map((mt) => (
-                <button
-                  key={mt}
-                  onClick={() => setMealForm({ ...mealForm, meal_type: mt })}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors ${
-                    mealForm.meal_type === mt
-                      ? 'bg-indigo-600 text-white'
-                      : 'bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-slate-400'
-                  }`}
-                >
-                  {MEAL_TYPE_LABELS[mt]}
-                </button>
-              ))}
-            </div>
-
-            {/* 备注 */}
-            <label className="block mt-3">
-              <span className="text-xs text-gray-500 dark:text-slate-400">备注（可选）</span>
-              <input
-                className={inputCls}
-                value={mealForm.note}
-                onChange={(e) => setMealForm({ ...mealForm, note: e.target.value })}
-                placeholder="如 加班加餐"
-              />
-            </label>
-
-            {mealForm.items.map((it, idx) => {
-              // 计算 NRV%（派生自能量）
-              const ePer100 = toNum(it.energy_kj_per100g)
-              const amt = toNum(it.amount_g)
-              const nrv100g = nrvPercentPer100g(ePer100)
-              const itemNrv = ePer100 && amt ? Math.round(nrv100g * (amt / 100) * 10) / 10 : 0
-              const itemKcal =
-                ePer100 && amt ? Math.round((ePer100 / 4.184) * (amt / 100)) : 0
-
-              return (
-                <div key={it.key} className="mt-3 rounded-xl border border-gray-100 dark:border-slate-800 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-medium text-gray-500 dark:text-slate-400">
-                      食品 #{idx + 1}
-                    </span>
-                    {itemKcal > 0 && (
-                      <span className="text-xs text-amber-500">
-                        ≈ {itemKcal} kcal · NRV {itemNrv}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="col-span-2 block">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">食品名称 *</span>
-                      <input
-                        className={inputCls}
-                        value={it.food_name}
-                        onChange={(e) =>
-                          setMealForm({
-                            ...mealForm,
-                            items: mealForm.items.map((x, i) => (i === idx ? { ...x, food_name: e.target.value } : x)),
-                          })
-                        }
-                        placeholder="如 米饭"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">吃了多少 (g) *</span>
-                      <input
-                        className={inputCls}
-                        inputMode="decimal"
-                        value={it.amount_g}
-                        onChange={(e) =>
-                          setMealForm({
-                            ...mealForm,
-                            items: mealForm.items.map((x, i) => (i === idx ? { ...x, amount_g: e.target.value } : x)),
-                          })
-                        }
-                        placeholder="如 150"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">每100g能量 (kJ)</span>
-                      <input
-                        className={inputCls}
-                        inputMode="decimal"
-                        value={it.energy_kj_per100g}
-                        onChange={(e) =>
-                          setMealForm({
-                            ...mealForm,
-                            items: mealForm.items.map((x, i) =>
-                              i === idx ? { ...x, energy_kj_per100g: e.target.value } : x,
-                            ),
-                          })
-                        }
-                        placeholder="如 690"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">蛋白质/100g (g)</span>
-                      <input
-                        className={inputCls}
-                        inputMode="decimal"
-                        value={it.protein_g_per100g}
-                        onChange={(e) =>
-                          setMealForm({
-                            ...mealForm,
-                            items: mealForm.items.map((x, i) =>
-                              i === idx ? { ...x, protein_g_per100g: e.target.value } : x,
-                            ),
-                          })
-                        }
-                        placeholder="如 7"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">脂肪/100g (g)</span>
-                      <input
-                        className={inputCls}
-                        inputMode="decimal"
-                        value={it.fat_g_per100g}
-                        onChange={(e) =>
-                          setMealForm({
-                            ...mealForm,
-                            items: mealForm.items.map((x, i) =>
-                              i === idx ? { ...x, fat_g_per100g: e.target.value } : x,
-                            ),
-                          })
-                        }
-                        placeholder="如 0.8"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">碳水/100g (g)</span>
-                      <input
-                        className={inputCls}
-                        inputMode="decimal"
-                        value={it.carbs_g_per100g}
-                        onChange={(e) =>
-                          setMealForm({
-                            ...mealForm,
-                            items: mealForm.items.map((x, i) =>
-                              i === idx ? { ...x, carbs_g_per100g: e.target.value } : x,
-                            ),
-                          })
-                        }
-                        placeholder="如 25"
-                      />
-                    </label>
-                    <label className="block">
-                      <span className="text-xs text-gray-500 dark:text-slate-400">糖/100g (g)</span>
-                      <input
-                        className={inputCls}
-                        inputMode="decimal"
-                        value={it.sugar_g_per100g}
-                        onChange={(e) =>
-                          setMealForm({
-                            ...mealForm,
-                            items: mealForm.items.map((x, i) =>
-                              i === idx ? { ...x, sugar_g_per100g: e.target.value } : x,
-                            ),
-                          })
-                        }
-                        placeholder="如 5"
-                      />
-                    </label>
-                    {/* NRV 自动计算显示，不再手填 */}
-                    <div className="col-span-2 mt-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900 px-3 py-2">
-                      <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                        <span className="font-medium">NRV 自动计算</span>
-                        {ePer100 ? (
-                          <>
-                            {' '}· 每100g NRV ≈ <b>{nrv100g}%</b>
-                            {amt ? (
-                              <>
-                                {' '}· 本份 ({amt}g) ≈ <b>{itemNrv}%</b> 每日推荐
-                              </>
-                            ) : (
-                              <span className="text-gray-400">（填写克数即可折算）</span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-gray-400">（填写能量 kJ 即可自动计算）</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  {mealForm.items.length > 1 && (
-                    <button
-                      onClick={() =>
-                        setMealForm({
-                          ...mealForm,
-                          items: mealForm.items.filter((_, i) => i !== idx),
-                        })
-                      }
-                      className="mt-2 text-xs text-red-500 cursor-pointer"
-                    >
-                      移除该食品
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={addEmptyFood}
-                className="flex-1 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 py-2 text-sm text-gray-400 dark:text-slate-400 cursor-pointer"
-              >
-                + 添加食品
-              </button>
-            </div>
-
-            <div className="mt-3 flex gap-2">
-              <button
-                onClick={submitMeal}
-                className="flex-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium py-2.5 cursor-pointer transition-colors"
-              >
-                保存餐次
-              </button>
-              {editingMealId && (
-                <button
-                  onClick={cancelMealEdit}
-                  className="rounded-lg border border-gray-300 dark:border-slate-600 text-sm px-4 cursor-pointer"
-                >
-                  取消
-                </button>
-              )}
-            </div>
-          </Card>
+          {/* 过往餐次 */}
+          {MEAL_TYPE_ORDER.filter((mt) => meals.some((m) => m.meal_type === mt)).map((mt) => {
+            const groupMeals = meals
+              .filter((m) => m.meal_type === mt)
+              .sort((a, b) => (a.created_at! < b.created_at! ? 1 : -1))
+            return (
+              <div key={mt}>
+                <SectionLabel>{MEAL_TYPE_LABELS[mt]}</SectionLabel>
+                {groupMeals.map((m) => {
+                  const tot = mealTotals(m)
+                  return (
+                    <Card key={m.id} className="mt-1.5 p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-gray-800 dark:text-slate-100">
+                          {MEAL_TYPE_LABELS[m.meal_type]}
+                          {m.note ? ` · ${m.note}` : ''}
+                        </span>
+                        <span className="text-sm font-bold text-amber-500">{Math.round(tot.kcal)} kcal</span>
+                      </div>
+                      <ul className="mt-2 space-y-1">
+                        {(m.items ?? []).map((it) => (
+                          <li key={it.id} className="flex justify-between text-xs text-gray-500 dark:text-slate-400">
+                            <span>
+                              {it.food_name} × {it.amount_g}g
+                              {it.energy_kj_per100g != null && (
+                                <span className="ml-1 text-emerald-500">
+                                  NRV {itemNrvPercent(it)}%
+                                </span>
+                              )}
+                            </span>
+                            <span>
+                              {it.energy_kj_per100g != null
+                                ? `≈${Math.round((it.energy_kj_per100g / 4.184) * (it.amount_g / 100))} kcal`
+                                : ''}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => startEditMeal(m)}
+                          className="text-xs text-indigo-600 dark:text-indigo-400 cursor-pointer"
+                        >
+                          编辑
+                        </button>
+                        <button onClick={() => removeMeal(m.id)} className="text-xs text-red-500 cursor-pointer">
+                          删除
+                        </button>
+                      </div>
+                    </Card>
+                  )
+                })}
+              </div>
+            )
+          })}
         </div>
       )}
 

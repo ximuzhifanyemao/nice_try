@@ -160,7 +160,7 @@ export default function App({
           <AuthProvider>
           <div className={`${pageHeight} bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0`}>
           <div className={`flex ${pageHeight}`}>
-            {sidebar}
+            {sidebar && <div className="sticky top-0 self-start h-[calc(100dvh-45px)] shrink-0">{sidebar}</div>}
             <div className="flex-1 min-w-0">
               <ConfigBanner />
               <UpdateChecker />
