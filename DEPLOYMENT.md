@@ -10,7 +10,7 @@
 | 构建工具 | Vite 8 |
 | 后端服务 | Supabase（外部 BaaS，已独立部署） |
 | 构建产物 | `dist/` 目录下的静态文件 |
-| 路由方式 | BrowserRouter（需要服务器端 URL 重写到 index.html） |
+| 路由方式 | HashRouter（URL 形如 `/#/login`，静态托管天然支持，无需服务器端重写规则） |
 | 环境变量 | `VITE_SUPABASE_URL`、`VITE_SUPABASE_ANON_KEY`（构建时注入） |
 
 **关键点**：本项目是纯前端静态应用，后端（Supabase）已独立部署且不受前端托管平台影响。因此部署只需找一个静态文件托管服务即可。

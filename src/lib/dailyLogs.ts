@@ -115,24 +115,6 @@ export function sortSubjectsByStartTime(subjects: DailyLogSubject[]): DailyLogSu
   })
 }
 
-/** 公开时间线：最近 N 条记录（防止全表拉取导致首屏膨胀） */
-const PUBLIC_TIMELINE_LIMIT = 50
-
-export async function fetchAllLogs(): Promise<DailyLog[]> {
-  const { data, error } = await supabase
-    .from('daily_logs')
-    .select('*')
-    .is('deleted_at', null)
-    .order('date', { ascending: false })
-    .limit(PUBLIC_TIMELINE_LIMIT)
-
-  if (error) {
-    throw new Error(error.message)
-  }
-
-  return data as DailyLog[]
-}
-
 export async function fetchMyLogs(userId: string): Promise<DailyLog[]> {
   const { data, error } = await supabase
     .from('daily_logs')

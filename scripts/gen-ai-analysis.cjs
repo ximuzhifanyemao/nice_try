@@ -5,13 +5,13 @@
 // 说明：
 //   - 默认处理前 N 天（默认 30）的所有句子，逐个调用腾讯云 SCF 生成解析
 //   - 结果缓存到 scripts/_ai-results.json（key: `${day}_${num}`），支持断点续跑
-//   - 生成完毕后自动把 ai 字段写回 src/data/englishDaily.ts（纯文本插入，保留其余内容）
+//   - 生成完毕后自动把 ai 字段写回 src/data/englishDaily.json（对象级操作，保留其余内容）
 //   - --write-only：跳过 AI 调用，仅根据已有缓存把 ai 字段写回数据文件
 // ============================================================
 const fs = require('fs')
 const path = require('path')
 
-const P = path.resolve(__dirname, '..', 'src', 'data', 'englishDaily.ts')
+const P = path.resolve(__dirname, '..', 'src', 'data', 'englishDaily.json')
 const RESULTS = path.resolve(__dirname, '_ai-results.json')
 const SCF_URL =
   (process.env.VITE_AI_CORRECT_URL || '').trim() ||
@@ -21,17 +21,9 @@ const args = process.argv.slice(2)
 const DAYS = parseInt(args.find((a) => /^\d+$/.test(a)) || '30', 10)
 const WRITE_ONLY = args.includes('--write-only')
 
-// ---------- 加载 englishDaily.ts 数据（eval 数组字面量） ----------
-function loadData(ts) {
-  const start = ts.indexOf('ENGLISH_DAILY: EnglishDay[] = [')
-  const content = ts.substring(start + 'ENGLISH_DAILY: EnglishDay[] = '.length)
-  let depth = 0, end = -1
-  for (let i = 0; i < content.length; i++) {
-    if (content[i] === '[') depth++
-    else if (content[i] === ']') { depth--; if (depth === 0) { end = i + 1; break } }
-  }
-  if (end === -1) throw new Error('无法定位 ENGLISH_DAILY 数组')
-  return eval(content.substring(0, end))
+// ---------- 加载 englishDaily.json ----------
+function loadData() {
+  return JSON.parse(fs.readFileSync(P, 'utf-8'))
 }
 
 // ---------- 调用 SCF 生成单句解析 ----------
@@ -116,61 +108,32 @@ async function generate(data) {
   return results
 }
 
-// ---------- 写回 englishDaily.ts（纯文本插入 ai 字段） ----------
+// ---------- 写回 englishDaily.json（对象级插入 ai 字段，保留其余所有内容） ----------
 function writeBack(results) {
-  const ts = fs.readFileSync(P, 'utf-8')
-  const lines = ts.split('\n')
-  let curDay = 0
+  const data = loadData()
   let inserted = 0
   let skipped = 0
-  const out = []
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const dm = line.match(/^\s*day: (\d+),\s*$/)
-    if (dm) curDay = parseInt(dm[1], 10)
-    const sm = line.match(/num: "([^"]+)"/)
-    const isSent = sm && /^\s*\{ num: /.test(line)
-    if (isSent && curDay >= 1 && curDay <= DAYS) {
-      const next = lines[i + 1] || ''
-      const alreadyHasAi = /^\s*ai: \{/.test(next)
-      const ai = results[`${curDay}_${sm[1]}`]
-      if (!alreadyHasAi && ai && ai.ok) {
-        const closeIdx = line.lastIndexOf('}')
-        const head = line.slice(0, closeIdx).replace(/\s+$/, '')
-        const tail = line.slice(closeIdx)
-        const indent = (line.match(/^\s*/) || [''])[0]
-        const aiStr =
-          'ai: { backbone: ' + JSON.stringify(ai.backbone) +
-          ', structure: ' + JSON.stringify(ai.structure) +
-          ', collocations: ' + JSON.stringify(ai.collocations) + ' }'
-        out.push(head + ',')
-        out.push(indent + '  ' + aiStr + tail)
+  for (const day of data) {
+    if (day.day < 1 || day.day > DAYS) continue
+    for (const s of day.sentences) {
+      if (s.ai) { skipped++; continue }
+      const ai = results[`${day.day}_${s.num}`]
+      if (ai && ai.ok) {
+        s.ai = { backbone: ai.backbone, structure: ai.structure, collocations: ai.collocations }
         inserted++
-        continue
-      } else if (alreadyHasAi) {
-        skipped++
       }
     }
-    out.push(line)
   }
-  fs.writeFileSync(P, out.join('\n'), 'utf-8')
+  fs.writeFileSync(P, JSON.stringify(data, null, 1) + '\n', 'utf-8')
   console.log(`写回完成：共插入 ${inserted} 个句子的 ai 字段（跳过已存在 ${skipped} 个）→ ${P}`)
   return inserted
 }
 
 // ---------- 主流程 ----------
 async function main() {
-  const ts = fs.readFileSync(P, 'utf-8')
-  const data = loadData(ts)
-  // 预检：句子行格式可识别
-  const sentLineRe = /^\s*\{ num: ".*?"/
-  const lineCount = ts.split('\n').filter((l) => sentLineRe.test(l)).length
-  const expect = data.reduce((n, d) => n + d.sentences.length, 0)
-  if (lineCount !== expect) {
-    console.error(`预检失败：识别到句子行 ${lineCount}，数据中句子数 ${expect}，请检查格式后重试`)
-    process.exit(1)
-  }
-  console.log(`预检通过：共 ${expect} 个句子，行格式可识别`)
+  const data = loadData()
+  const expect = data.filter((d) => d.day <= DAYS).reduce((n, d) => n + d.sentences.length, 0)
+  console.log(`数据加载：共 ${expect} 个句子（前 ${DAYS} 天）`)
 
   let results = {}
   if (WRITE_ONLY) {

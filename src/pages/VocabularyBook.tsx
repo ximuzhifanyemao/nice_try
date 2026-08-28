@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { loadVocabulary, removeWordFromVocabulary, clearVocabulary, syncVocabularyFromCloud, removeWordFromCloud, clearVocabularyFromCloud, type VocabDay } from '../lib/vocabulary'
 import { useAuth } from '../contexts/AuthContext'
-import { ENGLISH_DAILY } from '../data/englishDaily'
+import { loadEnglishDaily } from '../data/englishDaily'
 import { lookupWord, getCachedLookup, type WordLookup } from '../lib/wordLookup'
 
 // AI 查词结果卡片
@@ -84,6 +84,22 @@ export default function VocabularyBook() {
     }
   }, [userId])
 
+  // 参考译文懒加载：生词本非空才加载语料 chunk（day → zh 映射，仅占用少量内存）
+  const [dayZh, setDayZh] = useState<Map<number, string>>(new Map())
+  useEffect(() => {
+    if (vocab.length === 0) return
+    let cancelled = false
+    loadEnglishDaily()
+      .then((daily) => {
+        if (cancelled) return
+        const map = new Map<number, string>()
+        for (const d of daily) if (d.zh) map.set(d.day, d.zh)
+        setDayZh(map)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [vocab.length])
+
   const handleRemove = async (day: number, word: string, sentence: string) => {
     const updated = removeWordFromVocabulary(day, word, sentence)
     setVocab(updated)
@@ -146,9 +162,9 @@ export default function VocabularyBook() {
 
   const totalWords = vocab.reduce((sum, d) => sum + d.words.length, 0)
 
-  // 获取某天的参考译文
+  // 获取某天的参考译文（未加载完成时返回空串，译文折叠区自然隐藏）
   const getDayTranslation = (day: number) => {
-    return ENGLISH_DAILY.find((d) => d.day === day)?.zh || ''
+    return dayZh.get(day) || ''
   }
 
   if (vocab.length === 0) {

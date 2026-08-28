@@ -53,3 +53,9 @@ scripts/_ai-results.json
 # Rust 工具链（Tauri 桌面端，装在项目下避免越权限；体积大不进 git）
 /.rustup/
 /.cargo/
+
+# AI 解析批量生成的中间文本（与 _ai-results.json 同批，体积大不进 git）
+scripts/_ky*.txt
+
+# WorkBuddy 会话数据
+.workbuddy/

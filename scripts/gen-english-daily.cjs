@@ -2,7 +2,7 @@ const fs = require('fs')
 const path = require('path')
 
 const PDF_OUTPUT_DIR = path.resolve(__dirname, 'pdf_output')
-const ENGLISH_DAILY_PATH = path.resolve(__dirname, '..', 'src', 'data', 'englishDaily.ts')
+const ENGLISH_DAILY_PATH = path.resolve(__dirname, '..', 'src', 'data', 'englishDaily.json')
 
 function normalizeEn(text) {
   return text.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
@@ -159,16 +159,7 @@ console.log(`Total parsed: ${allAnalysis.length} sentences`)
 
 // ---------- Read and match ----------
 
-const tsContent = fs.readFileSync(ENGLISH_DAILY_PATH, 'utf-8')
-const arrayStart = tsContent.indexOf('ENGLISH_DAILY: EnglishDay[] = [')
-const arrayContent = tsContent.substring(arrayStart + 'ENGLISH_DAILY: EnglishDay[] = '.length)
-let depth = 0, arrayEnd = -1
-for (let i = 0; i < arrayContent.length; i++) {
-  if (arrayContent[i] === '[') depth++
-  else if (arrayContent[i] === ']') { depth--; if (depth === 0) { arrayEnd = i + 1; break } }
-}
-const arrayStr = arrayContent.substring(0, arrayEnd)
-const dailyData = eval(arrayStr)
+const dailyData = JSON.parse(fs.readFileSync(ENGLISH_DAILY_PATH, 'utf-8'))
 
 let matched = 0
 for (const day of dailyData) {
@@ -194,112 +185,7 @@ for (const day of dailyData) {
 }
 console.log(`Matched: ${matched}`)
 
-// ---------- Generate TypeScript output ----------
-
-// Helper to generate TS string literal (escaped properly)
-function tsStr(s) {
-  return JSON.stringify(s)
-}
-
-// Helper to generate vocab array
-function genVocab(vocab) {
-  if (!vocab || vocab.length === 0) return '[]'
-  const items = vocab.map(v => `{ raw: ${tsStr(v.raw)}, word: ${tsStr(v.word)}, meaning: ${tsStr(v.meaning)} }`)
-  return '[\n      ' + items.join(',\n      ') + '\n    ]'
-}
-
-// Helper to generate grammar array
-function genGrammar(grammar) {
-  if (!grammar || grammar.length === 0) return '[]'
-  const items = grammar.map(g => tsStr(g))
-  return '[' + items.join(', ') + ']'
-}
-
-// Generate the output
-let output = `// 本文件由 doc/ 下 PDF 文件自动提取生成，请勿手改
-// 包含：打卡原文 + 参考译文 + 长难句解析（单词、切分、语法、逐句译文）
-
-export interface EnglishDaySentence {
-  num: string
-  en: string
-}
-
-export interface VocabItem {
-  raw: string
-  word: string
-  meaning: string
-}
-
-export interface AnalysisItem {
-  sentNum: string
-  vocab: VocabItem[]
-  split: string
-  grammar: string[]
-  ref: string
-}
-
-export interface EnglishDay {
-  day: number
-  type: '英一' | '英二'
-  source: string
-  sentences: EnglishDaySentence[]
-  zh: string
-  analysis?: AnalysisItem[]
-}
-
-export const ENGLISH_DAILY: EnglishDay[] = [
-`
-
-for (let di = 0; di < dailyData.length; di++) {
-  const day = dailyData[di]
-  output += `  {
-    day: ${day.day},
-    type: ${tsStr(day.type)},
-    source: ${tsStr(day.source)},
-    zh: ${tsStr(day.zh)},
-    sentences: [
-`
-
-  for (let si = 0; si < day.sentences.length; si++) {
-    const s = day.sentences[si]
-    const comma = si < day.sentences.length - 1 ? ',' : ''
-    output += `    { num: ${tsStr(s.num)}, en: ${tsStr(s.en)} }${comma}
-`
-  }
-
-  output += `    ]`
-
-  // Add analysis if present
-  if (day.analysis && day.analysis.length > 0) {
-    output += `,
-    analysis: [
-`
-    for (let ai = 0; ai < day.analysis.length; ai++) {
-      const a = day.analysis[ai]
-      const comma = ai < day.analysis.length - 1 ? ',' : ''
-      output += `      {
-        sentNum: ${tsStr(a.sentNum)},
-        vocab: ${genVocab(a.vocab)},
-        split: ${tsStr(a.split)},
-        grammar: ${genGrammar(a.grammar)},
-        ref: ${tsStr(a.ref)}
-      }${comma}
-`
-    }
-    output += `    ]`
-  }
-
-  output += `
-  }`
-
-  if (di < dailyData.length - 1) output += ','
-  output += '\n'
-}
-
-output += `];
-`
-
-// Write the output
-fs.writeFileSync(ENGLISH_DAILY_PATH, output, 'utf-8')
+// ---------- Write JSON output（全量 stringify，保留 ref/ai 等所有既有字段） ----------
+fs.writeFileSync(ENGLISH_DAILY_PATH, JSON.stringify(dailyData, null, 1) + '\n', 'utf-8')
 console.log(`Written: ${ENGLISH_DAILY_PATH}`)
 console.log(`File size: ${(fs.statSync(ENGLISH_DAILY_PATH).size / 1024).toFixed(1)} KB`)

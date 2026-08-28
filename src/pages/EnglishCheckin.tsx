@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, Component } from 'react'
 import type { ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { ENGLISH_DAILY, type EnglishDay } from '../data/englishDaily'
+import { loadEnglishDaily, type EnglishDay } from '../data/englishDaily'
 import { fetchMyCheckins, createCheckin, deleteCheckin } from '../lib/englishCheckin'
 import { loadMarkedWords, saveMarkedWords, addDayToVocabulary, pushVocabularyToCloud } from '../lib/vocabulary'
 import { supabase } from '../lib/supabase'
@@ -263,6 +263,8 @@ export default function EnglishCheckin() {
   const [aiError, setAiError] = useState<string | null>(null)
   // 预生成「解析」卡片展开状态：Set<"dayIdx-sentIdx">
   const [showAnalysis, setShowAnalysis] = useState<Set<string>>(new Set())
+  // 150 天语料（懒加载 JSON chunk，含原文/译文/解析）
+  const [daily, setDaily] = useState<EnglishDay[]>([])
 
   const completedDays = useMemo(() => new Set(checkins), [checkins])
   const nextDay = useMemo(() => {
@@ -288,7 +290,16 @@ export default function EnglishCheckin() {
       .finally(() => setLoading(false))
   }, [user])
 
-  const dayData: EnglishDay = ENGLISH_DAILY.find((d) => d.day === selectedDay) ?? ENGLISH_DAILY[0]
+  // 语料懒加载（独立异步 chunk，不阻塞首屏其它逻辑）
+  useEffect(() => {
+    let cancelled = false
+    loadEnglishDaily()
+      .then((d) => { if (!cancelled) setDaily(d) })
+      .catch((e) => setError(e instanceof Error ? e.message : '语料加载失败'))
+    return () => { cancelled = true }
+  }, [])
+
+  const dayData: EnglishDay | undefined = daily.find((d) => d.day === selectedDay) ?? daily[0]
   const isDone = completedDays.has(selectedDay)
   const isNext = selectedDay === nextDay
 
@@ -300,7 +311,7 @@ export default function EnglishCheckin() {
 
       // 收集当天标记的生词，存入生词本
       const dayVocabWords: { word: string; sentence: string; sentIdx: number; wordIdx: number }[] = []
-      const dayData = ENGLISH_DAILY.find((d) => d.day === nextDay)
+      const dayData = daily.find((d) => d.day === nextDay)
       if (dayData) {
         for (let si = 0; si < dayData.sentences.length; si++) {
           const tokens = tokenizeSentence(dayData.sentences[si].en)
@@ -355,11 +366,11 @@ export default function EnglishCheckin() {
   const handleScore = useCallback((dayIdx: number, sentIdx: number) => {
     const key = `${dayIdx}-${sentIdx}`
     const userText = translations.get(key) || ''
-    const day = ENGLISH_DAILY.find(d => d.day === dayIdx)
+    const day = daily.find(d => d.day === dayIdx)
     const refText = day?.sentences[sentIdx]?.ref || ''
     const score = calcTranslationScore(userText, refText)
     setScores(prev => { const next = new Map(prev); next.set(key, score); return next })
-  }, [translations])
+  }, [translations, daily])
 
   // 展开/收起预生成「解析」卡片（本地数据，不消耗 AI token）
   const toggleAnalysis = useCallback((dayIdx: number, sentIdx: number) => {
@@ -377,7 +388,7 @@ export default function EnglishCheckin() {
     const key = `${dayIdx}-${sentIdx}`
     if (aiLoading.has(key)) return
     const userText = translations.get(key) || ''
-    const day = ENGLISH_DAILY.find(d => d.day === dayIdx)
+    const day = daily.find(d => d.day === dayIdx)
     const sentence = day?.sentences[sentIdx]?.en || ''
     // 参考译文只取当前这一句的（来自逐句译文 ref），不要传整段译文，
     // 否则模型会把"修正译文"直接输出成整段参考译文
@@ -415,7 +426,20 @@ export default function EnglishCheckin() {
     } finally {
       setAiLoading(prev => { const next = new Set(prev); next.delete(key); return next })
     }
-  }, [translations, aiLoading])
+  }, [translations, aiLoading, daily])
+
+  // 语料未就绪的兜底（必须放在最后一个 Hooks 之后，避免违反 Hooks 规则）
+  if (!dayData) {
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-4">
+        <div className="rounded-xl bg-white dark:bg-slate-800 p-8 shadow-sm border border-gray-100 dark:border-slate-700 text-center">
+          <p className="text-sm text-gray-500 dark:text-slate-400">
+            {error ? `语料加载失败：${error}` : '语料加载中…'}
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-4 space-y-4">
@@ -728,7 +752,7 @@ export default function EnglishCheckin() {
       <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
         <p className="text-sm font-medium text-gray-600 dark:text-slate-300 mb-3">150 天进度</p>
         <div className="grid grid-cols-10 gap-1.5">
-          {ENGLISH_DAILY.map((d) => {
+          {daily.map((d) => {
             const done = completedDays.has(d.day)
             const isCurrent = d.day === nextDay
             return (

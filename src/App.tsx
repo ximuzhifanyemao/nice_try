@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, createContext, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, createContext, useRef, useState, type ReactNode } from 'react'
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { UpdateProvider } from './contexts/UpdateContext'
@@ -34,9 +34,19 @@ const ScanQr = lazy(() => import('./pages/ScanQr'))
 /** 首页布局上下文：桌面端「全部功能」全功能模式下强制双栏布局 */
 export const HomeLayoutContext = createContext<{ twoCol: boolean }>({ twoCol: false })
 
+/** 自适应缩放的下限兜底：极端窄高窗口下也不至于缩到看不清 */
+const MIN_FIT_SCALE = 0.4
+
 /**
  * 桌面「全部功能」模式下，让页面内容按内容高度自适应缩放填满窗口（一屏显示不滚动）。
  * 首页本身已用 forceTwoCol 双栏单屏，无需缩放，故跳过首页。
+ *
+ * 关键约束：内容层必须始终保持固定布局宽度（100%），绝不能用 `width: 100% / scale`
+ * 反向补偿缩放后的视觉宽度。否则会形成正反馈——
+ * scale 变小 → 布局变宽 → aspect-square / aspect-[5/4] 这类元素高度变大 → scrollHeight 变大
+ * → scale 更小；再加上宽度兜底分支 `ow / scrollWidth` 恒 ≤ 当前 scale（因为
+ * scrollWidth ≥ clientWidth = ow / scale），scale 就成了只能降不能升的单向棘轮，
+ * 页面会一路缩小下去。固定布局宽度后，测量值与已应用的缩放无关，结果天然收敛。
  */
 function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const location = useLocation()
@@ -44,26 +54,40 @@ function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNo
   const innerRef = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(1)
 
-  useEffect(() => {
-    if (!enabled) return
+  useLayoutEffect(() => {
+    if (!enabled) {
+      setScale(1)
+      return
+    }
     const outer = outerRef.current
     const inner = innerRef.current
     if (!outer || !inner) return
+
+    let raf = 0
+    // rAF 节流：合并同一帧内的多次回调，避免 ResizeObserver 抖动与循环告警
     const apply = () => {
-      const ow = outer.clientWidth
-      const oh = outer.clientHeight
-      const ih = inner.scrollHeight
-      if (ow <= 0 || oh <= 0 || ih <= 0) return
-      // 按高度缩放，必要时再按宽度兜底，保证一屏且不横向溢出
-      let s = oh / ih
-      if (inner.scrollWidth * s > ow) s = ow / inner.scrollWidth
-      setScale(Math.min(1, s))
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        const ow = outer.clientWidth
+        const oh = outer.clientHeight
+        const ih = inner.scrollHeight
+        const iw = inner.scrollWidth
+        if (ow <= 0 || oh <= 0 || ih <= 0 || iw <= 0) return
+        // 按高度缩放，同时用宽度兜底保证不横向溢出；不放大（上限 1）
+        const next = Math.max(MIN_FIT_SCALE, Math.min(1, oh / ih, ow / iw))
+        // 变化极小则忽略，避免浮点误差引起无意义的重渲染
+        setScale((prev) => (Math.abs(prev - next) < 0.005 ? prev : next))
+      })
     }
+
     apply()
     const ro = new ResizeObserver(apply)
     ro.observe(outer)
     ro.observe(inner)
-    return () => ro.disconnect()
+    return () => {
+      cancelAnimationFrame(raf)
+      ro.disconnect()
+    }
   }, [location.pathname, enabled])
 
   // 非桌面全功能模式，或首页已双栏单屏，直接渲染不缩放
@@ -73,7 +97,7 @@ function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNo
     <div ref={outerRef} className="w-full h-full overflow-hidden min-h-0">
       <div
         ref={innerRef}
-        style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: scale < 1 ? `${100 / scale}%` : '100%' }}
+        style={{ transform: `scale(${scale})`, transformOrigin: 'top center', width: '100%' }}
       >
         {children}
       </div>

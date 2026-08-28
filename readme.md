@@ -1,6 +1,6 @@
 # DiveDeep
 
-备考学习追踪应用，支持每日学习记录、计时器、数据统计、每周目标承诺等功能。提供 Web 和 Android 双端。
+备考学习追踪应用，支持每日学习记录、计时器、数据统计、每周目标承诺等功能。提供 Web 和 Android 双端；电脑软件/网站支持账号密码与手机扫码双方式登录，手机 App「我的」页内置扫码器，可扫电脑二维码直接确认登录。
 
 ## 技术栈
 
@@ -9,16 +9,16 @@
 | 框架 | React 19 + TypeScript |
 | 构建 | Vite 8 |
 | 样式 | Tailwind CSS 4 |
-| 路由 | React Router 7 |
+| 路由 | React Router 7（HashRouter） |
 | 后端 | Supabase (Auth + Database) |
-| Web 部署 | Vercel |
+| Web 部署 | Vercel / 腾讯云 CloudBase |
 | 移动端 | Capacitor 8 (Android) |
 
 ## 分支结构
 
 | 分支 | 用途 | 部署方式 |
 |------|------|----------|
-| `main` | Web 应用 | Vercel 自动部署 |
+| `main` | Web 应用 | Vercel / CloudBase 自动部署 |
 | `feat/capacitor-android` | Android App | 本地构建 APK |
 
 ## 快速开始（Web）
@@ -66,6 +66,12 @@ npm run dev
 - 为 `daily_logs` 添加 `deleted_at` 列
 - 将原 UNIQUE 约束改为部分唯一索引（仅对未删除记录生效）
 - 更新 SELECT 策略：公开记录任何人可读，回收站记录仅本人可见
+
+**Step 4: `supabase-migration-qr-login.sql`**（可选，启用电脑软件/网站扫码登录）
+
+扫码登录会话表 `qr_login_sessions`：电脑端生成 token，手机扫码确认后写入 session，电脑端轮询拿回登录态。字段：`token`、`status`(pending/confirmed/expired)、`session_access_token`、`session_refresh_token`、`user_id`、`confirmed_at`。RLS 允许匿名创建与读取，仅登录用户可 UPDATE。
+
+> 其余迁移文件（favorites、health、water、vocab-sync、english-checkin、customization、custom-presets、sodium、rls-daily-logs 等）对应各功能模块，按需执行，详见 `DEPLOYMENT.md`。
 
 ### 3. 配置 Authentication
 
@@ -139,7 +145,8 @@ keytool -genkey -v -keystore android/kaoyan-tracker.keystore \
 |------|------|
 | `@capacitor/app` | App 生命周期管理 |
 | `@capacitor/preferences` | 替代 localStorage 的持久化存储 |
-| `@capacitor/local-notifications` | 计时器后台本地通知 |
+| `@capacitor-community/bluetooth-le` | 蓝牙（外设连接） |
+| `@capacitor-mlkit/barcode-scanning` | 二维码扫描（扫码登录、扫码打卡） |
 
 ### 原生模块
 
@@ -147,8 +154,6 @@ keytool -genkey -v -keystore android/kaoyan-tracker.keystore \
 - `TimerForegroundService` — Android Foreground Service，在通知栏显示计时状态
 
 ## Vercel 部署
-
-仅适用于 `main` 分支，此分支为 Android 构建分支，不部署到 Vercel。
 
 ### 配置
 
@@ -159,7 +164,11 @@ keytool -genkey -v -keystore android/kaoyan-tracker.keystore \
 
 ### 路由配置
 
-`vercel.json` 已配置 SPA 回退规则，所有路由重写到 `index.html`。
+应用使用 HashRouter（URL 形如 `/#/login`），静态托管天然支持，无需服务器端重写规则；`vercel.json` 中也保留了 SPA 回退配置作为兜底。
+
+### 分支策略
+
+Vercel 仅将 `main` 分支部署到生产环境，其他分支推送不影响线上站点。
 
 ## 项目结构
 

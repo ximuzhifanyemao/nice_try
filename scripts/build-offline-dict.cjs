@@ -1,4 +1,4 @@
-// 构建离线考研词库：从 englishDaily 提取语料词 → 用开源考研词库(KyleBing)生成 src/data/offlineDict.ts
+// 构建离线考研词库：从 englishDaily 提取语料词 → 用开源考研词库(KyleBing)生成 src/data/offlineDict.json
 // 用法：node scripts/build-offline-dict.cjs  （会打印覆盖率并写文件）
 // 词库源码：https://github.com/KyleBing/english-vocabulary (MIT) 初中/高中/四级/六级/考研 合并
 const fs = require('fs')
@@ -6,17 +6,14 @@ const path = require('path')
 
 const DATA = path.join(__dirname, '..', 'src', 'data')
 const SRC_FILES = ['_ky1.txt', '_ky2.txt', '_ky3.txt', '_ky4.txt', '_kyky.txt'].map(f => path.join(__dirname, f))
-const OUT_TS = path.join(DATA, 'offlineDict.ts')
+const OUT_JSON = path.join(DATA, 'offlineDict.json')
 
-// ---------- 1. 从 englishDaily 提取语料独特词 ----------
-const enText = fs.readFileSync(path.join(DATA, 'englishDaily.ts'), 'utf8')
+// ---------- 1. 从 englishDaily.json 提取语料独特词 ----------
+const daily = JSON.parse(fs.readFileSync(path.join(DATA, 'englishDaily.json'), 'utf8'))
 const corpus = new Set()
-{
-  const re = /en:\s*"((?:[^"\\]|\\.)*)"/g
-  let m
-  while ((m = re.exec(enText)) !== null) {
-    const s = m[1]
-    for (const t of s.toLowerCase().split(/[^a-zA-Z']+/).filter(Boolean)) {
+for (const day of daily) {
+  for (const s of day.sentences) {
+    for (const t of s.en.toLowerCase().split(/[^a-zA-Z']+/).filter(Boolean)) {
       corpus.add(t.replace(/['’]$/, ''))
     }
   }
@@ -59,15 +56,6 @@ console.log('考研词库词条:', dict.size)
 console.log(`覆盖率: ${hit}/${corpus.size} = ${(hit / corpus.size * 100).toFixed(1)}%`)
 console.log('未命中示例:', missList.join(' '))
 
-// ---------- 5. 写入 offlineDict.ts ----------
-const lines = ['// 自动生成离线考研词典（合并 初中/高中/四级/六级/考研 词表）']
-lines.push('// 数据源：https://github.com/KyleBing/english-vocabulary (MIT)')
-lines.push(`// 词条数: ${dict.size}；语料覆盖率: ${(hit / corpus.size * 100).toFixed(1)}%`)
-lines.push('// 仅供本地离线查词，勿手动编辑（重新生成：node scripts/build-offline-dict.cjs）')
-lines.push('export const OFFLINE_DICT: Record<string, string> = {')
-for (const [w, m] of dict) {
-  lines.push(`  ${JSON.stringify(w)}: ${JSON.stringify(m)},`)
-}
-lines.push('}')
-fs.writeFileSync(OUT_TS, lines.join('\n') + '\n', 'utf8')
-console.log('已写入:', OUT_TS)
+// ---------- 5. 写入 offlineDict.json ----------
+fs.writeFileSync(OUT_JSON, JSON.stringify(Object.fromEntries(dict), null, 1) + '\n', 'utf8')
+console.log('已写入:', OUT_JSON)

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "build:deploy": "vite build",
+    "build:deploy": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
     "cap:sync": "npm run build:deploy && npx cap sync",
@@ -15,7 +15,8 @@
     "tauri": "tauri",
     "build:desktop": "node scripts/build-desktop.mjs",
     "ota:upload": "node scripts/upload-ota.mjs",
-    "ota:version": "node -e \"const p=require('./package.json');console.log('v'+p.version)\""
+    "ota:version": "node -e \"const p=require('./package.json');console.log('v'+p.version)\"",
+    "release:upload": "node scripts/upload-release.mjs"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.3.0",
@@ -23,9 +24,7 @@
     "@capacitor/android": "^8.5.0",
     "@capacitor/app": "^8.1.1",
     "@capacitor/core": "^8.5.0",
-    "@capacitor/local-notifications": "^8.2.1",
     "@capacitor/preferences": "^8.0.1",
-    "@capgo/capacitor-updater": "^8.51.8",
     "@supabase/supabase-js": "^2.112.0",
     "@tauri-apps/api": "^2.11.1",
     "@types/qrcode": "^1.5.6",

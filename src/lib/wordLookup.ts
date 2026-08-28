@@ -1,5 +1,5 @@
 // 生词本离线查词：优先本地离线考研词典（0 费用），词库未收录才回退 AI（腾讯云 SCF / Supabase Edge Function）
-import { OFFLINE_DICT } from '../data/offlineDict'
+import { loadOfflineDict } from '../data/offlineDict'
 import { supabase } from './supabase'
 import { postJson } from './httpRequest'
 
@@ -47,21 +47,22 @@ export function getCachedLookup(word: string): WordLookup | null {
 // ---------- 本地离线词典查询（0 费用，优先于 AI） ----------
 
 /** 简单词形还原，匹配离线词库中的原形词（不足 3 字母直接返回原样） */
-function stemWord(w: string): string {
+function stemWord(w: string, dict: Record<string, string>): string {
   if (w.length <= 3) return w
   if (w.endsWith('ing') && w.length > 5) return w.slice(0, -3)
   if (w.endsWith('ied') && w.length > 4) return w.slice(0, -3) + 'y'
   if (w.endsWith('ed') && w.length > 4 && !w.endsWith('eed')) return w.slice(0, -2)
   if (w.endsWith('ies') && w.length > 4) return w.slice(0, -3) + 'y'
-  if (w.endsWith('es') && w.length > 4 && OFFLINE_DICT[w.slice(0, -2)]) return w.slice(0, -2)
-  if (w.endsWith('s') && w.length > 3 && OFFLINE_DICT[w.slice(0, -1)] && !w.endsWith('ss') && !w.endsWith('us')) return w.slice(0, -1)
+  if (w.endsWith('es') && w.length > 4 && dict[w.slice(0, -2)]) return w.slice(0, -2)
+  if (w.endsWith('s') && w.length > 3 && dict[w.slice(0, -1)] && !w.endsWith('ss') && !w.endsWith('us')) return w.slice(0, -1)
   return w
 }
 
-/** 从离线词库查询释义（未收录返回 null） */
-export function lookupOffline(word: string): WordLookup | null {
+/** 从离线词库查询释义（未收录返回 null）；词库为独立懒加载 chunk，首次调用时加载 */
+export async function lookupOffline(word: string): Promise<WordLookup | null> {
+  const dict = await loadOfflineDict()
   const w = word.toLowerCase()
-  const meaning = OFFLINE_DICT[w] || OFFLINE_DICT[stemWord(w)]
+  const meaning = dict[w] || dict[stemWord(w, dict)]
   if (!meaning) return null
   return {
     word: w,
@@ -81,9 +82,11 @@ export async function lookupWord(word: string): Promise<WordLookup> {
   const cached = getCachedLookup(word)
   if (cached) return cached
 
-  // 本地离线词典优先，0 费用
-  const offline = lookupOffline(word)
-  if (offline) return offline
+  // 本地离线词典优先，0 费用；词典 chunk 加载失败时静默降级走 AI
+  try {
+    const offline = await lookupOffline(word)
+    if (offline) return offline
+  } catch { /* 词典加载失败，降级 AI */ }
 
   let result: WordLookup
   if (AI_CORRECT_URL) {

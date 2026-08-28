@@ -51,14 +51,11 @@ export function useAppUpdate() {
 
   // 检查是否有新版本
   const checkForUpdate = useCallback(async (): Promise<UpdateInfo | null> => {
-    const isNative = Capacitor.isNativePlatform()
-
     setStatus('checking')
     setError(null)
 
     try {
       const current = await getCurrentVersion()
-      console.log('[OTA] 当前版本:', current.version, '| code:', current.versionCode, '| 平台:', isNative ? '原生' : 'Web')
 
       // 从 Supabase 获取最新版本（用数组返回，避免空表报 PGRST116）
       const { data, error: dbError } = await supabase
@@ -83,7 +80,6 @@ export function useAppUpdate() {
 
       const row = data?.[0]
       if (!row) {
-        console.log('[OTA] 无可用版本')
         setStatus('up_to_date')
         return null
       }
@@ -92,13 +88,11 @@ export function useAppUpdate() {
       const latestVersion = row.version
       const latestCode = Number(row.version_code) || 0
       const currentCode = Number(current.versionCode) || 0
-      console.log('[OTA] 最新版本:', latestVersion, '| code:', latestCode, '| 当前版本:', current.version, '| code:', currentCode)
 
       const newerByCode = latestCode > currentCode
       const newerByVersion = compareVersions(latestVersion, current.version) > 0
 
       if (!newerByCode && !newerByVersion) {
-        console.log('[OTA] 已是最新版本')
         setStatus('up_to_date')
         return null
       }
@@ -112,7 +106,6 @@ export function useAppUpdate() {
         fileSize: row.file_size,
       }
 
-      console.log('[OTA] 发现新版本:', info.version)
       setUpdateInfo(info)
       setStatus('available')
       return info

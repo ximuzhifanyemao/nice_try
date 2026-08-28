@@ -1,20 +1,21 @@
-// 为 englishDaily.ts 每个句子新增 ref 逐句译文。
+// ⚠️ 历史一次性脚本：为 englishDaily 每个句子新增 ref 逐句译文。
+// ⚠️ 禁止在现有数据上重跑——句子已含 ref 字段，重跑会重复合并并破坏数据。
 // 处理三类问题：①英文片段合并（缩写/数字/分号被误拆成多句）②中文缺标点导致的连句
 // ③中文"。"出现在引号内导致过度切分。运行后校验所有天数句子数与译文数一致。
 const fs = require('fs')
 const path = require('path')
 
-const P = path.resolve(__dirname, '..', 'src', 'data', 'englishDaily.ts')
+const P = path.resolve(__dirname, '..', 'src', 'data', 'englishDaily.json')
 
-function loadData(ts) {
-  const start = ts.indexOf('ENGLISH_DAILY: EnglishDay[] = [')
-  const content = ts.substring(start + 'ENGLISH_DAILY: EnglishDay[] = '.length)
-  let depth = 0, end = -1
-  for (let i = 0; i < content.length; i++) {
-    if (content[i] === '[') depth++
-    else if (content[i] === ']') { depth--; if (depth === 0) { end = i + 1; break } }
-  }
-  return eval(content.substring(0, end))
+// 防重跑保护：数据已含 ref 字段时直接退出
+const __existing = JSON.parse(fs.readFileSync(P, 'utf-8'))
+if (__existing.some((d) => d.sentences?.some((s) => s.ref != null))) {
+  console.error('数据已包含 ref 字段（历史脚本已执行过），为防数据破坏已退出。')
+  process.exit(1)
+}
+
+function loadData() {
+  return JSON.parse(fs.readFileSync(P, 'utf-8'))
 }
 
 const CIRCLED = ['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳']
@@ -149,7 +150,7 @@ function joinFrag(a, b) {
   return left + ' ' + right
 }
 
-function process(ts, write) {
+function transform(ts, write) {
   const data = loadData(ts)
   const problems = []
 
@@ -218,102 +219,8 @@ function process(ts, write) {
   return { data, problems, days: data.length }
 }
 
-// 序列化输出
-function tsStr(s) { return JSON.stringify(s) }
-function genVocab(vocab) {
-  if (!vocab || vocab.length === 0) return '[]'
-  const items = vocab.map(v => `{ raw: ${tsStr(v.raw)}, word: ${tsStr(v.word)}, meaning: ${tsStr(v.meaning)} }`)
-  return '[\n      ' + items.join(',\n      ') + '\n    ]'
-}
-function genGrammar(grammar) {
-  if (!grammar || grammar.length === 0) return '[]'
-  const items = grammar.map(g => tsStr(g))
-  return '[' + items.join(', ') + ']'
-}
-
-function serialize(data) {
-  let output = `// 本文件由 doc/ 下 PDF 文件自动提取生成，请勿手改
-// 包含：打卡原文 + 参考译文 + 长难句解析（单词、切分、语法、逐句译文）
-
-export interface EnglishDaySentence {
-  num: string
-  en: string
-  ref: string
-}
-
-export interface VocabItem {
-  raw: string
-  word: string
-  meaning: string
-}
-
-export interface AnalysisItem {
-  sentNum: string
-  vocab: VocabItem[]
-  split: string
-  grammar: string[]
-  ref: string
-}
-
-export interface EnglishDay {
-  day: number
-  type: '英一' | '英二'
-  source: string
-  sentences: EnglishDaySentence[]
-  zh: string
-  analysis?: AnalysisItem[]
-}
-
-export const ENGLISH_DAILY: EnglishDay[] = [
-`
-
-  for (let di = 0; di < data.length; di++) {
-    const day = data[di]
-    output += `  {
-    day: ${day.day},
-    type: ${tsStr(day.type)},
-    source: ${tsStr(day.source)},
-    zh: ${tsStr(day.zh)},
-    sentences: [
-`
-    for (let si = 0; si < day.sentences.length; si++) {
-      const s = day.sentences[si]
-      const comma = si < day.sentences.length - 1 ? ',' : ''
-      output += `    { num: ${tsStr(s.num)}, en: ${tsStr(s.en)}, ref: ${tsStr(s.ref)} }${comma}
-`
-    }
-    output += `    ]`
-
-    if (day.analysis && day.analysis.length > 0) {
-      output += `,
-    analysis: [
-`
-      for (let ai = 0; ai < day.analysis.length; ai++) {
-        const a = day.analysis[ai]
-        const comma = ai < day.analysis.length - 1 ? ',' : ''
-        output += `      {
-        sentNum: ${tsStr(a.sentNum)},
-        vocab: ${genVocab(a.vocab)},
-        split: ${tsStr(a.split)},
-        grammar: ${genGrammar(a.grammar)},
-        ref: ${tsStr(a.ref)}
-      }${comma}
-`
-      }
-      output += `    ]`
-    }
-    output += `
-  }`
-    if (di < data.length - 1) output += ','
-    output += '\n'
-  }
-  output += `];
-`
-  return output
-}
-
-const ts = fs.readFileSync(P, 'utf-8')
-const { data, problems, days } = process(ts, false)
+// 主流程：处理 → 校验 → 写回 JSON
+const { data, problems, days } = transform()
 
 const badDays = problems.filter(p => typeof p === 'object')
 const zhFixMisses = problems.filter(p => typeof p === 'string')
@@ -329,8 +236,7 @@ if (zhFixMisses.length) {
 }
 
 if (badDays.length === 0 && zhFixMisses.length === 0) {
-  const out = serialize(data)
-  fs.writeFileSync(P, out, 'utf-8')
+  fs.writeFileSync(P, JSON.stringify(data, null, 2) + '\n', 'utf-8')
   console.log(`\n已写入: ${P}`)
   console.log(`文件大小: ${(fs.statSync(P).size / 1024).toFixed(1)} KB`)
 } else {
