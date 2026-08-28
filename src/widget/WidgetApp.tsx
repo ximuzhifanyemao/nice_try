@@ -9,8 +9,8 @@ import App from '../App'
 const WIDGET_POS_KEY = 'kaoyan_widget_pos'
 /** 全功能模式下窗口位置的持久化存储键 */
 const FULL_POS_KEY = 'kaoyan_widget_full_pos'
-const FULL_W = 1360
-const FULL_H = 800
+const FULL_W = 1500
+const FULL_H = 900
 const WIDGET_W = 380
 const WIDGET_H = 520
 
