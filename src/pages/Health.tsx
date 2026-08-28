@@ -217,10 +217,9 @@ export default function Health() {
   const daily = useMemo(() => dayTotals(meals), [meals])
   const referenceWeight = weight?.weight_kg ?? trend[trend.length - 1]?.weight_kg
   const suggestedKcal = profile && referenceWeight ? tdee(profile, referenceWeight) : null
-  // 换算：1 kcal = 4.184 kJ；今日剩余热量 = 建议摄入 - 已摄入
-  const suggestedKj = suggestedKcal != null ? Math.round(suggestedKcal * 4.184) : null
-  const consumedKj = Math.round(daily.kcal * 4.184)
-  const remainingKj = suggestedKj != null ? suggestedKj - consumedKj : null
+  // 均以千卡(kcal)展示：剩余热量 = 建议摄入 - 已摄入
+  const consumedKcal = Math.round(daily.kcal)
+  const remainingKcal = suggestedKcal != null ? Math.round(suggestedKcal - daily.kcal) : null
 
   // 收藏搜索结果
   const filteredFavorites = useMemo(() => {
@@ -608,13 +607,23 @@ export default function Health() {
           <span>糖 <b className="text-gray-800 dark:text-slate-100">{daily.sugar_g}g</b></span>
         </div>
 
-        {remainingKj != null && (
-          <div className="mt-3 flex items-center justify-between rounded-xl bg-sky-50 dark:bg-sky-500/10 px-3 py-2.5">
-            <span className="text-xs text-sky-600 dark:text-sky-500">今天还能吃</span>
-            <span className={`text-lg font-bold ${remainingKj >= 0 ? 'text-sky-500 dark:text-sky-400' : 'text-red-500 dark:text-red-400'}`}>
-              {remainingKj >= 0 ? remainingKj : 0}
-              <span className="ml-0.5 text-xs font-normal text-sky-400 dark:text-sky-500"> kJ</span>
-            </span>
+        {remainingKcal != null && (
+          <div className="mt-3 rounded-xl bg-sky-50 dark:bg-sky-500/10 px-3 py-2.5">
+            <div className="flex items-center justify-between text-xs text-sky-600 dark:text-sky-400">
+              <span>建议摄入</span>
+              <span className="font-semibold">{suggestedKcal} <span className="font-normal">千卡</span></span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-sky-600/80 dark:text-sky-400/80">
+              <span>今日已摄入</span>
+              <span className="font-semibold">{consumedKcal} <span className="font-normal">千卡</span></span>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between border-t border-sky-200/60 dark:border-sky-500/20 pt-1.5">
+              <span className="text-xs text-sky-600 dark:text-sky-400">今天还能吃</span>
+              <span className={`text-lg font-bold ${remainingKcal >= 0 ? 'text-sky-500 dark:text-sky-400' : 'text-red-500 dark:text-red-400'}`}>
+                {remainingKcal >= 0 ? remainingKcal : 0}
+                <span className="ml-0.5 text-xs font-normal text-sky-400 dark:text-sky-500"> 千卡</span>
+              </span>
+            </div>
           </div>
         )}
 
