@@ -9,6 +9,8 @@ import App from '../App'
 const WIDGET_POS_KEY = 'kaoyan_widget_pos'
 /** 全功能模式下窗口位置的持久化存储键 */
 const FULL_POS_KEY = 'kaoyan_widget_full_pos'
+/** 模式记忆存储键：记住上次退出时是精简还是全部功能 */
+const MODE_KEY = 'kaoyan_widget_mode'
 const FULL_W = 1600
 const FULL_H = 1000
 const WIDGET_W = 380
@@ -78,26 +80,20 @@ class FullAppBoundary extends Component<{ children: ReactNode }, { error: string
 
 export default function WidgetApp() {
   const appWindow: Window = getCurrentWindow()
-  const [fullMode, setFullMode] = useState(false)
+  // 记忆模式：初始状态读取上次退出时保存的模式
+  const [fullMode, setFullMode] = useState(() => localStorage.getItem(MODE_KEY) === 'full')
 
-  const toggleMode = useCallback(async () => {
-    const next = !fullMode
+  /** 将窗口切换到指定模式：精简(compact) / 全部功能(full)，调整尺寸/置顶/位置 */
+  const applyMode = useCallback(async (next: boolean) => {
     setFullMode(next)
-    // 先改尺寸、再切换置顶：部分平台在扩容时置顶切换会触发 WebView 重绘异常，导致黑屏
     try {
       if (next) {
-        // 窗口默认 resizable:false，直接 setSize 会无效；必须先允许 resize 再改尺寸
+        // 进入全部功能：窗口在屏幕中心展开
         await appWindow.setResizable(true)
         await appWindow.setSize(new PhysicalSize(FULL_W, FULL_H))
         await appWindow.setResizable(false)
         await appWindow.setAlwaysOnTop(false)
-        // 恢复保存的全功能窗口位置（若跑到屏幕外则居中）
-        const pos = loadSavedPosition(FULL_POS_KEY)
-        if (pos && (await sanitizePosition(pos, FULL_W, FULL_H))) {
-          await appWindow.setPosition(new LogicalPosition(pos.x, pos.y))
-        } else {
-          await appWindow.center()
-        }
+        await appWindow.center()
       } else {
         await appWindow.setAlwaysOnTop(true)
         await appWindow.setResizable(true)
@@ -114,7 +110,13 @@ export default function WidgetApp() {
     } catch {
       // 尺寸/置顶切换失败不阻塞 UI
     }
-  }, [fullMode, appWindow])
+  }, [appWindow])
+
+  const toggleMode = useCallback(() => {
+    const next = !fullMode
+    localStorage.setItem(MODE_KEY, next ? 'full' : 'compact')
+    applyMode(next)
+  }, [fullMode, applyMode])
 
   // 启动时始终让精简窗口居中显示（满足「默认应用启动窗口在屏幕中间」）
   useEffect(() => {
@@ -127,6 +129,14 @@ export default function WidgetApp() {
     })()
     return () => {
       cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 记忆模式：若上次退出时处于「全部功能」，启动即恢复展开的窗口尺寸/置顶并居中
+  useEffect(() => {
+    if (fullMode) {
+      applyMode(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -192,8 +202,8 @@ export default function WidgetApp() {
           </div>
         </div>
 
-        {/* 侧边栏 + App 内容（Sidebar 必须在 Router 内部，由 App 接收） */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+        {/* 侧边栏 + App 内容（Sidebar 必须在 Router 内部，由 App 接收），固定一屏显示，不出现可下拉的滚动条 */}
+        <div className="flex-1 min-h-0 overflow-hidden">
           <FullAppBoundary>
             <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight forceTwoCol />
           </FullAppBoundary>
