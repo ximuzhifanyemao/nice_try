@@ -1,7 +1,7 @@
 {
   "name": "kaoyan-tracker",
   "private": true,
-  "version": "1.13.21",
+  "version": "1.13.22",
   "type": "module",
   "scripts": {
     "dev": "vite",
