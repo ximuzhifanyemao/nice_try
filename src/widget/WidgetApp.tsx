@@ -202,8 +202,10 @@ export default function WidgetApp() {
           </div>
         </div>
 
-        {/* 侧边栏 + App 内容（Sidebar 必须在 Router 内部，由 App 接收），固定一屏显示，不出现可下拉的滚动条 */}
-        <div className="flex-1 min-h-0 overflow-hidden">
+        {/* 侧边栏 + App 内容（Sidebar 必须在 Router 内部，由 App 接收）
+        首页靠 fillHeight/forceTwoCol 内部严格一屏无滚动条；
+        记录统计、打卡等页面内容超高时允许纵向滚动 */}
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
           <FullAppBoundary>
             <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight forceTwoCol />
           </FullAppBoundary>
