@@ -180,18 +180,23 @@ export default function WidgetApp() {
             </button>
             <button
               onClick={() => appWindow.minimize()}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-600 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
               aria-label="最小化"
               title="最小化"
             >
-              ─
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+                <path d="M5 12h14" />
+              </svg>
             </button>
             <button
               onClick={() => appWindow.close()}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-600 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-red-400 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
               aria-label="关闭"
+              title="关闭"
             >
-              ✕
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </div>
@@ -209,45 +214,66 @@ export default function WidgetApp() {
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-2xl">
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-slate-100 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.7)]">
+      {/* 顶部环境光：深色挂件里加一点品牌色呼吸感 */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-indigo-500/15 via-indigo-500/5 to-transparent"
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-violet-500/10 blur-2xl"
+      />
+
       {/* 可拖拽标题栏 */}
       <div
         data-tauri-drag-region
-        className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-slate-800 bg-gray-50 dark:bg-slate-950 shrink-0 select-none"
+        className="relative flex shrink-0 select-none items-center justify-between px-3 py-2"
       >
         <div className="flex items-center gap-1.5">
-          <DesktopLogo size={16} />
-          <span data-tauri-drag-region className="text-xs font-semibold text-gray-600 dark:text-slate-400">
+          <DesktopLogo size={17} />
+          <span data-tauri-drag-region className="bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-300 bg-clip-text text-xs font-bold tracking-wide text-transparent">
             DiveDeep
           </span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5">
           <button
             onClick={toggleMode}
-            className="flex items-center gap-1 px-2 h-6 rounded-md text-[11px] text-gray-500 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+            title="全部功能"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100 cursor-pointer"
           >
-            全部功能 ⤢
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 3h6v6" />
+              <path d="M9 21H3v-6" />
+              <path d="M21 3l-7 7" />
+              <path d="M3 21l7-7" />
+            </svg>
           </button>
           <button
             onClick={() => appWindow.minimize()}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-600 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100 cursor-pointer"
             aria-label="最小化"
             title="最小化"
           >
-            ─
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+              <path d="M5 12h14" />
+            </svg>
           </button>
           <button
             onClick={() => appWindow.close()}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-600 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-500/15 hover:text-red-400 cursor-pointer"
             aria-label="关闭"
+            title="关闭"
           >
-            ✕
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
           </button>
         </div>
       </div>
 
       {/* 计时内容 */}
-      <div className="flex-1 min-h-0">
+      <div className="relative min-h-0 flex-1">
         <DesktopTimer />
       </div>
     </div>

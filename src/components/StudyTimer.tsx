@@ -18,6 +18,7 @@ import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
 import { useToast } from '../lib/Toast'
+import { loadSharedTimer, saveSharedTimer } from '../lib/timerSync'
 import { TimerForeground } from '../plugins/timer-foreground'
 import { connectBleTimer, disconnectBleTimer, pushSubjects } from '../lib/bleTimer'
 
@@ -46,10 +47,9 @@ interface AccumEntry {
 
 type AccumMap = Record<string, AccumEntry>
 
-/* ── localStorage 持久化 ── */
+/* ── localStorage 持久化（进行中计时与精简挂件共享，见 lib/timerSync.ts） ── */
 const ACCUM_KEY = 'kaoyan_timer_accum'
 const ACCUM_DATE_KEY = 'kaoyan_timer_accum_date'
-const RUNNING_KEY = 'kaoyan_timer_running'
 
 function loadAccum(): AccumMap {
   // 跨午夜不清空：保留累计数据，保存时归入开始学习的那天（补交）
@@ -87,35 +87,11 @@ function loadAccumDate(): string | null {
 }
 
 function loadRunningTimer(): TimerState | null {
-  try {
-    const raw = localStorage.getItem(RUNNING_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as TimerState
-    if (!parsed.startTime) return null
-    // 跨午夜修复：若计时开始于今天之前，丢弃（避免把昨天甚至更早的时长计入今日累计）
-    if (new Date(parsed.startTime).toDateString() !== new Date().toDateString()) {
-      localStorage.removeItem(RUNNING_KEY)
-      return null
-    }
-    return {
-      subjectId: parsed.subjectId ?? null,
-      activity: parsed.activity ?? '',
-      startTime: parsed.startTime,
-      paused: parsed.paused ?? false,
-      pausedMs: parsed.pausedMs ?? 0,
-      pausedAt: parsed.pausedAt ?? null,
-    }
-  } catch {
-    return null
-  }
+  return loadSharedTimer() as TimerState | null
 }
 
 function saveRunningTimer(state: TimerState | null) {
-  if (state) {
-    localStorage.setItem(RUNNING_KEY, JSON.stringify(state))
-  } else {
-    localStorage.removeItem(RUNNING_KEY)
-  }
+  saveSharedTimer(state)
 }
 
 /* ── 工具 ── */

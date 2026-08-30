@@ -16,42 +16,27 @@ import {
   updateLog,
   type DailyLogSubject,
 } from '../lib/dailyLogs'
-import { formatDuration, toTimeStr } from '../lib/format'
+import { formatDuration } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
+import { Icon } from '../components/Icon'
 import { useAuth } from '../contexts/AuthContext'
 import { isAuthSessionMissingError } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { createQrSession, pollQrSession } from '../lib/qrLogin'
+import {
+  loadSharedTimer,
+  saveSharedTimer,
+  computeTimerElapsed,
+  buildTimerEntry,
+  type SharedTimerState,
+} from '../lib/timerSync'
 
-interface TimerState {
-  subjectId: string
-  activity: string
-  startTime: number
-}
-
-/** 桌面挂件专用存储键（与 Web/App 的 localStorage 分离，互不影响） */
-const WIDGET_RUNNING_KEY = 'kaoyan_widget_running'
-
-function loadRunning(): TimerState | null {
-  try {
-    const raw = localStorage.getItem(WIDGET_RUNNING_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as TimerState
-    if (!parsed.startTime) return null
-    if (new Date(parsed.startTime).toDateString() !== new Date().toDateString()) {
-      localStorage.removeItem(WIDGET_RUNNING_KEY)
-      return null
-    }
-    return { subjectId: parsed.subjectId, activity: parsed.activity ?? '', startTime: parsed.startTime }
-  } catch {
-    return null
-  }
-}
+interface TimerState extends SharedTimerState {}
 
 export default function DesktopTimer() {
   const { user, signIn } = useAuth()
   const [subjects, setSubjects] = useState<Subject[]>(() => getAvailableSubjects())
-  const [running, setRunning] = useState<TimerState | null>(loadRunning)
+  const [running, setRunning] = useState<TimerState | null>(() => loadSharedTimer() as TimerState | null)
   const [pendingSubject, setPendingSubject] = useState<string | null>(null)
   const [elapsed, setElapsed] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -82,7 +67,7 @@ export default function DesktopTimer() {
       setElapsed(0)
       return
     }
-    const tick = () => setElapsed(Math.floor((Date.now() - runningNow.startTime) / 1000))
+    const tick = () => setElapsed(computeTimerElapsed(runningNow))
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
@@ -171,7 +156,7 @@ export default function DesktopTimer() {
   const handleStart = (subjectId: string, activity: string) => {
     const state: TimerState = { subjectId, activity, startTime: Date.now() }
     setRunning(state)
-    localStorage.setItem(WIDGET_RUNNING_KEY, JSON.stringify(state))
+    saveSharedTimer(state)
     setPendingSubject(null)
     setNotice('')
   }
@@ -179,26 +164,23 @@ export default function DesktopTimer() {
   const handleStop = useCallback(async () => {
     const r = runningRef.current
     if (!r) return
-    const seconds = Math.floor((Date.now() - r.startTime) / 1000)
+    const seconds = computeTimerElapsed(r)
     if (seconds < 1) {
       setRunning(null)
-      localStorage.removeItem(WIDGET_RUNNING_KEY)
+      saveSharedTimer(null)
       return
     }
     setRunning(null)
-    localStorage.removeItem(WIDGET_RUNNING_KEY)
+    saveSharedTimer(null)
 
     if (!user) return
     setSaving(true)
     setNotice('')
     try {
-      const hours = Math.round((seconds / 3600) * 100) / 100
-      const entry: DailyLogSubject = {
-        id: r.subjectId,
-        hours,
-        ...(r.activity ? { activity: r.activity } : {}),
-        startTime: toTimeStr(new Date(r.startTime)),
-        endTime: toTimeStr(new Date()),
+      const entry = buildTimerEntry(r, seconds)
+      if (!entry) {
+        setNotice('未选择科目，本次不计入')
+        return
       }
       const entries: DailyLogSubject[] = [entry]
       sortSubjectsByStartTime(entries)
@@ -371,15 +353,22 @@ export default function DesktopTimer() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-gray-50 dark:bg-slate-950">
-      {/* 计时面板 */}
-      <div className="px-4 pt-4 pb-3 text-center">
+    <div className="flex h-full flex-col">
+      {/* 计时面板：玻璃卡片 */}
+      <div className="mx-3 mt-2 relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950/70 p-4 text-center shadow-[0_8px_28px_-12px_rgba(0,0,0,0.6)]">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -left-8 -top-10 h-28 w-28 rounded-full bg-indigo-500/10 blur-2xl"
+        />
         {/* 状态行 */}
-        <div className="flex items-center justify-center gap-1.5 mb-2 h-4">
+        <div className="relative mb-2.5 flex h-4 items-center justify-center gap-1.5">
           {running && (
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+            <span className="relative flex h-1.5 w-1.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </span>
           )}
-          <p className="text-xs text-gray-400 dark:text-slate-500 truncate">
+          <p className="truncate text-xs text-slate-500">
             {running
               ? currentSubject
               : pendingSubject
@@ -387,61 +376,75 @@ export default function DesktopTimer() {
                 : '选择科目开始学习'}
           </p>
         </div>
-        {/* 大号计时数字 */}
-        <div className={`font-bold tabular-nums text-4xl tracking-tight transition-colors duration-300 ${running ? 'text-slate-900 dark:text-slate-50' : 'text-gray-300 dark:text-slate-600'}`}>
+        {/* 大号计时数字：运行时品牌色渐变，空闲时弱灰 */}
+        <div
+          className={`relative font-bold tabular-nums tracking-tight text-5xl leading-none transition-all duration-300 ${
+            running
+              ? 'bg-gradient-to-r from-indigo-400 via-violet-400 to-indigo-400 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(99,102,241,0.35)]'
+              : 'text-slate-700'
+          }`}
+        >
           {running ? formatDuration(elapsed) : '00:00:00'}
         </div>
         {/* 操作区 */}
-        <div className="h-8 flex items-center justify-center">
+        <div className="relative mt-3 flex h-8 items-center justify-center">
           {running ? (
             <button
               onClick={handleStop}
               disabled={saving}
-              className="px-5 py-1.5 bg-red-500/90 hover:bg-red-500 disabled:bg-slate-700 text-white rounded-lg font-medium text-xs transition-all cursor-pointer disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/90 px-5 py-1.5 text-xs font-semibold text-white shadow-[0_4px_14px_-4px_rgba(239,68,68,0.6)] transition-all hover:bg-red-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:shadow-none cursor-pointer"
             >
-              {saving ? '保存中…' : '■ 结束并打卡'}
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <rect x="6" y="6" width="12" height="12" rx="2" />
+              </svg>
+              {saving ? '保存中…' : '结束并打卡'}
             </button>
           ) : (
             notice && (
-              <p className="text-xs text-emerald-600 dark:text-emerald-400">{notice}</p>
+              <p className="flex items-center gap-1 text-xs text-emerald-400">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="m5 13 4 4L19 7" />
+                </svg>
+                {notice}
+              </p>
             )
           )}
         </div>
       </div>
 
-      {/* 分隔线 */}
-      <div className="h-px bg-gray-200 dark:bg-slate-800/80 mx-4" />
-
       {/* 科目选择区 */}
-      <div className="px-3 py-3 space-y-2 overflow-y-auto flex-1">
+      <div className="mt-3 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
         {!user && (
-          <div className="flex flex-col items-center gap-2 pb-2 mb-1 border-b border-gray-200 dark:border-slate-800/60">
-            <p className="text-center text-[11px] text-gray-400 dark:text-slate-500">登录后可同步数据到云端</p>
+          <div className="mb-1 flex flex-col items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/50 px-3 py-3">
+            <p className="text-[11px] text-slate-500">登录后可同步计时到云端</p>
             <div className="flex gap-2">
               <button
                 onClick={startQrLogin}
-                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3.5 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-indigo-500 cursor-pointer"
               >
-                📱 扫码
+                <Icon name="smartphone" size={13} /> 扫码
               </button>
               <button
                 onClick={() => {
                   setShowPwd(true)
                   setPwdError('')
                 }}
-                className="px-3 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3.5 py-1.5 text-xs font-medium text-slate-200 transition-colors hover:bg-slate-700 cursor-pointer"
               >
-                🔑 账号密码
+                <Icon name="key" size={13} /> 账号密码
               </button>
             </div>
           </div>
         )}
         {running ? (
-          <div className="flex items-center justify-center py-8">
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <p className="text-xs text-gray-400 dark:text-slate-500">计时进行中</p>
-              <p className="text-[11px] text-gray-400 dark:text-slate-600">点击「结束并打卡」停止</p>
+          <div className="flex items-center justify-center py-10">
+            <div className="flex flex-col items-center gap-2.5">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
+              </span>
+              <p className="text-xs text-slate-500">计时进行中</p>
+              <p className="text-[11px] text-slate-600">点击「结束并打卡」写入今日记录</p>
             </div>
           </div>
         ) : (
@@ -449,20 +452,23 @@ export default function DesktopTimer() {
             <div className="flex flex-wrap gap-1.5">
               {subjects.filter((s) => s.category !== '408').map(renderSubjectButton)}
             </div>
-            <div>
-              <p className="text-[10px] font-medium text-gray-400 dark:text-slate-600 uppercase tracking-wider mb-1.5">408 综合</p>
+            <div className="pt-1">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-600">408 综合</p>
               <div className="flex flex-wrap gap-1.5">
                 {subjects.filter((s) => s.category === '408').map(renderSubjectButton)}
               </div>
             </div>
             {pendingSubject && (
-              <div className="rounded-lg border border-gray-200 bg-gray-100 dark:border-slate-800 dark:bg-slate-900/60 px-2.5 py-2 animate-in fade-in slide-in-from-bottom-1 duration-200">
+              <div className="animate-in fade-in slide-in-from-bottom-1 rounded-xl border border-slate-800 bg-slate-900/70 px-2.5 py-2.5 duration-200">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-300/80">
+                  {getSubjectById(pendingSubject)?.name} · 选择学习内容
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   {getActivitiesForSubject(pendingSubject).map((act) => (
                     <button
                       key={act}
                       onClick={() => handleStart(pendingSubject, act)}
-                      className="px-2.5 py-1 text-xs rounded-md bg-gray-200 text-gray-600 border border-gray-200 hover:border-indigo-500 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700 dark:hover:border-indigo-500 dark:hover:text-indigo-300 transition-all cursor-pointer"
+                      className="rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition-all hover:border-indigo-500 hover:bg-indigo-500/10 hover:text-indigo-300 cursor-pointer"
                     >
                       {act}
                     </button>

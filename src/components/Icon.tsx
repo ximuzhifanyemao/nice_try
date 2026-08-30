@@ -39,6 +39,7 @@ export type IconName =
   | 'heart' // 健康
   | 'beaker' // 营养
   | 'award'
+  | 'key' // 密码提交
 
 const PATHS: Record<IconName, ReactNode> = {
   home: (
@@ -247,6 +248,14 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="8" r="6" />
       <path d="M15.5 13 17 22l-5-3-5 3 1.5-9" />
+    </>
+  ),
+  key: (
+    <>
+      <circle cx="7.5" cy="15.5" r="4.5" />
+      <path d="m11 12 9-9" />
+      <path d="M17 6l2.5 2.5" />
+      <path d="M14 9l2.5 2.5" />
     </>
   ),
 }
