@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
+import { isTauri, invoke } from '@tauri-apps/api/core'
 import { supabase } from '../lib/supabase'
 
 export type UpdateStatus =
@@ -20,6 +21,57 @@ export interface UpdateInfo {
   checksum?: string
   releaseNotes?: string
   fileSize?: number
+  /** 桌面端：安装包文件名（用于 Rust 下载后按扩展名启动安装） */
+  assetName?: string
+}
+
+/** 桌面端（Tauri）更新源：GitHub Releases latest，与手机 OTA（Supabase）解耦 */
+const GITHUB_OWNER = 'ximuzhifanyemao'
+const GITHUB_REPO = 'nice_try'
+const GITHUB_LATEST_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`
+
+/** 从 GitHub Releases 探测桌面端可用更新 */
+async function checkGitHubDesktopUpdate(current: {
+  version: string
+  versionCode: number
+}): Promise<UpdateInfo | null> {
+  const res = await fetch(GITHUB_LATEST_URL)
+  if (!res.ok) {
+    throw new Error(`GitHub 查询失败（HTTP ${res.status}）`)
+  }
+  const rel: {
+    tag_name?: string
+    body?: string | null
+    assets?: { name: string; browser_download_url: string; size: number }[]
+  } = await res.json()
+
+  const version = String(rel.tag_name ?? '').replace(/^v/i, '')
+  if (!version) {
+    throw new Error('GitHub 返回缺少版本号，请稍后再试')
+  }
+
+  // 优先用 MSI（更干净的安装流程），退而求其次选 setup.exe
+  const assets = Array.isArray(rel.assets) ? rel.assets : []
+  const asset =
+    assets.find((a) => a.name.toLowerCase().endsWith('.msi')) ??
+    assets.find((a) => /setup.*\.exe$/i.test(a.name)) ??
+    assets.find((a) => a.name.toLowerCase().endsWith('.exe'))
+  if (!asset) {
+    throw new Error('最新版本未包含 Windows 安装包')
+  }
+
+  if (compareVersions(version, current.version) <= 0) {
+    return null
+  }
+
+  return {
+    version,
+    versionCode: 0,
+    bundleUrl: asset.browser_download_url,
+    fileSize: asset.size,
+    releaseNotes: rel.body ?? undefined,
+    assetName: asset.name,
+  }
 }
 
 export function useAppUpdate() {
@@ -56,6 +108,26 @@ export function useAppUpdate() {
 
     try {
       const current = await getCurrentVersion()
+
+      // 桌面端（Tauri）：从 GitHub Releases 检测桌面安装包更新
+      if (isTauri()) {
+        try {
+          const info = await checkGitHubDesktopUpdate(current)
+          if (info) {
+            setUpdateInfo(info)
+            setStatus('available')
+          } else {
+            setStatus('up_to_date')
+          }
+          return info
+        } catch (err) {
+          const message = err instanceof Error ? err.message : '检查桌面更新失败'
+          console.warn('[Update]', message)
+          setError(message)
+          setStatus('error')
+          return null
+        }
+      }
 
       // 从 Supabase 获取最新版本（用数组返回，避免空表报 PGRST116）
       const { data, error: dbError } = await supabase
@@ -124,6 +196,16 @@ export function useAppUpdate() {
     setError(null)
 
     try {
+      if (isTauri()) {
+        // 桌面端：Rust 侧下载安装包并启动安装（免签名、离线可装）
+        await invoke('desktop_updater_download_install', {
+          url: info.bundleUrl,
+          fileName: info.assetName ?? 'DiveDeep-setup.exe',
+        })
+        setStatus('installing')
+        return true
+      }
+
       if (Capacitor.isNativePlatform()) {
         // Android 原生：使用 window.open 打开 APK 下载链接
         // 系统浏览器/下载管理器会自动下载 APK，用户点击通知即可安装

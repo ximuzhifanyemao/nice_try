@@ -6,6 +6,7 @@ import AppVersion from '../components/AppVersion'
 import { useToast } from '../lib/Toast'
 import { syncVocabularyFromCloud } from '../lib/vocabulary'
 import { Capacitor } from '@capacitor/core'
+import { isTauri } from '@tauri-apps/api/core'
 import { Icon, type IconName } from '../components/Icon'
 import { exportAllData, downloadTextFile } from '../lib/export'
 
@@ -99,9 +100,11 @@ export default function Profile() {
         ? '已是最新版本'
         : status === 'downloading'
           ? '正在下载更新…'
-          : status === 'error'
-            ? '检查失败'
-            : '检查更新')
+          : status === 'installing'
+            ? '正在安装…'
+            : status === 'error'
+              ? '检查失败'
+              : '检查更新')
 
   const handleExport = async () => {
     if (!user || exporting) return
@@ -182,7 +185,7 @@ export default function Profile() {
                 新版本 v{updateInfo.version}
                 {updateInfo.fileSize && `（${(updateInfo.fileSize / 1024).toFixed(0)} KB）`}
               </p>
-              {Capacitor.isNativePlatform() ? (
+              {Capacitor.isNativePlatform() || isTauri() ? (
                 <button
                   onClick={() => downloadAndInstall(updateInfo)}
                   className="btn-primary w-full py-2 text-xs"
@@ -190,7 +193,7 @@ export default function Profile() {
                   下载并安装
                 </button>
               ) : (
-                <p className="text-xs text-gray-400 dark:text-slate-500">请在手机 App 中下载安装</p>
+                <p className="text-xs text-gray-400 dark:text-slate-500">请在手机 App 或电脑版中更新</p>
               )}
             </div>
           )}
