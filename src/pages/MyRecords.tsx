@@ -6,10 +6,12 @@ import { useToast } from '../lib/Toast'
 import LogCard from '../components/LogCard'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchMyLogsPaginated, deleteLog, todayStr } from '../lib/dailyLogs'
+import { useWideLayout } from '../App'
 
 const PAGE_SIZE = 20
 
 export default function MyRecords() {
+  const wide = useWideLayout()
   const { user } = useAuth()
   const { refetch } = useLogs()
   const toast = useToast()
@@ -78,7 +80,7 @@ export default function MyRecords() {
   }, [navigate])
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-3xl'} px-4 py-4 space-y-4`}>
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">记录</h1>
         <Link

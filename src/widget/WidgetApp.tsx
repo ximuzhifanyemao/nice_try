@@ -115,9 +115,26 @@ export default function WidgetApp() {
           // 取显示器失败则维持 1600×1000 兜底
         }
         await appWindow.setSize(new LogicalSize(w, h))
+        // 显式居中：以当前显示器中心为对称点放置窗口，避免窗口停在角落时展开伸出桌面
+        try {
+          const monitor = await currentMonitor()
+          if (monitor) {
+            const scale = monitor.scaleFactor || 1
+            const cx = monitor.position.x + Math.round(monitor.size.width / 2)
+            const cy = monitor.position.y + Math.round(monitor.size.height / 2)
+            const wPhys = Math.round(w * scale)
+            const hPhys = Math.round(h * scale)
+            await appWindow.setPosition(new PhysicalPosition(cx - Math.round(wPhys / 2), cy - Math.round(hPhys / 2)))
+          } else {
+            // 拿不到显示器信息则回退默认居中
+            await appWindow.center().catch(() => {})
+          }
+        } catch {
+          // 显式居中失败则回退默认居中
+          await appWindow.center().catch(() => {})
+        }
         await appWindow.setResizable(false)
         await appWindow.setAlwaysOnTop(false)
-        await appWindow.center()
         // 保险：确保展开后窗口可见
         await appWindow.show().catch(() => {})
       } else {

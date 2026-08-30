@@ -8,8 +8,10 @@ import { getSubjectById } from '../lib/subjects'
 import { getChipColor, getBarColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
 import WeeklyReport from '../components/WeeklyReport'
+import { useWideLayout } from '../App'
 
 const Summary: React.FC = () => {
+  const wide = useWideLayout()
   const { logs, loading, error, refetch } = useLogs()
   const [range, setRange] = useState<SummaryRange>({
     mode: 'week',
@@ -37,7 +39,7 @@ const Summary: React.FC = () => {
   }, [summary.dailyTrend])
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-4 space-y-4">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-4xl'} px-4 py-4 space-y-4`}>
       <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">统计</h1>
 
       {/* 本周学习报告：自动汇总本周表现 */}

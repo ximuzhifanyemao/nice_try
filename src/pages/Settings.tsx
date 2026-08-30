@@ -12,8 +12,10 @@ import {
   REMINDER_PRESETS,
   type ReminderConfig,
 } from '../lib/reminder'
+import { useWideLayout } from '../App'
 
 export default function Settings() {
+  const wide = useWideLayout()
   const { user } = useAuth()
   const toast = useToast()
   const userId = user?.id
@@ -92,7 +94,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-4 space-y-4">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-2xl'} px-4 py-4 space-y-4`}>
       <div className="flex items-center gap-2">
         <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">设置</h1>
       </div>

@@ -20,6 +20,7 @@ import {
   type WeeklyCommitment,
 } from '../lib/commitments'
 import { formatDateShort } from '../lib/format'
+import { useWideLayout } from '../App'
 
 const TX_TYPE_COLORS: Record<string, string> = {
   recharge: 'text-green-600 dark:text-green-400',
@@ -29,6 +30,7 @@ const TX_TYPE_COLORS: Record<string, string> = {
 }
 
 export default function GoalPage() {
+  const wide = useWideLayout()
   const { user } = useAuth()
   const { logs, loading: logsLoading } = useLogs()
   const toast = useToast()
@@ -141,7 +143,7 @@ export default function GoalPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-3xl'} px-4 py-4 space-y-4`}>
       <h1 className="flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-slate-100">
         <Icon name="target" size={20} className="text-indigo-500" /> 目标与承诺金
       </h1>

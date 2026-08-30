@@ -9,6 +9,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchTrashedLogs, restoreLog, purgeLog, isDuplicateDateError } from '../lib/dailyLogs'
 import { formatDateShort } from '../lib/format'
+import { useWideLayout } from '../App'
 
 /** ISO 时间 → "8月7日 14:32" */
 function formatDeletedAt(iso: string): string {
@@ -20,6 +21,7 @@ function formatDeletedAt(iso: string): string {
 const NOOP = () => {}
 
 export default function Trash() {
+  const wide = useWideLayout()
   const { user } = useAuth()
   const { refetch } = useLogs()
   const toast = useToast()
@@ -68,7 +70,7 @@ export default function Trash() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 space-y-6">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-3xl'} px-4 py-6 space-y-6`}>
       <div className="flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-slate-100">
           <Icon name="trash" size={20} className="text-gray-400" /> 回收站

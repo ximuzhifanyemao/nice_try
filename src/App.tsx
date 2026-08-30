@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useLayoutEffect, createContext, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useLayoutEffect, createContext, useContext, useRef, useState, type ReactNode } from 'react'
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { UpdateProvider } from './contexts/UpdateContext'
@@ -34,7 +34,12 @@ const QrLogin = lazy(() => import('./pages/QrLogin'))
 const ScanQr = lazy(() => import('./pages/ScanQr'))
 
 /** 首页布局上下文：桌面端「全部功能」全功能模式下强制双栏布局 */
-export const HomeLayoutContext = createContext<{ twoCol: boolean }>({ twoCol: false })
+export const HomeLayoutContext = createContext<{ twoCol: boolean; wide: boolean }>({ twoCol: false, wide: false })
+
+/** 页面内容是否放宽到更宽的布局（桌面端全功能模式下） */
+export function useWideLayout(): boolean {
+  return useContext(HomeLayoutContext).wide
+}
 
 /** 自适应缩放的下限兜底：极端窄高窗口下也不至于缩到看不清 */
 const MIN_FIT_SCALE = 0.4
@@ -207,7 +212,7 @@ export default function App({
               <CheckinReminder />
               {!hideNavbar && <Navbar />}
               <Suspense fallback={<PageLoading />}>
-                <HomeLayoutContext.Provider value={{ twoCol: forceTwoCol }}>
+                <HomeLayoutContext.Provider value={{ twoCol: forceTwoCol, wide: forceTwoCol }}>
                 <ScaleToFit enabled={forceTwoCol}>
                 <Routes>
                   <Route path="/" element={<Home />} />

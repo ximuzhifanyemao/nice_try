@@ -7,8 +7,10 @@ import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLogInput } from '../lib/dailyLogs'
 import { createLog, fetchLogBeforeDate, isDuplicateDateError, todayStr } from '../lib/dailyLogs'
 import { formatDateCn } from '../lib/format'
+import { useWideLayout } from '../App'
 
 export default function NewRecord() {
+  const wide = useWideLayout()
   const { user } = useAuth()
   const { refetch } = useLogs()
   const toast = useToast()
@@ -43,7 +45,7 @@ export default function NewRecord() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-2xl'} px-4 py-6`}>
       <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-6">新建记录</h1>
       <LogForm
         availableSubjects={getAvailableSubjects()}

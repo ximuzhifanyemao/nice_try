@@ -6,6 +6,7 @@ import { fetchMyCheckins, createCheckin, deleteCheckin } from '../lib/englishChe
 import { loadMarkedWords, saveMarkedWords, addDayToVocabulary, pushVocabularyToCloud } from '../lib/vocabulary'
 import { supabase } from '../lib/supabase'
 import { postJson } from '../lib/httpRequest'
+import { useWideLayout } from '../App'
 
 const TOTAL = 150
 
@@ -242,6 +243,7 @@ function scoreBg(score: number): string {
 // ---------- 页面组件 ----------
 
 export default function EnglishCheckin() {
+  const wide = useWideLayout()
   const { user } = useAuth()
   const [checkins, setCheckins] = useState<Set<number>>(new Set())
   const [loading, setLoading] = useState(true)
@@ -442,7 +444,7 @@ export default function EnglishCheckin() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-4 space-y-4">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-5xl'} px-4 py-4 space-y-4`}>
       {/* 进度条 */}
       <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
         <div className="flex items-center justify-between">

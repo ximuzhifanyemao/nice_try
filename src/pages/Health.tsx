@@ -43,6 +43,7 @@ import {
 } from '../lib/health'
 import type { CustomPreset } from '../lib/health'
 import { FOOD_PRESETS, type FoodPreset } from '../lib/foodPresets'
+import { useWideLayout } from '../App'
 
 /** kg 转斤（1 斤 = 0.5 kg，保留 1 位小数） */
 function kgToJin(kg: number | null | undefined): string {
@@ -118,6 +119,7 @@ function Card({ children, className = '' }: { children: ReactNode; className?: s
 }
 
 export default function Health() {
+  const wide = useWideLayout()
   const { user } = useAuth()
   const { show } = useToast()
   const [tab, setTab] = useState<TabKey>('diet')
@@ -571,7 +573,7 @@ export default function Health() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-4 pb-8">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-2xl'} px-4 py-4 pb-8`}>
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-gray-900 dark:text-slate-100">健康</h2>
         <span className="text-xs text-gray-400 dark:text-slate-500">{today}</span>

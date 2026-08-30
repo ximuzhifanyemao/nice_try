@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLog, DailyLogInput } from '../lib/dailyLogs'
 import { fetchLogById, fetchLogByDate, updateLog, purgeLog, mergeSubjects, isDuplicateDateError } from '../lib/dailyLogs'
+import { useWideLayout } from '../App'
 
 /** 合并两段总结：都非空时换行拼接 */
 function combineSummary(a: string, b: string): string {
@@ -17,6 +18,7 @@ function combineSummary(a: string, b: string): string {
 }
 
 export default function EditRecord() {
+  const wide = useWideLayout()
   const { id } = useParams<{ id: string }>()
   const { user } = useAuth()
   const { refetch } = useLogs()
@@ -119,7 +121,7 @@ export default function EditRecord() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-2xl'} px-4 py-6`}>
       <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-6">编辑记录</h1>
       <LogForm
         initialData={{ date: log.date, subjects: log.subjects, summary: log.summary }}

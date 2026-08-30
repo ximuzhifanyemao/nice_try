@@ -4,6 +4,7 @@ import { loadVocabulary, removeWordFromVocabulary, clearVocabulary, syncVocabula
 import { useAuth } from '../contexts/AuthContext'
 import { loadEnglishDaily } from '../data/englishDaily'
 import { lookupWord, getCachedLookup, type WordLookup } from '../lib/wordLookup'
+import { useWideLayout } from '../App'
 
 // AI 查词结果卡片
 function LookupResultCard({ data }: { data: WordLookup }) {
@@ -61,6 +62,7 @@ function LookupResultCard({ data }: { data: WordLookup }) {
 }
 
 export default function VocabularyBook() {
+  const wide = useWideLayout()
   const navigate = useNavigate()
   const { user } = useAuth()
   const [vocab, setVocab] = useState<VocabDay[]>([])
@@ -188,7 +190,7 @@ export default function VocabularyBook() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-4 space-y-4">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-5xl'} px-4 py-4 space-y-4`}>
       {/* 顶部统计 */}
       <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
         <div className="flex items-center justify-between">

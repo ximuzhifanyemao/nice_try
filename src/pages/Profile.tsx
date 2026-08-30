@@ -9,6 +9,7 @@ import { Capacitor } from '@capacitor/core'
 import { isTauri } from '@tauri-apps/api/core'
 import { Icon, type IconName } from '../components/Icon'
 import { exportAllData, downloadTextFile } from '../lib/export'
+import { useWideLayout } from '../App'
 
 /** 分组标题 */
 function GroupLabel({ children }: { children: ReactNode }) {
@@ -58,6 +59,7 @@ function Row({ icon, tint = 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 
 }
 
 export default function Profile() {
+  const wide = useWideLayout()
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
   const { status, checkForUpdate, downloadAndInstall, updateInfo, error } = useUpdateContext()
@@ -122,7 +124,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-4 pb-6">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-3xl'} px-4 py-4 pb-6`}>
       {/* 用户信息头部：渐变横幅 */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 p-4 text-white shadow-[0_8px_28px_-10px_rgba(79,70,229,0.5)] dark:shadow-none">
         <div aria-hidden className="pointer-events-none absolute -right-8 -top-10 h-32 w-32 rounded-full bg-white/10 blur-xl" />

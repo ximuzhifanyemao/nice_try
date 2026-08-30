@@ -8,6 +8,7 @@ import {
   type AchievementState,
   type AchievementCategory,
 } from '../lib/achievements'
+import { useWideLayout } from '../App'
 
 /** 单个成就徽章 */
 function Badge({ state }: { state: AchievementState }) {
@@ -42,6 +43,7 @@ function Badge({ state }: { state: AchievementState }) {
 }
 
 export default function Achievements() {
+  const wide = useWideLayout()
   const { logs, loading, error, refetch } = useLogs()
 
   const states = useMemo(() => computeAchievements(logs), [logs])
@@ -59,7 +61,7 @@ export default function Achievements() {
   }, [states])
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-4 space-y-4">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-4xl'} px-4 py-4 space-y-4`}>
       <h1 className="flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-slate-100">
         <Icon name="medal" size={20} className="text-amber-500" /> 成就
       </h1>
