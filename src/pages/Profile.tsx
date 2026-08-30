@@ -103,7 +103,7 @@ export default function Profile() {
         : status === 'downloading'
           ? '正在下载更新…'
           : status === 'installing'
-            ? '正在安装…'
+            ? '正在打开下载页…'
             : status === 'error'
               ? '检查失败'
               : '检查更新')
@@ -192,12 +192,18 @@ export default function Profile() {
                   onClick={() => downloadAndInstall(updateInfo)}
                   className="btn-primary w-full py-2 text-xs"
                 >
-                  下载并安装
+                  {Capacitor.isNativePlatform() ? '下载 APK' : '打开下载页'}
                 </button>
               ) : (
                 <p className="text-xs text-gray-400 dark:text-slate-500">请在手机 App 或电脑版中更新</p>
               )}
             </div>
+          )}
+
+          {status === 'downloaded' && (
+            <p className="mt-3 border-t border-gray-100 dark:border-slate-800 pt-3 text-xs text-emerald-600 dark:text-emerald-400">
+              {isTauri() ? '已在浏览器打开下载页，请下载后手动运行安装' : '下载完成，请在通知栏点击完成安装'}
+            </p>
           )}
 
           {status === 'error' && (

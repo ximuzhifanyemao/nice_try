@@ -242,12 +242,10 @@ export function useAppUpdate() {
 
     try {
       if (isTauri()) {
-        // 桌面端：Rust 侧下载安装包并启动安装（免签名、离线可装）
-        await invoke('desktop_updater_download_install', {
-          url: info.bundleUrl,
-          fileName: info.assetName ?? 'DiveDeep-setup.exe',
-        })
-        setStatus('installing')
+        // 桌面端：用系统默认浏览器打开安装包下载地址（用户可自行选择时机下载安装，不打断使用）
+        await invoke('desktop_updater_open_browser', { url: info.bundleUrl })
+        setDownloadProgress(100)
+        setStatus('downloaded')
         return true
       }
 

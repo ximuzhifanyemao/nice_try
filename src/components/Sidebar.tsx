@@ -60,11 +60,11 @@ export default function Sidebar() {
   const items = user ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.key === 'home' || i.key === 'profile')
 
   return (
-    <aside className="flex w-48 flex-col bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 h-full shrink-0">
+    <aside className="flex w-56 flex-col bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 h-full shrink-0">
       {/* Logo */}
       <Link
         to="/"
-        className="flex items-center justify-start gap-2 px-3 h-11 border-b border-gray-200 dark:border-slate-800 text-sm font-semibold text-gray-700 dark:text-slate-200 shrink-0"
+        className="flex items-center justify-start gap-2 px-4 h-11 border-b border-gray-200 dark:border-slate-800 text-sm font-semibold text-gray-700 dark:text-slate-200 shrink-0"
         title="DiveDeep"
       >
         <DesktopLogo size={22} />
@@ -78,7 +78,7 @@ export default function Sidebar() {
             key={item.key}
             onClick={() => navigate(item.path)}
             title={item.label}
-            className={`flex items-center gap-2 w-full px-3 py-2 text-[13px] text-left transition-all cursor-pointer relative ${
+            className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-[13px] text-left transition-all cursor-pointer relative ${
               activeKey === item.key
                 ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
                 : 'text-gray-600 dark:text-slate-300 hover:text-slate-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800/40'
@@ -98,7 +98,7 @@ export default function Sidebar() {
         <button
           onClick={handleToggleTheme}
           title={isDark ? '亮色' : '暗色'}
-          className="flex items-center gap-2 w-full px-3 h-8 rounded-md text-[13px] text-gray-600 dark:text-slate-300 hover:text-slate-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+          className="flex items-center gap-2.5 w-full px-4 h-8 rounded-md text-[13px] text-gray-600 dark:text-slate-300 hover:text-slate-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
         >
           <span className="shrink-0">{isDark ? BlueIcons.moon : BlueIcons.sun}</span>
           <span>{isDark ? '亮色' : '暗色'}</span>
@@ -106,7 +106,7 @@ export default function Sidebar() {
         {user ? (
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-2 w-full px-3 h-8 rounded-md text-[13px] text-red-500 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+            className="flex items-center gap-2.5 w-full px-4 h-8 rounded-md text-[13px] text-red-500 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
           >
             <span className="shrink-0">{BlueIcons.logout}</span>
             <span>登出</span>
@@ -114,7 +114,7 @@ export default function Sidebar() {
         ) : (
           <Link
             to="/login"
-            className="flex items-center justify-center gap-2 w-full mx-auto px-3 h-8 max-w-[146px] rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[13px] font-medium transition-colors"
+            className="flex items-center justify-center gap-2 w-full mx-auto px-3 h-8 max-w-[170px] rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[13px] font-medium transition-colors"
           >
             <span className="shrink-0">{BlueIcons.login}</span>
             <span>登录</span>

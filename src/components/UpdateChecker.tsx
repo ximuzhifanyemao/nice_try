@@ -30,9 +30,9 @@ export default function UpdateChecker() {
 
   const statusText = {
     available: '发现新版本',
-    downloading: isDesktop ? '正在下载安装包…' : '正在打开下载...',
-    installing: '正在安装…',
-    downloaded: isDesktop ? '安装包已下载' : 'APK 下载已开始，请在浏览器中完成下载后安装',
+    downloading: isDesktop ? '正在打开下载页…' : '正在打开下载...',
+    installing: '正在打开下载页…',
+    downloaded: isDesktop ? '已打开下载页，请下载后手动运行安装' : 'APK 下载已开始，请在浏览器中完成下载后安装',
     error: '更新失败',
   }[status]
 
@@ -76,13 +76,13 @@ export default function UpdateChecker() {
             onClick={handleDownload}
             className="flex-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-2 cursor-pointer transition-colors"
           >
-            {isDesktop ? '下载并安装' : Capacitor.isNativePlatform() ? '下载 APK' : '查看更新'}
+            {isDesktop ? '打开下载页' : Capacitor.isNativePlatform() ? '下载 APK' : '查看更新'}
           </button>
         )}
 
         {status === 'installing' && (
           <p className="flex-1 text-xs text-green-600 dark:text-green-400 text-center py-2">
-            正在后台安装，完成后请关闭本窗口重启
+            请在浏览器中完成下载，下载后手动运行安装
           </p>
         )}
 
