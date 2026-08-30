@@ -15,6 +15,7 @@
     "tauri": "tauri",
     "build:desktop": "node scripts/build-desktop.mjs",
     "ota:upload": "node scripts/upload-ota.mjs",
+    "ota:desktop": "node scripts/upload-desktop-update.mjs",
     "ota:version": "node -e \"const p=require('./package.json');console.log('v'+p.version)\"",
     "release:upload": "node scripts/upload-release.mjs"
   },

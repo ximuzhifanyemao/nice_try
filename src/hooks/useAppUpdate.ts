@@ -25,12 +25,45 @@ export interface UpdateInfo {
   assetName?: string
 }
 
-/** 桌面端（Tauri）更新源：GitHub Releases latest，与手机 OTA（Supabase）解耦 */
+/** 桌面端（Tauri）更新源：优先用 Supabase（国内直连、无需代理），GitHub Releases 仅作兜底 */
 const GITHUB_OWNER = 'ximuzhifanyemao'
 const GITHUB_REPO = 'nice_try'
 const GITHUB_LATEST_URL = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/releases/latest`
 
-/** 从 GitHub Releases 探测桌面端可用更新 */
+/** 桌面端主源：从 Supabase desktop_versions 探测新版（免 GitHub API，国内可直连） */
+async function checkSupabaseDesktopUpdate(current: {
+  version: string
+  versionCode: number
+}): Promise<UpdateInfo | null> {
+  const { data, error } = await supabase
+    .from('desktop_versions')
+    .select('*')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .limit(1)
+  if (error) {
+    throw new Error('查询更新源失败')
+  }
+  const row = data?.[0] as
+    | { version: string; bundle_url: string; file_name?: string; file_size?: number | null; release_notes?: string | null }
+    | undefined
+  if (!row) {
+    throw new Error('暂无桌面更新记录')
+  }
+  if (compareVersions(String(row.version), current.version) <= 0) {
+    return null
+  }
+  return {
+    version: String(row.version),
+    versionCode: 0,
+    bundleUrl: row.bundle_url,
+    fileSize: row.file_size ?? undefined,
+    releaseNotes: row.release_notes ?? undefined,
+    assetName: row.file_name ?? 'DiveDeep-setup.exe',
+  }
+}
+
+/** 桌面端兜底源：GitHub Releases latest */
 async function checkGitHubDesktopUpdate(current: {
   version: string
   versionCode: number
@@ -109,10 +142,10 @@ export function useAppUpdate() {
     try {
       const current = await getCurrentVersion()
 
-      // 桌面端（Tauri）：从 GitHub Releases 检测桌面安装包更新
+      // 桌面端（Tauri）：优先查 Supabase（国内直连，无需代理），GitHub 兜底
       if (isTauri()) {
         try {
-          const info = await checkGitHubDesktopUpdate(current)
+          const info = await checkSupabaseDesktopUpdate(current)
           if (info) {
             setUpdateInfo(info)
             setStatus('available')
@@ -120,12 +153,24 @@ export function useAppUpdate() {
             setStatus('up_to_date')
           }
           return info
-        } catch (err) {
-          const message = err instanceof Error ? err.message : '检查桌面更新失败'
-          console.warn('[Update]', message)
-          setError(message)
-          setStatus('error')
-          return null
+        } catch {
+          // 主源不可用 → 回退 GitHub；仍失败则给出友好提示（如未开代理/网络异常）
+          try {
+            const info = await checkGitHubDesktopUpdate(current)
+            if (info) {
+              setUpdateInfo(info)
+              setStatus('available')
+            } else {
+              setStatus('up_to_date')
+            }
+            return info
+          } catch {
+            const message = '检测更新失败：网络异常或未开代理，请稍后再试'
+            console.warn('[Update]', message)
+            setError(message)
+            setStatus('error')
+            return null
+          }
         }
       }
 
