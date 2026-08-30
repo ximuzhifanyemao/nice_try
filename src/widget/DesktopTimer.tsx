@@ -61,6 +61,15 @@ export default function DesktopTimer() {
     setSubjects(getAvailableSubjects())
   }, [user?.id])
 
+  // 按 Esc 收起抽屉（不产生任何计时动作）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && pendingSubject) setPendingSubject(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pendingSubject])
+
   useEffect(() => {
     const runningNow = runningRef.current
     if (!runningNow?.startTime) {
@@ -172,6 +181,7 @@ export default function DesktopTimer() {
     }
     setRunning(null)
     saveSharedTimer(null)
+    setPendingSubject(null)
 
     if (!user) return
     setSaving(true)
@@ -353,7 +363,7 @@ export default function DesktopTimer() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {/* 计时面板：玻璃卡片 */}
       <div className="mx-3 mt-2 relative overflow-hidden rounded-2xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950/70 p-4 text-center shadow-[0_8px_28px_-12px_rgba(0,0,0,0.6)]">
         <div
@@ -458,27 +468,48 @@ export default function DesktopTimer() {
                 {subjects.filter((s) => s.category === '408').map(renderSubjectButton)}
               </div>
             </div>
-            {pendingSubject && (
-              <div className="animate-in fade-in slide-in-from-bottom-1 rounded-xl border border-slate-800 bg-slate-900/70 px-2.5 py-2.5 duration-200">
-                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-indigo-300/80">
-                  {getSubjectById(pendingSubject)?.name} · 选择学习内容
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {getActivitiesForSubject(pendingSubject).map((act) => (
-                    <button
-                      key={act}
-                      onClick={() => handleStart(pendingSubject, act)}
-                      className="rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition-all hover:border-indigo-500 hover:bg-indigo-500/10 hover:text-indigo-300 cursor-pointer"
-                    >
-                      {act}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>
+
+      {/* 吸附式抽屉：从底部滑出的学习内容选择层 */}
+      {pendingSubject && (
+        <div className="pointer-events-none absolute inset-x-0 inset-y-0 z-20">
+          {/* 遮罩层：点击收起 */}
+          <div
+            className="pointer-events-auto absolute inset-0 animate-in fade-in bg-black/45 duration-200"
+            onClick={() => setPendingSubject(null)}
+          />
+          {/* 抽屉面板 */}
+          <div className="pointer-events-auto absolute inset-x-0 bottom-0 mx-3 mb-3 animate-in fade-in slide-in-from-bottom-3 rounded-2xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950/70 p-4 shadow-[0_8px_28px_-12px_rgba(0,0,0,0.6)]">...
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300/80">
+                {getSubjectById(pendingSubject)?.name} · 选择学习内容
+              </p>
+              <button
+                onClick={() => setPendingSubject(null)}
+                aria-label="关闭"
+                className="flex h-5 w-5 items-center justify-center rounded-md text-slate-500 transition-all hover:bg-slate-800 hover:text-slate-200 cursor-pointer"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex flex-wrap justify-center gap-1.5">
+              {getActivitiesForSubject(pendingSubject).map((act) => (
+                <button
+                  key={act}
+                  onClick={() => handleStart(pendingSubject, act)}
+                  className="rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 transition-all hover:border-indigo-500 hover:bg-indigo-500/10 hover:text-indigo-300 cursor-pointer"
+                >
+                  {act}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

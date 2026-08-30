@@ -1,4 +1,4 @@
-import { Component, useState, useCallback, useEffect, type ReactNode } from 'react'
+import { Component, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
 import { getCurrentWindow, PhysicalSize, LogicalPosition, currentMonitor, type Window } from '@tauri-apps/api/window'
 import DesktopTimer from './DesktopTimer'
 import Sidebar from '../components/Sidebar'
@@ -82,15 +82,35 @@ export default function WidgetApp() {
   const appWindow: Window = getCurrentWindow()
   // 记忆模式：初始状态读取上次退出时保存的模式
   const [fullMode, setFullMode] = useState(() => localStorage.getItem(MODE_KEY) === 'full')
+  // 标记当前是否正在切换模式：切换过程中由 setSize/setPosition 等触发的 onMoved 应跳过落盘，避免覆盖正确位置
+  const switchingRef = useRef(false)
 
   /** 将窗口切换到指定模式：精简(compact) / 全部功能(full)，调整尺寸/置顶/位置 */
   const applyMode = useCallback(async (next: boolean) => {
     setFullMode(next)
+    switchingRef.current = true
     try {
       if (next) {
         // 进入全部功能：窗口在屏幕中心展开
         await appWindow.setResizable(true)
-        await appWindow.setSize(new PhysicalSize(FULL_W, FULL_H))
+        // 钳制到显示器工作区可用尺寸，避免窄屏/小工作区下溢出屏幕
+        let w = FULL_W
+        let h = FULL_H
+        try {
+          const monitor = await currentMonitor()
+          if (monitor) {
+            // Tauri v2 Monitor 无 availableSize，用物理尺寸 size（含任务栏区域，做钳制已足够）
+            const m = monitor.size
+            w = Math.min(FULL_W, m.width)
+            h = Math.min(FULL_H, m.height)
+            // 至少保留合理下限，避免过度钳制导致窗口过小
+            w = Math.max(w, Math.min(960, m.width))
+            h = Math.max(h, Math.min(700, m.height))
+          }
+        } catch {
+          // 取显示器失败则维持 1600×1000 兜底
+        }
+        await appWindow.setSize(new PhysicalSize(w, h))
         await appWindow.setResizable(false)
         await appWindow.setAlwaysOnTop(false)
         await appWindow.center()
@@ -109,6 +129,8 @@ export default function WidgetApp() {
       }
     } catch {
       // 尺寸/置顶切换失败不阻塞 UI
+    } finally {
+      switchingRef.current = false
     }
   }, [appWindow])
 
@@ -148,6 +170,8 @@ export default function WidgetApp() {
     appWindow
       .onMoved(({ payload }) => {
         if (cancelled) return
+        // 切换模式过程中由 setSize/setPosition/center 触发的移动不落盘，避免覆盖正确位置
+        if (switchingRef.current) return
         try {
           localStorage.setItem(fullMode ? FULL_POS_KEY : WIDGET_POS_KEY, JSON.stringify({ x: payload.x, y: payload.y }))
         } catch {
