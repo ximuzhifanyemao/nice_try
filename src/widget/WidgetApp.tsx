@@ -1,5 +1,5 @@
 import { Component, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
-import { getCurrentWindow, PhysicalSize, PhysicalPosition, currentMonitor, type Window } from '@tauri-apps/api/window'
+import { getCurrentWindow, LogicalSize, PhysicalPosition, currentMonitor, type Window } from '@tauri-apps/api/window'
 import DesktopTimer from './DesktopTimer'
 import Sidebar from '../components/Sidebar'
 import DesktopLogo from '../components/DesktopLogo'
@@ -101,18 +101,20 @@ export default function WidgetApp() {
         try {
           const monitor = await currentMonitor()
           if (monitor) {
-            // Tauri v2 Monitor 无 availableSize，用物理尺寸 size（含任务栏区域，做钳制已足够）
-            const m = monitor.size
-            w = Math.min(FULL_W, m.width)
-            h = Math.min(FULL_H, m.height)
+            // monitor.size 为物理像素，除以 scaleFactor 换算为逻辑像素，与 setSize 的逻辑单位一致
+            const scale = monitor.scaleFactor || 1
+            const logicalW = monitor.size.width / scale
+            const logicalH = monitor.size.height / scale
+            w = Math.min(FULL_W, logicalW)
+            h = Math.min(FULL_H, logicalH)
             // 至少保留合理下限，避免过度钳制导致窗口过小
-            w = Math.max(w, Math.min(960, m.width))
-            h = Math.max(h, Math.min(700, m.height))
+            w = Math.max(w, Math.min(960, logicalW))
+            h = Math.max(h, Math.min(700, logicalH))
           }
         } catch {
           // 取显示器失败则维持 1600×1000 兜底
         }
-        await appWindow.setSize(new PhysicalSize(w, h))
+        await appWindow.setSize(new LogicalSize(w, h))
         await appWindow.setResizable(false)
         await appWindow.setAlwaysOnTop(false)
         await appWindow.center()
@@ -121,7 +123,7 @@ export default function WidgetApp() {
       } else {
         await appWindow.setAlwaysOnTop(true)
         await appWindow.setResizable(true)
-        await appWindow.setSize(new PhysicalSize(WIDGET_W, WIDGET_H))
+        await appWindow.setSize(new LogicalSize(WIDGET_W, WIDGET_H))
         await appWindow.setResizable(false)
         // 恢复保存的精简窗口位置（若跑到屏幕外则居中）
         const pos = loadSavedPosition(WIDGET_POS_KEY)

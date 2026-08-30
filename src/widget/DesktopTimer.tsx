@@ -481,7 +481,7 @@ export default function DesktopTimer() {
             onClick={() => setPendingSubject(null)}
           />
           {/* 抽屉面板 */}
-          <div className="pointer-events-auto absolute inset-x-0 bottom-0 mx-3 mb-3 animate-in fade-in slide-in-from-bottom-3 rounded-2xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950/70 p-4 shadow-[0_8px_28px_-12px_rgba(0,0,0,0.6)]">...
+          <div className="pointer-events-auto absolute inset-x-0 bottom-0 mx-3 mb-3 animate-in fade-in slide-in-from-bottom-3 rounded-2xl border border-slate-800 bg-gradient-to-b from-slate-900 to-slate-950/70 p-4 shadow-[0_8px_28px_-12px_rgba(0,0,0,0.6)] max-h-[min(60vh,340px)] overflow-y-auto">...
             <div className="mb-3 flex items-center justify-between">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-300/80">
                 {getSubjectById(pendingSubject)?.name} · 选择学习内容
