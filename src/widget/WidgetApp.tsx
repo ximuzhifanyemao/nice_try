@@ -1,5 +1,5 @@
 import { Component, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
-import { getCurrentWindow, PhysicalSize, LogicalPosition, currentMonitor, type Window } from '@tauri-apps/api/window'
+import { getCurrentWindow, PhysicalSize, PhysicalPosition, currentMonitor, type Window } from '@tauri-apps/api/window'
 import DesktopTimer from './DesktopTimer'
 import Sidebar from '../components/Sidebar'
 import DesktopLogo from '../components/DesktopLogo'
@@ -30,9 +30,11 @@ function loadSavedPosition(key: string): { x: number; y: number } | null {
 }
 
 /**
- * 校验保存的位置是否落在屏幕可见区域内（含一定的安全边距）。
- * 若窗口完全在屏幕外（例如之前被拖到副屏/边缘，或副屏已断开），
- * 返回 null 让调用方回退到居中，避免「任务栏有程序但看不到窗口」。
+ * 校验保存的位置是否落在屏幕可见区域内（含安全边距）。
+ * onMoved 提供的是物理坐标（PhysicalPosition），monitor.size 也是物理像素，
+ * 两者单位一致，直接比较即可。
+ * 要求窗口至少有 60px 落在屏幕内，否则视为不可见返回 null，让调用方回退到居中，
+ * 避免高 DPI/多显示器/副屏断开后窗口"消失"。
  */
 async function sanitizePosition(
   pos: { x: number; y: number },
@@ -43,9 +45,9 @@ async function sanitizePosition(
     const monitor = await currentMonitor()
     if (!monitor) return pos // 拿不到显示器信息时按原值恢复
     const { width, height } = monitor.size
-    // 窗口必须与屏幕工作区有交集（每个方向留 20px 安全边）
-    const visibleX = pos.x + w > 20 && pos.x < width - 20
-    const visibleY = pos.y + h > 20 && pos.y < height - 20
+    // 要求窗口至少有 60px 落在屏幕内，否则视为不可见，回退居中
+    const visibleX = pos.x + w > 60 && pos.x < width - 60
+    const visibleY = pos.y + h > 60 && pos.y < height - 60
     return visibleX && visibleY ? pos : null
   } catch {
     return pos
@@ -114,6 +116,8 @@ export default function WidgetApp() {
         await appWindow.setResizable(false)
         await appWindow.setAlwaysOnTop(false)
         await appWindow.center()
+        // 保险：确保展开后窗口可见
+        await appWindow.show().catch(() => {})
       } else {
         await appWindow.setAlwaysOnTop(true)
         await appWindow.setResizable(true)
@@ -122,10 +126,13 @@ export default function WidgetApp() {
         // 恢复保存的精简窗口位置（若跑到屏幕外则居中）
         const pos = loadSavedPosition(WIDGET_POS_KEY)
         if (pos && (await sanitizePosition(pos, WIDGET_W, WIDGET_H))) {
-          await appWindow.setPosition(new LogicalPosition(pos.x, pos.y))
+          // onMoved 提供的是物理坐标，恢复时也必须用物理单位，避免高 DPI 下窗口跑到屏外
+          await appWindow.setPosition(new PhysicalPosition(pos.x, pos.y))
         } else {
           await appWindow.center()
         }
+        // 保险：确保缩小后窗口可见（防止 DPI/屏幕变化导致窗口"消失"）
+        await appWindow.show().catch(() => {})
       }
     } catch {
       // 尺寸/置顶切换失败不阻塞 UI
