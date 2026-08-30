@@ -3,6 +3,15 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../lib/Toast'
 import { toggleTheme } from '../lib/theme'
 import { fetchUserSettings, saveUserSettings } from '../lib/settings'
+import { Icon } from '../components/Icon'
+import {
+  loadReminderConfig,
+  saveReminderConfig,
+  requestNotificationPermission,
+  notificationsSupported,
+  REMINDER_PRESETS,
+  type ReminderConfig,
+} from '../lib/reminder'
 
 export default function Settings() {
   const { user } = useAuth()
@@ -15,8 +24,12 @@ export default function Settings() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
 
-  /* ── 所属页面内暗色主题状态 ── */
+  /* ── 主题状态 ── */
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+
+  /* ── 打卡提醒设置 ── */
+  const [reminder, setReminder] = useState<ReminderConfig>(() => loadReminderConfig())
+  const [notifOk, setNotifOk] = useState<boolean | null>(null)
 
   const loadSettings = useCallback(async () => {
     if (!userId) return
@@ -34,6 +47,11 @@ export default function Settings() {
     loadSettings()
   }, [userId, loadSettings])
 
+  useEffect(() => {
+    if (!notificationsSupported()) return
+    setNotifOk(Notification.permission === 'granted')
+  }, [reminder.enabled])
+
   const handleSaveSettings = async () => {
     if (!userId) return
     setSettingsSaving(true)
@@ -48,47 +66,145 @@ export default function Settings() {
     }
   }
 
+  const handleToggleReminder = async (nextEnabled: boolean) => {
+    // 开启提醒前先征得通知授权
+    let granted = true
+    if (nextEnabled && notificationsSupported()) {
+      if (Notification.permission === 'default') {
+        granted = await requestNotificationPermission()
+      } else if (Notification.permission === 'denied') {
+        granted = false
+      }
+    }
+    if (nextEnabled && !granted) {
+      setNotifOk(false)
+      toast.show('通知权限被拒，无法提醒。请在浏览器设置中允许通知', { icon: '🔕' })
+      return
+    }
+    setNotifOk(notificationsSupported() && Notification.permission === 'granted')
+    setReminder(saveReminderConfig({ ...reminder, enabled: nextEnabled }))
+    if (nextEnabled) toast.show('打卡提醒已开启', { icon: '🔔' })
+  }
+
+  const handlePickPreset = (hour: number, minute: number) => {
+    setReminder(saveReminderConfig({ ...reminder, hour, minute }))
+    toast.show(`提醒时间设为 ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`, { icon: '⏰' })
+  }
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-4 space-y-4">
-      <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">⚙️ 设置</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">设置</h1>
+      </div>
 
       {/* 显示偏好 */}
-      <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
-        <div className="flex items-center justify-between">
+      <div className="card p-4 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium text-gray-800 dark:text-slate-100">显示模式</p>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">切换网站与 App 的亮 / 暗外观</p>
+        </div>
+        <button
+          onClick={() => setIsDark(toggleTheme() === 'dark')}
+          className="btn-ghost shrink-0 px-4 py-2"
+        >
+          {isDark ? (
+            <>
+              <Icon name="star" size={15} className="text-indigo-400" /> 暗色
+            </>
+          ) : (
+            <>
+              <Icon name="star" size={15} className="text-amber-500" /> 亮色
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* 打卡提醒 */}
+      <div className="card p-4">
+        <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-medium text-gray-800 dark:text-slate-100">显示模式</p>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">切换网站与 App 的亮 / 暗外观</p>
+            <p className="text-sm font-medium text-gray-800 dark:text-slate-100">打卡提醒</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+              当天还没打卡时，到点给你发系统通知
+            </p>
           </div>
+          {/* 开关 */}
           <button
-            onClick={() => setIsDark(toggleTheme() === 'dark')}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-600 hover:border-blue-400 transition-colors cursor-pointer"
+            role="switch"
+            aria-checked={reminder.enabled}
+            onClick={() => handleToggleReminder(!reminder.enabled)}
+            className={`relative h-7 w-12 shrink-0 cursor-pointer rounded-full transition-colors ${
+              reminder.enabled ? 'bg-indigo-600 dark:bg-indigo-500' : 'bg-gray-200 dark:bg-slate-700'
+            }`}
           >
-            {isDark ? '🌙 暗色' : '☀️ 亮色'}
+            <span
+              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${
+                reminder.enabled ? 'left-[22px]' : 'left-0.5'
+              }`}
+            />
           </button>
         </div>
+
+        {!notificationsSupported() && (
+          <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1.5">
+            当前环境不支持系统通知，提醒功能不可用。
+          </p>
+        )}
+        {reminder.enabled && notifOk === false && (
+          <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1.5">
+            通知权限未开启：请在浏览器地址栏左侧点击 🔔 图标，允许本站发送通知。
+          </p>
+        )}
+
+        {reminder.enabled && (
+          <div className="mt-3">
+            <p className="mb-1.5 text-xs text-gray-500 dark:text-slate-400">提醒时间</p>
+            <div className="flex flex-wrap gap-2">
+              {REMINDER_PRESETS.map((p) => {
+                const active = reminder.hour === p.hour && reminder.minute === p.minute
+                return (
+                  <button
+                    key={p.label}
+                    onClick={() => handlePickPreset(p.hour, p.minute)}
+                    className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
+                      active
+                        ? 'bg-indigo-600 text-white shadow-sm'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-[11px] text-gray-400 dark:text-slate-500">
+              提醒只在打开 DiveDeep 时生效（如浏览器标签页开着）。打卡后当天不再提醒。
+            </p>
+          </div>
+        )}
       </div>
 
       {/* 首页倒计时 */}
-      <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
+      <div className="card p-4">
         <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-100 mb-3">首页倒计时</h3>
-        <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">倒计时标题（显示在数字上方）</label>
+        <label className="label text-xs">倒计时标题（显示在数字上方）</label>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="如：距离目标还有 / 距离考试还有"
-          className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none mb-3"
+          className="input mb-3"
         />
-        <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">目标日期</label>
+        <label className="label text-xs">目标日期</label>
         <input
           type="date"
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none mb-3"
+          className="input mb-3"
         />
         <button
           onClick={handleSaveSettings}
           disabled={settingsSaving}
-          className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
+          className="btn-primary px-5 py-2"
         >
           {settingsSaving ? '保存中...' : settingsSaved ? '✓ 已保存' : '保存设置'}
         </button>

@@ -7,6 +7,7 @@ import WeeklyChart from '../components/WeeklyChart'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor, getBarColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
+import WeeklyReport from '../components/WeeklyReport'
 
 const Summary: React.FC = () => {
   const { logs, loading, error, refetch } = useLogs()
@@ -37,7 +38,10 @@ const Summary: React.FC = () => {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-4 space-y-4">
-      <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">统计</h1>
+      <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">统计</h1>
+
+      {/* 本周学习报告：自动汇总本周表现 */}
+      {!loading && !error && range.mode === 'week' && <WeeklyReport logs={logs} />}
 
       {/* 本周学习时长图：固定放在范围选择器上方；仅在本周模式下展示，避免干扰本月/自定义数据 */}
       {!loading && !error && range.mode === 'week' && <WeeklyChart logs={logs} />}
@@ -70,7 +74,7 @@ const Summary: React.FC = () => {
       )}
 
       {error && !loading && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 text-center">
+        <div className="card p-8 text-center">
           <p className="text-red-500 dark:text-red-400">{error}</p>
           <button
             type="button"
@@ -85,7 +89,7 @@ const Summary: React.FC = () => {
       {!loading && !error && (
         <>
           {summary.totalHours === 0 ? (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 text-center">
+            <div className="card p-8 text-center">
               <p className="text-gray-500 dark:text-slate-400">本时间段暂无学习记录</p>
               <Link
                 to="/my-records/new"
@@ -97,14 +101,14 @@ const Summary: React.FC = () => {
           ) : (
             <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+                <div className="card p-5">
                   <p className="text-sm text-gray-500 dark:text-slate-400 mb-2">总学习时长</p>
                   <p className="text-3xl sm:text-5xl font-bold text-gray-900 dark:text-slate-100">
                     {summary.totalHours.toFixed(1)}
                     <span className="text-xl text-gray-500 dark:text-slate-400 ml-1">小时</span>
                   </p>
                 </div>
-                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5">
+                <div className="card p-5">
                   <p className="text-sm text-gray-500 dark:text-slate-400 mb-2">打卡天数</p>
                   <p className="text-3xl sm:text-5xl font-bold text-gray-900 dark:text-slate-100">
                     {summary.checkedDays}
@@ -113,7 +117,7 @@ const Summary: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-4">
+              <div className="card p-5 space-y-4">
                 <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">每门课统计</h2>
                 <div className="space-y-4">
                   {summary.subjectBreakdown.map((subject) => {
@@ -147,7 +151,7 @@ const Summary: React.FC = () => {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-4">
+              <div className="card p-5 space-y-4">
                 <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">每日学习趋势</h2>
                 <div className="space-y-4">
                   {summary.dailyTrend.map((item) => (

@@ -3,19 +3,51 @@
 /* Tailwind v4：dark 变体基于 .dark class（手动切换主题生效），而非跟随系统 */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* 全局暗色基础样式 */
+/* ─── 设计令牌：字体 / 阴影 ─── */
+@theme {
+  /* 中文字体栈：优先系统字体，避免引入网络字体拖慢加载 */
+  --font-sans: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", "Noto Sans SC",
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+
+  /* 统一定义卡片/悬停/发光的阴影，页面不再各自手写 */
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -14px rgba(15, 23, 42, 0.1);
+  --shadow-card-hover: 0 2px 4px rgba(15, 23, 42, 0.05), 0 12px 32px -16px rgba(79, 70, 229, 0.28);
+  --shadow-glow: 0 4px 18px -6px rgba(79, 70, 229, 0.55);
+}
+
+/* ─── 全局基础 ─── */
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
 html.dark {
   color-scheme: dark;
 }
 
+/* 数字统一用等宽字形，统计类数据更整齐 */
+body {
+  font-feature-settings: "tnum" 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
 html.dark ::selection {
-  background: rgba(59, 130, 246, 0.35);
+  background: rgba(99, 102, 241, 0.35);
   color: #e2e8f0;
 }
 
 ::selection {
-  background: rgba(59, 130, 246, 0.25);
+  background: rgba(99, 102, 241, 0.22);
   color: #0f172a;
+}
+
+/* 键盘可达性焦点提示（表单输入框用 focus:ring 自管，这里只管其余元素） */
+:focus-visible:not(input):not(textarea):not(select) {
+  outline: 2px solid rgba(99, 102, 241, 0.55);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* 滚动条 - 亮色 */
@@ -48,4 +80,66 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   background: #64748b;
   background-clip: content-box;
   border: 2px solid transparent;
+}
+
+/* ─── 统一组件样式：全站卡片 / 按钮 / 输入框 ─── */
+@layer components {
+  /* 标准卡片：白卡 + 细边框 + 柔和阴影 */
+  .card {
+    @apply rounded-2xl border border-gray-200/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.1)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-none;
+  }
+
+  /* 可交互卡片：悬停轻微浮起 + 品牌色描边 */
+  .card-hover {
+    @apply rounded-2xl border border-gray-200/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.1)] transition-all duration-150 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_2px_4px_rgba(15,23,42,0.05),0_12px_32px_-16px_rgba(79,70,229,0.28)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-indigo-500/40;
+  }
+
+  /* 主按钮 */
+  .btn-primary {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-indigo-500 hover:shadow-[0_4px_16px_-6px_rgba(79,70,229,0.6)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400;
+  }
+
+  /* 次按钮 / 幽灵按钮 */
+  .btn-ghost {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+  }
+
+  /* 危险按钮（浅底） */
+  .btn-danger {
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 active:scale-[0.98] disabled:opacity-50 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20;
+  }
+
+  /* 输入框 */
+  .input {
+    @apply w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/15;
+  }
+
+  /* 表单字段标签 */
+  .label {
+    @apply mb-1 block text-sm font-medium text-gray-700 dark:text-slate-300;
+  }
+
+  /* 分组小标题（SectionLabel / GroupLabel 通用） */
+  .section-label {
+    @apply px-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500;
+  }
+
+  /* 分段选择器（登录 Tab 等） */
+  .seg {
+    @apply flex rounded-xl bg-gray-100 p-1 dark:bg-slate-800;
+  }
+  .seg-item {
+    @apply flex-1 cursor-pointer rounded-lg py-2 text-sm font-medium transition-all;
+  }
+  .seg-item-active {
+    @apply bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400;
+  }
+  .seg-item-idle {
+    @apply text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200;
+  }
+
+  /* 数值大标题（统计数字） */
+  .num {
+    @apply font-bold tabular-nums tracking-tight;
+  }
 }

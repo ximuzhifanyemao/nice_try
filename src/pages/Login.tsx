@@ -117,31 +117,36 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-xl border border-gray-100 dark:border-slate-800 p-6 sm:p-8">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100 text-center mb-5">登录</h1>
+    <div className="flex min-h-[70vh] items-center justify-center px-4 py-6">
+      <div className="w-full max-w-sm">
+        {/* 品牌头部 */}
+        <div className="mb-5 text-center">
+          <div className="mx-auto mb-2 h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-indigo-600 shadow-[0_8px_24px_-8px_rgba(99,102,241,0.55)] flex items-center justify-center text-white">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 10.5 12 3l9 7.5" />
+              <path d="M5 9.5V21h14V9.5" />
+            </svg>
+          </div>
+          <h1 className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-2xl font-bold text-transparent dark:from-indigo-400 dark:to-violet-400">DiveDeep</h1>
+          <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">登录后开启你的考研学习之旅</p>
+        </div>
+
+        <div className="card p-6 sm:p-7">
+        <h2 className="mb-4 text-center text-lg font-semibold text-gray-800 dark:text-slate-100">欢迎回来</h2>
 
         {/* Tab 切换 */}
-        <div className="flex mb-5 p-1 bg-gray-100 dark:bg-slate-800 rounded-lg">
+        <div className="seg mb-5">
           <button
             type="button"
             onClick={() => setTab('password')}
-            className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
-              tab === 'password'
-                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                : 'text-gray-500 dark:text-slate-400'
-            }`}
+            className={`seg-item ${tab === 'password' ? 'seg-item-active' : 'seg-item-idle'}`}
           >
             账号密码
           </button>
           <button
             type="button"
             onClick={() => setTab('qr')}
-            className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
-              tab === 'qr'
-                ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                : 'text-gray-500 dark:text-slate-400'
-            }`}
+            className={`seg-item ${tab === 'qr' ? 'seg-item-active' : 'seg-item-idle'}`}
           >
             扫码登录
           </button>
@@ -151,7 +156,7 @@ export default function Login() {
           <>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                <label htmlFor="email" className="label">
                   邮箱
                 </label>
                 <input
@@ -160,13 +165,13 @@ export default function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="your@email.com"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors"
+                  className="input"
                   required
                 />
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                <label htmlFor="password" className="label">
                   密码
                 </label>
                 <input
@@ -175,7 +180,7 @@ export default function Login() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="至少6位"
-                  className="w-full px-3 py-2 border border-gray-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400 focus:border-transparent transition-colors"
+                  className="input"
                   required
                 />
               </div>
@@ -184,18 +189,14 @@ export default function Login() {
                 <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 dark:text-red-400 px-3 py-2 rounded-lg">{error}</p>
               )}
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium disabled:opacity-50 transition-colors cursor-pointer text-sm"
-              >
+              <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
                 {loading ? '登录中...' : '登录'}
               </button>
             </form>
 
             <p className="mt-4 text-center text-sm text-gray-500 dark:text-slate-400">
               还没有账号？{' '}
-              <Link to="/register" className="text-indigo-600 dark:text-indigo-400 hover:underline">
+              <Link to="/register" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
                 去注册
               </Link>
             </p>
@@ -263,6 +264,7 @@ export default function Login() {
             )}
           </div>
         )}
+        </div>
       </div>
     </div>
   )

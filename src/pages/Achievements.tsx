@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { useLogs } from '../contexts/LogsContext'
+import { Icon } from '../components/Icon'
 import {
   ACHIEVEMENT_CATEGORIES,
   computeAchievements,
@@ -59,7 +60,9 @@ export default function Achievements() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-4 space-y-4">
-      <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">🏅 成就</h1>
+      <h1 className="flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-slate-100">
+        <Icon name="medal" size={20} className="text-amber-500" /> 成就
+      </h1>
 
       {loading && (
         <div className="flex justify-center py-12">

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
 import { useToast } from '../lib/Toast'
+import { Icon } from '../components/Icon'
 import {
   fetchWallet,
   fetchCommitments,
@@ -141,7 +142,9 @@ export default function GoalPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
-      <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">🎯 目标与承诺金</h1>
+      <h1 className="flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-slate-100">
+        <Icon name="target" size={20} className="text-indigo-500" /> 目标与承诺金
+      </h1>
 
       {isLoading && (
         <div className="flex justify-center py-12">

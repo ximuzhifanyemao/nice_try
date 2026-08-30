@@ -78,7 +78,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/70 dark:border-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)] dark:shadow-none p-4">
+      <div className="card p-4">
         <div className="flex justify-center py-10">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-indigo-200 dark:border-slate-700 border-t-indigo-600 dark:border-t-indigo-500" />
         </div>
@@ -98,7 +98,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
 
   return (
     <div
-      className={`relative bg-white dark:bg-slate-900 rounded-2xl border border-gray-200/70 dark:border-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)] dark:shadow-none overflow-hidden ${
+      className={`relative card overflow-hidden ${
         expanded ? 'w-full' : ''
       }`}
     >

@@ -80,16 +80,16 @@ export default function MyRecords() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">记录</h1>
+        <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">记录</h1>
         <Link
           to={hasTodayLog ? `/my-records/${todayLog?.id}/edit` : '/my-records/new'}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+          className={`btn-primary px-4 py-2 text-xs ${
             hasTodayLog
-              ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-900/40 dark:text-yellow-300 dark:hover:bg-yellow-900/60'
-              : 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600'
+              ? 'bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400'
+              : ''
           }`}
         >
-          {hasTodayLog ? '今日已提交，编辑' : '新建今日记录'}
+          {hasTodayLog ? '今日已提交 · 编辑' : '+ 新建今日记录'}
         </Link>
       </div>
 
@@ -149,7 +149,7 @@ export default function MyRecords() {
                 type="button"
                 onClick={loadMore}
                 disabled={loadingMore}
-                className="px-6 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="btn-ghost px-6 py-2 text-xs"
               >
                 {loadingMore ? '加载中...' : `加载更多（${logs.length}/${totalCount}）`}
               </button>

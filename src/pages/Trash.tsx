@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
 import { useToast } from '../lib/Toast'
+import { Icon } from '../components/Icon'
 import LogCard from '../components/LogCard'
 import ConfirmDialog from '../components/ConfirmDialog'
 import type { DailyLog } from '../lib/dailyLogs'
@@ -69,7 +70,9 @@ export default function Trash() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100">🗑 回收站</h1>
+        <h1 className="flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-slate-100">
+          <Icon name="trash" size={20} className="text-gray-400" /> 回收站
+        </h1>
         <Link
           to="/my-records"
           className="text-sm text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"

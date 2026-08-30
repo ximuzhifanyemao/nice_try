@@ -5,6 +5,7 @@ import { useLogs } from '../contexts/LogsContext'
 import { HomeLayoutContext } from '../App'
 import Countdown from '../components/Countdown'
 import Calendar from '../components/Calendar'
+import { Icon } from '../components/Icon'
 import { todayStr } from '../lib/dailyLogs'
 import { computeStudyStats, computeStreak } from '../lib/achievements'
 import { fetchCommitments, getWeekStartStr, getWeekEndStr, sumHoursInRange } from '../lib/commitments'
@@ -122,7 +123,7 @@ export default function Home() {
             {user && !hasCheckedToday && (
               <Link
                 to="/my-records/new"
-                className="block rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300/90 transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/15"
+                className="block rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/70 dark:from-amber-500/10 dark:to-orange-500/5 border border-amber-200/80 dark:border-amber-500/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300/90 transition-colors hover:from-amber-100 dark:hover:from-amber-500/15"
               >
                 {hasAnyLog && streak.current === 0 ? '🔥 连续打卡已断签，今天重新开始吧' : '✍️ 今天还没打卡，别忘了记录学习'}
               </Link>
@@ -133,18 +134,21 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-3">
                 <Link
                   to="/achievements"
-                  className="rounded-xl bg-white dark:bg-slate-900 p-3 border border-gray-100 dark:border-slate-800 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800"
+                  className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
                 >
                   <div className="flex items-baseline justify-between">
                     <p className="text-[11px] text-gray-500 dark:text-slate-500">连续打卡</p>
                     <p className="text-[11px] text-gray-400 dark:text-slate-600">最长{streak.longest}天</p>
                   </div>
-                  <p className="text-lg font-bold text-orange-500 dark:text-orange-400 mt-0.5">🔥 {streak.current} 天</p>
+                  <p className="text-lg font-bold text-orange-500 dark:text-orange-400 mt-0.5 flex items-center gap-1">
+                    <Icon name="flame" size={19} />
+                    <span className="num">{streak.current} 天</span>
+                  </p>
                 </Link>
 
                 <Link
                   to="/goal"
-                  className="rounded-xl bg-white dark:bg-slate-900 p-3 border border-gray-100 dark:border-slate-800 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800"
+                  className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
                 >
                   <div className="flex items-baseline justify-between">
                     <p className="text-[11px] text-gray-500 dark:text-slate-500">本周进度</p>
@@ -167,7 +171,7 @@ export default function Home() {
             )}
 
             {/* 倒计时 */}
-            <div className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-200/70 dark:border-slate-800 px-3 py-3 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.08)] dark:shadow-none overflow-hidden">
+            <div className="card relative px-3 py-3 overflow-hidden">
               <Countdown title="距考试还有" />
 
               {/* 阶段标签 + 累计 / 格言 —— 填空白 */}
@@ -229,11 +233,13 @@ export default function Home() {
             {user && (
               <Link
                 to="/english-checkin"
-                className="rounded-xl bg-white dark:bg-slate-900 p-3 border border-gray-100 dark:border-slate-800 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800"
+                className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-lg">📖</span>
+                    <span className="w-8 h-8 shrink-0 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400 flex items-center justify-center">
+                    <Icon name="book" size={17} />
+                  </span>
                     <div>
                       <p className="text-sm font-medium text-gray-800 dark:text-slate-100">英语长难句打卡</p>
                       <p className="text-[11px] text-gray-500 dark:text-slate-500">150 天</p>
@@ -255,10 +261,12 @@ export default function Home() {
             {/* 日历下方：两小卡并排 */}
             <div className="grid grid-cols-2 gap-3 w-full">
               {/* 左卡：本周学习分布（迷你柱状图） */}
-              <div className="rounded-2xl border border-gray-200/70 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)] dark:shadow-none p-3">
+              <div className="card p-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm">📊</span>
+                    <span className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400 flex items-center justify-center">
+                      <Icon name="chart" size={13} />
+                    </span>
                     <h3 className="text-xs font-semibold text-gray-800 dark:text-slate-100">本周分布</h3>
                   </div>
                   <span className="text-[10px] text-gray-400 dark:text-slate-600">
@@ -306,10 +314,12 @@ export default function Home() {
               </div>
 
               {/* 右卡：今日格言 + 阶段提示 */}
-              <div className="rounded-2xl border border-gray-200/70 dark:border-slate-800 bg-gradient-to-br from-indigo-50 via-white to-violet-50 dark:from-indigo-500/10 dark:via-slate-900 dark:to-violet-500/10 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-12px_rgba(15,23,42,0.08)] dark:shadow-none p-3 flex flex-col">
+              <div className="card p-3 flex flex-col bg-gradient-to-br from-indigo-50 via-white to-violet-50 dark:from-indigo-500/10 dark:via-slate-900 dark:to-violet-500/10">
                 <div className="flex items-center justify-between mb-1.5">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm">💬</span>
+                    <span className="w-6 h-6 rounded-lg bg-violet-100/80 text-violet-600 dark:bg-violet-500/20 dark:text-violet-300 flex items-center justify-center">
+                      <Icon name="quote" size={13} />
+                    </span>
                     <h3 className="text-xs font-semibold text-gray-800 dark:text-slate-100">每日一签</h3>
                   </div>
                   <span
@@ -340,7 +350,7 @@ export default function Home() {
               {!hasCheckedToday && (
                 <Link
                   to="/my-records/new"
-                  className="block rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300/90 transition-colors hover:bg-amber-100 dark:hover:bg-amber-500/15"
+                  className="block rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/70 dark:from-amber-500/10 dark:to-orange-500/5 border border-amber-200/80 dark:border-amber-500/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300/90 transition-colors hover:from-amber-100 dark:hover:from-amber-500/15"
                 >
                   {hasAnyLog && streak.current === 0 ? '🔥 连续打卡已断签，今天重新开始吧' : '✍️ 今天还没打卡，别忘了记录学习'}
                 </Link>
@@ -350,18 +360,21 @@ export default function Home() {
               <div className="grid grid-cols-2 gap-2">
                 <Link
                   to="/achievements"
-                  className="rounded-xl bg-white dark:bg-slate-900 p-3 border border-gray-100 dark:border-slate-800 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800"
+                  className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
                 >
                   <div className="flex items-baseline justify-between">
                     <p className="text-[11px] text-gray-500 dark:text-slate-500">连续打卡</p>
                     <p className="text-[11px] text-gray-400 dark:text-slate-600">最长{streak.longest}天</p>
                   </div>
-                  <p className="text-lg font-bold text-orange-500 dark:text-orange-400 mt-0.5">🔥 {streak.current} 天</p>
+                  <p className="text-lg font-bold text-orange-500 dark:text-orange-400 mt-0.5 flex items-center gap-1">
+                    <Icon name="flame" size={19} />
+                    <span className="num">{streak.current} 天</span>
+                  </p>
                 </Link>
 
                 <Link
                   to="/goal"
-                  className="rounded-xl bg-white dark:bg-slate-900 p-3 border border-gray-100 dark:border-slate-800 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800"
+                  className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
                 >
                   <div className="flex items-baseline justify-between">
                     <p className="text-[11px] text-gray-500 dark:text-slate-500">本周进度</p>
@@ -392,7 +405,9 @@ export default function Home() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">📖</span>
+                  <span className="w-8 h-8 shrink-0 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400 flex items-center justify-center">
+                    <Icon name="book" size={17} />
+                  </span>
                   <div>
                     <p className="text-sm font-medium text-gray-800 dark:text-slate-100">英语长难句打卡</p>
                     <p className="text-[11px] text-gray-500 dark:text-slate-500">柴荣老师 150 天 · 逐句翻译打分</p>
@@ -416,7 +431,7 @@ export default function Home() {
 
           <div className="grid gap-3 sm:gap-4 items-start grid-cols-1 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_360px]">
             <div>
-              <div className="rounded-2xl bg-white dark:bg-slate-900 border border-gray-200/70 dark:border-slate-800 px-3 py-3 sm:px-4 sm:py-4 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.08)] dark:shadow-none overflow-hidden">
+              <div className="card relative px-3 py-3 sm:px-4 sm:py-4 overflow-hidden">
                 <Countdown />
                 {/* 阶段 + 累计 / 登录引导 —— 填空 */}
                 <div className="mt-3 pt-2 border-t border-dashed border-gray-200 dark:border-slate-800">

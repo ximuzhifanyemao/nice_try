@@ -8,6 +8,7 @@ import BottomTab from './components/BottomTab'
 import ProtectedRoute from './components/ProtectedRoute'
 import UpdateChecker from './components/UpdateChecker'
 import AchievementNotifier from './components/AchievementNotifier'
+import CheckinReminder from './components/CheckinReminder'
 import { ToastProvider } from './lib/Toast'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
@@ -191,13 +192,19 @@ export default function App({
         <UpdateProvider>
           <AuthProvider>
           <LogsProvider>
-          <div className={`${pageHeight} bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0`}>
-          <div className={`flex ${pageHeight}`}>
+          <div className={`relative overflow-x-clip ${pageHeight} bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0`}>
+          {/* 顶部环境光：页面顶部分层淡出，增加呼吸感 */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-indigo-100/70 via-indigo-50/40 to-transparent dark:from-indigo-500/10 dark:via-indigo-900/5 dark:to-transparent"
+          />
+          <div className={`relative flex ${pageHeight}`}>
             {sidebar && <div className="sticky top-0 self-start h-full shrink-0">{sidebar}</div>}
             <div className="flex-1 min-w-0">
               <ConfigBanner />
               <UpdateChecker />
               <AchievementNotifier />
+              <CheckinReminder />
               {!hideNavbar && <Navbar />}
               <Suspense fallback={<PageLoading />}>
                 <HomeLayoutContext.Provider value={{ twoCol: forceTwoCol }}>
