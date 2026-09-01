@@ -25,6 +25,105 @@ html.dark {
   color-scheme: dark;
 }
 
+/* ─── 扩展主题：渐变氛围背景 ───
+   light/dark 是纯色底；dawn（晨光）/dusk（暮色）在主题根容器（.theme-surface）
+   上叠一层柔和渐变，替换原来的纯色底，卡片等局部仍保持实色保证对比度 */
+html[data-theme='dawn'] body {
+  background-color: #eef2ff;
+}
+html[data-theme='dusk'] body {
+  background-color: #0f172a;
+}
+html[data-theme='dawn'] .theme-surface {
+  background-color: transparent; /* 渐变接管纯色底 */
+  background-image: linear-gradient(180deg, #fdf4ff 0%, #eef2ff 42%, #ecfeff 100%);
+  background-attachment: fixed;
+}
+html[data-theme='dusk'] .theme-surface {
+  background-color: transparent; /* 渐变接管纯色底 */
+  background-image: linear-gradient(180deg, #221c4d 0%, #0f172a 55%, #172554 100%);
+  background-attachment: fixed;
+}
+
+/* ─── 午夜繁星：深蓝夜空渐变 + 随机星星 + 错峰闪烁 ─── */
+html[data-theme='starry'] .theme-surface {
+  background-color: transparent; /* 星空接管纯色底 */
+  background-image:
+    /* 静态星群：固定不发光的细小星星 */
+    radial-gradient(1.5px 1.5px at 4% 6%, rgba(255,255,255,0.85) 50%, transparent 51%),
+    radial-gradient(1px 1px at 12% 22%, rgba(216,225,255,0.7) 50%, transparent 51%),
+    radial-gradient(2px 2px at 18% 48%, rgba(255,255,255,0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 26% 72%, rgba(199,214,255,0.65) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 33% 9%, rgba(255,255,255,0.75) 50%, transparent 51%),
+    radial-gradient(1px 1px at 41% 33%, rgba(226,232,255,0.6) 50%, transparent 51%),
+    radial-gradient(2px 2px at 49% 60%, rgba(255,255,255,0.9) 50%, transparent 51%),
+    radial-gradient(1px 1px at 57% 84%, rgba(199,214,255,0.65) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 64% 15%, rgba(255,255,255,0.75) 50%, transparent 51%),
+    radial-gradient(1px 1px at 71% 40%, rgba(216,225,255,0.65) 50%, transparent 51%),
+    radial-gradient(2px 2px at 79% 66%, rgba(255,255,255,0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 86% 90%, rgba(226,232,255,0.55) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 92% 28%, rgba(255,255,255,0.75) 50%, transparent 51%),
+    radial-gradient(1px 1px at 96% 55%, rgba(216,225,255,0.55) 50%, transparent 51%),
+    /* 夜空渐变底色 */
+    linear-gradient(180deg, #0d1134 0%, #090d26 48%, #04060f 100%);
+}
+
+/* 两层错峰闪烁的星星（z-index:-1 保证星星在内容文字之下） */
+html[data-theme='starry'] .theme-surface::before,
+html[data-theme='starry'] .theme-surface::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background-image:
+    radial-gradient(1px 1px at 6% 30%, rgba(255,255,255,0.95) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 15% 58%, rgba(226,232,255,0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 23% 13%, rgba(255,255,255,0.95) 50%, transparent 51%),
+    radial-gradient(2px 2px at 30% 82%, rgba(255,255,255,0.85) 50%, transparent 51%),
+    radial-gradient(1px 1px at 38% 44%, rgba(199,214,255,0.75) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 46% 26%, rgba(255,255,255,0.9) 50%, transparent 51%),
+    radial-gradient(1px 1px at 54% 70%, rgba(226,232,255,0.8) 50%, transparent 51%),
+    radial-gradient(2px 2px at 62% 8%, rgba(255,255,255,0.95) 50%, transparent 51%),
+    radial-gradient(1px 1px at 69% 50%, rgba(255,255,255,0.8) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 77% 88%, rgba(216,225,255,0.85) 50%, transparent 51%),
+    radial-gradient(1px 1px at 84% 36%, rgba(255,255,255,0.9) 50%, transparent 51%),
+    radial-gradient(2px 2px at 91% 62%, rgba(226,232,255,0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 97% 18%, rgba(255,255,255,0.95) 50%, transparent 51%);
+  pointer-events: none;
+}
+
+/* 第二层星星换一批位置，与第一层错峰闪烁 */
+html[data-theme='starry'] .theme-surface::after {
+  background-image:
+    radial-gradient(1px 1px at 8% 55%, rgba(255,255,255,0.8) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 17% 85%, rgba(226,232,255,0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 27% 38%, rgba(255,255,255,0.85) 50%, transparent 51%),
+    radial-gradient(1px 1px at 36% 12%, rgba(199,214,255,0.7) 50%, transparent 51%),
+    radial-gradient(2px 2px at 44% 68%, rgba(255,255,255,0.9) 50%, transparent 51%),
+    radial-gradient(1px 1px at 53% 22%, rgba(226,232,255,0.75) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 61% 90%, rgba(255,255,255,0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 68% 33%, rgba(199,214,255,0.7) 50%, transparent 51%),
+    radial-gradient(1px 1px at 76% 72%, rgba(255,255,255,0.85) 50%, transparent 51%),
+    radial-gradient(2px 2px at 83% 8%, rgba(226,232,255,0.8) 50%, transparent 51%),
+    radial-gradient(1px 1px at 90% 48%, rgba(255,255,255,0.9) 50%, transparent 51%),
+    radial-gradient(1.5px 1.5px at 95% 78%, rgba(216,225,255,0.75) 50%, transparent 51%);
+  animation: star-twinkle-b 7.5s ease-in-out infinite;
+}
+
+html[data-theme='starry'] .theme-surface::before {
+  animation: star-twinkle-a 5.5s ease-in-out infinite;
+}
+
+@keyframes star-twinkle-a {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@keyframes star-twinkle-b {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
+
 /* 数字统一用等宽字形，统计类数据更整齐 */
 body {
   font-feature-settings: "tnum" 1;

@@ -23,8 +23,8 @@ android {
         applicationId "com.kaoyan.tracker"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 78
-        versionName "1.13.32"
+        versionCode 79
+        versionName "1.13.33"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             // 只保留手机架构，去掉 x86/x86_64（仅模拟器用），大幅减小 APK 体积

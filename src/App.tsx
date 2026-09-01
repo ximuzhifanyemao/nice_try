@@ -17,6 +17,8 @@ import { App as CapacitorApp } from '@capacitor/app'
 const Home = lazy(() => import('./pages/Home'))
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword = lazy(() => import('./pages/ResetPassword'))
 const MyRecords = lazy(() => import('./pages/MyRecords'))
 const NewRecord = lazy(() => import('./pages/NewRecord'))
 const EditRecord = lazy(() => import('./pages/EditRecord'))
@@ -189,7 +191,9 @@ export default function App({
   /** 桌面「全部功能」全功能模式下强制首页双栏布局（无视视口宽度） */
   forceTwoCol?: boolean
 }) {
-  const pageHeight = fillHeight ? 'min-h-full' : 'min-h-screen'
+  // 桌面展开模式（fillHeight）：用确定高度 h-full 替代 min-h，让百分比高度链条成立，
+  // 侧边栏才能撑满整列高度并把底部按钮钉在可见区最底部；移动端保持 min-h-screen 原逻辑
+  const pageHeight = fillHeight ? 'h-full' : 'min-h-screen'
   return (
     <HashRouter>
       <ToastProvider>
@@ -197,14 +201,15 @@ export default function App({
         <UpdateProvider>
           <AuthProvider>
           <LogsProvider>
-          <div className={`relative overflow-x-clip ${pageHeight} bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0`}>
+          <div className={`relative isolate overflow-x-clip ${pageHeight} theme-surface bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0`}>
           {/* 顶部环境光：页面顶部分层淡出，增加呼吸感 */}
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-indigo-100/70 via-indigo-50/40 to-transparent dark:from-indigo-500/10 dark:via-indigo-900/5 dark:to-transparent"
           />
           <div className={`relative flex ${pageHeight}`}>
-            {sidebar && <div className="sticky top-0 self-start h-full shrink-0">{sidebar}</div>}
+            {/* 侧边栏：stretch 撑满整列高度，配合 sticky 让底部的主题/登出始终固定在可见区最底部 */}
+            {sidebar && <div className="sticky top-0 shrink-0 self-stretch">{sidebar}</div>}
             <div className="flex-1 min-w-0">
               <ConfigBanner />
               <UpdateChecker />
@@ -218,6 +223,8 @@ export default function App({
                   <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
                   <Route path="/register" element={<Register />} />
+                  <Route path="/forgot-password" element={<ForgotPassword />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
                   <Route path="/qr-login" element={<QrLogin />} />
                   <Route element={<ProtectedRoute />}>
                     <Route path="/my-records" element={<MyRecords />} />

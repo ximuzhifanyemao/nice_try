@@ -20,6 +20,16 @@ import { getChipColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
 import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
+import { Icon } from './Icon'
+
+/** localStorage 键：日历是否显示每日时长 */
+const DURATION_VISIBLE_KEY = 'calendar.showDuration'
+
+/** 小时数格式化：2 → '2'，2.5 → '2.5'（去掉末尾多余 0） */
+function fmtHours(h: number): string {
+  const v = Math.round(h * 10) / 10
+  return Number.isInteger(v) ? `${v}` : `${v}`
+}
 
 interface CalendarProps {
   logs: DailyLog[]
@@ -32,6 +42,14 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
   const { user } = useAuth()
   const [currentMonth, setCurrentMonth] = useState(() => new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  /** 是否在日期格子上显示每日学习时长（localStorage 持久化） */
+  const [showDuration, setShowDuration] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(DURATION_VISIBLE_KEY) !== '0'
+    } catch {
+      return true
+    }
+  })
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth)
@@ -59,6 +77,21 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
     return logsByDate.get(key) ?? []
   }, [selectedDate, logsByDate])
 
+  /** 每天总学习时长（小时），仅在 >0 时记录 */
+  const durationByDate = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const [date, dayLogs] of logsByDate) {
+      const total = dayLogs.reduce(
+        (sum, log) =>
+          sum +
+          (log.subjects?.reduce((s, sub) => s + (sub.hours || 0), 0) ?? 0),
+        0,
+      )
+      if (total > 0) map.set(date, Math.round(total * 10) / 10)
+    }
+    return map
+  }, [logsByDate])
+
   const weekDays = ['一', '二', '三', '四', '五', '六', '日']
 
   const monthLabel = format(currentMonth, 'yyyy年M月', { locale: zhCN })
@@ -74,6 +107,18 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
         prev && isSameDay(prev, day) ? null : day,
       )
     }
+  }
+
+  const handleToggleDuration = () => {
+    setShowDuration((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem(DURATION_VISIBLE_KEY, next ? '1' : '0')
+      } catch {
+        /* 忽略存储失败 */
+      }
+      return next
+    })
   }
 
   if (loading) {
@@ -140,6 +185,20 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                 </h3>
                 <button
                   type="button"
+                  onClick={handleToggleDuration}
+                  aria-pressed={showDuration}
+                  aria-label={showDuration ? '隐藏学习时长' : '显示学习时长'}
+                  title={showDuration ? '隐藏学习时长' : '显示学习时长'}
+                  className={`h-7 w-7 inline-flex items-center justify-center rounded-full transition-colors cursor-pointer ${
+                    showDuration
+                      ? 'text-indigo-600 dark:text-indigo-400 bg-indigo-100/80 dark:bg-indigo-500/20 hover:bg-indigo-200/80 dark:hover:bg-indigo-500/30'
+                      : 'text-gray-400 dark:text-slate-500 hover:text-gray-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <Icon name="clock" size={13} />
+                </button>
+                <button
+                  type="button"
                   onClick={handleToday}
                   className="text-[10px] font-medium px-2 py-0.5 rounded-full text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-colors cursor-pointer"
                 >
@@ -186,6 +245,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
               const isSelected = selectedDate && isSameDay(day, selectedDate)
               const isWeekend = day.getDay() === 0 || day.getDay() === 6
               const clickable = hasLogs || today
+              const dayTotal = showDuration ? durationByDate.get(dateKey) ?? 0 : 0
 
               return (
                 <button
@@ -217,12 +277,27 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                     }
                   `}
                 >
-                  <span
-                    className={`${
-                      today || isSelected ? 'font-bold' : 'font-medium'
-                    } ${expanded ? 'text-sm' : 'text-[12px]'} leading-none tabular-nums`}
-                  >
-                    {format(day, 'd')}
+                  <span className="flex flex-col items-center justify-center gap-0.5 leading-none">
+                    <span
+                      className={`${
+                        today || isSelected ? 'font-bold' : 'font-medium'
+                      } ${expanded ? 'text-sm' : 'text-[12px]'} leading-none tabular-nums`}
+                    >
+                      {format(day, 'd')}
+                    </span>
+                    {dayTotal > 0 && (
+                      <span
+                        className={`leading-none tabular-nums ${
+                          today || isSelected
+                            ? 'text-white/85'
+                            : expanded && isWeekend
+                              ? 'text-rose-400/80'
+                              : 'text-gray-400 dark:text-slate-500'
+                        } ${expanded ? 'text-[10px]' : 'text-[8.5px]'}`}
+                      >
+                        {fmtHours(dayTotal)}h
+                      </span>
+                    )}
                   </span>
                 </button>
               )

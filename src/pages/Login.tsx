@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { createQrSession, pollQrSession } from '../lib/qrLogin'
+import DesktopLogo from '../components/DesktopLogo'
 
 type Tab = 'password' | 'qr'
 type QrStatus = 'loading' | 'waiting' | 'success' | 'expired' | 'error'
@@ -121,11 +122,8 @@ export default function Login() {
       <div className="w-full max-w-sm">
         {/* 品牌头部 */}
         <div className="mb-5 text-center">
-          <div className="mx-auto mb-2 h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-indigo-600 shadow-[0_8px_24px_-8px_rgba(99,102,241,0.55)] flex items-center justify-center text-white">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M3 10.5 12 3l9 7.5" />
-              <path d="M5 9.5V21h14V9.5" />
-            </svg>
+          <div className="mx-auto mb-2 h-12 w-12 rounded-2xl bg-white dark:bg-slate-800 shadow-[0_8px_24px_-8px_rgba(99,102,241,0.55)] flex items-center justify-center overflow-hidden">
+            <DesktopLogo size={48} />
           </div>
           <h1 className="bg-gradient-to-r from-indigo-600 to-violet-600 bg-clip-text text-2xl font-bold text-transparent dark:from-indigo-400 dark:to-violet-400">DiveDeep</h1>
           <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">登录后开启你的考研学习之旅</p>
@@ -183,6 +181,12 @@ export default function Login() {
                   className="input"
                   required
                 />
+              </div>
+
+              <div className="flex justify-end">
+                <Link to="/forgot-password" className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+                  忘记密码？
+                </Link>
               </div>
 
               {error && (

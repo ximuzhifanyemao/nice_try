@@ -252,6 +252,90 @@ export async function updateLog(logId: string, logData: DailyLogInput): Promise<
   return data as DailyLog
 }
 
+/* ── 并发安全的「读→合并→写」写入 ──
+   计时器（精简挂件/全功能计时页）会把本次会话合并进某日的整条记录后整体写回，
+   若此刻其他端也修改了同一日记录，直接写会把对方的改动覆盖。这里借助
+   daily_logs.updated_at 触发器做版本校验：写入前发现版本已变，自动重读重合并重试一次，
+   最大程度避免并发互相覆盖（不改变原有合并语义，无冲突时与旧行为完全一致）。 */
+
+/** 版本冲突哨兵：目标记录在「读取 → 写入」之间被其他端修改 */
+class LogVersionConflictError extends Error {
+  constructor(message = '记录已被其他端修改') {
+    super(message)
+    this.name = 'LogVersionConflictError'
+  }
+}
+
+function isLogVersionConflict(err: unknown): boolean {
+  return err instanceof LogVersionConflictError
+}
+
+/** 带版本校验的更新：仅当 updated_at 与读取时一致才写入；不一致（0 行命中）抛版本冲突 */
+async function updateLogVersioned(
+  logId: string,
+  logData: DailyLogInput,
+  expectedUpdatedAt: string | null,
+): Promise<DailyLog> {
+  let query = supabase.from('daily_logs').update({
+    date: logData.date,
+    subjects: logData.subjects,
+    summary: logData.summary,
+  })
+  if (expectedUpdatedAt) {
+    // 只有历史非常旧、没有 updated_at 值的行才跳过版本校验
+    query = query.eq('updated_at', expectedUpdatedAt)
+  }
+  const { data, error } = await query.eq('id', logId).select().single()
+
+  if (error) {
+    // PGRST116（匹配 0 行）：行版本已变或记录已被删除 → 交给调用方按冲突重试
+    if (isActionEmptyRowError(error)) {
+      throw new LogVersionConflictError()
+    }
+    throwActionError(error)
+  }
+  return data as DailyLog
+}
+
+/**
+ * 安全合并写入某日记录（计时器「今日累计→云端」共用）：
+ * - 已有记录：合并保存已有 summary，带版本校验写入；冲突时自动重读重合并重试一次
+ * - 无记录：直接创建；期间被别端抢先创建（日期唯一冲突）时自动转合并重试一次
+ */
+export async function upsertLogSafely(input: {
+  userId: string
+  date: string
+  subjects: DailyLogSubject[]
+  summary: string
+}): Promise<DailyLog> {
+  const { userId, date, subjects, summary } = input
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const existing = await fetchLogByDate(userId, date)
+    if (existing) {
+      try {
+        return await updateLogVersioned(
+          existing.id,
+          { date, subjects: mergeSubjects(existing.subjects, subjects), summary: existing.summary },
+          existing.updated_at,
+        )
+      } catch (err) {
+        // 并发冲突：重读最新行后再合并一次（仅重试一次，仍失败则抛给用户明确报错）
+        if (isLogVersionConflict(err) && attempt === 0) continue
+        throw err
+      }
+    } else {
+      try {
+        return await createLog(userId, { date, subjects, summary })
+      } catch (err) {
+        // 期间被别端抢先建行：转下一次循环按「已有记录」合并
+        if (isDuplicateDateError(err) && attempt === 0) continue
+        throw err
+      }
+    }
+  }
+  throw new Error('数据同步冲突，请重试')
+}
+
 /** 软删除（移入回收站）：设置 deleted_at 标记，不真正删除数据 */
 export async function deleteLog(logId: string): Promise<void> {
   const { error } = await supabase

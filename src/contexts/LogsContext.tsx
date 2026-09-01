@@ -54,6 +54,22 @@ export function LogsProvider({ children }: { children: ReactNode }) {
     refetch()
   }, [user, refetch])
 
+  /* 回到前台/窗口重新聚焦时自动拉一次最新数据：
+     其他设备修改后切回本端（或从后台返回）能立即看到最新记录，无需手动刷新 */
+  useEffect(() => {
+    if (!user) return
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') refetch()
+    }
+    const onFocus = () => refetch()
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [user, refetch])
+
   return (
     <LogsContext.Provider value={{ logs, loading, error, refetch }}>
       {children}

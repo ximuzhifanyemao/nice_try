@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { toggleTheme } from '../lib/theme'
+import { getCurrentTheme, nextTheme, THEMES, type ThemeMode } from '../lib/theme'
 import DesktopLogo from './DesktopLogo'
 import { BlueIcons } from './BlueCircleIcon'
 import { Icon, type IconName } from './Icon'
@@ -22,7 +22,8 @@ function NavLink({ to, icon, label }: { to: string; icon: IconName; label: strin
 export default function Navbar() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => getCurrentTheme())
+  const currentTheme = THEMES.find((t) => t.key === themeMode) ?? THEMES[0]
 
   const handleSignOut = async () => {
     await signOut()
@@ -30,8 +31,7 @@ export default function Navbar() {
   }
 
   const handleToggleTheme = () => {
-    const next = toggleTheme()
-    setIsDark(next === 'dark')
+    setThemeMode(nextTheme())
   }
 
   return (
@@ -48,10 +48,10 @@ export default function Navbar() {
         <div className="hidden sm:flex items-center gap-1 text-sm">
           <button
             onClick={handleToggleTheme}
-            title={isDark ? '切换到亮色模式' : '切换到暗色模式'}
+            title={`切换主题（当前：${currentTheme.name}）`}
             className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 cursor-pointer"
           >
-            {isDark ? BlueIcons.moon : BlueIcons.sun}
+            {currentTheme.dark ? BlueIcons.moon : BlueIcons.sun}
           </button>
           {user ? (
             <>

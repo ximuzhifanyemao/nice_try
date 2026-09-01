@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../lib/Toast'
-import { toggleTheme } from '../lib/theme'
+import { getCurrentTheme, setTheme as persistTheme, THEMES, type ThemeMode } from '../lib/theme'
 import { fetchUserSettings, saveUserSettings } from '../lib/settings'
-import { Icon } from '../components/Icon'
 import {
   loadReminderConfig,
   saveReminderConfig,
@@ -27,7 +26,7 @@ export default function Settings() {
   const [settingsSaved, setSettingsSaved] = useState(false)
 
   /* ── 主题状态 ── */
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => getCurrentTheme())
 
   /* ── 打卡提醒设置 ── */
   const [reminder, setReminder] = useState<ReminderConfig>(() => loadReminderConfig())
@@ -100,25 +99,34 @@ export default function Settings() {
       </div>
 
       {/* 显示偏好 */}
-      <div className="card p-4 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium text-gray-800 dark:text-slate-100">显示模式</p>
-          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">切换网站与 App 的亮 / 暗外观</p>
+      <div className="card p-4">
+        <p className="text-sm font-medium text-gray-800 dark:text-slate-100">显示模式</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">切换主题外观，晨光 / 暮色为渐变背景</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {THEMES.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setThemeMode(persistTheme(t.key))}
+              className={`flex items-center gap-2 rounded-xl border p-2.5 text-left transition-colors cursor-pointer ${
+                themeMode === t.key
+                  ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/10'
+                  : 'border-gray-200 hover:border-indigo-300 dark:border-slate-700 dark:hover:border-indigo-500/40'
+              }`}
+            >
+              <span
+                className="h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/20"
+                style={{ background: t.swatch }}
+              />
+              <span className="min-w-0">
+                <span className="block text-sm font-medium text-gray-800 dark:text-slate-100">{t.name}</span>
+                <span className="block text-[11px] text-gray-400 dark:text-slate-500">{t.desc}</span>
+              </span>
+              {themeMode === t.key && (
+                <span className="ml-auto mr-1 text-indigo-500 dark:text-indigo-300">✓</span>
+              )}
+            </button>
+          ))}
         </div>
-        <button
-          onClick={() => setIsDark(toggleTheme() === 'dark')}
-          className="btn-ghost shrink-0 px-4 py-2"
-        >
-          {isDark ? (
-            <>
-              <Icon name="star" size={15} className="text-indigo-400" /> 暗色
-            </>
-          ) : (
-            <>
-              <Icon name="star" size={15} className="text-amber-500" /> 亮色
-            </>
-          )}
-        </button>
       </div>
 
       {/* 打卡提醒 */}

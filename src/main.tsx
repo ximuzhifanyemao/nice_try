@@ -44,7 +44,7 @@ function useMediaQuery(query: string): boolean {
  */
 function WebDesktopLayout() {
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="theme-surface relative isolate flex h-screen w-full flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none">
         <div className="flex items-center gap-2">
           <DesktopLogo size={22} />
@@ -67,8 +67,7 @@ function WebRoot() {
 
 // Tauri 桌面版：渲染置顶计时小挂件；浏览器/移动端：渲染完整应用
 if (isTauri()) {
-  // 挂件固定深色风格，强制添加 dark class
-  document.documentElement.classList.add('dark')
+  // 挂件与全部功能模式共用同一主题（data-theme + dark class），保证两种模式外观一致
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <ToastProvider>

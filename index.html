@@ -17,8 +17,16 @@
       (function () {
         try {
           var saved = localStorage.getItem('app_theme')
-          var dark = saved === 'dark' || (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
-          if (dark) document.documentElement.classList.add('dark')
+          var dark =
+            saved === 'dark' || saved === 'dusk' || saved === 'starry' ||
+            (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var root = document.documentElement
+          if (saved === 'light' || saved === 'dawn' || saved === 'dark' || saved === 'dusk' || saved === 'starry') {
+            root.setAttribute('data-theme', saved)
+          } else {
+            root.setAttribute('data-theme', dark ? 'dark' : 'light')
+          }
+          if (dark) root.classList.add('dark')
         } catch (e) {}
       })()
     </script>

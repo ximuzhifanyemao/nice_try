@@ -89,6 +89,70 @@ export function buildTimerEntry(state: SharedTimerState, endSeconds: number): Da
   }
 }
 
+/* ── 本地待补记备份 ──
+   精简挂件结束计时时先把本次会话落一份到 localStorage，云端保存成功后才清除。
+   登录/网络/会话异常导致保存失败时，时长不会丢：全功能「计时」页挂载时自动恢复为今日累计，
+   再由用户手动保存（或补交）。 */
+export interface PendingTimerEntry {
+  subjectId: string
+  activity: string
+  seconds: number
+  start: string // HH:mm
+  end: string // HH:mm
+  date: string // yyyy-MM-dd（计时开始那天，跨天补交依据）
+}
+
+const PENDING_KEY = 'kaoyan_pending_timer'
+
+export function savePendingTimer(entry: PendingTimerEntry): void {
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify(entry))
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadPendingTimer(): PendingTimerEntry | null {
+  try {
+    const raw = localStorage.getItem(PENDING_KEY)
+    if (!raw) return null
+    const p = JSON.parse(raw) as Partial<PendingTimerEntry>
+    if (typeof p.subjectId !== 'string' || typeof p.seconds !== 'number' || typeof p.date !== 'string') return null
+    return {
+      subjectId: p.subjectId,
+      activity: p.activity ?? '',
+      seconds: p.seconds,
+      start: p.start ?? '',
+      end: p.end ?? '',
+      date: p.date,
+    }
+  } catch {
+    return null
+  }
+}
+
+export function clearPendingTimer(): void {
+  try {
+    localStorage.removeItem(PENDING_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+/** 时间戳 → HH:mm（本地时区） */
+export function timeHm(ts: number): string {
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** 时间戳 → yyyy-MM-dd（本地时区） */
+export function dateOf(ts: number): string {
+  const d = new Date(ts)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 function timeStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`

@@ -215,7 +215,7 @@ export default function WidgetApp() {
 
   if (fullMode) {
     return (
-      <div className="flex h-screen w-screen flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="theme-surface relative isolate flex h-screen w-screen flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
         {/* 顶部标题栏（全功能模式：可拖动窗口） */}
         <div
           data-tauri-drag-region
@@ -264,11 +264,11 @@ export default function WidgetApp() {
   }
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 text-slate-100 shadow-[0_16px_48px_-12px_rgba(0,0,0,0.7)]">
-      {/* 顶部环境光：深色挂件里加一点品牌色呼吸感 */}
+    <div className="theme-surface relative isolate flex h-screen w-screen flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-slate-900 shadow-[0_16px_48px_-20px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.7)]">
+      {/* 顶部环境光：浅色淡雅、深色带一点品牌色呼吸感 */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-indigo-500/15 via-indigo-500/5 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-indigo-400/10 via-indigo-400/5 to-transparent dark:from-indigo-500/15 dark:via-indigo-500/5 dark:to-transparent"
       />
       <div
         aria-hidden
@@ -282,7 +282,7 @@ export default function WidgetApp() {
       >
         <div className="flex items-center gap-1.5">
           <DesktopLogo size={17} />
-          <span data-tauri-drag-region className="bg-gradient-to-r from-indigo-300 via-violet-300 to-indigo-300 bg-clip-text text-xs font-bold tracking-wide text-transparent">
+          <span data-tauri-drag-region className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 bg-clip-text text-xs font-bold tracking-wide text-transparent dark:from-indigo-300 dark:via-violet-300 dark:to-indigo-300">
             DiveDeep
           </span>
         </div>
@@ -290,7 +290,7 @@ export default function WidgetApp() {
           <button
             onClick={toggleMode}
             title="全部功能"
-            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100 cursor-pointer"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 cursor-pointer"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M15 3h6v6" />
@@ -301,7 +301,7 @@ export default function WidgetApp() {
           </button>
           <button
             onClick={() => appWindow.minimize()}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-800 hover:text-slate-100 cursor-pointer"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 cursor-pointer"
             aria-label="最小化"
             title="最小化"
           >
@@ -311,7 +311,7 @@ export default function WidgetApp() {
           </button>
           <button
             onClick={() => appWindow.close()}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-red-500/15 hover:text-red-400 cursor-pointer"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-400 dark:hover:bg-red-500/15 dark:hover:text-red-400 cursor-pointer"
             aria-label="关闭"
             title="关闭"
           >

@@ -12,13 +12,13 @@ import {
   type Subject,
   type UserSubject,
 } from '../lib/subjects'
-import { createLog, fetchLogByDate, isDuplicateDateError, mergeSubjects, sortSubjectsByStartTime, updateLog, todayStr, type DailyLogSubject } from '../lib/dailyLogs'
+import { fetchLogByDate, isDuplicateDateError, sortSubjectsByStartTime, todayStr, upsertLogSafely, type DailyLogSubject } from '../lib/dailyLogs'
 import { formatDateCn, formatDuration, formatDurationShort, timeRangeHours, toTimeStr } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
 import { useToast } from '../lib/Toast'
-import { loadSharedTimer, saveSharedTimer } from '../lib/timerSync'
+import { loadSharedTimer, saveSharedTimer, loadPendingTimer, clearPendingTimer } from '../lib/timerSync'
 import { TimerForeground } from '../plugins/timer-foreground'
 import { connectBleTimer, disconnectBleTimer, pushSubjects } from '../lib/bleTimer'
 
@@ -400,30 +400,23 @@ export default function StudyTimer() {
         return
       }
 
-      const existingLog = await fetchLogByDate(user.id, targetDate)
-
-      if (existingLog) {
-        // 补交到已有记录的日期时，先告知用户本次时长将合并计入该日
-        if (targetDate !== todayStr()) {
+      // 跨天补交到已有记录时，先提示用户时长将合并计入该日（确认后再写入）
+      if (targetDate !== todayStr()) {
+        const targetLog = await fetchLogByDate(user.id, targetDate)
+        if (targetLog) {
           const ok = window.confirm(
             `${formatDateCn(targetDate)} 已有记录，本次学习时长将合并计入该日记录，是否继续？`
           )
           if (!ok) return
         }
-        // 合并已有记录：按 (id, activity) 匹配相加（含两位小数取整，避免浮点误差）
-        const mergedSubjects = mergeSubjects(existingLog.subjects, subjectEntries)
-        await updateLog(existingLog.id, {
-          date: targetDate,
-          subjects: mergedSubjects,
-          summary: existingLog.summary,
-        })
-      } else {
-        await createLog(user.id, {
-          date: targetDate,
-          subjects: subjectEntries,
-          summary: '',
-        })
       }
+      // 安全合并写入云端：内部自动读最新→合并→带版本校验写入，并发冲突自动重试一次
+      await upsertLogSafely({
+        userId: user.id,
+        date: targetDate,
+        subjects: subjectEntries,
+        summary: '',
+      })
 
       refetch()
 
@@ -500,6 +493,57 @@ export default function StudyTimer() {
   useEffect(() => {
     refreshSubjects()
     loadCustomSubjects()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
+
+  /* ── 恢复精简挂件来不及保存的计时 ──
+     精简挂件结束计时时会把本次会话先落一份 localStorage 备份（云端冲突/未登录/跨天时不直接写库），
+     这里在进入计时页且已登录时合并进「今日累计」：先查云端确认未写入该条（避免重复入账），
+     再并入本地累计，用户可在下方「保存到今日记录」/补交落库。 */
+  useEffect(() => {
+    if (!user?.id) return
+    const pending = loadPendingTimer()
+    if (!pending) return
+    ;(async () => {
+      try {
+        const log = await fetchLogByDate(user.id, pending.date)
+        const alreadyInDb = log?.subjects?.some(
+          (s) =>
+            s.id === pending.subjectId &&
+            (s.activity ?? '') === pending.activity &&
+            s.startTime === pending.start &&
+            s.endTime === pending.end,
+        )
+        if (alreadyInDb) {
+          // 云端已有同一条（上次保存成功但备份没清掉）：只清备份，不重复入账
+          clearPendingTimer()
+          return
+        }
+        const cur = loadAccum()
+        const key = `${pending.subjectId}::${pending.activity}`
+        const existsInAccum = cur[key]?.ranges?.some(
+          (r) => r.start === pending.start && r.end === pending.end,
+        )
+        if (!existsInAccum) {
+          const next = { ...cur }
+          next[key] = {
+            seconds: (cur[key]?.seconds ?? 0) + pending.seconds,
+            ranges: [...(cur[key]?.ranges ?? []), { start: pending.start, end: pending.end }],
+          }
+          saveAccum(next)
+          setAccum(next)
+          if (!loadAccumDate()) {
+            // 累计原本为空：把归属日期设为计时开始那天（跨天按补交处理）
+            localStorage.setItem(ACCUM_DATE_KEY, pending.date)
+            setAccumDate(pending.date)
+          }
+          toast.show(`已恢复精简挂件未保存的计时（${formatDurationShort(pending.seconds)}）`, { icon: '⏱️' })
+        }
+        clearPendingTimer()
+      } catch {
+        // 云端查询失败时保守处理：不并入也不清备份，下次进入再试
+      }
+    })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 

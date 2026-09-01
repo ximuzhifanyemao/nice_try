@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DiveDeep",
-  "version": "1.13.32",
+  "version": "1.13.33",
   "identifier": "com.kaoyan.tracker",
   "build": {
     "frontendDist": "../dist",
