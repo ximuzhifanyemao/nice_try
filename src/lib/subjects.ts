@@ -118,8 +118,11 @@ export async function loadUserSubjects(userId: string, force = false): Promise<b
         : [],
       legacy_id: s.legacy_id ?? null,
     }))
-    // 同步落一份本地缓存，冷启动时可立即恢复，无需等云端返回
-    saveUserSubjectsToStorage(userId, userSubjectsCache)
+    // 云端结果非空才覆盖本地缓存：若科目被误删导致云端为空，本机缓存保留删除前的
+    // 名称映射，供「恢复被删科目」从本机还原 UUID 自定义科目的名称/分类/学习内容。
+    if (userSubjectsCache.length > 0) {
+      saveUserSubjectsToStorage(userId, userSubjectsCache)
+    }
     return true
   } catch (err) {
     userSubjectsError = err instanceof Error ? err.message : '未知错误'
