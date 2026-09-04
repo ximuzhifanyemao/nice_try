@@ -6,6 +6,7 @@ import {
   fetchUserSubjects,
   getActivitiesForSubject,
   getAvailableSubjects,
+  getCategoryLabel,
   getSubjectById,
   hydrateUserSubjects,
   loadUserSubjects,
@@ -578,6 +579,13 @@ export default function StudyTimer() {
 
   const handleCreateSubject = async () => {
     if (!user || !newName.trim()) return
+    // 客户端重名预检（即时提示，无需等云端 round-trip）
+    const target = newName.trim()
+    const conflict = customSubjects.find((s) => s.name.trim() === target)
+    if (conflict) {
+      toast.show(`已存在同名科目「${target}」，请修改名称`, { icon: '⚠️' })
+      return
+    }
     setCreating(true)
     try {
       const activities = newActivities
@@ -605,6 +613,17 @@ export default function StudyTimer() {
 
   const handleUpdateSubject = async () => {
     if (!editing) return
+    // 客户端重名预检：改后的名称不能与除自身外的其他科目同名
+    const target = editing.name.trim()
+    if (!target) {
+      toast.show('科目名称不能为空', { icon: '⚠️' })
+      return
+    }
+    const conflict = customSubjects.find((s) => s.id !== editing.id && s.name.trim() === target)
+    if (conflict) {
+      toast.show(`已存在同名科目「${target}」，请修改名称`, { icon: '⚠️' })
+      return
+    }
     try {
       const activities = editActivities
         .split(/[，,、\n]/)
@@ -811,14 +830,17 @@ export default function StudyTimer() {
           {/* 非 408 科目：无分组的平铺展示，有自定义分组的带小标题分组展示 */}
           {subjectSections
             .filter(([cat]) => cat !== '408')
-            .map(([cat, subs]) => (
-              <div key={cat}>
-                {cat !== 'custom' && cat !== '' && (
-                  <p className="mb-1 text-xs font-semibold text-gray-400 dark:text-slate-500">{cat}</p>
-                )}
-                <div className="flex flex-wrap gap-2">{subs.map(renderSubjectButton)}</div>
-              </div>
-            ))}
+            .map(([cat, subs]) => {
+              const label = getCategoryLabel(cat)
+              return (
+                <div key={cat}>
+                  {label && (
+                    <p className="mb-1 text-xs font-semibold text-gray-400 dark:text-slate-500">{label}</p>
+                  )}
+                  <div className="flex flex-wrap gap-2">{subs.map(renderSubjectButton)}</div>
+                </div>
+              )
+            })}
           {/* 408 折叠分组 */}
           {subjectSections
             .filter(([cat]) => cat === '408')
@@ -1027,6 +1049,27 @@ export default function StudyTimer() {
             </button>
           </div>
 
+          {/* 重复科目提醒（历史 bug 留下的脏数据，提示手动清理） */}
+          {(() => {
+            const seen = new Map<string, number>()
+            customSubjects.forEach((s) => {
+              const k = s.name.trim()
+              seen.set(k, (seen.get(k) ?? 0) + 1)
+            })
+            const dupNames: string[] = []
+            seen.forEach((count, name) => { if (count > 1) dupNames.push(`${name}×${count}`) })
+            if (dupNames.length === 0) return null
+            return (
+              <div className="mb-3 px-3 py-2 rounded-lg border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-xs flex items-start gap-2">
+                <span>⚠️</span>
+                <div className="flex-1 leading-relaxed">
+                  检测到重复科目：<span className="font-semibold">{dupNames.join('、')}</span>。
+                  计时区已自动只显示一个，请在下方列表保留一个（建议保留打卡记录关联最多的那个），其余点「删除」即可（删除仅移除科目，不影响历史时长记录）。
+                </div>
+              </div>
+            )
+          })()}
+
           {/* 自定义科目列表 */}
           {subjectsLoading ? (
             <p className="text-xs text-gray-400 dark:text-slate-500">加载中...</p>
@@ -1078,11 +1121,15 @@ export default function StudyTimer() {
                       <div>
                         <p className="text-sm font-medium text-gray-800 dark:text-slate-100">
                           {s.name}
-                          {s.category && s.category !== 'custom' && (
-                            <span className="ml-1.5 align-middle text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-600 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300">
-                              {s.category}
-                            </span>
-                          )}
+                          {(() => {
+                            const label = getCategoryLabel(s.category)
+                            if (!label) return null
+                            return (
+                              <span className="ml-1.5 align-middle text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-600 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300">
+                                {label}
+                              </span>
+                            )
+                          })()}
                         </p>
                         {s.activities.length > 0 ? (
                           <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
