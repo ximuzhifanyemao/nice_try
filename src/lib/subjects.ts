@@ -65,6 +65,60 @@ let userSubjectsOwner: string | null = null
 /** 自定义科目本地持久化 key（按用户隔离，避免串号） */
 const SUBJECTS_STORAGE_KEY = (userId: string) => `kaoyan_user_subjects_${userId}`
 
+/* ── 已删除科目名快照 ──
+   删除科目时把 id → 名称/分类 存入 localStorage（科目 id 全局唯一，用全局 key 不会串号）。
+   这样即使科目已删除，历史打卡记录里的该 id 仍能映射回名称，不再显示 UUID 乱码。 */
+
+interface RemovedSubjectInfo {
+  name: string
+  category: string
+}
+
+const REMOVED_SUBJECTS_KEY = 'kaoyan_removed_subjects'
+let removedSubjectsCache: Record<string, RemovedSubjectInfo> | null = null
+
+function loadRemovedSubjects(): Record<string, RemovedSubjectInfo> {
+  if (removedSubjectsCache) return removedSubjectsCache
+  try {
+    const raw = localStorage.getItem(REMOVED_SUBJECTS_KEY)
+    const parsed: unknown = raw ? JSON.parse(raw) : null
+    removedSubjectsCache =
+      parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? (parsed as Record<string, RemovedSubjectInfo>)
+        : {}
+  } catch {
+    removedSubjectsCache = {}
+  }
+  return removedSubjectsCache
+}
+
+function saveRemovedSubjects(map: Record<string, RemovedSubjectInfo>) {
+  try {
+    // 限制条数避免无限增长：只保留最近 300 条
+    const entries = Object.entries(map)
+    if (entries.length > 300) {
+      map = Object.fromEntries(entries.slice(entries.length - 300))
+    }
+    localStorage.setItem(REMOVED_SUBJECTS_KEY, JSON.stringify(map))
+  } catch {
+    // 存储不可用时静默忽略，不影响主流程
+  }
+}
+
+/** 记录一个被删除的科目（删除前调用），供历史记录回退显示名称 */
+export function recordRemovedSubject(id: string, info: { name: string; category?: string }) {
+  if (!id || !info.name) return
+  const map = loadRemovedSubjects()
+  map[id] = { name: info.name, category: info.category ?? 'custom' }
+  saveRemovedSubjects(map)
+}
+
+/** 已删除科目名快照 → 可显示的科目（getSubjectById 的兜底） */
+function removedToSubject(id: string): Subject | undefined {
+  const info = loadRemovedSubjects()[id]
+  return info ? { id, name: info.name, category: info.category ?? 'custom' } : undefined
+}
+
 function saveUserSubjectsToStorage(userId: string, subjects: SubjectWithActivities[]) {
   try {
     localStorage.setItem(SUBJECTS_STORAGE_KEY(userId), JSON.stringify(subjects))
@@ -107,6 +161,8 @@ export function resetSubjectCache() {
   userSubjectsCache = null
   userSubjectsError = null
   userSubjectsOwner = null
+  // 已删除科目名快照内存缓存一并重置（下次从 localStorage 重读，避免登出后残留内存状态）
+  removedSubjectsCache = null
 }
 
 /**
@@ -197,7 +253,10 @@ export function getSubjectById(id: string): Subject | undefined {
   const custom = userSubjectsCache?.find((s) => s.id === id || s.legacy_id === id)
   if (custom) return custom
   // 兜底：历史记录中的旧内置科目（如 'math'）在迁移前仍可显示默认名
-  return ALL_SUBJECTS.find((s) => s.id === id)
+  const builtin = ALL_SUBJECTS.find((s) => s.id === id)
+  if (builtin) return builtin
+  // 兜底：已删除科目的名称快照（删除时保存），避免历史记录显示 UUID 乱码
+  return removedToSubject(id)
 }
 
 /** 按科目返回可选学习内容：先取用户配置，无配置回退内置默认 */
@@ -326,13 +385,67 @@ export async function updateUserSubject(
   if (error) throw new Error(error.message)
 }
 
-export async function deleteUserSubject(subjectId: string): Promise<void> {
+export async function deleteUserSubject(userId: string, subjectId: string): Promise<void> {
+  // 删除前先把科目名存入「已删除科目名」快照，保证历史打卡记录仍能显示名称而非 UUID 乱码
+  try {
+    let name: string | undefined
+    let category: string | undefined
+    const cached = userSubjectsCache?.find((s) => s.id === subjectId)
+    if (cached) {
+      name = cached.name
+      category = cached.category
+    } else {
+      const { data } = await supabase
+        .from('user_subjects')
+        .select('name, category')
+        .eq('user_id', userId)
+        .eq('id', subjectId)
+        .limit(1)
+        .maybeSingle()
+      if (data) {
+        name = (data as { name?: string }).name
+        category = (data as { category?: string }).category
+      }
+    }
+    if (name) recordRemovedSubject(subjectId, { name, category })
+  } catch {
+    // 快照保存失败不影响删除主流程
+  }
+
   const { error } = await supabase
     .from('user_subjects')
     .delete()
     .eq('id', subjectId)
 
   if (error) throw new Error(error.message)
+}
+
+export interface BatchDeleteResult {
+  /** 成功删除的科目 id */
+  deleted: string[]
+  /** 失败项（含错误信息） */
+  failed: { id: string; message: string }[]
+}
+
+/**
+ * 批量删除科目：逐个调用 deleteUserSubject（每次删除前都会自动保存 id→名称/分类 快照，
+ * 保证历史记录仍能显示名称而非 UUID 乱码）；单个失败不中断整体，返回成功/失败汇总。
+ */
+export async function batchDeleteUserSubjects(
+  userId: string,
+  subjectIds: string[],
+): Promise<BatchDeleteResult> {
+  const result: BatchDeleteResult = { deleted: [], failed: [] }
+  if (!subjectIds || subjectIds.length === 0) return result
+  for (const id of subjectIds) {
+    try {
+      await deleteUserSubject(userId, id)
+      result.deleted.push(id)
+    } catch (err) {
+      result.failed.push({ id, message: err instanceof Error ? err.message : '未知错误' })
+    }
+  }
+  return result
 }
 
 /* ── 内置科目迁移（去考研化：老用户的历史科目转成自定义科目） ── */
@@ -505,10 +618,15 @@ export async function recoverDeletedSubjects(userId: string): Promise<SubjectRec
     if (typeof row.name === 'string') haveName.add(row.name)
   }
 
-  // id → 科目（合并内存缓存与本机持久化缓存，保证拿到最全的名称映射）
+  // id → 科目（合并内存缓存、本机持久化缓存与「已删除科目名」快照，保证拿到最全的名称映射）
   const cacheMap = new Map<string, SubjectWithActivities>()
   for (const s of [...(userSubjectsCache ?? []), ...readCachedSubjects(userId)]) {
     if (s?.id && typeof s.name === 'string') cacheMap.set(s.id, s)
+  }
+  for (const [id, info] of Object.entries(loadRemovedSubjects())) {
+    if (info?.name && !cacheMap.has(id)) {
+      cacheMap.set(id, { id, name: info.name, category: info.category ?? 'custom', activities: [] })
+    }
   }
 
   const ids = await fetchAllLogSubjectIds(userId)

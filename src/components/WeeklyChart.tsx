@@ -73,7 +73,7 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
           } else {
             entry.subjects.push({
               subjectId: subj.id,
-              name: subject?.name ?? subj.id,
+              name: subject?.name ?? '已删除科目',
               hours,
               activity: subj.activity,
             })

@@ -356,7 +356,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                                   key={`${s.id}-${s.activity ?? ''}-${index}`}
                                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium ${colorClass}`}
                                 >
-                                  {subject?.name ?? s.id}
+                                  {subject?.name ?? '已删除科目'}
                                   {s.activity ? `·${s.activity}` : ''}
                                   <span className="opacity-70">{s.hours}h</span>
                                 </span>

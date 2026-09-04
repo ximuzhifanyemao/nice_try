@@ -89,8 +89,9 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
                 <div key={`${s.id}-${s.activity ?? ''}-${index}`}>
                   <span
                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium ${colorClass}`}
+                    title={subject ? undefined : `已删除科目 ID：${s.id}`}
                   >
-                    {(subject?.name ?? s.id)}
+                    {subject ? subject.name : '已删除科目'}
                     {s.activity ? `·${s.activity}` : ''}
                     <span className="opacity-65 text-xs">
                       {s.hours.toFixed(2)}h

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Capacitor } from '@capacitor/core'
 import {
+  batchDeleteUserSubjects,
   createUserSubject,
   deleteUserSubject,
   fetchUserSubjects,
@@ -176,6 +177,10 @@ export default function StudyTimer() {
   /* 编辑中的分组选择（逻辑同上） */
   const [editCatSel, setEditCatSel] = useState('')
   const [editCatCustom, setEditCatCustom] = useState('')
+  /* 批量删除：是否多选模式 + 勾选的科目 id（Set 更新时新建实例） */
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   /* 当前运行中的计时器 */
   const [running, setRunning] = useState<TimerState | null>(loadRunningTimer)
@@ -643,13 +648,66 @@ export default function StudyTimer() {
   }
 
   const handleDeleteSubject = async (id: string) => {
-    if (!window.confirm('确定删除该科目？已记录的历史数据不受影响。')) return
+    if (!user) return
+    if (!window.confirm('确定删除该科目？已记录的历史数据不受影响，历史记录中仍会显示该科目名称。')) return
     try {
-      await deleteUserSubject(id)
+      await deleteUserSubject(user.id, id)
       await loadCustomSubjects()
       await refreshSubjects()
     } catch (err) {
       toast.show('删除失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
+    }
+  }
+
+  /* ── 批量删除 ── */
+  /** 进入/退出多选模式；退出时清空勾选（取消不触发任何删除，状态复位） */
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      setSelectionMode(false)
+      setSelectedIds(new Set())
+    } else {
+      // 进入多选时收起正在编辑的表单，避免与勾选操作混淆
+      setEditing(null)
+      setSelectionMode(true)
+    }
+  }
+
+  /** 勾选/取消勾选某个科目（Set 更新时新建实例） */
+  const toggleSubjectSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  /** 删除所选科目：确认 → 批量删除 → 刷新 → toast 汇总结果 → 退出多选模式 */
+  const handleBatchDelete = async () => {
+    if (!user || batchDeleting) return
+    const ids = Array.from(selectedIds)
+    if (ids.length === 0) return
+    const names = ids
+      .map((id) => customSubjects.find((s) => s.id === id)?.name)
+      .filter((n): n is string => !!n)
+    if (!window.confirm(`确定删除这 ${ids.length} 个科目：${names.join('、')}？历史记录仍会显示科目名称。`)) return
+    setBatchDeleting(true)
+    try {
+      const res = await batchDeleteUserSubjects(user.id, ids)
+      await loadCustomSubjects()
+      await refreshSubjects()
+      if (res.failed.length > 0) {
+        const failNames = res.failed.map((f) => customSubjects.find((s) => s.id === f.id)?.name ?? f.id)
+        toast.show(`已删除 ${res.deleted.length} 个，${res.failed.length} 个失败：${failNames.join('、')}`, { icon: '⚠️', duration: 6000 })
+      } else {
+        toast.show(`已删除 ${res.deleted.length} 个科目`, { icon: '✅' })
+      }
+    } catch (err) {
+      toast.show('批量删除失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
+    } finally {
+      setBatchDeleting(false)
+      setSelectionMode(false)
+      setSelectedIds(new Set())
     }
   }
 
@@ -1047,6 +1105,17 @@ export default function StudyTimer() {
             >
               {recovering ? '恢复中…' : '♻️ 恢复被删科目'}
             </button>
+            <button
+              onClick={toggleSelectionMode}
+              className={`px-3 py-2.5 text-xs border rounded-lg transition-colors cursor-pointer shrink-0 ${
+                selectionMode
+                  ? 'border-blue-400 dark:border-blue-600 text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                  : 'border-slate-300 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:bg-gray-50 dark:hover:bg-slate-700'
+              }`}
+              title={selectionMode ? '退出多选模式' : '勾选多个科目批量删除'}
+            >
+              {selectionMode ? '完成' : '批量删除'}
+            </button>
           </div>
 
           {/* 重复科目提醒（历史 bug 留下的脏数据，提示手动清理） */}
@@ -1080,7 +1149,16 @@ export default function StudyTimer() {
           ) : (
             <ul className="space-y-2">
               {customSubjects.map((s) => (
-                <li key={s.id} className="rounded-lg border border-gray-100 dark:border-slate-700 p-3">
+                <li
+                  key={s.id}
+                  className={`rounded-lg border p-3 transition-colors ${
+                    selectionMode
+                      ? selectedIds.has(s.id)
+                        ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-400'
+                        : 'border-gray-100 dark:border-slate-700 hover:border-blue-300 dark:hover:border-slate-500 cursor-pointer'
+                      : 'border-gray-100 dark:border-slate-700'
+                  }`}
+                >
                   {editing?.id === s.id ? (
                     <div className="space-y-2">
                       <input
@@ -1117,54 +1195,86 @@ export default function StudyTimer() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800 dark:text-slate-100">
-                          {s.name}
-                          {(() => {
-                            const label = getCategoryLabel(s.category)
-                            if (!label) return null
-                            return (
-                              <span className="ml-1.5 align-middle text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-600 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300">
-                                {label}
-                              </span>
-                            )
-                          })()}
-                        </p>
-                        {s.activities.length > 0 ? (
-                          <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                            内容：{s.activities.join('、')}
-                          </p>
-                        ) : (
-                          <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">无学习内容</p>
+                    <div
+                      className="flex items-center justify-between gap-2"
+                      onClick={selectionMode ? () => toggleSubjectSelected(s.id) : undefined}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {/* 多选模式：左侧复选框，点行或勾选均可切换 */}
+                        {selectionMode && (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(s.id)}
+                            onChange={() => toggleSubjectSelected(s.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                          />
                         )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-800 dark:text-slate-100">
+                            {s.name}
+                            {(() => {
+                              const label = getCategoryLabel(s.category)
+                              if (!label) return null
+                              return (
+                                <span className="ml-1.5 align-middle text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-600 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300">
+                                  {label}
+                                </span>
+                              )
+                            })()}
+                          </p>
+                          {s.activities.length > 0 ? (
+                            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                              内容：{s.activities.join('、')}
+                            </p>
+                          ) : (
+                            <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">无学习内容</p>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            setEditing(s)
-                            setEditActivities(s.activities.join('、'))
-                            // 编辑时把现有分组带回选择器：custom=无分组；408=内置选项；其他归入自定义输入
-                            const cat = s.category && s.category !== 'custom' ? s.category : ''
-                            setEditCatSel(cat === '408' ? '408' : cat ? '__custom__' : '')
-                            setEditCatCustom(cat === '408' ? '' : cat)
-                          }}
-                          className="px-3 py-1 text-xs text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer"
-                        >
-                          编辑
-                        </button>
-                        <button
-                          onClick={() => handleDeleteSubject(s.id)}
-                          className="px-3 py-1 text-xs text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-slate-700 cursor-pointer"
-                        >
-                          删除
-                        </button>
-                      </div>
+                      {selectionMode ? null : (
+                        <div className="flex gap-2 shrink-0">
+                          <button
+                            onClick={() => {
+                              setEditing(s)
+                              setEditActivities(s.activities.join('、'))
+                              // 编辑时把现有分组带回选择器：custom=无分组；408=内置选项；其他归入自定义输入
+                              const cat = s.category && s.category !== 'custom' ? s.category : ''
+                              setEditCatSel(cat === '408' ? '408' : cat ? '__custom__' : '')
+                              setEditCatCustom(cat === '408' ? '' : cat)
+                            }}
+                            className="px-3 py-1 text-xs text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer"
+                          >
+                            编辑
+                          </button>
+                          <button
+                            onClick={() => handleDeleteSubject(s.id)}
+                            className="px-3 py-1 text-xs text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-slate-700 cursor-pointer"
+                          >
+                            删除
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </li>
               ))}
             </ul>
+          )}
+
+          {/* 多选操作栏：显示已选数量 + 删除所选（未勾选时禁用） */}
+          {selectionMode && (
+            <div className="mt-3 pt-3 border-t border-gray-100 dark:border-slate-700 flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-slate-400">已选 {selectedIds.size} 个</span>
+              <div className="flex-1" />
+              <button
+                onClick={handleBatchDelete}
+                disabled={selectedIds.size === 0 || batchDeleting}
+                className="px-3 py-2 text-xs text-red-600 dark:text-red-400 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+              >
+                {batchDeleting ? '删除中...' : `删除所选 (${selectedIds.size})`}
+              </button>
+            </div>
           )}
         </div>
       )}

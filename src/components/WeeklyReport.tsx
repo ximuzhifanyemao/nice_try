@@ -148,7 +148,7 @@ export default function WeeklyReport({ logs }: Props) {
                   const color = getBarColor(subject?.category ?? '')
                   return (
                     <div key={s.id} className="flex items-center gap-2">
-                      <span className="w-16 shrink-0 truncate text-[11px] text-white/85">{subject?.name ?? s.id}</span>
+                      <span className="w-16 shrink-0 truncate text-[11px] text-white/85">{subject?.name ?? '已删除科目'}</span>
                       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/20">
                         <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.max(3, s.pct)}%` }} />
                       </div>

@@ -179,7 +179,7 @@ const Summary: React.FC = () => {
                                 key={subj.id}
                                 className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium ${subjColor}`}
                               >
-                                {subjInfo?.name ?? subj.id} {subj.hours.toFixed(1)}h
+                                {subjInfo?.name ?? '已删除科目'} {subj.hours.toFixed(1)}h
                               </span>
                             )
                           })}
