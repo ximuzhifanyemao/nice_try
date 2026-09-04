@@ -192,6 +192,24 @@ export async function fetchLogByDate(userId: string, date: string): Promise<Dail
   return data as DailyLog | null
 }
 
+/** 按日期范围查询某用户的记录（用于本周目标进度等范围统计；回收站中的记录视为不存在） */
+export async function fetchLogsInRange(userId: string, startDate: string, endDate: string): Promise<DailyLog[]> {
+  const { data, error } = await supabase
+    .from('daily_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .is('deleted_at', null)
+    .order('date', { ascending: false })
+
+  if (error) {
+    throw new Error(error.message)
+  }
+
+  return data as DailyLog[]
+}
+
 export async function fetchTodayLog(userId: string): Promise<DailyLog | null> {
   return fetchLogByDate(userId, todayStr())
 }

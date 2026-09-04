@@ -7,7 +7,9 @@ import {
   getActivitiesForSubject,
   getAvailableSubjects,
   getSubjectById,
+  hydrateUserSubjects,
   loadUserSubjects,
+  recoverDeletedSubjects,
   updateUserSubject,
   type Subject,
   type UserSubject,
@@ -104,13 +106,58 @@ function accumKey(subjectId: string, activity: string): string {
 /** 属于 408 综合卷、支持汇总/分开两种显示的科目 id */
 const AGG_408_IDS = ['ds', 'co', 'os', 'cn']
 
+/**
+ * 科目分组选择器：无分组 / 408 折叠组 / 自定义分组。
+ * 选「408」的科目会像之前的内置专业课一样在计时区折叠展示。
+ */
+function GroupPicker({
+  sel,
+  custom,
+  onSelChange,
+  onCustomChange,
+}: {
+  sel: string
+  custom: string
+  onSelChange: (v: string) => void
+  onCustomChange: (v: string) => void
+}) {
+  return (
+    <div>
+      <label className="block text-xs text-gray-500 dark:text-slate-400 mb-1">分组（可选）</label>
+      <select
+        value={sel}
+        onChange={(e) => onSelChange(e.target.value)}
+        className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+      >
+        <option value="">无分组</option>
+        <option value="408">408（计算机专业基础综合）</option>
+        <option value="__custom__">自定义分组…</option>
+      </select>
+      {sel === '__custom__' && (
+        <input
+          value={custom}
+          onChange={(e) => onCustomChange(e.target.value)}
+          placeholder="输入分组名，如：公共课"
+          className="mt-2 w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+        />
+      )}
+      <p className="mt-1 text-[11px] text-gray-400 dark:text-slate-500">
+        选「408」会像之前的专业课一样折叠展示；也可以填自定义分组名。
+      </p>
+    </div>
+  )
+}
+
 /* ── 组件 ── */
 export default function StudyTimer() {
   const { user } = useAuth()
   const { refetch } = useLogs()
   const toast = useToast()
   /* 可选择的科目（内置 + 自定义），随增删改实时刷新 */
-  const [availableSubjects, setAvailableSubjects] = useState<Subject[]>(() => getAvailableSubjects())
+  const [availableSubjects, setAvailableSubjects] = useState<Subject[]>(() => {
+    hydrateUserSubjects(user?.id)
+    return getAvailableSubjects()
+  })
   /* 自定义科目列表（管理用） */
   const [customSubjects, setCustomSubjects] = useState<UserSubject[]>([])
   const [subjectsLoading, setSubjectsLoading] = useState(false)
@@ -119,9 +166,15 @@ export default function StudyTimer() {
   const [newName, setNewName] = useState('')
   const [newActivities, setNewActivities] = useState('')
   const [creating, setCreating] = useState(false)
+  /* 新增科目的分组（category）选择：''=无分组、'408'=408 折叠组、'__custom__'=自定义输入 */
+  const [newCatSel, setNewCatSel] = useState('')
+  const [newCatCustom, setNewCatCustom] = useState('')
   /* 正在编辑的科目 */
   const [editing, setEditing] = useState<UserSubject | null>(null)
   const [editActivities, setEditActivities] = useState('')
+  /* 编辑中的分组选择（逻辑同上） */
+  const [editCatSel, setEditCatSel] = useState('')
+  const [editCatCustom, setEditCatCustom] = useState('')
 
   /* 当前运行中的计时器 */
   const [running, setRunning] = useState<TimerState | null>(loadRunningTimer)
@@ -141,7 +194,8 @@ export default function StudyTimer() {
 
   /* ── BLE 计时器连接状态 ── */
   const [bleConnected, setBleConnected] = useState(false)
-  const [bleSearching, setBleSearching] = useState(true)
+  /* 不自动搜索：仅点击「重新连接」时才发起蓝牙扫描 */
+  const [bleSearching, setBleSearching] = useState(false)
   /* 最近一次连接/扫描失败的具体原因（用于定位问题） */
   const [bleError, setBleError] = useState<string | null>(null)
   /* 硬件上通过 OLED 菜单选中的科目（固件 SEL 事件） */
@@ -190,37 +244,12 @@ export default function StudyTimer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running])
 
-  /* ── 连接 BLE 计时器（原生 App 上自动连接，联动硬件开始/结束/暂停/选科目） ── */
+  /* ── BLE 计时器（原生 App）──
+     不自动连接/扫描（避免一进页面就搜蓝牙打扰用户），
+     只有在用户点击「重新连接」时才由 handleReconnectBle 发起扫描。 */
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
-    let removed = false
-
-    const connect = async () => {
-      try {
-        await connectBleTimer({
-          onStart: () => { if (!removed) hardwareCbRef.current.onStart() },
-          onStop: () => { if (!removed) hardwareCbRef.current.onStop() },
-          onPause: () => { if (!removed) hardwareCbRef.current.onPause() },
-          onResume: () => { if (!removed) hardwareCbRef.current.onResume() },
-          onSubjectSelected: (name) => { if (!removed) hardwareCbRef.current.onSubjectSelected(name) },
-          onDisconnect: () => { if (!removed) hardwareCbRef.current.onDisconnect() },
-        })
-        if (!removed) {
-          setBleConnected(true)
-          setBleError(null)
-          // 把当前科目列表推给硬件 OLED 菜单（支持自定义科目）
-          pushSubjects(getAvailableSubjects().map((s) => s.name))
-        }
-      } catch (err) {
-        // 未连接/找不到设备不影响手机上直接计时，这里静默处理
-        if (!removed) setBleError(err instanceof Error ? err.message : '连接失败')
-      } finally {
-        if (!removed) setBleSearching(false)
-      }
-    }
-    connect()
     return () => {
-      removed = true
       disconnectBleTimer()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -555,9 +584,15 @@ export default function StudyTimer() {
         .split(/[，,、\n]/)
         .map((a) => a.trim())
         .filter(Boolean)
-      await createUserSubject(user.id, { name: newName, activities })
+      await createUserSubject(user.id, {
+        name: newName,
+        activities,
+        category: newCatSel === '__custom__' ? newCatCustom : newCatSel,
+      })
       setNewName('')
       setNewActivities('')
+      setNewCatSel('')
+      setNewCatCustom('')
       setShowAddModal(false)
       await loadCustomSubjects()
       await refreshSubjects()
@@ -575,7 +610,11 @@ export default function StudyTimer() {
         .split(/[，,、\n]/)
         .map((a) => a.trim())
         .filter(Boolean)
-      await updateUserSubject(editing.id, { name: editing.name, activities })
+      await updateUserSubject(editing.id, {
+        name: editing.name,
+        activities,
+        category: editCatSel === '__custom__' ? editCatCustom : editCatSel,
+      })
       setEditing(null)
       await loadCustomSubjects()
       await refreshSubjects()
@@ -592,6 +631,34 @@ export default function StudyTimer() {
       await refreshSubjects()
     } catch (err) {
       toast.show('删除失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
+    }
+  }
+
+  const [recovering, setRecovering] = useState(false)
+  /** 恢复被误删的科目：内置科目按默认名重建成；自定义科目（UUID）尽力从本机缓存还原原名 */
+  const handleRecoverSubjects = async () => {
+    if (!user || recovering) return
+    setRecovering(true)
+    try {
+      const res = await recoverDeletedSubjects(user.id)
+      await loadCustomSubjects()
+      await refreshSubjects()
+      if (res.recovered.length > 0) {
+        toast.show(`已恢复 ${res.recovered.length} 个科目：${res.recovered.join('、')}`, { icon: '♻️' })
+      }
+      if (res.unknownIds.length > 0) {
+        toast.show(
+          `还有 ${res.unknownIds.length} 个历史科目的名称已无法还原，请在下方重新手动添加（时长数据不受影响）`,
+          { icon: '⚠️', duration: 6000 },
+        )
+      }
+      if (res.recovered.length === 0 && res.unknownIds.length === 0) {
+        toast.show('没有检测到可恢复的被删科目', { icon: '✅' })
+      }
+    } catch (err) {
+      toast.show('恢复失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
+    } finally {
+      setRecovering(false)
     }
   }
 
@@ -612,12 +679,14 @@ export default function StudyTimer() {
   const todayEntries = Object.entries(accum)
     .filter(([, entry]) => entry.seconds > 0)
     .sort(([, a], [, b]) => b.seconds - a.seconds)
+  /** 是否为 408 综合科目（兼容旧内置 id 与迁移后的新 id） */
+  const is408Subject = (id: string): boolean => AGG_408_IDS.includes(id) || getSubjectById(id)?.category === '408'
   /** 408 各科目今天的累计秒数 */
   const agg408BySubject = (() => {
     const map: Record<string, number> = {}
     for (const [key, entry] of todayEntries) {
       const id = key.split('::')[0]
-      if (AGG_408_IDS.includes(id)) map[id] = (map[id] ?? 0) + entry.seconds
+      if (is408Subject(id)) map[id] = (map[id] ?? 0) + entry.seconds
     }
     return map
   })()
@@ -625,7 +694,7 @@ export default function StudyTimer() {
   const agg408Total = Object.values(agg408BySubject).reduce((a, b) => a + b, 0)
   const has408 = agg408Total > 0
   /** 非 408 的累计条目 */
-  const non408Entries = todayEntries.filter(([key]) => !AGG_408_IDS.includes(key.split('::')[0]))
+  const non408Entries = todayEntries.filter(([key]) => !is408Subject(key.split('::')[0]))
   /** 单条累计的渲染（供非 408 与"分开"模式复用） */
   const renderEntry = ([key, entry]: [string, AccumEntry]) => {
     const [id, activity] = key.split('::')
@@ -724,13 +793,32 @@ export default function StudyTimer() {
         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-3">
           选择科目
         </label>
-        <div className="space-y-3">
-          {/* 政治 / 英语 / 数学 等非 408 科目一排 */}
-          <div className="flex flex-wrap gap-2">
-            {availableSubjects
-              .filter((s) => s.category !== '408')
-              .map(renderSubjectButton)}
+        {availableSubjects.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-300 dark:border-slate-600 p-5 text-center">
+            <p className="text-sm text-gray-500 dark:text-slate-400">还没有科目</p>
+            <p className="mt-1 text-xs text-gray-400 dark:text-slate-500">
+              添加你正在学的东西，例如「高数」「工作」「健身」
+            </p>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="mt-3 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors cursor-pointer"
+            >
+              + 添加第一个科目
+            </button>
           </div>
+        ) : (
+        <div className="space-y-3">
+          {/* 非 408 科目：无分组的平铺展示，有自定义分组的带小标题分组展示 */}
+          {subjectSections
+            .filter(([cat]) => cat !== '408')
+            .map(([cat, subs]) => (
+              <div key={cat}>
+                {cat !== 'custom' && cat !== '' && (
+                  <p className="mb-1 text-xs font-semibold text-gray-400 dark:text-slate-500">{cat}</p>
+                )}
+                <div className="flex flex-wrap gap-2">{subs.map(renderSubjectButton)}</div>
+              </div>
+            ))}
           {/* 408 折叠分组 */}
           {subjectSections
             .filter(([cat]) => cat === '408')
@@ -761,8 +849,9 @@ export default function StudyTimer() {
               </div>
             ))}
         </div>
+        )}
 
-        {/* 选择学习内容 */}
+      {/* 选择学习内容 */}
         {pendingSubject && !running && (
           <div className="mt-3 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
             <div className="flex items-center justify-between mb-2">
@@ -880,7 +969,7 @@ export default function StudyTimer() {
                     </span>
                   </button>
                   <div className="mt-1 pl-4 border-l-2 border-blue-200 dark:border-blue-700 space-y-1">
-                    {AGG_408_IDS.filter((id) => agg408BySubject[id] > 0).map((id) => (
+                    {Object.keys(agg408BySubject).map((id) => (
                       <div key={id} className="flex justify-between items-center text-xs text-gray-500 dark:text-slate-400">
                         <span>{getSubjectById(id)?.name}</span>
                         <span className="font-mono">{formatDurationShort(agg408BySubject[id])}</span>
@@ -916,24 +1005,34 @@ export default function StudyTimer() {
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-4">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">计时科目管理</h3>
           <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
-            添加自定义科目及学习内容，删除后立即从上方科目中移除（历史记录不受影响）。
+            科目保存在云端，可随时编辑改名或删除；历史记录不受影响，改名后历史记录会显示新名称。
           </p>
 
           {/* 新增科目 */}
-          <button
-            onClick={() => setShowAddModal(true)}
-            disabled={creating}
-            className="w-full px-4 py-2.5 bg-white dark:bg-slate-600 border border-dashed border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-300 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-slate-500 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed mb-4"
-          >
-            + 添加科目
-          </button>
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => setShowAddModal(true)}
+              disabled={creating}
+              className="flex-1 px-4 py-2.5 bg-white dark:bg-slate-600 border border-dashed border-blue-300 dark:border-blue-600 text-blue-600 dark:text-blue-300 rounded-lg text-sm font-medium hover:bg-blue-50 dark:hover:bg-slate-500 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              + 添加科目
+            </button>
+            <button
+              onClick={handleRecoverSubjects}
+              disabled={recovering}
+              className="px-3 py-2.5 text-xs border border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+              title="从打卡记录 + 本机缓存找回被误删的科目"
+            >
+              {recovering ? '恢复中…' : '♻️ 恢复被删科目'}
+            </button>
+          </div>
 
           {/* 自定义科目列表 */}
           {subjectsLoading ? (
             <p className="text-xs text-gray-400 dark:text-slate-500">加载中...</p>
           ) : customSubjects.length === 0 ? (
             <p className="text-xs text-gray-400 dark:text-slate-500">
-              暂无自定义科目，内置科目（政治/英语/数学/408）始终可用。
+              还没有科目，点击上方「+ 添加科目」创建第一个。
             </p>
           ) : (
             <ul className="space-y-2">
@@ -951,6 +1050,13 @@ export default function StudyTimer() {
                         onChange={(e) => setEditActivities(e.target.value)}
                         placeholder="学习内容（逗号分隔）"
                         className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+                      />
+                      {/* 编辑分组 */}
+                      <GroupPicker
+                        sel={editCatSel}
+                        custom={editCatCustom}
+                        onSelChange={setEditCatSel}
+                        onCustomChange={setEditCatCustom}
                       />
                       <div className="flex gap-2">
                         <button
@@ -970,7 +1076,14 @@ export default function StudyTimer() {
                   ) : (
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-800 dark:text-slate-100">{s.name}</p>
+                        <p className="text-sm font-medium text-gray-800 dark:text-slate-100">
+                          {s.name}
+                          {s.category && s.category !== 'custom' && (
+                            <span className="ml-1.5 align-middle text-[10px] px-1.5 py-0.5 rounded-full bg-purple-50 border border-purple-200 text-purple-600 dark:bg-purple-900/30 dark:border-purple-700 dark:text-purple-300">
+                              {s.category}
+                            </span>
+                          )}
+                        </p>
                         {s.activities.length > 0 ? (
                           <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
                             内容：{s.activities.join('、')}
@@ -984,6 +1097,10 @@ export default function StudyTimer() {
                           onClick={() => {
                             setEditing(s)
                             setEditActivities(s.activities.join('、'))
+                            // 编辑时把现有分组带回选择器：custom=无分组；408=内置选项；其他归入自定义输入
+                            const cat = s.category && s.category !== 'custom' ? s.category : ''
+                            setEditCatSel(cat === '408' ? '408' : cat ? '__custom__' : '')
+                            setEditCatCustom(cat === '408' ? '' : cat)
                           }}
                           className="px-3 py-1 text-xs text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-slate-700 cursor-pointer"
                         >
@@ -1043,6 +1160,13 @@ export default function StudyTimer() {
               onChange={(e) => setNewActivities(e.target.value)}
               placeholder="学习内容（用逗号分隔），如：阅读，练习，复盘"
               className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 outline-none"
+            />
+            {/* 分组选择 */}
+            <GroupPicker
+              sel={newCatSel}
+              custom={newCatCustom}
+              onSelChange={setNewCatSel}
+              onCustomChange={setNewCatCustom}
             />
             <div className="flex gap-2 pt-1">
               <button

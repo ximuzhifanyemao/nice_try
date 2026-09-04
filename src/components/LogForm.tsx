@@ -5,11 +5,11 @@ import type { Subject } from '../lib/subjects'
 import { getActivitiesForSubject } from '../lib/subjects'
 import { getCardColor } from '../lib/colors'
 
-/** 表单中一行记录：一个科目 × 一个学习内容 */
+/** 表单中一行记录：一个科目 × 一个或多个学习内容（同一行内可勾选多个，时长相同） */
 interface SubjectRow {
   key: string // 内部唯一标识（React key 用，不提交）
   subjectId: string
-  activity: string // '' 表示未选
+  activities: string[] // 可多选；空数组表示未选
   hours: number
   summary: string
 }
@@ -34,20 +34,24 @@ function buildInitialRows(
   availableSubjects: Subject[]
 ): SubjectRow[] {
   const rows: SubjectRow[] = []
-  const index = new Map<string, number>() // subjectId::activity -> 行下标
+  // 按 (科目, 时长, 总结) 分组：相同时长的多个学习内容合并为一行（可勾选多项）
+  const index = new Map<string, number>() // id::hours::summary -> 行下标
   if (initialData) {
     for (const s of initialData.subjects) {
       if (!(s.hours > 0)) continue
-      const keyBase = `${s.id}::${s.activity ?? ''}`
+      const keyBase = `${s.id}::${s.hours}::${s.summary ?? ''}`
       const existingIdx = index.get(keyBase)
       if (existingIdx !== undefined) {
-        rows[existingIdx].hours += s.hours
+        const row = rows[existingIdx]
+        if (s.activity && !row.activities.includes(s.activity)) {
+          rows[existingIdx] = { ...row, activities: [...row.activities, s.activity] }
+        }
       } else {
         index.set(keyBase, rows.length)
         rows.push({
           key: `${keyBase}#${rows.length}`,
           subjectId: s.id,
-          activity: s.activity ?? '',
+          activities: s.activity ? [s.activity] : [],
           hours: s.hours,
           summary: s.summary ?? '',
         })
@@ -59,7 +63,7 @@ function buildInitialRows(
       rows.push({
         key: `${subj.id}::#${rows.length}`,
         subjectId: subj.id,
-        activity: '',
+        activities: [],
         hours: 0,
         summary: '',
       })
@@ -90,7 +94,7 @@ export default function LogForm({
   }
 
   const addRow = (subjectId: string) => {
-    setRows((prev) => [...prev, { key: nextKey(), subjectId, activity: '', hours: 0, summary: '' }])
+    setRows((prev) => [...prev, { key: nextKey(), subjectId, activities: [], hours: 0, summary: '' }])
   }
 
   const removeRow = (key: string) => {
@@ -123,14 +127,18 @@ export default function LogForm({
       return
     }
 
-    const subjects: DailyLogSubject[] = rows
-      .filter((r) => r.hours > 0)
-      .map((r) => {
+    // 每行可勾选多个学习内容：每个勾选内容展开为一条记录（时长取该行填写的值）
+    const subjects: DailyLogSubject[] = []
+    for (const r of rows) {
+      if (!(r.hours > 0)) continue
+      const acts = r.activities.length > 0 ? r.activities : ['']
+      for (const act of acts) {
         const entry: DailyLogSubject = { id: r.subjectId, hours: r.hours }
-        if (r.activity) entry.activity = r.activity
+        if (act) entry.activity = act
         if (r.summary.trim()) entry.summary = r.summary.trim()
-        return entry
-      })
+        subjects.push(entry)
+      }
+    }
 
     onSubmit({ date, subjects, summary: summary.trim() })
   }
@@ -172,7 +180,12 @@ export default function LogForm({
           学习科目
         </label>
         <div className="space-y-3">
-          {availableSubjects.map((subject) => {
+          {availableSubjects.length === 0 ? (
+            <p className="text-sm text-gray-400 dark:text-slate-500">
+              还没有科目，请先到「计时」页添加科目后再来记录。
+            </p>
+          ) : (
+          availableSubjects.map((subject) => {
             const colorClass = getCardColor(subject.category)
             const subjectRows = rows.filter((r) => r.subjectId === subject.id)
             const activities = getActivitiesForSubject(subject.id)
@@ -205,9 +218,15 @@ export default function LogForm({
                             <button
                               key={act}
                               type="button"
-                              onClick={() => updateRow(row.key, { activity: row.activity === act ? '' : act })}
+                              onClick={() =>
+                                updateRow(row.key, {
+                                  activities: row.activities.includes(act)
+                                    ? row.activities.filter((a) => a !== act)
+                                    : [...row.activities, act],
+                                })
+                              }
                               className={`px-2.5 py-0.5 text-xs rounded-full border transition-colors cursor-pointer ${
-                                row.activity === act
+                                row.activities.includes(act)
                                   ? 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500'
                                   : 'bg-white dark:bg-slate-700 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-600 hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-300'
                               }`}
@@ -242,6 +261,12 @@ export default function LogForm({
                       )}
                     </div>
 
+                    {row.activities.length > 1 && row.hours > 0 && (
+                      <p className="text-[11px] text-blue-500 dark:text-blue-400">
+                        已选 {row.activities.length} 项学习内容，每项各记 {row.hours} 小时
+                      </p>
+                    )}
+
                     {row.hours > 0 && (
                       <input
                         type="text"
@@ -255,7 +280,8 @@ export default function LogForm({
                 ))}
               </div>
             )
-          })}
+          })
+          )}
         </div>
         {errors.subjects && (
           <p className="mt-1 text-sm text-red-500">{errors.subjects}</p>

@@ -6,9 +6,21 @@ pub fn run() {
   tauri::Builder::default()
     .setup(|app| {
       if cfg!(debug_assertions) {
+        // 开发模式下把日志写到项目 target/dev-logs（沙箱/权限受限环境无法写系统 AppData 日志目录）
+        let dev_log_dir = std::env::current_dir()
+          .unwrap_or_else(|_| std::path::PathBuf::from("."))
+          .join("target")
+          .join("dev-logs");
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
             .level(log::LevelFilter::Info)
+            .targets([
+              tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+              tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                path: dev_log_dir,
+                file_name: Some("app.log".into()),
+              }),
+            ])
             .build(),
         )?;
       }

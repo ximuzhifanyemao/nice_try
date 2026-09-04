@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import { loadUserSubjects, resetSubjectCache } from '../lib/subjects'
+import { loadUserSubjects, resetSubjectCache, hydrateUserSubjects, ensureBuiltinMigration } from '../lib/subjects'
 import type { Session, User } from '@supabase/supabase-js'
 
 interface AuthContextValue {
@@ -43,6 +43,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
+      // 恢复会话后立即同步恢复该用户的自定义科目本地缓存，
+      // 让科目列表在云端返回前即可显示（避免冷启动先内置后自定义）
+      if (session?.user) {
+        hydrateUserSubjects(session.user.id)
+        // 老用户把历史用过的内置科目迁移为自定义科目（幂等，仅首次生效）
+        ensureBuiltinMigration(session.user.id)
+      }
     }).catch((err) => {
       if (cancelled) return
       console.error('[Auth] getSession failed:', err)
@@ -63,6 +70,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 登录成功后加载该用户的云端自定义科目；登出时清空科目缓存
       if (session?.user) {
         loadUserSubjects(session.user.id)
+        // 老用户把历史用过的内置科目迁移为自定义科目（幂等，仅首次生效）
+        ensureBuiltinMigration(session.user.id)
       } else {
         resetSubjectCache()
       }

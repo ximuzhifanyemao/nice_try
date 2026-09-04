@@ -1,4 +1,5 @@
 import type { DailyLogSubject } from './dailyLogs'
+import { sortSubjectsByStartTime, todayStr, upsertLogSafely } from './dailyLogs'
 
 /**
  * 全功能模式计时器（StudyTimer）与精简挂件计时器（DesktopTimer）共享的
@@ -73,6 +74,26 @@ export function computeTimerElapsed(state: SharedTimerState): number {
   const pausedMs = state.pausedMs ?? 0
   const now = state.paused ? (state.pausedAt ?? Date.now()) : Date.now()
   return Math.floor((now - state.startTime - pausedMs) / 1000)
+}
+
+/** 暂停共享计时：冻结时长（恢复后继续累计）。未在计时或已暂停时忽略。 */
+export function pauseSharedTimer(): void {
+  const running = loadSharedTimer()
+  if (!running || running.paused) return
+  saveSharedTimer({ ...running, paused: true, pausedAt: Date.now() })
+}
+
+/** 恢复共享计时：把本次暂停的时长累计进 pausedMs。未暂停时忽略。 */
+export function resumeSharedTimer(): void {
+  const running = loadSharedTimer()
+  if (!running || !running.paused) return
+  const add = Date.now() - (running.pausedAt ?? Date.now())
+  saveSharedTimer({
+    ...running,
+    paused: false,
+    pausedAt: null,
+    pausedMs: (running.pausedMs ?? 0) + add,
+  })
 }
 
 /** 生成一条待入库的科目条目（含时间段） */
@@ -156,4 +177,62 @@ export function dateOf(ts: number): string {
 function timeStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/* ── 结束共享计时并打卡 ──
+   胶囊条与精简面板共用的结束逻辑：先停表并本地备份本次会话，
+   再按登录状态与是否跨天决定直接入库或提示补交。 */
+
+export type FinishTimerResult =
+  | { status: 'saved'; seconds: number }
+  | { status: 'stopped'; message: string }
+
+/**
+ * 结束共享计时并尝试为用户记录打卡。返回：
+ * - saved：已成功写入今日记录（seconds 为实际秒数）
+ * - stopped：已停表但未入库，message 是需要 UI 展示的提示（本地暂存/跨天补交/未登录/保存失败）
+ */
+export async function finishSharedTimer(user: { id: string } | null): Promise<FinishTimerResult> {
+  const running = loadSharedTimer()
+  if (!running) return { status: 'stopped', message: '' }
+  const seconds = computeTimerElapsed(running)
+  const entry = buildTimerEntry(running, seconds)
+  // 无论是否入库成功，计时都先停止（清掉共享计时，避免两个界面重复操作）
+  saveSharedTimer(null)
+  if (!entry || seconds < 1) return { status: 'stopped', message: '' }
+
+  // 云端保存前先落一份本地备份：登录/网络/会话异常导致保存失败时本次时长不丢，
+  // 之后在全功能「计时」页挂载时自动恢复为「今日累计」并可再次保存/补交
+  savePendingTimer({
+    subjectId: running.subjectId ?? '',
+    activity: running.activity ?? '',
+    seconds,
+    start: timeHm(running.startTime),
+    end: timeHm(running.paused ? (running.pausedAt ?? Date.now()) : Date.now()),
+    date: dateOf(running.startTime),
+  })
+
+  if (!user) {
+    return { status: 'stopped', message: '已暂存本地，登录后在全功能「计时」页保存即可' }
+  }
+  const targetDate = dateOf(running.startTime)
+  if (targetDate !== todayStr()) {
+    // 跨天补交：交给全功能计时页的补交流程（带确认），这里只保全不写错日期
+    return { status: 'stopped', message: '已暂存本地（跨天补交），请到全功能「计时」页保存' }
+  }
+  try {
+    const entries: DailyLogSubject[] = [entry]
+    sortSubjectsByStartTime(entries)
+    // 安全合并写入云端：内部自动读最新→合并→带版本校验写入，并发冲突自动重试一次
+    await upsertLogSafely({ userId: user.id, date: targetDate, subjects: entries, summary: '' })
+    clearPendingTimer() // 云端写入成功才清理本地备份
+    return { status: 'saved', seconds }
+  } catch (err) {
+    return {
+      status: 'stopped',
+      message:
+        '保存失败，时长已暂存本地，可到全功能「计时」页重试：' +
+        (err instanceof Error ? err.message : '未知错误'),
+    }
+  }
 }

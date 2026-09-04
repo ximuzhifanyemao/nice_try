@@ -1,9 +1,10 @@
 import { Component, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
 import { getCurrentWindow, LogicalSize, PhysicalPosition, currentMonitor, type Window } from '@tauri-apps/api/window'
-import DesktopTimer from './DesktopTimer'
+import CapsuleStrip from './CapsuleStrip'
+import SubjectPicker from './SubjectPicker'
 import Sidebar from '../components/Sidebar'
-import DesktopLogo from '../components/DesktopLogo'
 import App from '../App'
+import { saveSharedTimer } from '../lib/timerSync'
 
 /** 精简模式下窗口位置的持久化存储键 */
 const WIDGET_POS_KEY = 'kaoyan_widget_pos'
@@ -13,8 +14,12 @@ const FULL_POS_KEY = 'kaoyan_widget_full_pos'
 const MODE_KEY = 'kaoyan_widget_mode'
 const FULL_W = 1600
 const FULL_H = 1000
-const WIDGET_W = 380
-const WIDGET_H = 520
+/** 胶囊条宽度：保证「选择科目开始」等文案完整显示 */
+const WIDGET_W = 460
+/** 胶囊条常态高度（尽量紧凑，比原 64 略矮） */
+const WIDGET_H = 56
+/** 科目下拉高度（选科后自动收回胶囊条），含本周目标进度行 */
+const DROPDOWN_H = 300
 
 /** 读取保存的窗口位置（{x,y}），无则返回 null */
 function loadSavedPosition(key: string): { x: number; y: number } | null {
@@ -84,12 +89,18 @@ export default function WidgetApp() {
   const appWindow: Window = getCurrentWindow()
   // 记忆模式：初始状态读取上次退出时保存的模式
   const [fullMode, setFullMode] = useState(() => localStorage.getItem(MODE_KEY) === 'full')
+  // 胶囊条科目下拉是否打开（窗口高度增至 360，选科后自动收回）
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   // 标记当前是否正在切换模式：切换过程中由 setSize/setPosition 等触发的 onMoved 应跳过落盘，避免覆盖正确位置
   const switchingRef = useRef(false)
+  // 展开下拉前记录胶囊条位置，收起时恢复，避免贴底展开导致窗口被顶离原处
+  const preExpandPosRef = useRef<{ x: number; y: number } | null>(null)
 
   /** 将窗口切换到指定模式：精简(compact) / 全部功能(full)，调整尺寸/置顶/位置 */
   const applyMode = useCallback(async (next: boolean) => {
     setFullMode(next)
+    // 科目下拉只属于精简模式，切换模式时一律复位为胶囊条
+    setDropdownOpen(false)
     switchingRef.current = true
     try {
       if (next) {
@@ -165,6 +176,78 @@ export default function WidgetApp() {
     localStorage.setItem(MODE_KEY, next ? 'full' : 'compact')
     applyMode(next)
   }, [fullMode, applyMode])
+
+  /**
+   * 加高窗口（展开面板/科目下拉）：
+   * 以胶囊条底部为锚「从下往上展开」——展开时底部保持原位、顶部向上生长，
+   * 并在上下/左右越界时自动收进屏幕，保证整块面板可见。
+   */
+  const openLayer = useCallback(
+    async (height: number) => {
+      try {
+        preExpandPosRef.current = (await appWindow.outerPosition().catch(() => null)) ?? null
+        const monitor = await currentMonitor()
+        const scale = monitor?.scaleFactor || 1
+        const cur = (await appWindow.outerPosition().catch(() => null)) ?? null
+        let nx = cur?.x ?? 0
+        // 顶边上移 (新高度 - 胶囊高)，底部保持不动
+        let ny = (cur?.y ?? 0) - Math.round((height - WIDGET_H) * scale)
+        if (monitor && cur) {
+          const top = monitor.position.y
+          const bottom = monitor.position.y + monitor.size.height
+          const left = monitor.position.x
+          const right = monitor.position.x + monitor.size.width
+          const physW = Math.round(WIDGET_W * scale)
+          const physH = Math.round(height * scale)
+          // 左右越界收进屏幕
+          if (nx < left) nx = left
+          if (nx + physW > right) nx = right - physW
+          // 垂直：优先保持底部不动向上长；仍越界时贴顶/贴底兜底
+          if (ny < top) ny = top
+          if (ny + physH > bottom) ny = bottom - physH
+        }
+        await appWindow.setPosition(new PhysicalPosition(nx, ny))
+        await appWindow.setSize(new LogicalSize(WIDGET_W, height))
+        await appWindow.show().catch(() => {})
+      } catch {
+        // 尺寸调整失败不阻塞 UI
+      }
+    },
+    [appWindow],
+  )
+
+  /** 收回胶囊条高度，并恢复展开前记录的窗口位置 */
+  const closeLayer = useCallback(async () => {
+    try {
+      await appWindow.setSize(new LogicalSize(WIDGET_W, WIDGET_H))
+      if (preExpandPosRef.current) {
+        await appWindow.setPosition(new PhysicalPosition(preExpandPosRef.current.x, preExpandPosRef.current.y))
+        preExpandPosRef.current = null
+      }
+      await appWindow.show().catch(() => {})
+    } catch {
+      // 尺寸调整失败不阻塞 UI
+    }
+  }, [appWindow])
+
+  const openDropdown = useCallback(() => {
+    setDropdownOpen(true)
+    openLayer(DROPDOWN_H)
+  }, [openLayer])
+
+  const closeDropdown = useCallback(() => {
+    setDropdownOpen(false)
+    closeLayer()
+  }, [closeLayer])
+
+  /** 下拉里选中科目：写入共享计时并收回胶囊条 */
+  const quickStart = useCallback(
+    (subjectId: string, activity: string) => {
+      saveSharedTimer({ subjectId, activity, startTime: Date.now() })
+      closeDropdown()
+    },
+    [closeDropdown],
+  )
 
   // 启动时始终让精简窗口居中显示（满足「默认应用启动窗口在屏幕中间」）
   useEffect(() => {
@@ -264,33 +347,41 @@ export default function WidgetApp() {
   }
 
   return (
-    <div className="theme-surface relative isolate flex h-screen w-screen flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-slate-900 shadow-[0_16px_48px_-20px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.7)]">
-      {/* 顶部环境光：浅色淡雅、深色带一点品牌色呼吸感 */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-indigo-400/10 via-indigo-400/5 to-transparent dark:from-indigo-500/15 dark:via-indigo-500/5 dark:to-transparent"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-10 -top-12 h-36 w-36 rounded-full bg-violet-500/10 blur-2xl"
-      />
+    <div
+      data-tauri-drag-region={dropdownOpen ? undefined : 'deep'}
+      className={`theme-surface relative isolate flex h-screen w-screen overflow-hidden border border-gray-200 bg-white text-slate-900 shadow-[0_16px_48px_-20px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.7)] ${
+        dropdownOpen ? 'flex-col rounded-2xl' : 'flex-row items-center rounded-full'
+      }`}
+    >
+      {/* 顶部环境光：仅下拉展开时展示 */}
+      {dropdownOpen && (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-14 h-24 bg-gradient-to-b from-indigo-400/10 via-indigo-400/5 to-transparent dark:from-indigo-500/15 dark:via-indigo-500/5 dark:to-transparent"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-10 top-0 h-36 w-36 rounded-full bg-violet-500/10 blur-2xl"
+          />
+        </>
+      )}
 
-      {/* 可拖拽标题栏 */}
+      {/* 胶囊条：品牌/科目 + 实时计时 + 开始/结束；右侧为窗口控制
+          deep 拖拽区：胶囊条任意位置（含文字/空白/内边距）均可拖动窗口，按钮除外 */}
       <div
-        data-tauri-drag-region
-        className="relative flex shrink-0 select-none items-center justify-between px-3 py-2"
+        data-tauri-drag-region="deep"
+        className={`relative z-10 flex shrink-0 select-none items-center ${
+          dropdownOpen ? 'h-14 w-full gap-2 border-b border-gray-200 px-3 dark:border-slate-800' : 'w-full min-w-0 flex-1 gap-2 pl-3 pr-2'
+        }`}
       >
-        <div className="flex items-center gap-1.5">
-          <DesktopLogo size={17} />
-          <span data-tauri-drag-region className="bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 bg-clip-text text-xs font-bold tracking-wide text-transparent dark:from-indigo-300 dark:via-violet-300 dark:to-indigo-300">
-            DiveDeep
-          </span>
-        </div>
-        <div className="flex items-center gap-0.5">
+        <CapsuleStrip expanded={dropdownOpen} onOpenDropdown={openDropdown} />
+        <div className="flex shrink-0 items-center gap-0.5">
           <button
             onClick={toggleMode}
             title="全部功能"
-            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 cursor-pointer"
+            aria-label="全部功能"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 cursor-pointer"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M15 3h6v6" />
@@ -299,21 +390,23 @@ export default function WidgetApp() {
               <path d="M3 21l7-7" />
             </svg>
           </button>
-          <button
-            onClick={() => appWindow.minimize()}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 cursor-pointer"
-            aria-label="最小化"
-            title="最小化"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-              <path d="M5 12h14" />
-            </svg>
-          </button>
+          {dropdownOpen && (
+            <button
+              onClick={() => appWindow.minimize()}
+              aria-label="最小化"
+              title="最小化"
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 cursor-pointer"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+                <path d="M5 12h14" />
+              </svg>
+            </button>
+          )}
           <button
             onClick={() => appWindow.close()}
-            className="flex h-6 w-6 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-400 dark:hover:bg-red-500/15 dark:hover:text-red-400 cursor-pointer"
-            aria-label="关闭"
             title="关闭"
+            aria-label="关闭"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-400 dark:hover:bg-red-500/15 dark:hover:text-red-400 cursor-pointer"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -322,10 +415,12 @@ export default function WidgetApp() {
         </div>
       </div>
 
-      {/* 计时内容 */}
-      <div className="relative min-h-0 flex-1">
-        <DesktopTimer />
-      </div>
+      {/* 科目下拉（快速开始，选科后自动收回胶囊条） */}
+      {dropdownOpen && (
+        <div className="relative min-h-0 flex-1 border-t border-gray-200 dark:border-slate-800">
+          <SubjectPicker onPick={quickStart} onClose={closeDropdown} />
+        </div>
+      )}
     </div>
   )
 }
