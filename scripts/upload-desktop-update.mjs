@@ -160,7 +160,7 @@ async function main() {
   )
   if (dbError) {
     console.error(`❌ 写入 desktop_versions 失败: ${dbError.message}`)
-    console.error('   请先在 Supabase SQL Editor 执行 supabase-migration-desktop-versions.sql')
+    console.error('   请先在 Supabase SQL Editor 执行合并后的 supabase-schema.sql（已包含桌面端版本表，幂等可重复执行）')
     process.exit(1)
   }
 

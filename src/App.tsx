@@ -75,8 +75,9 @@ function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNo
     if (!outer || !inner) return
 
     let raf = 0
+    let settleTimer: ReturnType<typeof setTimeout> | null = null
     // rAF 节流：合并同一帧内的多次回调，避免 ResizeObserver 抖动与循环告警
-    const apply = () => {
+    const measure = () => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
         const ow = outer.clientWidth
@@ -91,17 +92,35 @@ function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNo
         }
         // 按高度缩放，同时用宽度兜底保证不横向溢出；不放大（上限 1）
         const next = Math.max(MIN_FIT_SCALE, Math.min(1, oh / ih, ow / iw))
-        // 变化极小则忽略，避免浮点误差引起无意义的重渲染
-        setScale((prev) => (Math.abs(prev - next) < 0.005 ? prev : next))
+        // 迟滞：微小变化保持原缩放，避免科目增删等瞬时高度波动引发整页跳动
+        setScale((prev) => (Math.abs(prev - next) < 0.03 ? prev : next))
       })
     }
+    const apply = () => {
+      cancelAnimationFrame(raf)
+      measure()
+    }
+    // 静默窗口：内容变化后等 200ms 稳定期再重算，避免交互过程中整页反复缩放
+    const schedule = () => {
+      if (settleTimer !== null) clearTimeout(settleTimer)
+      settleTimer = setTimeout(apply, 200)
+    }
+    // 立即计算：首帧/启用、切换页面时马上测量，跳过静默窗口的 200ms 空白帧
+    const flush = () => {
+      if (settleTimer !== null) {
+        clearTimeout(settleTimer)
+        settleTimer = null
+      }
+      apply()
+    }
 
-    apply()
-    const ro = new ResizeObserver(apply)
+    flush()
+    const ro = new ResizeObserver(schedule)
     ro.observe(outer)
     ro.observe(inner)
     return () => {
       cancelAnimationFrame(raf)
+      if (settleTimer !== null) clearTimeout(settleTimer)
       ro.disconnect()
     }
   }, [location.pathname, enabled])
@@ -113,7 +132,12 @@ function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNo
     <div ref={outerRef} className="w-full h-full overflow-y-auto min-h-0">
       <div
         ref={innerRef}
-        style={{ transform: `scale(${scale})`, transformOrigin: 'top center', width: '100%' }}
+        style={{
+          transform: `scale(${scale})`,
+          transformOrigin: 'top center',
+          width: '100%', // 布局宽度固定，避免缩放正反馈循环（见上方注释）
+          transition: 'transform 200ms ease', // 残余的再缩放做平滑过渡而非跳动
+        }}
       >
         {children}
       </div>

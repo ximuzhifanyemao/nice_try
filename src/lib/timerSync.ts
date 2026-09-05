@@ -125,6 +125,23 @@ export interface PendingTimerEntry {
 
 const PENDING_KEY = 'kaoyan_pending_timer'
 
+/**
+ * 清空本机所有计时相关本地状态（共享进行中计时、今日累计、待补记备份）。
+ * 供登出时调用，避免「用户A → 用户B」切换时把上一用户的计时/累计数据带过去，
+ * 被下一个登录用户误保存进自己的云端记录。
+ */
+export function clearTimerLocalState(): void {
+  try {
+    localStorage.removeItem(TIMER_RUNNING_KEY)
+    localStorage.removeItem(LEGACY_WIDGET_KEY)
+    localStorage.removeItem(PENDING_KEY)
+    localStorage.removeItem('kaoyan_timer_accum')
+    localStorage.removeItem('kaoyan_timer_accum_date')
+  } catch {
+    /* ignore */
+  }
+}
+
 export function savePendingTimer(entry: PendingTimerEntry): void {
   try {
     localStorage.setItem(PENDING_KEY, JSON.stringify(entry))

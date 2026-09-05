@@ -44,7 +44,10 @@ export function saveReminderConfig(cfg: ReminderConfig): ReminderConfig {
 }
 
 function todayKey(): string {
-  return new Date().toISOString().slice(0, 10)
+  // 用本地时区日期，避免 UTC 时区偏差（东八区 00:00-08:00 时段 toISOString 会落到前一天）
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 /** 今天是否已经提醒过了（避免每开一次页面都弹） */

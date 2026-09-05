@@ -1,12 +1,13 @@
 // ============================================================
 // OTA 更新上传脚本（APK 模式）
-// 用法：node scripts/upload-ota.mjs
+// 用法：node scripts/upload-ota.mjs [--skip-build]
 // 前提：设置环境变量 SUPABASE_URL 和 SUPABASE_SERVICE_KEY
-//       APK 文件需已构建到 apk/DiveDeep.apk
+//       APK 自动挑选 apk/ 下最新的版本化 APK（kaoyan-tracker-vX.Y.Z.apk），
+//       没有则回退 apk/DiveDeep.apk；--skip-build 跳过 Web 构建（发版脚本用）
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js'
-import { readFileSync, existsSync } from 'fs'
+import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
@@ -40,8 +41,35 @@ const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY // 需要 service_role key（非 anon key）
 const BUCKET_NAME = 'ota-bundles'
 const VERSION = pkg.version
-const APK_PATH = join(__dirname, '..', 'apk', 'DiveDeep.apk')
-const APK_STORAGE_NAME = 'DiveDeep.apk' // bucket 中使用固定文件名
+const APK_DIR = join(__dirname, '..', 'apk')
+const APK_STORAGE_NAME = 'DiveDeep.apk' // bucket 中使用固定文件名，保证公共下载链接稳定
+
+/**
+ * 自动挑选最新 APK：
+ * 优先用 apk/ 下最新的版本化 APK（kaoyan-tracker-vX.Y.Z.apk，一键发版脚本会实时更新它）；
+ * 若版本化 APK 不存在或比 DiveDeep.apk 旧，则回退用 DiveDeep.apk（手工构建场景）。
+ * 避免忘复制文件时把历史遗留的旧 DiveDeep.apk 当成新包发布。
+ */
+function selectApkSource() {
+  const fixedPath = join(APK_DIR, APK_STORAGE_NAME)
+  const fixedMtime = existsSync(fixedPath) ? statSync(fixedPath).mtimeMs : -1
+  let versioned = []
+  try {
+    versioned = readdirSync(APK_DIR)
+      .filter((f) => /^kaoyan-tracker-v\d+\.\d+\.\d+\.apk$/i.test(f))
+      .map((f) => {
+        const p = join(APK_DIR, f)
+        return { path: p, name: f, mtime: statSync(p).mtimeMs }
+      })
+      .sort((a, b) => b.mtime - a.mtime)
+  } catch {
+    // apk 目录不存在时忽略
+  }
+  if (versioned.length > 0 && versioned[0].mtime >= fixedMtime) {
+    return { path: versioned[0].path, picked: `版本化 APK ${versioned[0].name}` }
+  }
+  return { path: fixedPath, picked: existsSync(fixedPath) ? APK_STORAGE_NAME : '(不存在)' }
+}
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error('❌ 请设置环境变量 SUPABASE_URL 和 SUPABASE_SERVICE_KEY')
@@ -49,24 +77,30 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   process.exit(1)
 }
 
-if (!existsSync(APK_PATH)) {
-  console.error(`❌ APK 文件不存在: ${APK_PATH}`)
-  console.error('   请先构建 APK（npm run cap:android 后手动构建）')
-  process.exit(1)
-}
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 // ========== 主流程 ==========
 async function main() {
+  const skipBuild = process.argv.includes('--skip-build') // 一键发版脚本已构建过 Web，跳过避免重复
   console.log(`\n📦 DiveDeep OTA 更新上传（APK 模式） - v${VERSION}\n`)
 
   // 1. 构建项目（用于网站）
-  console.log('🔨 构建 Web 项目...')
-  execSync('npm run build:deploy', { cwd: join(__dirname, '..'), stdio: 'inherit' })
+  if (!skipBuild) {
+    console.log('🔨 构建 Web 项目...')
+    execSync('npm run build:deploy', { cwd: join(__dirname, '..'), stdio: 'inherit' })
+  } else {
+    console.log('⏭️  跳过 Web 构建（--skip-build，Web 已由发版脚本构建）')
+  }
 
   // 2. 读取 APK 文件
+  const { path: APK_PATH, picked } = selectApkSource()
+  if (!existsSync(APK_PATH)) {
+    console.error(`❌ APK 文件不存在: ${APK_PATH}`)
+    console.error('   请先构建 APK（npm run release:android 一键发版，或 npm run cap:android 后手动构建）')
+    process.exit(1)
+  }
   console.log(`📦 读取 APK: ${APK_PATH}`)
+  console.log(`   来源: ${picked}`)
   const apkBuffer = readFileSync(APK_PATH)
   const checksum = createHash('sha256').update(apkBuffer).digest('hex')
   const fileSize = apkBuffer.length

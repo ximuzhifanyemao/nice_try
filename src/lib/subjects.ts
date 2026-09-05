@@ -390,24 +390,33 @@ export async function deleteUserSubject(userId: string, subjectId: string): Prom
   try {
     let name: string | undefined
     let category: string | undefined
+    let legacyId: string | null | undefined
     const cached = userSubjectsCache?.find((s) => s.id === subjectId)
     if (cached) {
       name = cached.name
       category = cached.category
+      legacyId = cached.legacy_id
     } else {
       const { data } = await supabase
         .from('user_subjects')
-        .select('name, category')
+        .select('name, category, legacy_id')
         .eq('user_id', userId)
         .eq('id', subjectId)
         .limit(1)
         .maybeSingle()
       if (data) {
-        name = (data as { name?: string }).name
-        category = (data as { category?: string }).category
+        const row = data as { name?: string; category?: string; legacy_id?: string | null }
+        name = row.name
+        category = row.category
+        legacyId = row.legacy_id
       }
     }
-    if (name) recordRemovedSubject(subjectId, { name, category })
+    if (name) {
+      recordRemovedSubject(subjectId, { name, category })
+      // 迁移内置科目（如 408 的 co）被删除时，将 legacy_id 一并写入删除快照，
+      // 防止下次登录 ensureBuiltinMigration 依据历史打卡记录自动重建已删除科目
+      if (legacyId) recordRemovedSubject(legacyId, { name, category })
+    }
   } catch {
     // 快照保存失败不影响删除主流程
   }
@@ -526,9 +535,11 @@ export async function ensureBuiltinMigration(userId: string): Promise<void> {
 
     // 全量扫描打卡记录里出现过的内置科目 id
     const ids = await fetchAllLogSubjectIds(userId)
+    // 删除快照：用户主动删过的内置 legacy_id/科目不再自动重建（尊重明确的删除意图）
+    const removed = loadRemovedSubjects()
     const toMigrate: Subject[] = []
     for (const id of ids) {
-      if (haveLegacy.has(id)) continue
+      if (haveLegacy.has(id) || removed[id]) continue
       const builtin = ALL_SUBJECTS.find((b) => b.id === id)
       if (!builtin || haveName.has(builtin.name)) continue
       toMigrate.push(builtin)

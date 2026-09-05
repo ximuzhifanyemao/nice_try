@@ -41,37 +41,16 @@ npm run dev
 
 ### 2. 初始化数据库
 
-按顺序在 Supabase Dashboard → SQL Editor 中执行以下 SQL 文件：
+在 Supabase Dashboard → SQL Editor 中执行 **唯一的合并文件**：
 
 **Step 1: `supabase-schema.sql`**
 
-核心表结构，包含：
-- `daily_logs` — 每日学习记录（科目、时长、活动内容）
-- `wallets` — 虚拟钱包
-- `weekly_commitments` — 每周目标承诺
-- `wallet_transactions` — 资金流水
-- 完整的 RLS（Row Level Security）策略
+完整数据库初始化脚本，已合并原根目录下全部分散的 `supabase-migration-*.sql` 迁移（如 goals、trash、rls-daily-logs、customization、subject-rename、legacy-per-user、favorites、custom-presets、health、water、english-checkin、vocab-sync、qr-login、sodium、desktop-versions 等）。包含：
+- 基础核心表：`daily_logs`、`wallets`、`weekly_commitments`、`wallet_transactions`
+- 各功能模块表：个性化设置、自定义科目、食物收藏、自定义预设、健康/饮食/饮水、英语打卡、生词本、扫码登录、桌面端版本
+- 完整的 RLS（Row Level Security）策略、触发器与 RPC 函数
 
-**Step 2: `supabase-migration-goals.sql`**
-
-承诺金系统迁移，包含：
-- 虚拟钱包与资金流水表的 RLS 策略
-- `recharge_wallet()` — 虚拟充值 RPC 函数
-- `create_commitment()` — 创建/修改每周承诺 RPC 函数
-- `settle_commitments()` — 结算已结束周承诺 RPC 函数
-
-**Step 3: `supabase-migration-trash.sql`**
-
-回收站（软删除）迁移：
-- 为 `daily_logs` 添加 `deleted_at` 列
-- 将原 UNIQUE 约束改为部分唯一索引（仅对未删除记录生效）
-- 更新 SELECT 策略：公开记录任何人可读，回收站记录仅本人可见
-
-**Step 4: `supabase-migration-qr-login.sql`**（可选，启用电脑软件/网站扫码登录）
-
-扫码登录会话表 `qr_login_sessions`：电脑端生成 token，手机扫码确认后写入 session，电脑端轮询拿回登录态。字段：`token`、`status`(pending/confirmed/expired)、`session_access_token`、`session_refresh_token`、`user_id`、`confirmed_at`。RLS 允许匿名创建与读取，仅登录用户可 UPDATE。
-
-> 其余迁移文件（favorites、health、water、vocab-sync、english-checkin、customization、custom-presets、sodium、rls-daily-logs 等）对应各功能模块，按需执行，详见 `DEPLOYMENT.md`。
+> 该文件为幂等脚本：所有语句可重复执行（`CREATE TABLE IF NOT EXISTS`、建索引 `IF NOT EXISTS`、建策略/触发器前先 `DROP IF EXISTS` 等），即使已部分或全部执行过旧迁移，重新运行也不会报错。
 
 ### 3. 配置 Authentication
 

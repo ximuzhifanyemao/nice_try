@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { loadUserSubjects, resetSubjectCache, hydrateUserSubjects, ensureBuiltinMigration } from '../lib/subjects'
+import { clearTimerLocalState } from '../lib/timerSync'
 import type { Session, User } from '@supabase/supabase-js'
 
 interface AuthContextValue {
@@ -74,6 +75,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ensureBuiltinMigration(session.user.id)
       } else {
         resetSubjectCache()
+        // 登出：清空计时/累计本地状态，防止与下一登录用户的数据串用
+        clearTimerLocalState()
       }
     })
 
