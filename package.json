@@ -1,7 +1,7 @@
 {
   "name": "kaoyan-tracker",
   "private": true,
-  "version": "1.14.3",
+  "version": "1.14.4",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -17,6 +17,7 @@
     "ota:upload": "node scripts/upload-ota.mjs",
     "ota:desktop": "node scripts/upload-desktop-update.mjs",
     "ota:version": "node -e \"const p=require('./package.json');console.log('v'+p.version)\"",
+    "release:android": "node scripts/release-android.mjs",
     "release:upload": "node scripts/upload-release.mjs"
   },
   "dependencies": {
