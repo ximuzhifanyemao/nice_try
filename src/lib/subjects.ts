@@ -119,6 +119,70 @@ function removedToSubject(id: string): Subject | undefined {
   return info ? { id, name: info.name, category: info.category ?? 'custom' } : undefined
 }
 
+/* ── 已删除科目名快照（云端同步） ──
+   本地快照只存在于删除时的设备，换设备 / 清缓存后，ensureBuiltinMigration 会把
+   历史打卡记录里的内置科目当成「从未删过」而自动重建。这里把删除记录同步到云端
+   removed_subjects 表（user_id + id 复合主键，id 兼容内置 legacy_id 如 'math'），
+   任何设备登录时先拉取合并，保证已删科目在旧设备和新设备都不会被自动重建。 */
+
+let removedCloudCache: Record<string, RemovedSubjectInfo> = {}
+let removedCloudOwner: string | null = null
+
+/** 删除科目时把 id → 名称/分类 推送到云端（失败不影响删除主流程，下次 sync 时补传） */
+async function pushRemovedSubjectToCloud(
+  userId: string,
+  id: string,
+  info: { name: string; category?: string },
+): Promise<void> {
+  try {
+    const { error } = await supabase.from('removed_subjects').upsert(
+      {
+        user_id: userId,
+        id,
+        name: info.name,
+        category: info.category ?? 'custom',
+      },
+      { onConflict: 'user_id,id' },
+    )
+    if (error) throw new Error(error.message)
+    removedCloudCache[id] = { name: info.name, category: info.category ?? 'custom' }
+  } catch {
+    // 网络异常 / 表未建：本地快照已保存，静默忽略，下次登录 sync 时尽力补传
+  }
+}
+
+/** 登录时拉取云端删除记录，与本机快照合并（云端为准）；本机独有的记录补传云端 */
+async function syncRemovedSubjectsFromCloud(userId: string): Promise<void> {
+  try {
+    // 切换了用户：清掉上一位用户的云端缓存，避免串号
+    if (removedCloudOwner !== userId) removedCloudCache = {}
+    const { data, error } = await supabase
+      .from('removed_subjects')
+      .select('id, name, category')
+      .eq('user_id', userId)
+    if (error) throw new Error(error.message)
+    const cloud: Record<string, RemovedSubjectInfo> = {}
+    for (const row of data ?? []) {
+      cloud[row.id] = { name: row.name, category: row.category ?? 'custom' }
+    }
+    removedCloudCache = cloud
+    removedCloudOwner = userId
+    // 合并进本机快照：云端项一定保留；本机独有项（如删除时云端写入失败）保留并补传云端
+    const merged: Record<string, RemovedSubjectInfo> = { ...cloud }
+    const local = loadRemovedSubjects()
+    for (const [id, info] of Object.entries(local)) {
+      if (!(id in merged)) merged[id] = info
+    }
+    removedSubjectsCache = merged
+    saveRemovedSubjects(merged)
+    for (const [id, info] of Object.entries(local)) {
+      if (!(id in cloud)) await pushRemovedSubjectToCloud(userId, id, info)
+    }
+  } catch {
+    // 拉取失败：保留本机快照兜底（本机删除过的科目仍不会被重建）
+  }
+}
+
 function saveUserSubjectsToStorage(userId: string, subjects: SubjectWithActivities[]) {
   try {
     localStorage.setItem(SUBJECTS_STORAGE_KEY(userId), JSON.stringify(subjects))
@@ -163,6 +227,9 @@ export function resetSubjectCache() {
   userSubjectsOwner = null
   // 已删除科目名快照内存缓存一并重置（下次从 localStorage 重读，避免登出后残留内存状态）
   removedSubjectsCache = null
+  // 云端删除记录缓存按用户隔离，重置后下次登录重新拉取
+  removedCloudCache = {}
+  removedCloudOwner = null
 }
 
 /**
@@ -171,7 +238,10 @@ export function resetSubjectCache() {
  */
 export async function loadUserSubjects(userId: string, force = false): Promise<boolean> {
   if (!force && userSubjectsOwner === userId && userSubjectsCache !== null) return true
-  resetSubjectCache()
+  // 仅切换用户/冷启动才重置缓存；同一用户刷新时保留旧缓存。
+  // 否则 force 刷新在请求返回前会先把缓存清空，简洁模式此时点击科目
+  // getActivitiesForSubject 读不到学习内容返回空，就会跳过选择直接开始计时。
+  if (userSubjectsOwner !== userId) resetSubjectCache()
   userSubjectsOwner = userId
   try {
     const { data, error } = await supabase
@@ -195,6 +265,7 @@ export async function loadUserSubjects(userId: string, force = false): Promise<b
         : [],
       legacy_id: s.legacy_id ?? null,
     }))
+    userSubjectsError = null
     // 云端结果非空才覆盖本地缓存：若科目被误删导致云端为空，本机缓存保留删除前的
     // 名称映射，供「恢复被删科目」从本机还原 UUID 自定义科目的名称/分类/学习内容。
     if (userSubjectsCache.length > 0) {
@@ -202,8 +273,11 @@ export async function loadUserSubjects(userId: string, force = false): Promise<b
     }
     return true
   } catch (err) {
-    userSubjectsError = err instanceof Error ? err.message : '未知错误'
-    userSubjectsCache = []
+    // 刷新失败且已有旧缓存：保留旧数据继续可用，避免科目列表被清空
+    if (userSubjectsCache === null) {
+      userSubjectsError = err instanceof Error ? err.message : '未知错误'
+      userSubjectsCache = []
+    }
     return false
   }
 }
@@ -412,10 +486,16 @@ export async function deleteUserSubject(userId: string, subjectId: string): Prom
       }
     }
     if (name) {
-      recordRemovedSubject(subjectId, { name, category })
+      const info = { name, category }
+      recordRemovedSubject(subjectId, info)
+      // 同步到云端 removed_subjects，避免换设备 / 清缓存后已删科目被自动重建
+      await pushRemovedSubjectToCloud(userId, subjectId, info)
       // 迁移内置科目（如 408 的 co）被删除时，将 legacy_id 一并写入删除快照，
       // 防止下次登录 ensureBuiltinMigration 依据历史打卡记录自动重建已删除科目
-      if (legacyId) recordRemovedSubject(legacyId, { name, category })
+      if (legacyId) {
+        recordRemovedSubject(legacyId, info)
+        await pushRemovedSubjectToCloud(userId, legacyId, info)
+      }
     }
   } catch {
     // 快照保存失败不影响删除主流程
@@ -521,6 +601,8 @@ function readCachedSubjects(userId: string): SubjectWithActivities[] {
  */
 export async function ensureBuiltinMigration(userId: string): Promise<void> {
   try {
+    // 先同步云端删除记录（含其他设备的），再决定迁移哪些科目，避免重建用户已删科目
+    await syncRemovedSubjectsFromCloud(userId)
     const { data: existing } = await supabase
       .from('user_subjects')
       .select('id, legacy_id, name')
@@ -535,11 +617,12 @@ export async function ensureBuiltinMigration(userId: string): Promise<void> {
 
     // 全量扫描打卡记录里出现过的内置科目 id
     const ids = await fetchAllLogSubjectIds(userId)
-    // 删除快照：用户主动删过的内置 legacy_id/科目不再自动重建（尊重明确的删除意图）
+    // 删除快照：用户主动删过的内置 legacy_id/科目不再自动重建（尊重明确的删除意图；
+    // removed 为本地与云端合并后的快照，removedCloudCache 为当前会话云端缓存兜底）
     const removed = loadRemovedSubjects()
     const toMigrate: Subject[] = []
     for (const id of ids) {
-      if (haveLegacy.has(id) || removed[id]) continue
+      if (haveLegacy.has(id) || removed[id] || removedCloudCache[id]) continue
       const builtin = ALL_SUBJECTS.find((b) => b.id === id)
       if (!builtin || haveName.has(builtin.name)) continue
       toMigrate.push(builtin)

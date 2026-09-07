@@ -1053,3 +1053,43 @@ CREATE POLICY "desktop_versions_public_read_active"
   ON public.desktop_versions
   FOR SELECT
   USING (is_active = true);
+
+-- ============================================
+-- 十七、已删除科目名快照云端同步（原 supabase-migrations/002_removed_subjects.sql）
+--  删除科目记录仅存本机 localStorage 时，换设备/清缓存会误判「从未删过」，
+--  导致 ensureBuiltinMigration 依据打卡记录自动重建已删科目；此表让删除记录跨设备共享
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.removed_subjects (
+  user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  id         TEXT NOT NULL,                    -- 科目 id 或内置 legacy_id（如 'math'、'os'）
+  name       TEXT NOT NULL,                    -- 删除时的科目名（历史记录回显用）
+  category   TEXT NOT NULL DEFAULT 'custom',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+  PRIMARY KEY (user_id, id)
+);
+
+ALTER TABLE public.removed_subjects ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "removed_subjects_select_own" ON public.removed_subjects;
+CREATE POLICY "removed_subjects_select_own"
+  ON public.removed_subjects
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- upsert（onConflict: user_id,id）需要 INSERT + UPDATE 权限
+DROP POLICY IF EXISTS "removed_subjects_insert_own" ON public.removed_subjects;
+CREATE POLICY "removed_subjects_insert_own"
+  ON public.removed_subjects
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "removed_subjects_update_own" ON public.removed_subjects;
+CREATE POLICY "removed_subjects_update_own"
+  ON public.removed_subjects
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, UPDATE ON public.removed_subjects TO authenticated;
