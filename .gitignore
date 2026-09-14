@@ -44,6 +44,10 @@ icons/
 apk/
 *.apk
 
+# Android 签名密钥（含私钥，绝对不能提交到仓库）
+android/*.keystore
+android/*.keystore.old
+
 # 本地 JDK（构建用，不进 git）
 jdk-*/
 

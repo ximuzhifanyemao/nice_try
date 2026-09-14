@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   startOfMonth,
   endOfMonth,
@@ -15,6 +15,8 @@ import {
 import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
 import { sortSubjectsByStartTime } from '../lib/dailyLogs'
+import type { CalendarEvent } from '../lib/calendarEvents'
+import { fetchMyEvents, createEvent, deleteEvent } from '../lib/calendarEvents'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
@@ -24,6 +26,9 @@ import { Icon } from './Icon'
 
 /** localStorage 键：日历是否显示每日时长 */
 const DURATION_VISIBLE_KEY = 'calendar.showDuration'
+
+/** 重要日新增表单的预设 emoji 选项 */
+const EVENT_EMOJIS = ['🎂', '🎉', '📝', '📖', '⭐', '❤️', '🎯', '📌', '🏆', '💊', '✈️', '🏠']
 
 /** 小时数格式化：2 → '2'，2.5 → '2.5'（去掉末尾多余 0） */
 function fmtHours(h: number): string {
@@ -50,6 +55,38 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
       return true
     }
   })
+
+  /** 重要日事件：按日期聚合 */
+  const [eventsByDate, setEventsByDate] = useState<Map<string, CalendarEvent[]>>(new Map())
+  const [eventsError, setEventsError] = useState<string | null>(null)
+  /** 新增表单状态 */
+  const [showAddEvent, setShowAddEvent] = useState(false)
+  const [eventEmoji, setEventEmoji] = useState(EVENT_EMOJIS[0])
+  const [eventTitle, setEventTitle] = useState('')
+  const [eventSaving, setEventSaving] = useState(false)
+
+  useEffect(() => {
+    if (!user) {
+      setEventsByDate(new Map())
+      setEventsError(null)
+      return
+    }
+    fetchMyEvents(user.id)
+      .then((list) => {
+        const map = new Map<string, CalendarEvent[]>()
+        for (const ev of list) {
+          const key = ev.date
+          if (!map.has(key)) map.set(key, [])
+          map.get(key)!.push(ev)
+        }
+        setEventsByDate(map)
+        setEventsError(null)
+      })
+      .catch((err: unknown) => {
+        setEventsByDate(new Map())
+        setEventsError((err as Error)?.message ?? '加载重要日失败')
+      })
+  }, [user])
 
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentMonth)
@@ -101,11 +138,62 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
   const handleToday = () => setCurrentMonth(new Date())
 
   const handleDayClick = (day: Date) => {
-    const key = format(day, 'yyyy-MM-dd')
-    if (isToday(day) || logsByDate.has(key)) {
-      setSelectedDate((prev) =>
-        prev && isSameDay(prev, day) ? null : day,
-      )
+    if (!isSameMonth(day, currentMonth)) return
+    setSelectedDate((prev) => (prev && isSameDay(prev, day) ? null : day))
+  }
+
+  const selectedEvents = useMemo(() => {
+    if (!selectedDate) return []
+    const key = format(selectedDate, 'yyyy-MM-dd')
+    return eventsByDate.get(key) ?? []
+  }, [selectedDate, eventsByDate])
+
+  /** 保存新增的重要日事件 */
+  const handleSaveEvent = async () => {
+    if (!user || !selectedDate) return
+    const title = eventTitle.trim()
+    if (!title) return
+    setEventSaving(true)
+    try {
+      const created = await createEvent(user.id, {
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        title,
+        emoji: eventEmoji,
+      })
+      setEventsByDate((prev) => {
+        const next = new Map(prev)
+        const key = created.date
+        const list = [...(next.get(key) ?? []), created]
+        next.set(key, list)
+        return next
+      })
+      setEventTitle('')
+      setEventEmoji(EVENT_EMOJIS[0])
+      setShowAddEvent(false)
+      setEventsError(null)
+    } catch (err) {
+      setEventsError((err as Error)?.message ?? '添加失败')
+    } finally {
+      setEventSaving(false)
+    }
+  }
+
+  /** 删除一条重要日事件 */
+  const handleDeleteEvent = async (eventId: string) => {
+    try {
+      await deleteEvent(eventId)
+      setEventsByDate((prev) => {
+        const next = new Map(prev)
+        for (const [key, list] of next) {
+          next.set(
+            key,
+            list.filter((ev) => ev.id !== eventId),
+          )
+        }
+        return next
+      })
+    } catch (err) {
+      setEventsError((err as Error)?.message ?? '删除失败')
     }
   }
 
@@ -131,10 +219,10 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
     )
   }
 
-  // expanded：4:3 宽扁比例（符合 7 列 × 6 行日历的天然比例 + 表头），不再被父容器拉成瘦高
+  // expanded：最小高度保证日历不瘦高；高度随详情区内容自适应展开（重要日/表单不用滚动即可直接看到）
   const bodyWrap = (content: React.ReactNode) =>
     expanded ? (
-      <div className="w-full flex flex-col" style={{ aspectRatio: '4 / 3' }}>
+      <div className="w-full flex flex-col" style={{ minHeight: 480 }}>
         {content}
       </div>
     ) : (
@@ -233,7 +321,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
           <div
             className={`grid grid-cols-7 text-center px-2 pb-1.5 ${
               expanded
-                ? 'flex-1 grid-rows-[repeat(6,1fr)] shrink-1 min-h-0 gap-x-2 gap-y-1'
+                ? 'flex-1 grid-rows-[repeat(6,1fr)] shrink-1 min-h-[240px] gap-x-2 gap-y-1'
                 : 'gap-x-1.5 gap-y-0.5'
             }`}
           >
@@ -244,8 +332,9 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
               const inMonth = isSameMonth(day, currentMonth)
               const isSelected = selectedDate && isSameDay(day, selectedDate)
               const isWeekend = day.getDay() === 0 || day.getDay() === 6
-              const clickable = hasLogs || today
+              const clickable = inMonth
               const dayTotal = showDuration ? durationByDate.get(dateKey) ?? 0 : 0
+              const eventEmojis = eventsByDate.get(dateKey) ?? []
 
               return (
                 <button
@@ -253,7 +342,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                   type="button"
                   onClick={() => handleDayClick(day)}
                   disabled={!clickable}
-                  aria-label={`${format(day, 'yyyy年M月d日')}${hasLogs ? '，有学习记录' : ''}`}
+                  aria-label={`${format(day, 'yyyy年M月d日')}${hasLogs ? '，有学习记录' : ''}${eventEmojis.length > 0 ? `，重要日${eventEmojis.map((e) => ` ${e.emoji}${e.title}`).join('，')}` : ''}`}
                   aria-pressed={isSelected ?? false}
                   className={`group relative mx-auto flex items-center justify-center rounded-lg transition-all duration-150 ease-out cursor-pointer motion-reduce:transition-none
                     ${expanded ? 'w-full h-full' : 'w-full aspect-[5/4]'}
@@ -285,6 +374,19 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                     >
                       {format(day, 'd')}
                     </span>
+                    {eventEmojis.length > 0 && (
+                      <span
+                        className={`leading-none ${
+                          today || isSelected
+                            ? 'text-white/90'
+                            : expanded && isWeekend
+                              ? 'opacity-80'
+                              : 'opacity-70'
+                        } ${expanded ? 'text-[12px]' : 'text-[9px]'}`}
+                      >
+                        {eventEmojis[0].emoji}
+                      </span>
+                    )}
                     {dayTotal > 0 && (
                       <span
                         className={`leading-none tabular-nums ${
@@ -304,18 +406,19 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
             })}
           </div>
 
-          {/* 详情区（expanded 下：overflow auto 避免把方形撑超；没选中就不占空间） */}
-          {(selectedLogs.length > 0 || (selectedDate && selectedLogs.length === 0)) && (
+          {/* 详情区：完全展开（学习记录 + 重要日 + 添加表单直接可见，无需滚动）；没选中就不占空间 */}
+          {selectedDate && (
             <div
               className={`border-t border-gray-100 dark:border-slate-800/80 px-3 py-2 bg-gradient-to-b from-gray-50/60 to-white dark:from-slate-900/40 dark:to-slate-900 ${
-                expanded ? 'shrink-0 overflow-y-auto max-h-[28%]' : ''
+                expanded ? 'shrink-0' : ''
               }`}
             >
+              {/* 学习记录块：有记录时照常展示；无记录且无重要日时才展示空态占位，避免与事件块文案重复 */}
               {selectedLogs.length > 0 && (
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] font-semibold tracking-wide text-gray-700 dark:text-slate-300">
-                      {formatDateShort(format(selectedDate!, 'yyyy-MM-dd'))} 的学习记录
+                      {formatDateShort(format(selectedDate, 'yyyy-MM-dd'))} 的学习记录
                     </p>
                     <span className="text-[10px] text-gray-400 dark:text-slate-500">
                       {selectedLogs.length} 条
@@ -338,7 +441,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
-                              {totalHours}h
+                              {fmtHours(totalHours)}h
                             </span>
                           )}
                         </div>
@@ -358,7 +461,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                                 >
                                   {subject?.name ?? '已删除科目'}
                                   {s.activity ? `·${s.activity}` : ''}
-                                  <span className="opacity-70">{s.hours}h</span>
+                                  <span className="opacity-70">{fmtHours(s.hours)}h</span>
                                 </span>
                               )
                             })}
@@ -374,7 +477,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                   })}
                 </div>
               )}
-              {selectedDate && selectedLogs.length === 0 && (
+              {selectedLogs.length === 0 && selectedEvents.length === 0 && (
                 <div className="space-y-1.5">
                   <p className="text-[11px] font-semibold tracking-wide text-gray-700 dark:text-slate-300">
                     {formatDateShort(format(selectedDate, 'yyyy-MM-dd'))} 的学习记录
@@ -395,6 +498,121 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                     <p className="text-center text-[11px] text-gray-400 dark:text-slate-500 py-1.5">
                       当天暂无学习记录
                     </p>
+                  )}
+                </div>
+              )}
+
+              {/* 重要日块（仅登录用户可见） */}
+              {user && (
+                <div
+                  className={`${
+                    selectedLogs.length > 0
+                      ? 'mt-2 pt-2 border-t border-dashed border-gray-200 dark:border-slate-800'
+                      : ''
+                  } space-y-1.5`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Icon name="calendar" size={13} className="text-rose-500 dark:text-rose-400" />
+                      <p className="text-[11px] font-semibold tracking-wide text-gray-700 dark:text-slate-300">重要日</p>
+                      {selectedEvents.length > 0 && (
+                        <span className="text-[10px] text-gray-400 dark:text-slate-500">{selectedEvents.length} 个</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {eventsError && (
+                        <span className="text-[10px] text-rose-500 dark:text-rose-400 max-w-[140px] truncate" title={eventsError}>
+                          {eventsError}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setShowAddEvent((v) => !v)}
+                        className={`inline-flex items-center gap-0.5 text-[10px] font-semibold px-2 py-1 rounded-full transition-colors ${
+                          showAddEvent
+                            ? 'text-gray-500 dark:text-slate-400 bg-gray-100 dark:bg-slate-800'
+                            : 'text-rose-600 dark:text-rose-300 bg-rose-50 dark:bg-rose-500/10 hover:bg-rose-100 dark:hover:bg-rose-500/20'
+                        }`}
+                      >
+                        {showAddEvent ? '收起' : (
+                          <>
+                            <Icon name="plus" size={11} />
+                            标记重要日
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {selectedEvents.length > 0 ? (
+                    <div className="space-y-1">
+                      {selectedEvents.map((ev) => (
+                        <div
+                          key={ev.id}
+                          className="flex items-center justify-between gap-2 rounded-lg bg-white dark:bg-slate-900/60 border border-gray-100 dark:border-slate-800 px-2 py-1"
+                        >
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[13px] leading-none shrink-0">{ev.emoji}</span>
+                            <span className="text-[11px] text-gray-700 dark:text-slate-300 truncate">{ev.title}</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteEvent(ev.id)}
+                            aria-label="删除重要日"
+                            className="shrink-0 inline-flex items-center justify-center h-6 w-6 rounded-full text-gray-400 dark:text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors"
+                          >
+                            <Icon name="trash" size={12} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-center text-[11px] text-gray-400 dark:text-slate-500 py-1">
+                      这一天还没有重要日
+                    </p>
+                  )}
+
+                  {showAddEvent && (
+                    <div className="rounded-xl border border-gray-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-2 space-y-2">
+                      <div className="flex flex-wrap gap-1">
+                        {EVENT_EMOJIS.map((em) => (
+                          <button
+                            key={em}
+                            type="button"
+                            onClick={() => setEventEmoji(em)}
+                            aria-pressed={eventEmoji === em}
+                            className={`h-7 w-7 rounded-lg text-[15px] flex items-center justify-center transition-colors ${
+                              eventEmoji === em
+                                ? 'bg-rose-100 dark:bg-rose-500/20 ring-1 ring-rose-300 dark:ring-rose-500/40'
+                                : 'hover:bg-gray-100 dark:hover:bg-slate-800'
+                            }`}
+                          >
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={eventTitle}
+                          onChange={(e) => setEventTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveEvent()
+                          }}
+                          placeholder={isToday(selectedDate) ? '今天是什么日子？' : `${format(selectedDate, 'M月d日')}是什么日子？`}
+                          maxLength={30}
+                          className="flex-1 min-w-0 h-8 px-2.5 rounded-lg bg-gray-50 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 text-[11px] text-gray-800 dark:text-slate-200 placeholder:text-gray-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-1 focus:ring-rose-300 dark:focus:ring-rose-500/40"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleSaveEvent}
+                          disabled={!eventTitle.trim() || eventSaving}
+                          className="shrink-0 h-8 px-2.5 inline-flex items-center gap-1 text-[11px] font-semibold text-white bg-rose-500 hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
+                        >
+                          {eventSaving ? '添加中…' : '添加'}
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               )}

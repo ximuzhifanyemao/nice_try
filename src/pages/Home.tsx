@@ -5,6 +5,7 @@ import { useLogs } from '../contexts/LogsContext'
 import { HomeLayoutContext } from '../App'
 import Countdown from '../components/Countdown'
 import Calendar from '../components/Calendar'
+import TodoList from '../components/TodoList'
 import { Icon } from '../components/Icon'
 import { todayStr } from '../lib/dailyLogs'
 import { computeStudyStats, computeStreak } from '../lib/achievements'
@@ -252,6 +253,9 @@ export default function Home() {
                 </div>
               </Link>
             )}
+
+            {/* 待办事项清单（长难句打卡下方） */}
+            <TodoList />
           </div>
 
           {/* ===== 【B 版】日历 + 下方两小卡（本周学习分布 + 今日格言/阶段提示），垂直居中 ===== */}
@@ -428,6 +432,9 @@ export default function Home() {
               )}
             </Link>
           )}
+
+          {/* 待办事项清单（长难句打卡下方） */}
+          <TodoList />
 
           <div className="grid gap-3 sm:gap-4 items-start grid-cols-1 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_360px]">
             <div>

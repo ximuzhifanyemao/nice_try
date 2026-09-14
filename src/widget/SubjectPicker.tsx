@@ -2,53 +2,13 @@ import { useState, useEffect } from 'react'
 import { getAvailableSubjects, getActivitiesForSubject, getSubjectById, hydrateUserSubjects, loadUserSubjects, type Subject } from '../lib/subjects'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
-import { fetchCommitments, getWeekStartStr, getWeekEndStr, sumHoursInRange } from '../lib/commitments'
-import { fetchLogsInRange } from '../lib/dailyLogs'
+import { useWeekGoal } from '../hooks/useWeekGoal'
 
 interface SubjectPickerProps {
   /** 选中科目（含学习内容）后开始计时 */
   onPick: (subjectId: string, activity: string) => void
   /** 关闭下拉并收起胶囊条 */
   onClose: () => void
-}
-
-/** 本周目标进度：已达时长 / 目标时长（未设置或已结算本周末时为空） */
-interface WeekGoal {
-  target: number
-  actual: number
-}
-
-/* ── 本周目标本地缓存 ──
-   下拉每次打开都会拉取 Supabase 计算「已达成时长」，网络慢时进度条迟迟不出现。
-   缓存按周粒度的最新值，先秒出显示再后台刷新，保证打开即见、数值不过期。 */
-const WEEK_GOAL_CACHE_KEY = 'kaoyan_week_goal_cache'
-
-function loadWeekGoalCache(weekStart: string): WeekGoal | null {
-  try {
-    const raw = localStorage.getItem(WEEK_GOAL_CACHE_KEY)
-    if (!raw) return null
-    const c = JSON.parse(raw) as Partial<{ weekStart: string; target: number; actual: number }>
-    if (c.weekStart !== weekStart || typeof c.target !== 'number' || typeof c.actual !== 'number') return null
-    return { target: c.target, actual: c.actual }
-  } catch {
-    return null
-  }
-}
-
-function saveWeekGoalCache(weekStart: string, goal: WeekGoal): void {
-  try {
-    localStorage.setItem(WEEK_GOAL_CACHE_KEY, JSON.stringify({ weekStart, target: goal.target, actual: goal.actual }))
-  } catch {
-    /* ignore */
-  }
-}
-
-function clearWeekGoalCache(): void {
-  try {
-    localStorage.removeItem(WEEK_GOAL_CACHE_KEY)
-  } catch {
-    /* ignore */
-  }
 }
 
 /**
@@ -58,13 +18,14 @@ function clearWeekGoalCache(): void {
  */
 export default function SubjectPicker({ onPick, onClose }: SubjectPickerProps) {
   const { user } = useAuth()
-  // 初始先恢复本地缓存的自定义科目（若有），避免先内置后自定义的闪烁
+  // 先初始恢复本地缓存的自定义科目（若有），避免先内置后自定义的闪烁
   const [subjects, setSubjects] = useState<Subject[]>(() => {
     hydrateUserSubjects(user?.id)
     return getAvailableSubjects()
   })
   const [pendingSubject, setPendingSubject] = useState<string | null>(null)
-  const [weekGoal, setWeekGoal] = useState<WeekGoal | null>(null)
+  // 本周目标进度：缓存秒出 + 后台刷新（与胶囊条共用同一份缓存）
+  const { goal: weekGoal } = useWeekGoal(user?.id)
 
   // 跟随用户加载自定义科目（与精简面板一致）：
   // 先等云端加载完成再刷新列表，否则全功能模式新增的科目在简洁下拉里看不到
@@ -79,41 +40,6 @@ export default function SubjectPicker({ onPick, onClose }: SubjectPickerProps) {
         }
       }
       if (!cancelled) setSubjects(getAvailableSubjects())
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [user?.id])
-
-  // 本周目标进度：先秒出缓存，再拉取本周承诺 + 本周打卡记录后台刷新
-  useEffect(() => {
-    let cancelled = false
-    const weekStart = getWeekStartStr()
-    const weekEnd = getWeekEndStr()
-    // 缓存命中时立即显示（不等待网络），避免进度条「跳出来」的延迟感
-    const cached = loadWeekGoalCache(weekStart)
-    if (cached) setWeekGoal(cached)
-    ;(async () => {
-      if (!user) return
-      try {
-        const [commitments, logs] = await Promise.all([
-          fetchCommitments(user.id),
-          fetchLogsInRange(user.id, weekStart, weekEnd),
-        ])
-        if (cancelled) return
-        const cur = commitments.find((c) => c.week_start === weekStart && c.status === 'active')
-        if (!cur || cur.target_hours <= 0) {
-          // 本周未设目标：清掉旧缓存并隐藏进度行（避免跨周残留）
-          clearWeekGoalCache()
-          setWeekGoal(null)
-          return
-        }
-        const goal = { target: cur.target_hours, actual: sumHoursInRange(logs, weekStart, weekEnd) }
-        setWeekGoal(goal)
-        saveWeekGoalCache(weekStart, goal)
-      } catch {
-        /* 静默失败，保留缓存里的目标 */
-      }
     })()
     return () => {
       cancelled = true

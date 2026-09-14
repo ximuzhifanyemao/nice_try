@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "DiveDeep",
-  "version": "1.14.5",
+  "version": "1.14.6",
   "identifier": "com.kaoyan.tracker",
   "build": {
     "frontendDist": "../dist",
@@ -14,7 +14,7 @@
       {
         "title": "DiveDeep",
         "width": 460,
-        "height": 56,
+        "height": 52,
         "resizable": false,
         "decorations": false,
         "alwaysOnTop": true,

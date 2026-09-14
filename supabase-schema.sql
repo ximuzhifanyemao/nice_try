@@ -1093,3 +1093,140 @@ CREATE POLICY "removed_subjects_update_own"
   WITH CHECK (auth.uid() = user_id);
 
 GRANT SELECT, INSERT, UPDATE ON public.removed_subjects TO authenticated;
+
+-- ============================================
+-- 十八、日历重要日（原 supabase-migration-calendar-events.sql）
+--  用户给任意日期添加「重要日」标记（标题 + emoji 图标），日历上可见
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.calendar_events (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  date DATE NOT NULL,            -- 本地时区 yyyy-MM-dd
+  title TEXT NOT NULL,
+  emoji TEXT NOT NULL DEFAULT '⭐',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_events_user_date ON public.calendar_events(user_id, date);
+
+ALTER TABLE public.calendar_events ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own calendar events" ON public.calendar_events;
+CREATE POLICY "Users can read own calendar events"
+  ON public.calendar_events
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own calendar events" ON public.calendar_events;
+CREATE POLICY "Users can insert own calendar events"
+  ON public.calendar_events
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete own calendar events" ON public.calendar_events;
+CREATE POLICY "Users can delete own calendar events"
+  ON public.calendar_events
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.calendar_events TO authenticated;
+
+-- ============================================
+-- 十九、首页待办清单（原 supabase-migration-todos.sql）
+--  首页「英语长难句打卡」下方：添加 / 勾选完成 / 删除
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.todos (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  done BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_todos_user ON public.todos(user_id, done);
+
+ALTER TABLE public.todos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own todos" ON public.todos;
+CREATE POLICY "Users can read own todos"
+  ON public.todos
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own todos" ON public.todos;
+CREATE POLICY "Users can insert own todos"
+  ON public.todos
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update own todos" ON public.todos;
+CREATE POLICY "Users can update own todos"
+  ON public.todos
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can delete own todos" ON public.todos;
+CREATE POLICY "Users can delete own todos"
+  ON public.todos
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.todos TO authenticated;
+
+-- ============================================
+-- 二十、每周总结反思表
+--  用户每周一篇反思笔记（写哪里做得不够好），(user_id, week_start) 唯一，
+--  可更新、可查询历史周次，用于「每周总结」页
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.weekly_reflections (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  week_start DATE NOT NULL,          -- 周起点（周一），与 getWeekStartStr 口径一致
+  content TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 每周一篇：同一用户对同一周起点唯一（upsert by onConflict: user_id,week_start）
+CREATE UNIQUE INDEX IF NOT EXISTS idx_weekly_reflections_user_week
+  ON public.weekly_reflections (user_id, week_start);
+
+CREATE INDEX IF NOT EXISTS idx_weekly_reflections_user
+  ON public.weekly_reflections (user_id, week_start DESC);
+
+ALTER TABLE public.weekly_reflections ENABLE ROW LEVEL SECURITY;
+
+-- 仅本人可读自己的反思
+DROP POLICY IF EXISTS "Users can read own weekly reflections" ON public.weekly_reflections;
+CREATE POLICY "Users can read own weekly reflections"
+  ON public.weekly_reflections
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- 仅本人可插入自己的反思
+DROP POLICY IF EXISTS "Users can insert own weekly reflections" ON public.weekly_reflections;
+CREATE POLICY "Users can insert own weekly reflections"
+  ON public.weekly_reflections
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- 仅本人可更新自己的反思
+DROP POLICY IF EXISTS "Users can update own weekly reflections" ON public.weekly_reflections;
+CREATE POLICY "Users can update own weekly reflections"
+  ON public.weekly_reflections
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- 仅本人可删除自己的反思
+DROP POLICY IF EXISTS "Users can delete own weekly reflections" ON public.weekly_reflections;
+CREATE POLICY "Users can delete own weekly reflections"
+  ON public.weekly_reflections
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.weekly_reflections TO authenticated;

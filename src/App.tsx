@@ -32,6 +32,7 @@ const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
 const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Health = lazy(() => import('./pages/Health'))
+const WeeklySummary = lazy(() => import('./pages/WeeklySummary'))
 const QrLogin = lazy(() => import('./pages/QrLogin'))
 const ScanQr = lazy(() => import('./pages/ScanQr'))
 
@@ -254,6 +255,7 @@ export default function App({
                     <Route path="/my-records" element={<MyRecords />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/summary" element={<Summary />} />
+                    <Route path="/weekly-summary" element={<WeeklySummary />} />
                     <Route path="/my-records/new" element={<NewRecord />} />
                     <Route path="/my-records/:id/edit" element={<EditRecord />} />
                     <Route path="/timer" element={<TimerPage />} />

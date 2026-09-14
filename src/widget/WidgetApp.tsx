@@ -16,8 +16,8 @@ const FULL_W = 1600
 const FULL_H = 1000
 /** 胶囊条宽度：保证「选择科目开始」等文案完整显示 */
 const WIDGET_W = 460
-/** 胶囊条常态高度（尽量紧凑，比原 64 略矮） */
-const WIDGET_H = 56
+/** 胶囊条常态高度（尽量紧凑） */
+const WIDGET_H = 52
 /** 科目下拉高度（选科后自动收回胶囊条），含本周目标进度行 */
 const DROPDOWN_H = 300
 
@@ -358,7 +358,7 @@ export default function WidgetApp() {
         <>
           <div
             aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-14 h-24 bg-gradient-to-b from-indigo-400/10 via-indigo-400/5 to-transparent dark:from-indigo-500/15 dark:via-indigo-500/5 dark:to-transparent"
+            className="pointer-events-none absolute inset-x-0 top-[52px] h-24 bg-gradient-to-b from-indigo-400/10 via-indigo-400/5 to-transparent dark:from-indigo-500/15 dark:via-indigo-500/5 dark:to-transparent"
           />
           <div
             aria-hidden
@@ -372,7 +372,7 @@ export default function WidgetApp() {
       <div
         data-tauri-drag-region="deep"
         className={`relative z-10 flex shrink-0 select-none items-center ${
-          dropdownOpen ? 'h-14 w-full gap-2 border-b border-gray-200 px-3 dark:border-slate-800' : 'w-full min-w-0 flex-1 gap-2 pl-3 pr-2'
+          dropdownOpen ? 'h-[52px] w-full gap-2 border-b border-gray-200 px-3 dark:border-slate-800' : 'w-full min-w-0 flex-1 gap-2 pl-3 pr-2'
         }`}
       >
         <CapsuleStrip expanded={dropdownOpen} onOpenDropdown={openDropdown} />

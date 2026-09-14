@@ -18,6 +18,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'checkin', label: '打卡', iconKey: 'checkin', path: '/english-checkin' },
   { key: 'records', label: '记录', iconKey: 'records', path: '/my-records' },
   { key: 'summary', label: '统计', iconKey: 'summary', path: '/summary' },
+  { key: 'weeklySummary', label: '周总结', iconKey: 'goal', path: '/weekly-summary' },
   { key: 'vocab', label: '生词', iconKey: 'vocab', path: '/vocabulary' },
   { key: 'achievements', label: '成就', iconKey: 'achievements', path: '/achievements' },
   { key: 'goal', label: '目标', iconKey: 'goal', path: '/goal' },
@@ -40,6 +41,7 @@ export default function Sidebar() {
     if (pathname === '/english-checkin') return 'checkin'
     if (pathname.startsWith('/my-records')) return 'records'
     if (pathname === '/summary') return 'summary'
+    if (pathname === '/weekly-summary') return 'weeklySummary'
     if (pathname === '/vocabulary') return 'vocab'
     if (pathname === '/achievements') return 'achievements'
     if (pathname === '/goal') return 'goal'

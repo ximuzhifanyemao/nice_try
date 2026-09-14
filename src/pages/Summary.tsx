@@ -8,6 +8,7 @@ import { getSubjectById } from '../lib/subjects'
 import { getChipColor, getBarColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
 import WeeklyReport from '../components/WeeklyReport'
+import { Icon } from '../components/Icon'
 import { useWideLayout } from '../App'
 
 const Summary: React.FC = () => {
@@ -41,6 +42,25 @@ const Summary: React.FC = () => {
   return (
     <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-4xl'} px-4 py-4 space-y-4`}>
       <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">统计</h1>
+
+      {/* 每周总结入口：本周 vs 上周对比 + 反思笔记 */}
+      {!loading && !error && (
+        <Link
+          to="/weekly-summary"
+          className="group flex items-center justify-between rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-500 to-violet-500 p-4 text-white shadow-[0_8px_28px_-10px_rgba(79,70,229,0.5)] dark:shadow-none transition-transform hover:scale-[1.01]"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/15 backdrop-blur-sm">
+              <Icon name="target" size={20} />
+            </span>
+            <div>
+              <p className="font-semibold leading-none">每周总结</p>
+              <p className="mt-1 text-[11px] text-white/75">本周 vs 上周 · 反思笔记</p>
+            </div>
+          </div>
+          <Icon name="chevronRight" size={20} className="text-white/70 transition-transform group-hover:translate-x-0.5" />
+        </Link>
+      )}
 
       {/* 本周学习报告：自动汇总本周表现 */}
       {!loading && !error && range.mode === 'week' && <WeeklyReport logs={logs} />}

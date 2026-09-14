@@ -22,27 +22,34 @@ export function LogsProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const versionRef = useRef(0)
+  /** 是否已完成过至少一次加载：之后的后台/焦点刷新改为静默，不闪加载转圈（拖动 Tauri 窗口等场景） */
+  const loadedOnceRef = useRef(false)
 
-  const refetch = useCallback(() => {
-    if (!user) return
-    versionRef.current++
-    setLoading(true)
-    setError(null)
-    const v = versionRef.current
-    fetchMyLogs(user.id)
-      .then((data) => {
-        if (versionRef.current !== v) return
-        setLogs(data)
-      })
-      .catch((err) => {
-        if (versionRef.current !== v) return
-        setError(err.message || '加载失败')
-      })
-      .finally(() => {
-        if (versionRef.current !== v) return
-        setLoading(false)
-      })
-  }, [user])
+  const refetch = useCallback(
+    (opts?: { silent?: boolean }) => {
+      if (!user) return
+      versionRef.current++
+      const silent = opts?.silent ?? loadedOnceRef.current
+      if (!silent) setLoading(true)
+      setError(null)
+      const v = versionRef.current
+      fetchMyLogs(user.id)
+        .then((data) => {
+          if (versionRef.current !== v) return
+          setLogs(data)
+        })
+        .catch((err) => {
+          if (versionRef.current !== v) return
+          setError(err.message || '加载失败')
+        })
+        .finally(() => {
+          if (versionRef.current !== v) return
+          loadedOnceRef.current = true
+          if (!silent) setLoading(false)
+        })
+    },
+    [user],
+  )
 
   useEffect(() => {
     if (!user) {

@@ -1,8 +1,11 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type KeyboardEvent, type MouseEvent } from 'react'
 import DesktopLogo from '../components/DesktopLogo'
 import { useAuth } from '../contexts/AuthContext'
 import { getSubjectById } from '../lib/subjects'
 import { formatDuration } from '../lib/format'
+import { fetchLogsInRange } from '../lib/dailyLogs'
+import { sumHoursInRange } from '../lib/commitments'
+import { format } from 'date-fns'
 import {
   loadSharedTimer,
   computeTimerElapsed,
@@ -20,9 +23,10 @@ interface CapsuleStripProps {
 }
 
 /**
- * 胶囊条：简洁模式常态（460×56）的主显示区。
- * - 常显：品牌 logo + 当前科目 + 实时计时
+ * 胶囊条：简洁模式常态（460×52）的主显示区。
+ * - 常显：品牌 logo + 当前科目 + 实时计时 + 今日学习时长（8 段，1 段 = 1 小时）
  * - 空闲时点 ▶ 展开面板选择科目；计时中点 ■ 直接结束并打卡
+ * - 暂停/停止仅接受鼠标点击（拦截空格/回车，避免暂停视频时误触计时）
  * - 每秒与共享计时对齐，面板/全功能切换后显示保持一致
  */
 export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripProps) {
@@ -35,6 +39,31 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
   const [note, setNote] = useState('')
   const [stopping, setStopping] = useState(false)
   const noteTimer = useRef<number | null>(null)
+  // 今日已打卡学习时长（小时）：挂载时拉取，结束打卡后刷新
+  const [todayHours, setTodayHours] = useState(0)
+  const userId = user?.id
+  const loadTodayHours = useCallback(async () => {
+    if (!userId) {
+      setTodayHours(0)
+      return
+    }
+    try {
+      const today = format(new Date(), 'yyyy-MM-dd')
+      const logs = await fetchLogsInRange(userId, today, today)
+      setTodayHours(sumHoursInRange(logs, today, today))
+    } catch {
+      /* 拉取失败保持原值 */
+    }
+  }, [userId])
+
+  useEffect(() => {
+    loadTodayHours()
+  }, [loadTodayHours])
+
+  // 暂停/停止只接受鼠标点击：拦截空格/回车对按钮的默认激活
+  const blockKeyboard = useCallback((e: KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === ' ' || e.key === 'Enter') e.preventDefault()
+  }, [])
 
   // 每秒与共享计时对齐（本组件不直接改状态，全部以 localStorage 为准）
   useEffect(() => {
@@ -61,30 +90,40 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
     noteTimer.current = window.setTimeout(() => setNote(''), 4000)
   }, [])
 
-  const handleStop = useCallback(async () => {
-    if (!loadSharedTimer()) return
-    setStopping(true)
-    try {
-      const result = await finishSharedTimer(user)
-      if (result.status === 'saved') {
-        showNote(`已记入 ${formatDuration(result.seconds)}`)
-      } else if (result.message) {
-        showNote(result.message)
+  const handleStop = useCallback(
+    async (e?: MouseEvent<HTMLButtonElement>) => {
+      e?.currentTarget.blur()
+      if (!loadSharedTimer()) return
+      setStopping(true)
+      try {
+        const result = await finishSharedTimer(user)
+        if (result.status === 'saved') {
+          loadTodayHours()
+          showNote(`已记入 ${formatDuration(result.seconds)}`)
+        } else if (result.message) {
+          showNote(result.message)
+        }
+        // running/elapsed 将在下一次 tick 自动对齐到已停止状态
+      } finally {
+        setStopping(false)
       }
-      // running/elapsed 将在下一次 tick 自动对齐到已停止状态
-    } finally {
-      setStopping(false)
-    }
-  }, [user, showNote])
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user, showNote],
+  )
 
   /** 暂停 / 恢复：写入共享计时后立即对齐本地状态（无需等下个 tick） */
-  const handlePauseToggle = useCallback(() => {
-    if (running?.paused) resumeSharedTimer()
-    else pauseSharedTimer()
-    const s = loadSharedTimer()
-    setRunning(s)
-    setElapsed(s ? computeTimerElapsed(s) : 0)
-  }, [running?.paused])
+  const handlePauseToggle = useCallback(
+    (e?: MouseEvent<HTMLButtonElement>) => {
+      e?.currentTarget.blur()
+      if (running?.paused) resumeSharedTimer()
+      else pauseSharedTimer()
+      const s = loadSharedTimer()
+      setRunning(s)
+      setElapsed(s ? computeTimerElapsed(s) : 0)
+    },
+    [running?.paused],
+  )
 
   const subjectLabel = running?.subjectId
     ? (getSubjectById(running.subjectId)?.name ?? running.subjectId) +
@@ -122,7 +161,11 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
           </span>
         ) : (
           <button
-            onClick={onOpenDropdown}
+            onClick={(ev) => {
+              ev.currentTarget.blur()
+              onOpenDropdown()
+            }}
+            onKeyDown={blockKeyboard}
             title="选择科目开始"
             aria-label="选择科目开始"
             className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium leading-4 transition-colors bg-gray-100 text-slate-600 hover:bg-gray-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 cursor-pointer max-w-[150px]`}
@@ -142,17 +185,43 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
             {note}
           </span>
         ) : (
-          <span
-            className={`font-mono text-[15px] font-semibold tabular-nums tracking-tight ${
-              running?.paused
-                ? 'text-amber-600 dark:text-amber-400'
-                : running
-                  ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-violet-400 dark:to-indigo-400'
-                  : 'text-slate-400 dark:text-slate-500'
-            }`}
-          >
-            {running ? formatDuration(elapsed) : '00:00:00'}
-          </span>
+          <div className="flex flex-col items-center justify-center">
+            <span
+              className={`font-mono text-[15px] font-semibold leading-none tabular-nums tracking-tight ${
+                running?.paused
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : running
+                    ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-indigo-600 bg-clip-text text-transparent dark:from-indigo-400 dark:via-violet-400 dark:to-indigo-400'
+                    : 'text-slate-400 dark:text-slate-500'
+              }`}
+            >
+              {running ? formatDuration(elapsed) : '00:00:00'}
+            </span>
+            {/* 今日学习时长：8 段，1 段 = 1 小时，按比例精确填充（仅精简常态展示） */}
+            {!expanded && (
+              <div className="mt-1.5 flex items-center gap-[3px]" aria-label={`今日已学 ${todayHours.toFixed(1)} 小时`}>
+                {Array.from({ length: 8 }, (_, i) => {
+                  const fill = Math.max(0, Math.min(1, todayHours - i))
+                  const full = fill >= 1
+                  return (
+                    <span
+                      key={i}
+                      className={`relative h-[5px] w-[9px] overflow-hidden rounded-[2px] ${
+                        full ? 'bg-indigo-500 dark:bg-indigo-400' : 'bg-slate-200 dark:bg-slate-700/70'
+                      }`}
+                    >
+                      {!full && fill > 0 && (
+                        <span
+                          className="absolute inset-y-0 left-0 rounded-[2px] bg-indigo-500/80 dark:bg-indigo-400/80"
+                          style={{ width: `${fill * 100}%` }}
+                        />
+                      )}
+                    </span>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -162,6 +231,7 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
           <div className="flex shrink-0 items-center gap-1.5">
             <button
               onClick={handlePauseToggle}
+              onKeyDown={blockKeyboard}
               title={running.paused ? '继续' : '暂停'}
               aria-label={running.paused ? '继续' : '暂停'}
               className={`flex h-8 w-8 items-center justify-center rounded-full text-white shadow-sm transition-colors cursor-pointer ${
@@ -183,6 +253,7 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
             </button>
             <button
               onClick={handleStop}
+              onKeyDown={blockKeyboard}
               disabled={stopping}
               title="结束并打卡"
               aria-label="结束并打卡"
@@ -195,7 +266,11 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
           </div>
         ) : (
           <button
-            onClick={onOpenDropdown}
+            onClick={(ev) => {
+              ev.currentTarget.blur()
+              onOpenDropdown()
+            }}
+            onKeyDown={blockKeyboard}
             title="选择科目开始"
             aria-label="选择科目开始"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white shadow-sm transition-colors hover:bg-indigo-500 cursor-pointer"

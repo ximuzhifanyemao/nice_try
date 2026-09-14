@@ -1,9 +1,18 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+      // 单实例限制：重复启动时只把已有窗口带到前台，不再新开一个实例
+      if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+      }
+    }))
     .setup(|app| {
       if cfg!(debug_assertions) {
         // 开发模式下把日志写到项目 target/dev-logs（沙箱/权限受限环境无法写系统 AppData 日志目录）
