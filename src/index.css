@@ -16,13 +16,71 @@
   --shadow-glow: 0 4px 18px -6px rgba(79, 70, 229, 0.55);
 }
 
+/* ─── 设计令牌：语义色 ───
+   组件层 .card/.input/.btn-primary 等通过 CSS 变量取色，
+   而非各自硬编码，从而让浅色/深色与空气主题都能整体联动变色。
+   默认 :root = 浅色；html.dark = 深色；dawn/dusk/starry 在各自选择器内覆盖。 */
+:root {
+  --color-surface: #ffffff; /* 卡片底 */
+  --color-surface-muted: #f8fafc; /* 次级底（输入框等） */
+  --color-border: #e5e7eb; /* 边框 */
+  --color-brand: #4f46e5; /* 主强调 */
+  --color-brand-strong: #6366f1; /* 强调/悬停加深色 */
+  --color-text: #111827;
+  --color-text-muted: #94a3b8;
+}
+
+/* 深色：与 dark: 变体一致的取值，保证浅色观感不变 */
+html.dark {
+  color-scheme: dark;
+  --color-surface: #0f172a;
+  --color-surface-muted: #1e293b;
+  --color-border: #1e293b;
+  --color-brand: #6366f1;
+  --color-brand-strong: #818cf8;
+  --color-text: #f1f5f9;
+  --color-text-muted: #64748b;
+}
+
+/* 空气主题覆盖：紧随 html.dark 之后，data-theme（与 dark 同特异性）后用者生效，
+   因此 dusk/starry 的中枢覆盖会盖过深色基线。dawn 为浅色套系，不启用 dark class。 */
+
+/* 晨光：暖淡紫，卡片保持白色以保证对比度 */
+html[data-theme='dawn'] {
+  --color-surface: #ffffff;
+  --color-surface-muted: #fbf7ff;
+  --color-border: #e7def6;
+  --color-brand: #7c3aed;
+  --color-brand-strong: #8b5cf6;
+  --color-text: #1f2937;
+  --color-text-muted: #94a3b8;
+}
+
+/* 暮色：蓝紫深色，与深空渐变背景协调 */
+html[data-theme='dusk'] {
+  --color-surface: #1a2340;
+  --color-surface-muted: #131a2e;
+  --color-border: #2a3356;
+  --color-brand: #818cf8;
+  --color-brand-strong: #a5b4fc;
+  --color-text: #e2e8f0;
+  --color-text-muted: #94a3b8;
+}
+
+/* 午夜繁星：深星空蓝 + 星紫强调 */
+html[data-theme='starry'] {
+  --color-surface: #12183c;
+  --color-surface-muted: #0c1129;
+  --color-border: #232b52;
+  --color-brand: #a78bfa;
+  --color-brand-strong: #c4b5fd;
+  --color-text: #e4e7f5;
+  --color-text-muted: #96a0c8;
+}
+
 /* ─── 全局基础 ─── */
 html {
   -webkit-text-size-adjust: 100%;
-}
-
-html.dark {
-  color-scheme: dark;
 }
 
 /* ─── 扩展主题：渐变氛围背景 ───
@@ -124,6 +182,21 @@ html[data-theme='starry'] .theme-surface::before {
   50% { opacity: 1; }
 }
 
+/* 移动端（& 窄屏）：background-attachment fixed 在 iOS 上易失效/卡顿，降级为 scroll */
+@media (max-width: 640px) {
+  html[data-theme] .theme-surface {
+    background-attachment: scroll;
+  }
+}
+
+/* 无障碍：尊重「减少动态效果」偏好，关闭星星闪烁动画 */
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme='starry'] .theme-surface::before,
+  html[data-theme='starry'] .theme-surface::after {
+    animation: none !important;
+  }
+}
+
 /* 数字统一用等宽字形，统计类数据更整齐 */
 body {
   font-feature-settings: "tnum" 1;
@@ -183,19 +256,30 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 
 /* ─── 统一组件样式：全站卡片 / 按钮 / 输入框 ─── */
 @layer components {
-  /* 标准卡片：白卡 + 细边框 + 柔和阴影 */
+  /* 标准卡片：语义底 + 细边框 + 柔和阴影 */
   .card {
-    @apply rounded-2xl border border-gray-200/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.1)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-none;
+    @apply rounded-2xl border shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.1)] dark:shadow-none;
+    background: var(--color-surface);
+    border-color: var(--color-border);
   }
 
   /* 可交互卡片：悬停轻微浮起 + 品牌色描边 */
   .card-hover {
-    @apply rounded-2xl border border-gray-200/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.1)] transition-all duration-150 hover:-translate-y-0.5 hover:border-indigo-200 hover:shadow-[0_2px_4px_rgba(15,23,42,0.05),0_12px_32px_-16px_rgba(79,70,229,0.28)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-indigo-500/40;
+    @apply rounded-2xl border shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_-14px_rgba(15,23,42,0.1)] transition-all duration-150 hover:-translate-y-0.5 hover:shadow-[0_2px_4px_rgba(15,23,42,0.05),0_12px_32px_-16px_rgba(79,70,229,0.28)] dark:shadow-none;
+    background: var(--color-surface);
+    border-color: var(--color-border);
+  }
+  .card-hover:hover {
+    border-color: color-mix(in srgb, var(--color-brand) 32%, var(--color-surface));
   }
 
   /* 主按钮 */
   .btn-primary {
-    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-indigo-500 hover:shadow-[0_4px_16px_-6px_rgba(79,70,229,0.6)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400;
+    @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:shadow-[0_4px_16px_-6px_rgba(79,70,229,0.6)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+    background: var(--color-brand);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--color-brand-strong);
   }
 
   /* 次按钮 / 幽灵按钮 */
@@ -210,7 +294,17 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 
   /* 输入框 */
   .input {
-    @apply w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring-4 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/15;
+    @apply w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-4;
+    background: var(--color-surface-muted);
+    border-color: var(--color-border);
+    color: var(--color-text);
+  }
+  .input::placeholder {
+    color: var(--color-text-muted);
+  }
+  .input:focus {
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-brand) 15%, transparent);
   }
 
   /* 表单字段标签 */
@@ -220,7 +314,8 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 
   /* 分组小标题（SectionLabel / GroupLabel 通用） */
   .section-label {
-    @apply px-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500;
+    @apply px-1 pt-4 text-[11px] font-medium uppercase tracking-wider;
+    color: var(--color-text-muted);
   }
 
   /* 分段选择器（登录 Tab 等） */

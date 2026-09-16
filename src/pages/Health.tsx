@@ -44,6 +44,7 @@ import {
 import type { CustomPreset } from '../lib/health'
 import { FOOD_PRESETS, type FoodPreset } from '../lib/foodPresets'
 import { useWideLayout } from '../App'
+import ConfirmDialog from '../components/ConfirmDialog'
 
 /** kg 转斤（1 斤 = 0.5 kg，保留 1 位小数） */
 function kgToJin(kg: number | null | undefined): string {
@@ -165,6 +166,8 @@ export default function Health() {
   // 自定义预设表单
   const [cpEdit, setCpEdit] = useState(false)
   const [cpForm, setCpForm] = useState<CpForm>(emptyCpForm())
+  // 删除餐次的确认弹窗
+  const [confirmDeleteMeal, setConfirmDeleteMeal] = useState<{ open: boolean; id: string }>({ open: false, id: '' })
 
   const userId = user?.id
 
@@ -1310,7 +1313,10 @@ export default function Health() {
                         >
                           编辑
                         </button>
-                        <button onClick={() => removeMeal(m.id)} className="text-xs text-red-500 cursor-pointer">
+                        <button
+                          onClick={() => setConfirmDeleteMeal({ open: true, id: m.id })}
+                          className="text-xs text-red-500 cursor-pointer"
+                        >
                           删除
                         </button>
                       </div>
@@ -1407,6 +1413,19 @@ export default function Health() {
       <p className="mt-4 text-[10px] text-gray-400 dark:text-slate-500 text-center">
         NRV（营养素参考值）按国标 8400 kJ/天（约 2000 kcal）基准自动计算
       </p>
+
+      <ConfirmDialog
+        open={confirmDeleteMeal.open}
+        title="删除该餐次记录"
+        message="删除后不可恢复，确定要删除这条餐次记录吗？"
+        confirmText="删除"
+        danger
+        onConfirm={() => {
+          if (confirmDeleteMeal.id) removeMeal(confirmDeleteMeal.id)
+          setConfirmDeleteMeal({ open: false, id: '' })
+        }}
+        onCancel={() => setConfirmDeleteMeal({ open: false, id: '' })}
+      />
     </div>
   )
 }

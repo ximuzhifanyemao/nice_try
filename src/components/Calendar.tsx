@@ -345,7 +345,11 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                   aria-label={`${format(day, 'yyyy年M月d日')}${hasLogs ? '，有学习记录' : ''}${eventEmojis.length > 0 ? `，重要日${eventEmojis.map((e) => ` ${e.emoji}${e.title}`).join('，')}` : ''}`}
                   aria-pressed={isSelected ?? false}
                   className={`group relative mx-auto flex items-center justify-center rounded-lg transition-all duration-150 ease-out cursor-pointer motion-reduce:transition-none
-                    ${expanded ? 'w-full h-full' : 'w-full aspect-[5/4]'}
+                    ${
+                      expanded
+                        ? 'w-full h-full'
+                        : 'w-full aspect-[5/4] max-[374px]:aspect-auto max-[374px]:min-h-[40px]'
+                    }
                     ${!inMonth ? 'opacity-40' : ''}
                     ${
                       isSelected

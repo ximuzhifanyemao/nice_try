@@ -17,7 +17,7 @@ import {
   type UserSubject,
 } from '../lib/subjects'
 import { fetchLogByDate, isDuplicateDateError, sortSubjectsByStartTime, todayStr, upsertLogSafely, type DailyLogSubject } from '../lib/dailyLogs'
-import { formatDateCn, formatDuration, formatDurationShort, timeRangeHours, toTimeStr } from '../lib/format'
+import { formatDateCn, formatDuration, formatDurationShort, pad, timeRangeHours, toTimeStr } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
@@ -150,6 +150,92 @@ function GroupPicker({
   )
 }
 
+/* ── 番茄钟（与正计时并存，通过模式切换） ── */
+/** 番茄钟模式记忆键 */
+const MODE_KEY = 'kaoyan_timer_mode'
+const POMO_FOCUS_KEY = 'kaoyan_pomo_focus_min'
+const POMO_REST_KEY = 'kaoyan_pomo_rest_min'
+/** 番茄钟原生本地通知 id：避开打卡提醒 5000-5006 区间 */
+const POMO_FOCUS_END_ID = 6101
+const POMO_REST_END_ID = 6102
+
+/** 读取番茄钟专注时长（分钟），默认 25，非法值回退默认 */
+function loadPomoFocusMin(): number {
+  const raw = Number(localStorage.getItem(POMO_FOCUS_KEY))
+  return raw > 0 && raw <= 240 ? Math.round(raw) : 25
+}
+function loadPomoRestMin(): number {
+  const raw = Number(localStorage.getItem(POMO_REST_KEY))
+  return raw >= 0 && raw <= 120 ? Math.round(raw) : 5
+}
+
+/** Web/Tauri 端短蜂鸣（AudioContext 单音，失败静默） */
+function webBeep(): void {
+  try {
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+    const ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.type = 'sine'
+    osc.frequency.value = 880
+    gain.gain.setValueAtTime(0.3, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.5)
+    osc.onended = () => ctx.close().catch(() => {/*** 忽略关闭失败 */})
+  } catch {
+    /* 忽略 beep 失败 */
+  }
+}
+
+/**
+ * 番茄钟阶段结束的本地提醒：
+ * - 原生：立即 schedule 一条系统通知（focus=6101 / rest=6102）
+ * - Web/Tauri：beep + 浏览器通知（未授权则仅 beep）
+ */
+async function pomodoroNotify(kind: 'focus' | 'rest'): Promise<void> {
+  const title = kind === 'focus' ? 'DiveDeep · 专注完成' : 'DiveDeep · 休息结束'
+  const body = kind === 'focus' ? '专注完成，休息 5 分钟吧 🍅' : '休息结束，开始下一轮专注'
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { LocalNotifications } = await import('@capacitor/local-notifications')
+      const status = await LocalNotifications.checkPermissions()
+      if (status.display !== 'granted') await LocalNotifications.requestPermissions()
+      await LocalNotifications.schedule({
+        notifications: [{
+          id: kind === 'focus' ? POMO_FOCUS_END_ID : POMO_REST_END_ID,
+          title,
+          body,
+          smallIcon: 'ic_stat_icon',
+          iconColor: '#ef4444',
+          schedule: { at: new Date(), allowWhileIdle: true },
+        }],
+      })
+    } catch {
+      /* 忽略通知失败 */
+    }
+    return
+  }
+  webBeep()
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    try {
+      new Notification(title, { body, tag: 'divedeep-pomodoro' })
+    } catch {
+      /* 忽略 */
+    }
+  }
+}
+
+/** 毫秒 → MM:SS（番茄钟倒计时显示） */
+function formatMmSs(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000))
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${pad(m)}:${pad(s)}`
+}
+
 /* ── 组件 ── */
 export default function StudyTimer() {
   const { user } = useAuth()
@@ -195,6 +281,28 @@ export default function StudyTimer() {
   const [saved, setSaved] = useState(false)
   /* 累计归属日期（补交：计时开始那天），无累计时为今天 */
   const [accumDate, setAccumDate] = useState<string>(() => loadAccumDate() ?? todayStr())
+
+  /* ── 番茄钟模式（与正计时并存，通过模式切换） ── */
+  const [mode, setMode] = useState<'stopwatch' | 'pomodoro'>(
+    () => (localStorage.getItem(MODE_KEY) === 'pomodoro' ? 'pomodoro' : 'stopwatch'),
+  )
+  /* 专注/休息时长（分钟），记住选择 */
+  const [pomoFocusMin, setPomoFocusMin] = useState<number>(loadPomoFocusMin)
+  const [pomoRestMin, setPomoRestMin] = useState<number>(loadPomoRestMin)
+  const [pomoCustomFocus, setPomoCustomFocus] = useState<number>(loadPomoFocusMin)
+  /* 番茄钟运行状态机：idle 空闲 / focus 专注中 / rest 休息中 */
+  const [pomoPhase, setPomoPhase] = useState<'idle' | 'focus' | 'rest'>('idle')
+  const [pomoRunning, setPomoRunning] = useState(false) // false=已暂停
+  const [pomoEndAt, setPomoEndAt] = useState<number | null>(null) // 当前阶段结束时间戳
+  const [pomoStartAt, setPomoStartAt] = useState<number | null>(null) // 本次专注开始时间戳（用于记录时间段）
+  const [pomoRemainMs, setPomoRemainMs] = useState(0) // 当前阶段剩余毫秒
+  const [pomoPauseAt, setPomoPauseAt] = useState<number | null>(null) // 暂停开始时间戳
+  const [pomoRound, setPomoRound] = useState(0) // 已完成的专注轮数
+  const [pomoSubjectId, setPomoSubjectId] = useState<string | null>(null) // 番茄钟目标科目
+  const [pomoActivity, setPomoActivity] = useState('') // 番茄钟目标学习内容
+  const [pomoPendingSubject, setPomoPendingSubject] = useState<string | null>(null) // 待选学习内容的科目（番茄钟）
+  /* 供倒计时中断回调引用的最新函数（避免闭包捕获过期状态） */
+  const pomoFinishRef = useRef<() => void>(() => {})
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -346,6 +454,146 @@ export default function StudyTimer() {
 
   /* 每次渲染都把最新 handleStop 写入 ref，供 BLE/通知栏回调使用 */
   handleStopRef.current = handleStop
+
+  /* ── 番茄钟：把一段专注时长计入「今日累计」 ──
+     与正计时共用同一份 accum(/保存到今日记录)，复用现有持久化路径，不新开第二套。 */
+  const addSessionToAccum = useCallback((subjectId: string, activity: string, seconds: number, startAt: number, endAt: number) => {
+    const key = accumKey(subjectId, activity ?? '')
+    const range: TimeRange = { start: toTimeStr(new Date(startAt)), end: toTimeStr(new Date(endAt)) }
+    const prev = accum[key]
+    const newAccum: AccumMap = { ...accum }
+    newAccum[key] = {
+      seconds: (prev?.seconds ?? 0) + seconds,
+      ranges: [...(prev?.ranges ?? []), range],
+    }
+    // 累计原本为空：把归属日期设为今天
+    if (Object.keys(accum).length === 0) {
+      localStorage.setItem(ACCUM_DATE_KEY, todayStr())
+      setAccumDate(todayStr())
+    }
+    setAccum(newAccum)
+    saveAccum(newAccum)
+  }, [accum])
+
+  /** 回到空闲态（保留科目/轮数，便于开始下一轮） */
+  const pomoToIdle = useCallback(() => {
+    setPomoRunning(false)
+    setPomoPhase('idle')
+    setPomoEndAt(null)
+    setPomoStartAt(null)
+    setPomoRemainMs(0)
+    setPomoPauseAt(null)
+  }, [])
+
+  /** 启动一轮专注（选择科目后调用） */
+  const startPomodoro = useCallback((subjectId: string, activity: string) => {
+    setPomoSubjectId(subjectId)
+    setPomoActivity(activity)
+    setPomoPendingSubject(null)
+    const ms = pomoFocusMin * 60000
+    setPomoPhase('focus')
+    setPomoRunning(true)
+    setPomoStartAt(Date.now())
+    setPomoEndAt(Date.now() + ms)
+    setPomoRemainMs(ms)
+    setPomoPauseAt(null)
+  }, [pomoFocusMin])
+
+  /** 空闲态点「开始专注」：用已选科目启动 */
+  const startPomodoroFocus = useCallback(() => {
+    if (!pomoSubjectId || pomoPhase !== 'idle') return
+    startPomodoro(pomoSubjectId, pomoActivity)
+  }, [pomoSubjectId, pomoActivity, pomoPhase, startPomodoro])
+
+  /** 暂停/恢复 */
+  const togglePomodoroPause = useCallback(() => {
+    if (pomoRunning) {
+      setPomoPauseAt(Date.now())
+      setPomoRunning(false)
+    } else {
+      // 恢复：把暂停时长顺延到结束时间戳，保证累计倒计时不因暂停而失真
+      if (pomoPauseAt != null && pomoEndAt != null) {
+        setPomoEndAt(pomoEndAt + (Date.now() - pomoPauseAt))
+      }
+      setPomoRunning(true)
+      setPomoPauseAt(null)
+    }
+  }, [pomoRunning, pomoPauseAt, pomoEndAt])
+
+  /** 跳过休息：直接回到空闲，开始下一轮（不记录休息） */
+  const skipRest = useCallback(() => {
+    if (pomoPhase !== 'rest') return
+    pomoToIdle()
+  }, [pomoPhase, pomoToIdle])
+
+  /** 放弃：专注中按实际流逝时长入账后回空闲；休息中直接回空闲 */
+  const abandonPomodoro = useCallback(() => {
+    if (pomoPhase === 'focus' && pomoSubjectId && pomoStartAt != null) {
+      const totalMs = pomoFocusMin * 60000
+      const securedMs = totalMs - Math.max(0, pomoRemainMs)
+      if (securedMs >= 1000) {
+        const endNow = Math.min(Date.now(), (pomoEndAt ?? Date.now()))
+        addSessionToAccum(pomoSubjectId, pomoActivity, Math.round(securedMs / 1000), pomoStartAt, endNow)
+      }
+    }
+    pomoToIdle()
+  }, [pomoPhase, pomoSubjectId, pomoActivity, pomoStartAt, pomoFocusMin, pomoRemainMs, pomoEndAt, addSessionToAccum, pomoToIdle])
+
+  /** 阶段结束：专注完成→记录+通知→进休息；休息结束→通知→回空闲 */
+  const finishPomoPhase = useCallback(() => {
+    if (pomoPhase === 'focus') {
+      // 本轮专注时长计入当日累计（复用同 accum → 「保存到今日记录」落库）
+      if (pomoSubjectId && pomoStartAt != null) {
+        const totalMs = pomoFocusMin * 60000
+        const focusedSec = Math.max(1, Math.round((totalMs - Math.max(0, pomoRemainMs)) / 1000))
+        const endNow = Date.now()
+        addSessionToAccum(pomoSubjectId, pomoActivity, focusedSec, pomoStartAt, endNow)
+      }
+      setPomoRound((r) => r + 1)
+      void pomodoroNotify('focus')
+      if (pomoRestMin > 0) {
+        // 自动进入休息倒计时
+        const restMs = pomoRestMin * 60000
+        setPomoPhase('rest')
+        setPomoRunning(true)
+        setPomoStartAt(null)
+        setPomoEndAt(Date.now() + restMs)
+        setPomoRemainMs(restMs)
+        setPomoPauseAt(null)
+      } else {
+        pomoToIdle()
+      }
+    } else if (pomoPhase === 'rest') {
+      void pomodoroNotify('rest')
+      pomoToIdle()
+    }
+  }, [pomoPhase, pomoSubjectId, pomoActivity, pomoStartAt, pomoFocusMin, pomoRemainMs, pomoRestMin, addSessionToAccum, pomoToIdle])
+
+  /* 每次渲染把最新 finishPomoPhase 写入 ref，倒计时中断回调始终拿到最新 */
+  pomoFinishRef.current = finishPomoPhase
+
+  /* ── 番茄钟倒计时：专注/休息阶段到点自动切换 ── */
+  useEffect(() => {
+    if (!pomoRunning || pomoEndAt == null) return
+    const tick = () => {
+      const remain = Math.max(0, pomoEndAt - Date.now())
+      setPomoRemainMs(remain)
+      if (remain <= 0) pomoFinishRef.current()
+    }
+    tick()
+    const iv = setInterval(tick, 500)
+    return () => clearInterval(iv)
+  }, [pomoRunning, pomoEndAt])
+
+  /** 切换计时模式（记忆到 localStorage） */
+  const switchMode = useCallback((m: 'stopwatch' | 'pomodoro') => {
+    setMode(m)
+    try {
+      localStorage.setItem(MODE_KEY, m)
+    } catch {
+      /* 忽略 */
+    }
+  }, [])
 
   /* ── 硬件事件处理（暂停/继续/硬件开始） ── */
   /** 暂停：冻结计时（时长不累计，恢复后继续走） */
@@ -746,6 +994,10 @@ export default function StudyTimer() {
     ? (getSubjectById(running.subjectId)?.name ?? running.subjectId) +
       (running.activity ? ` · ${running.activity}` : '')
     : null
+  /** 番茄钟已选目标科目展示名 */
+  const pomoSubjectLabel = pomoSubjectId
+    ? (getSubjectById(pomoSubjectId)?.name ?? pomoSubjectId) + (pomoActivity ? ` · ${pomoActivity}` : '')
+    : null
   /** 某科目今日累计秒数（含各学习内容） */
   const subjectTotal = (id: string): number =>
     Object.entries(accum)
@@ -784,33 +1036,55 @@ export default function StudyTimer() {
       </div>
     )
   }
-  /** 单个科目按钮（含当前计时高亮、今日累计展示） */
+  /** 单个科目按钮（含当前计时高亮、今日累计展示；按模式分支） */
   const renderSubjectButton = (subj: Subject) => {
-    const isActive = running?.subjectId === subj.id
-    const isDisabled = running !== null && !isActive
+    // 番茄钟：运行中只可操作当前目标科目，空闲时点击即选择目标科目
+    const isActive = mode === 'pomodoro'
+      ? pomoSubjectId === subj.id && pomoPhase !== 'idle'
+      : running?.subjectId === subj.id
+    const isDisabled = mode === 'pomodoro'
+      ? pomoPhase !== 'idle'
+      : running !== null && !isActive
+    const isSelected = mode === 'pomodoro'
+      ? pomoSubjectId === subj.id || pomoPendingSubject === subj.id
+      : running?.subjectId === subj.id || pendingSubject === subj.id
+    const handleSubjectClick = () => {
+      if (mode === 'pomodoro') {
+        // 仅空闲态可切换目标科目
+        if (pomoPhase !== 'idle') return
+        const activities = getActivitiesForSubject(subj.id)
+        if (activities.length > 0) {
+          setPomoPendingSubject(pomoPendingSubject === subj.id ? null : subj.id)
+        } else {
+          setPomoSubjectId(subj.id)
+          setPomoActivity('')
+        }
+        return
+      }
+      // 正计时原逻辑
+      if (isActive) {
+        handleStop()
+      } else if (!running) {
+        const activities = getActivitiesForSubject(subj.id)
+        if (activities.length > 0) {
+          setPendingSubject(pendingSubject === subj.id ? null : subj.id)
+        } else {
+          handleStart(subj.id, '')
+        }
+      }
+    }
     return (
       <button
         key={subj.id}
-        onClick={() => {
-          if (isActive) {
-            handleStop()
-          } else if (!running) {
-            const activities = getActivitiesForSubject(subj.id)
-            if (activities.length > 0) {
-              setPendingSubject(pendingSubject === subj.id ? null : subj.id)
-            } else {
-              handleStart(subj.id, '')
-            }
-          }
-        }}
+        onClick={handleSubjectClick}
         disabled={isDisabled}
         className={`px-4 py-2 rounded-lg border-2 text-sm font-medium transition-all cursor-pointer
           ${isActive
-            ? 'ring-2 ring-offset-2 ring-blue-500 dark:ring-offset-slate-900 scale-105 shadow-md ' + getButtonColor(getSubjectById(subj.id)?.category)
+            ? 'ring-2 ring-offset-2 ring-red-500 dark:ring-offset-slate-900 scale-105 shadow-md ' + getButtonColor(getSubjectById(subj.id)?.category)
             : isDisabled
               ? 'opacity-40 cursor-not-allowed border-gray-200 dark:border-slate-700 text-gray-400 dark:text-slate-500'
-              : pendingSubject === subj.id
-                ? 'ring-2 ring-offset-2 ring-blue-300 dark:ring-offset-slate-900 ' + getButtonColor(getSubjectById(subj.id)?.category)
+              : isSelected
+                ? 'ring-2 ring-offset-2 ring-red-300 dark:ring-offset-slate-900 ' + getButtonColor(getSubjectById(subj.id)?.category)
                 : getButtonColor(getSubjectById(subj.id)?.category)
           }`}
       >
@@ -931,73 +1205,231 @@ export default function StudyTimer() {
         </div>
         )}
 
-      {/* 选择学习内容 */}
-        {pendingSubject && !running && (
-          <div className="mt-3 rounded-lg border border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 px-3 py-2">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-700 dark:text-slate-300">
-                {getSubjectById(pendingSubject)?.name} · 选择学习内容
-              </span>
-              <button
-                type="button"
-                onClick={() => setPendingSubject(null)}
-                className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 cursor-pointer"
-              >
-                取消
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {getActivitiesForSubject(pendingSubject).map((act) => (
+      {/* 选择学习内容（正计时/番茄钟 共用） */}
+        {(() => {
+          const actSubjectId = mode === 'pomodoro' ? pomoPendingSubject : pendingSubject
+          const showPanel = mode === 'pomodoro'
+            ? !!actSubjectId && pomoPhase === 'idle'
+            : !!actSubjectId && !running
+          if (!showPanel) return null
+          return (
+            <div className="mt-3 rounded-lg border border-red-200 dark:border-red-800/60 bg-red-50 dark:bg-red-900/20 px-3 py-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-700 dark:text-slate-300">
+                  {getSubjectById(actSubjectId!)?.name} · 选择学习内容
+                </span>
                 <button
-                  key={act}
                   type="button"
-                  onClick={() => handleStart(pendingSubject, act)}
-                  className="px-3 py-1 text-sm rounded-full bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-600 hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-300 transition-colors cursor-pointer"
+                  onClick={() => (mode === 'pomodoro' ? setPomoPendingSubject(null) : setPendingSubject(null))}
+                  className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-slate-300 cursor-pointer"
                 >
-                  {act}
+                  取消
                 </button>
-              ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {getActivitiesForSubject(actSubjectId!).map((act) => (
+                  <button
+                    key={act}
+                    type="button"
+                    onClick={() => (mode === 'pomodoro' ? startPomodoro(actSubjectId!, act) : handleStart(actSubjectId!, act))}
+                    className="px-3 py-1 text-sm rounded-full bg-white dark:bg-slate-700 text-gray-700 dark:text-slate-200 border border-gray-200 dark:border-slate-600 hover:border-red-400 hover:text-red-600 dark:hover:border-red-500 dark:hover:text-red-300 transition-colors cursor-pointer"
+                  >
+                    {act}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
 
       {/* 计时器面板 */}
       <div className="card p-5 text-center">
-        {running ? (
-          <p className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
-            正在学习：<span className="font-semibold text-gray-700 dark:text-slate-200">{currentSubject}</span>
-            {running.paused && (
-              <span className="ml-1 text-amber-600 dark:text-amber-400 font-medium">（已暂停）</span>
-            )}
-          </p>
-        ) : (
-          <p className="text-xs text-gray-400 dark:text-slate-500 mb-1.5">
-            {Object.keys(accum).length > 0 ? '选择科目继续计时' : '点击上方科目开始学习'}
-          </p>
-        )}
-
-        <div className="text-5xl sm:text-6xl font-mono font-bold tabular-nums text-gray-900 dark:text-slate-100 my-3 tracking-wider">
-          {running ? formatDuration(elapsed) : '00:00:00'}
+        {/* 模式切换：正计时 / 番茄钟 */}
+        <div className="mb-4 inline-flex rounded-lg border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 p-1">
+          {(['stopwatch', 'pomodoro'] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => switchMode(m)}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                mode === m
+                  ? 'bg-white dark:bg-slate-600 shadow text-gray-900 dark:text-slate-100'
+                  : 'text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200'
+              }`}
+            >
+              {m === 'stopwatch' ? '⏱ 正计时' : '🍅 番茄钟'}
+            </button>
+          ))}
         </div>
 
-        {running ? (
-          <div className="flex items-center justify-center gap-3">
-            <button
-              onClick={() => (running.paused ? handleResume() : handlePause())}
-              className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-500/20 cursor-pointer"
-            >
-              {running.paused ? '▶ 继续' : '⏸ 暂停'}
-            </button>
-            <button
-              onClick={handleStop}
-              className="px-8 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20 cursor-pointer"
-            >
-              ■ 结束学习
-            </button>
-          </div>
+        {mode === 'stopwatch' ? (
+          <>
+            {running ? (
+              <p className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
+                正在学习：<span className="font-semibold text-gray-700 dark:text-slate-200">{currentSubject}</span>
+                {running.paused && (
+                  <span className="ml-1 text-amber-600 dark:text-amber-400 font-medium">（已暂停）</span>
+                )}
+              </p>
+            ) : (
+              <p className="text-xs text-gray-400 dark:text-slate-500 mb-1.5">
+                {Object.keys(accum).length > 0 ? '选择科目继续计时' : '点击上方科目开始学习'}
+              </p>
+            )}
+
+            <div className="text-5xl sm:text-6xl font-mono font-bold tabular-nums text-gray-900 dark:text-slate-100 my-3 tracking-wider">
+              {running ? formatDuration(elapsed) : '00:00:00'}
+            </div>
+
+            {running ? (
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  onClick={() => (running.paused ? handleResume() : handlePause())}
+                  className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-500/20 cursor-pointer"
+                >
+                  {running.paused ? '▶ 继续' : '⏸ 暂停'}
+                </button>
+                <button
+                  onClick={handleStop}
+                  className="px-8 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20 cursor-pointer"
+                >
+                  ■ 结束学习
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 dark:text-slate-500">点击科目开始</p>
+            )}
+          </>
         ) : (
-          <p className="text-xs text-gray-400 dark:text-slate-500">点击科目开始</p>
+          /* ── 番茄钟面板 ── */
+          <>
+            {pomoPhase === 'idle' ? (
+              <>
+                <p className="text-xs text-gray-400 dark:text-slate-500 mb-3">
+                  {pomoSubjectLabel
+                    ? `目标：${pomoSubjectLabel}（点上方科目可更换）`
+                    : '请先在上方选择目标科目'}
+                </p>
+
+                {/* 专注时长：预设 25/45 + 自定义 */}
+                <div className="mb-2">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    {[25, 45].map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => { setPomoFocusMin(m); setPomoCustomFocus(m); try { localStorage.setItem(POMO_FOCUS_KEY, String(m)) } catch { /* 忽略 */ } }}
+                        className={`px-4 py-1.5 rounded-lg border text-sm font-medium transition-colors cursor-pointer ${
+                          pomoFocusMin === m
+                            ? 'border-red-500 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20'
+                            : 'border-gray-200 dark:border-slate-600 text-gray-600 dark:text-slate-300 hover:border-red-300'
+                        }`}
+                      >
+                        {m} 分钟
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-center gap-2">
+                    <label className="text-xs text-gray-500 dark:text-slate-400">自定义</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={240}
+                      value={pomoCustomFocus}
+                      onChange={(e) => {
+                        const v = Number(e.target.value)
+                        if (Number.isFinite(v) && v > 0) {
+                          const m = Math.round(Math.min(240, Math.max(1, v)))
+                          setPomoCustomFocus(m)
+                          setPomoFocusMin(m)
+                          try { localStorage.setItem(POMO_FOCUS_KEY, String(m)) } catch { /* 忽略 */ }
+                        }
+                      }}
+                      className="w-16 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1 text-sm text-center text-gray-800 dark:text-slate-100 outline-none focus:border-red-400"
+                    />
+                    <span className="text-xs text-gray-400 dark:text-slate-500">分钟</span>
+                  </div>
+                </div>
+
+                {/* 休息时长：可自定义 / 跳过 */}
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <label className="text-xs text-gray-500 dark:text-slate-400">休息</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={120}
+                    value={pomoRestMin}
+                    onChange={(e) => {
+                      const v = Number(e.target.value)
+                      if (Number.isFinite(v) && v >= 0) {
+                        const m = Math.round(Math.min(120, Math.max(0, v)))
+                        setPomoRestMin(m)
+                        try { localStorage.setItem(POMO_REST_KEY, String(m)) } catch { /* 忽略 */ }
+                      }
+                    }}
+                    className="w-14 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 px-2 py-1 text-sm text-center text-gray-800 dark:text-slate-100 outline-none focus:border-red-400"
+                  />
+                  <span className="text-xs text-gray-400 dark:text-slate-500">分钟</span>
+                  <button
+                    onClick={() => { setPomoRestMin(0); try { localStorage.setItem(POMO_REST_KEY, '0') } catch { /* 忽略 */ } }}
+                    className="px-2 py-1 text-xs text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors cursor-pointer"
+                  >
+                    跳过休息
+                  </button>
+                </div>
+
+                <button
+                  onClick={startPomodoroFocus}
+                  disabled={!pomoSubjectId}
+                  className="px-8 py-2.5 bg-red-500 hover:bg-red-600 disabled:bg-gray-300 dark:disabled:bg-slate-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20 cursor-pointer disabled:cursor-not-allowed"
+                >
+                  🍅 开始专注（{pomoFocusMin} 分钟）
+                </button>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
+                  <span className="font-semibold text-red-600 dark:text-red-400">
+                    第 {pomoRound + (pomoPhase === 'focus' ? 1 : 0)} 轮
+                  </span>
+                  <span className="ml-2">
+                    {pomoPhase === 'focus' ? '专注中' : '休息中'}
+                    {pomoSubjectLabel ? ` · ${pomoSubjectLabel}` : ''}
+                  </span>
+                  {!pomoRunning && (
+                    <span className="ml-1 text-amber-600 dark:text-amber-400 font-medium">（已暂停）</span>
+                  )}
+                </p>
+
+                <div className="text-5xl sm:text-6xl font-mono font-bold tabular-nums text-red-600 dark:text-red-400 my-3 tracking-wider">
+                  {formatMmSs(pomoRemainMs)}
+                </div>
+
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    onClick={togglePomodoroPause}
+                    className="px-6 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-red-500/20 cursor-pointer"
+                  >
+                    {pomoRunning ? '⏸ 暂停' : '▶ 继续'}
+                  </button>
+                  {pomoPhase === 'rest' ? (
+                    <button
+                      onClick={skipRest}
+                      className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-500/20 cursor-pointer"
+                    >
+                      跳过休息
+                    </button>
+                  ) : (
+                    <button
+                      onClick={abandonPomodoro}
+                      className="px-8 py-2.5 bg-slate-500 hover:bg-slate-600 text-white rounded-xl font-semibold text-base transition-all hover:scale-105 active:scale-95 shadow-lg shadow-slate-500/20 cursor-pointer"
+                    >
+                      放弃
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </>
         )}
       </div>
 

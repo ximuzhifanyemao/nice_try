@@ -21,11 +21,20 @@ export interface WalletTransaction {
 
 export type CommitmentStatus = 'active' | 'won' | 'lost'
 
+/** 分科目标：每科的目标小时数（附 name 便于跨设备/历史归档回显） */
+export interface SubjectTarget {
+  subjectId: string
+  name: string
+  hours: number
+}
+
 export interface WeeklyCommitment {
   id: string
   user_id: string
   week_start: string
   target_hours: number
+  /** 分科目标数组（可空）；无分科设定时为 null/undefined */
+  subject_targets?: SubjectTarget[] | null
   deposit_amount: number
   status: CommitmentStatus
   settled_at: string | null
@@ -78,12 +87,14 @@ export async function rechargeWallet(userId: string, amount: number, note = '虚
   if (error) throw new Error(error.message)
 }
 
-/** 创建/修改本周承诺（扣押金、校验余额均在数据库 RPC 中原子完成） */
+/** 创建/修改本周承诺（扣押金、校验余额均在数据库 RPC 中原子完成）。
+ *  subjectTargets 为可选分科目标；传 undefined 表示不改动该列，传空数组/null 表示清空分科目标。 */
 export async function saveCommitment(
   userId: string,
   weekStart: string,
   targetHours: number,
-  depositAmount: number
+  depositAmount: number,
+  subjectTargets?: SubjectTarget[] | null
 ): Promise<void> {
   const { error } = await supabase.rpc('create_commitment', {
     p_user_id: userId,
@@ -92,6 +103,18 @@ export async function saveCommitment(
     p_deposit_amount: depositAmount,
   })
   if (error) throw new Error(error.message)
+
+  // RPC create_commitment 不涉及 subject_targets 列，此处单独写入/清空
+  if (subjectTargets !== undefined) {
+    const targets: SubjectTarget[] | null =
+      subjectTargets && subjectTargets.length > 0 ? subjectTargets : null
+    const { error: upErr } = await supabase
+      .from('weekly_commitments')
+      .update({ subject_targets: targets })
+      .eq('user_id', userId)
+      .eq('week_start', weekStart)
+    if (upErr) throw new Error(upErr.message)
+  }
 }
 
 /** 结算已过期（上周及更早）的活跃承诺，在数据库 RPC 中按记录实际时长判定 */

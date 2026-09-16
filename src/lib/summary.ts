@@ -1,4 +1,14 @@
-import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, differenceInCalendarDays } from 'date-fns'
+import {
+  format,
+  startOfWeek,
+  endOfWeek,
+  startOfMonth,
+  endOfMonth,
+  parseISO,
+  differenceInCalendarDays,
+  addDays,
+  addMonths,
+} from 'date-fns'
 import type { DailyLog, DailyLogSubject } from './dailyLogs'
 import { getSubjectById } from './subjects'
 
@@ -176,5 +186,142 @@ export function computeSummary(filteredLogs: DailyLog[]): SummaryResult {
     subjectBreakdown,
     dailyTrend,
   }
+}
+
+/* ── 平均每日时长 ──
+   纯计算：按所选周期统计「日均时长」与「每日时长的中位数」。
+   默认口径：总时长 ÷ 周期天数（含未打卡日）；可通过 denominatorDays 覆盖（如改按有打卡天数）。 */
+
+export interface AvgDailyStats {
+  /** 平均每日时长（小时） */
+  avgDaily: number
+  /** 每日时长中位数（小时） */
+  medianDaily: number
+  /** 实际使用的分母天数 */
+  denominatorDays: number
+  /** 有打卡记录的天数 */
+  checkedDays: number
+}
+
+export interface AvgDailyOptions {
+  /** 分母天数；不传则退化为「有打卡记录的天数」 */
+  denominatorDays?: number
+}
+
+export function computeAvgDailyStats(
+  filteredLogs: DailyLog[],
+  options: AvgDailyOptions = {}
+): AvgDailyStats {
+  const { denominatorDays } = options
+
+  // 按天汇总总时长
+  const dailyHours = new Map<string, number>()
+  for (const log of filteredLogs) {
+    const dayTotal = log.subjects.reduce((sum, subj) => sum + subj.hours, 0)
+    dailyHours.set(log.date, (dailyHours.get(log.date) ?? 0) + dayTotal)
+  }
+  const checkedDays = dailyHours.size
+  const values = Array.from(dailyHours.values())
+
+  const totalHours = values.reduce((sum, h) => sum + h, 0)
+  const denominator = denominatorDays != null && denominatorDays > 0 ? denominatorDays : checkedDays
+  const avgDaily = denominator > 0 ? totalHours / denominator : 0
+
+  // 中位数（偶数个取中间两数均值）
+  const sorted = [...values].sort((a, b) => a - b)
+  const mid = Math.floor(sorted.length / 2)
+  const medianDaily =
+    sorted.length === 0
+      ? 0
+      : sorted.length % 2 === 1
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2
+
+  return { avgDaily, medianDaily, denominatorDays: denominator, checkedDays }
+}
+
+/* ── 上周期切割 ──
+   给定当前周期，向前推导出相邻的上一周期范围（week=上一整周，month=上一自然月，
+   custom=相邻等长窗口）。纯计算、无副作用，便于单测。 */
+
+export function getPreviousRange(range: SummaryRange): { startDate: string; endDate: string } {
+  const { mode, startDate, endDate } = range
+  if (mode === 'week') {
+    const start = parseISO(startDate)
+    const prevStart = addDays(start, -7)
+    const prevEnd = addDays(start, -1)
+    return { startDate: format(prevStart, 'yyyy-MM-dd'), endDate: format(prevEnd, 'yyyy-MM-dd') }
+  }
+  if (mode === 'month') {
+    const start = parseISO(startDate)
+    const prevStart = startOfMonth(addMonths(start, -1))
+    const prevEnd = endOfMonth(prevStart)
+    return { startDate: format(prevStart, 'yyyy-MM-dd'), endDate: format(prevEnd, 'yyyy-MM-dd') }
+  }
+  // custom：以当前周期为基准，向前取「等长」的相邻窗口（startDate-1 再往前推 duration-1 天）
+  const start = parseISO(startDate)
+  const end = parseISO(endDate)
+  const duration = differenceInCalendarDays(end, start) + 1
+  const prevEnd = addDays(start, -1)
+  const prevStart = addDays(prevEnd, -(duration - 1))
+  return { startDate: format(prevStart, 'yyyy-MM-dd'), endDate: format(prevEnd, 'yyyy-MM-dd') }
+}
+
+/* ── 科目环比 ──
+   上一周期 vs 当前周期的各科目时长对比。纯计算、无副作用。 */
+
+export interface SubjectComparisonItem {
+  subjectId: string
+  name: string
+  /** 本周期时长（小时） */
+  currentHours: number
+  /** 上周期时长（小时） */
+  prevHours: number
+  /** 差值（本周期 - 上周期，小时） */
+  diff: number
+  /** 涨跌幅（相对上周期，%） */
+  diffPercent: number
+}
+
+export interface SubjectComparisonResult {
+  items: SubjectComparisonItem[]
+  /** 是否存在上周期数据（否则应展示空态说明） */
+  hasPrevData: boolean
+}
+
+function collectSubjectHours(logs: DailyLog[]): Map<string, number> {
+  const map = new Map<string, number>()
+  for (const log of logs) {
+    for (const subj of log.subjects) {
+      map.set(subj.id, (map.get(subj.id) ?? 0) + subj.hours)
+    }
+  }
+  return map
+}
+
+export function computeSubjectComparison(
+  currentLogs: DailyLog[],
+  prevLogs: DailyLog[]
+): SubjectComparisonResult {
+  const currentMap = collectSubjectHours(currentLogs)
+  const prevMap = collectSubjectHours(prevLogs)
+
+  const allIds = new Set<string>([...currentMap.keys(), ...prevMap.keys()])
+  const items: SubjectComparisonItem[] = []
+  for (const subjectId of allIds) {
+    const currentHours = currentMap.get(subjectId) ?? 0
+    const prevHours = prevMap.get(subjectId) ?? 0
+    const diff = Math.round((currentHours - prevHours) * 100) / 100
+    const subject = getSubjectById(subjectId)
+    const name = subject?.name ?? subjectId
+    const diffPercent =
+      prevHours > 0 ? ((currentHours - prevHours) / prevHours) * 100 : currentHours > 0 ? 100 : 0
+    items.push({ subjectId, name, currentHours, prevHours, diff, diffPercent })
+  }
+
+  // 按本周期时长降序排列
+  items.sort((a, b) => b.currentHours - a.currentHours)
+
+  return { items, hasPrevData: prevLogs.length > 0 }
 }
 

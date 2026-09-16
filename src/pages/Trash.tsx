@@ -12,6 +12,7 @@ import type { Todo } from '../lib/todos'
 import { fetchDeletedTodos, restoreTodo, permanentlyDeleteTodo } from '../lib/todos'
 import { formatDateShort } from '../lib/format'
 import { useWideLayout } from '../App'
+import EmptyState from '../components/EmptyState'
 
 /** ISO 时间 → "8月7日 14:32" */
 function formatDeletedAt(iso: string): string {
@@ -140,9 +141,11 @@ export default function Trash() {
         )}
 
         {!loading && !error && logs.length === 0 && (
-          <div className="text-center py-8 text-gray-400 dark:text-slate-500">
-            回收站里没有学习记录
-          </div>
+          <EmptyState
+            icon="book"
+            title="回收站里没有学习记录"
+            desc="删除的学习记录会保留在这里，可随时恢复。"
+          />
         )}
 
         {!loading && !error && logs.length > 0 && (
@@ -191,7 +194,11 @@ export default function Trash() {
         )}
 
         {!todosLoading && !todosError && todos.length === 0 && (
-          <div className="text-center py-8 text-gray-400 dark:text-slate-500">回收站里没有待办</div>
+          <EmptyState
+            icon="check"
+            title="回收站里没有待办"
+            desc="彻底删除的待办会先移到这里，可随时恢复。"
+          />
         )}
 
         {!todosLoading && !todosError && todos.length > 0 && (

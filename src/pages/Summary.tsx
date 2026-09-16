@@ -1,7 +1,17 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useLogs } from '../contexts/LogsContext'
-import { getWeekRange, filterLogsByRange, computeSummary, type SummaryRange, type SummaryResult } from '../lib/summary'
+import {
+  getWeekRange,
+  filterLogsByRange,
+  computeSummary,
+  computeAvgDailyStats,
+  computeSubjectComparison,
+  getPreviousRange,
+  type SummaryRange,
+  type SummaryResult,
+} from '../lib/summary'
+import { differenceInCalendarDays, parseISO } from 'date-fns'
 import RangePicker from '../components/RangePicker'
 import WeeklyChart from '../components/WeeklyChart'
 import { getSubjectById } from '../lib/subjects'
@@ -31,6 +41,29 @@ const Summary: React.FC = () => {
   const summary: SummaryResult = useMemo(
     () => computeSummary(filteredLogs),
     [filteredLogs]
+  )
+
+  // 周期天数 = 首尾日差 + 1（含未打卡日），作为日均口径的分母
+  const periodDays = useMemo(
+    () => differenceInCalendarDays(parseISO(range.endDate), parseISO(range.startDate)) + 1,
+    [range]
+  )
+
+  // 平均每日时长：默认分母为周期天数（含未打卡日），文案注明口径
+  const avgDailyStats = useMemo(
+    () => computeAvgDailyStats(filteredLogs, { denominatorDays: periodDays }),
+    [filteredLogs, periodDays]
+  )
+
+  // 科目环比：取相邻上周期日志做对比
+  const previousRange = useMemo(() => getPreviousRange(range), [range])
+  const previousLogs = useMemo(
+    () => filterLogsByRange(logs, previousRange.startDate, previousRange.endDate),
+    [logs, previousRange]
+  )
+  const subjectComparison = useMemo(
+    () => computeSubjectComparison(filteredLogs, previousLogs),
+    [filteredLogs, previousLogs]
   )
 
   const maxDailyHours = useMemo(() => {
@@ -129,6 +162,13 @@ const Summary: React.FC = () => {
                     {summary.totalHours.toFixed(1)}
                     <span className="text-xl text-gray-500 dark:text-slate-400 ml-1">小时</span>
                   </p>
+                  <p
+                    className="mt-2 text-sm text-gray-500 dark:text-slate-400 tabular-nums"
+                    title="日均=总时长÷周期天数（含未打卡日）"
+                  >
+                    日均 {avgDailyStats.avgDaily.toFixed(1)}h · 中位{' '}
+                    {avgDailyStats.medianDaily.toFixed(1)}h
+                  </p>
                 </div>
                 <div className="card p-5">
                   <p className="text-sm text-gray-500 dark:text-slate-400 mb-2">打卡天数</p>
@@ -171,6 +211,46 @@ const Summary: React.FC = () => {
                     )
                   })}
                 </div>
+              </div>
+
+              <div className="card p-5 space-y-4">
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">科目环比</h2>
+                {!subjectComparison.hasPrevData ? (
+                  <p className="text-sm text-gray-500 dark:text-slate-400">
+                    暂无上周期数据，切换周期后即可对比上一周期各科时长
+                  </p>
+                ) : subjectComparison.items.length === 0 ? (
+                  <p className="text-sm text-gray-500 dark:text-slate-400">本周期暂无科目记录</p>
+                ) : (
+                  <div className="space-y-3">
+                    {subjectComparison.items.map((item) => {
+                      const isUp = item.diff > 0
+                      const isDown = item.diff < 0
+                      const diffColor = isUp
+                        ? 'text-green-600 dark:text-green-400'
+                        : isDown
+                          ? 'text-red-500 dark:text-red-400'
+                          : 'text-gray-400 dark:text-slate-500'
+                      const arrow = isUp ? '↑' : isDown ? '↓' : '—'
+                      return (
+                        <div key={item.subjectId} className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-gray-700 dark:text-slate-200 min-w-0 truncate">
+                            {item.name}
+                          </span>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <span className="text-sm text-gray-700 dark:text-slate-200 tabular-nums">
+                              {item.currentHours.toFixed(1)}h
+                            </span>
+                            <span className={`text-sm font-semibold tabular-nums ${diffColor}`}>
+                              {arrow} {isUp ? '+' : ''}
+                              {item.diff.toFixed(1)}h
+                            </span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="card p-5 space-y-4">

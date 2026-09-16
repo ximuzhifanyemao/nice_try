@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { getCurrentTheme, setTheme as persistTheme, THEMES, type ThemeMode } from '../lib/theme'
 import DesktopLogo from './DesktopLogo'
 import { BlueIcons } from './BlueCircleIcon'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface NavItem {
   key: string
@@ -32,7 +32,25 @@ export default function Sidebar() {
   const navigate = useNavigate()
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => getCurrentTheme())
   const [themeOpen, setThemeOpen] = useState(false)
+  const themeMenuRef = useRef<HTMLDivElement>(null)
+  const firstThemeItemRef = useRef<HTMLButtonElement>(null)
+  const themeTriggerRef = useRef<HTMLButtonElement>(null)
   const currentTheme = THEMES.find((t) => t.key === themeMode) ?? THEMES[0]
+
+  // 打开菜单时把焦点移到第一项；监听 Esc 关闭并把焦点交还触发器（带 cleanup）
+  useEffect(() => {
+    if (!themeOpen) return
+    if (firstThemeItemRef.current) firstThemeItemRef.current.focus()
+    else themeMenuRef.current?.focus()
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setThemeOpen(false)
+        themeTriggerRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [themeOpen])
 
   const getActiveKey = (): string => {
     const { pathname } = location
@@ -102,9 +120,11 @@ export default function Sidebar() {
         {/* 主题选择器：向上弹出菜单 */}
         <div className="relative">
           <button
+            ref={themeTriggerRef}
             onClick={() => setThemeOpen((v) => !v)}
             title="切换主题"
             aria-expanded={themeOpen}
+            aria-haspopup="menu"
             className="flex items-center gap-2.5 w-full px-4 h-9 rounded-md text-[15px] text-gray-600 dark:text-slate-300 hover:text-slate-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
           >
             <span className="shrink-0">{currentTheme.dark ? BlueIcons.moon : BlueIcons.sun}</span>
@@ -121,11 +141,21 @@ export default function Sidebar() {
             <>
               {/* 点击任意位置关闭菜单 */}
               <div className="fixed inset-0 z-30" onClick={() => setThemeOpen(false)} />
-              <div className="absolute left-2 right-2 bottom-full mb-1 z-40 rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-slate-700 dark:bg-slate-800">
-                {THEMES.map((t) => (
+              <div
+                ref={themeMenuRef}
+                role="menu"
+                aria-label="主题选择"
+                tabIndex={-1}
+                className="absolute left-2 right-2 bottom-full mb-1 z-40 rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl outline-none dark:border-slate-700 dark:bg-slate-800"
+              >
+                {THEMES.map((t, i) => (
                   <button
                     key={t.key}
+                    role="menuitem"
                     onClick={() => handlePickTheme(t.key)}
+                    ref={(el) => {
+                      if (i === 0) firstThemeItemRef.current = el
+                    }}
                     className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors cursor-pointer ${
                       themeMode === t.key
                         ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300'

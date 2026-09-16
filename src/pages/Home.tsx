@@ -1,16 +1,20 @@
 import { useContext, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
 import { HomeLayoutContext } from '../App'
-import Countdown from '../components/Countdown'
 import Calendar from '../components/Calendar'
 import TodoList from '../components/TodoList'
 import { Icon } from '../components/Icon'
+import CheckinReminderCard from '../components/CheckinReminderCard'
+import StreakCard from '../components/StreakCard'
+import WeekProgressCard from '../components/WeekProgressCard'
+import CountdownPanel from '../components/CountdownPanel'
+import EnglishCheckinEntry from '../components/EnglishCheckinEntry'
+import QuickLinksRow from '../components/QuickLinksRow'
 import { todayStr } from '../lib/dailyLogs'
 import { computeStudyStats, computeStreak } from '../lib/achievements'
 import { fetchCommitments, getWeekStartStr, getWeekEndStr, sumHoursInRange } from '../lib/commitments'
-import { fetchMyCheckins, ENGLISH_TOTAL_DAYS } from '../lib/englishCheckin'
+import { fetchMyCheckins } from '../lib/englishCheckin'
 import { format, differenceInCalendarDays, parseISO } from 'date-fns'
 import { fetchUserSettings } from '../lib/settings'
 import { resolveTargetDate, hasTargetDate } from '../lib/countdown'
@@ -127,6 +131,29 @@ export default function Home() {
     return list[Math.floor(todayNum / 86400000) % list.length]
   }, [])
 
+  /** 打卡提醒条通用 props：已登录 + 今天未打卡时展示 */
+  const reminderProps = {
+    hasCheckedToday,
+    showBreak: hasAnyLog && streak.current === 0,
+  }
+  /** 顶部「连续打卡 + 本周进度」并排区（桌面 gap-3 / 移动 gap-2，loading 期给骨架屏） */
+  const streakRow = (gap: string) => (
+    <div className={`grid grid-cols-2 ${gap}`}>
+      <StreakCard streak={streak} loading={loading} />
+      <WeekProgressCard weekTarget={weekTarget} actualHours={actualHours} progress={progress} loading={loading} />
+    </div>
+  )
+  /** 倒计时 + 阶段 + 三格统计面板通用 props */
+  const countdownProps = {
+    phaseInfo,
+    dailyQuote,
+    user: !!user,
+    stats,
+    todayHours,
+    hasCheckedToday,
+    loading,
+  }
+
   return (
     <div className={`mx-auto px-4 py-3 sm:py-4 ${twoCol ? 'max-w-none h-full min-h-0 flex flex-col' : 'max-w-5xl space-y-3 sm:space-y-4'}`}>
       {twoCol ? (
@@ -135,143 +162,18 @@ export default function Home() {
           {/* 左列：信息区（与右列内容垂直居中对齐，视觉平衡） */}
           <div className="flex flex-col gap-2.5 min-h-0 max-h-full justify-center overflow-y-auto overscroll-contain pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {/* 打卡提醒 */}
-            {user && !hasCheckedToday && (
-              <Link
-                to="/my-records/new"
-                className="block rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/70 dark:from-amber-500/10 dark:to-orange-500/5 border border-amber-200/80 dark:border-amber-500/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300/90 transition-colors hover:from-amber-100 dark:hover:from-amber-500/15"
-              >
-                {hasAnyLog && streak.current === 0 ? '🔥 连续打卡已断签，今天重新开始吧' : '✍️ 今天还没打卡，别忘了记录学习'}
-              </Link>
-            )}
+            {user && <CheckinReminderCard {...reminderProps} />}
 
             {/* 连续打卡 + 本周进度（并排紧凑） */}
-            {user && (
-              <div className="grid grid-cols-2 gap-3">
-                <Link
-                  to="/achievements"
-                  className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
-                >
-                  <div className="flex items-baseline justify-between">
-                    <p className="text-[11px] text-gray-500 dark:text-slate-500">连续打卡</p>
-                    <p className="text-[11px] text-gray-400 dark:text-slate-600">最长{streak.longest}天</p>
-                  </div>
-                  <p className="text-lg font-bold text-orange-500 dark:text-orange-400 mt-0.5 flex items-center gap-1">
-                    <Icon name="flame" size={19} />
-                    <span className="num">{streak.current} 天</span>
-                  </p>
-                </Link>
+            {user && streakRow('gap-3')}
 
-                <Link
-                  to="/goal"
-                  className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
-                >
-                  <div className="flex items-baseline justify-between">
-                    <p className="text-[11px] text-gray-500 dark:text-slate-500">本周进度</p>
-                    <p className="text-[11px] text-gray-400 dark:text-slate-600">
-                      {weekTarget ? `${actualHours.toFixed(1)}/${weekTarget}h` : '未设定'}
-                    </p>
-                  </div>
-                  {weekTarget ? (
-                    <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden mt-2">
-                      <div
-                        className={`h-full rounded-full transition-all ${progress >= 100 ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-indigo-500 dark:bg-indigo-400'}`}
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1.5">去设定目标 →</p>
-                  )}
-                </Link>
-              </div>
-            )}
-
-            {/* 倒计时 */}
-            <div className="card relative px-3 py-3 overflow-hidden">
-              <Countdown title="距考试还有" />
-
-              {/* 阶段标签 + 累计 / 格言 —— 填空白 */}
-              <div className="mt-2 pt-2 border-t border-dashed border-gray-200 dark:border-slate-800">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r ${phaseInfo.tone} text-white text-[10px] font-semibold px-2 py-0.5 shadow-sm`}
-                  >
-                    {phaseInfo.tag}
-                  </span>
-                  <span className="text-[10px] text-gray-400 dark:text-slate-500 italic truncate">
-                    「{dailyQuote}」
-                  </span>
-                </div>
-                {user ? (
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="rounded-xl bg-gradient-to-b from-blue-50 to-white dark:from-blue-500/10 dark:to-slate-900 border border-blue-100 dark:border-blue-500/15 p-2 text-center">
-                      <p className="text-[10px] text-blue-500/90 dark:text-blue-400/80 font-medium">今日时长</p>
-                      <p className="text-[15px] font-bold tabular-nums text-blue-700 dark:text-blue-300 mt-0.5 leading-none">
-                        {todayHours.toFixed(1)}<span className="text-[10px] font-medium ml-0.5">h</span>
-                      </p>
-                      <p className="text-[9px] text-blue-400/80 dark:text-blue-400/50 mt-0.5 leading-none">
-                        累计 {stats.totalHours.toFixed(0)}h
-                      </p>
-                    </div>
-                    <div className="rounded-xl bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-500/10 dark:to-slate-900 border border-indigo-100 dark:border-indigo-500/15 p-2 text-center">
-                      <p className="text-[10px] text-indigo-500/90 dark:text-indigo-400/80 font-medium">打卡天数</p>
-                      <p className="text-[15px] font-bold tabular-nums text-indigo-700 dark:text-indigo-300 mt-0.5 leading-none">
-                        {stats.checkedDays}<span className="text-[10px] font-medium ml-0.5">天</span>
-                      </p>
-                    </div>
-                    <Link
-                      to="/my-records/new"
-                      className="group rounded-xl bg-gradient-to-b from-violet-50 to-white dark:from-violet-500/10 dark:to-slate-900 border border-violet-100 dark:border-violet-500/15 p-2 text-center transition-colors hover:from-violet-100 dark:hover:from-violet-500/20"
-                    >
-                      <p className="text-[10px] text-violet-500/90 dark:text-violet-400/80 font-medium">
-                        {hasCheckedToday ? '今日继续' : '今日去打卡'}
-                      </p>
-                      <p className="text-[15px] font-bold tabular-nums text-violet-700 dark:text-violet-300 mt-0.5 leading-none group-hover:translate-y-px transition-transform">
-                        {hasCheckedToday ? '继续+' : '打卡→'}
-                      </p>
-                    </Link>
-                  </div>
-                ) : (
-                  <div className="rounded-xl bg-gradient-to-br from-indigo-50 via-violet-50 to-white dark:from-indigo-500/10 dark:via-violet-500/5 dark:to-slate-900 border border-indigo-100/80 dark:border-indigo-500/20 px-3 py-2 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-semibold text-indigo-700 dark:text-indigo-300">{phaseInfo.desc}</p>
-                      <p className="text-[10px] text-gray-500 dark:text-slate-500 mt-0.5">登录后开始记录你的考研足迹</p>
-                    </div>
-                    <Link
-                      to="/login"
-                      className="shrink-0 inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] font-semibold shadow-sm transition-colors"
-                    >
-                      立即登录
-                    </Link>
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* 倒计时 + 阶段 + 今日时长/打卡天数/去打卡 */}
+            <CountdownPanel size="compact" {...countdownProps} />
 
             {/* 英语长难句打卡入口 */}
-            {user && (
-              <Link
-                to="/english-checkin"
-                className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="w-8 h-8 shrink-0 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400 flex items-center justify-center">
-                    <Icon name="book" size={17} />
-                  </span>
-                    <div>
-                      <p className="text-sm font-medium text-gray-800 dark:text-slate-100">英语长难句打卡</p>
-                      <p className="text-[11px] text-gray-500 dark:text-slate-500">{ENGLISH_TOTAL_DAYS} 天</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 dark:text-slate-400">{checkinCount}/{ENGLISH_TOTAL_DAYS} 天</span>
-                    <span className="text-gray-400 dark:text-slate-600">→</span>
-                  </div>
-                </div>
-              </Link>
-            )}
+            {user && <EnglishCheckinEntry size="compact" checkinCount={checkinCount} />}
 
-            {/* 待办事项清单（长难句打卡下方） */}
+            {/* 待办事项清单 */}
             <TodoList />
           </div>
 
@@ -363,195 +265,24 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        /* ===== 移动/网页模式：保持原有纵向流程 ===== */
+        /* ===== 移动/网页模式：按「每天第一眼最想看的」重排 —— 今日状态 → 倒计时 → 待办 → 日历 → 英语/快捷置底 ===== */
         <>
-          {user && (
-            <>
-              {/* 打卡提醒（单行紧凑） */}
-              {!hasCheckedToday && (
-                <Link
-                  to="/my-records/new"
-                  className="block rounded-xl bg-gradient-to-r from-amber-50 to-orange-50/70 dark:from-amber-500/10 dark:to-orange-500/5 border border-amber-200/80 dark:border-amber-500/20 px-3 py-2 text-xs text-amber-700 dark:text-amber-300/90 transition-colors hover:from-amber-100 dark:hover:from-amber-500/15"
-                >
-                  {hasAnyLog && streak.current === 0 ? '🔥 连续打卡已断签，今天重新开始吧' : '✍️ 今天还没打卡，别忘了记录学习'}
-                </Link>
-              )}
+          {/* ① 今日状态：打卡提醒 + 连续打卡 / 本周进度（并排紧凑） */}
+          {user && <CheckinReminderCard {...reminderProps} />}
+          {user && streakRow('gap-2')}
 
-              {/* 连续打卡 + 本周进度（移动端并排紧凑） */}
-              <div className="grid grid-cols-2 gap-2">
-                <Link
-                  to="/achievements"
-                  className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
-                >
-                  <div className="flex items-baseline justify-between">
-                    <p className="text-[11px] text-gray-500 dark:text-slate-500">连续打卡</p>
-                    <p className="text-[11px] text-gray-400 dark:text-slate-600">最长{streak.longest}天</p>
-                  </div>
-                  <p className="text-lg font-bold text-orange-500 dark:text-orange-400 mt-0.5 flex items-center gap-1">
-                    <Icon name="flame" size={19} />
-                    <span className="num">{streak.current} 天</span>
-                  </p>
-                </Link>
+          {/* ② 倒计时 + 阶段 + 今日时长 / 打卡天数 / 去打卡 */}
+          <CountdownPanel size="normal" {...countdownProps} />
 
-                <Link
-                  to="/goal"
-                  className="card p-3 transition-colors hover:border-indigo-200 hover:bg-indigo-50/50 dark:hover:border-indigo-500/40 dark:hover:bg-slate-800/60"
-                >
-                  <div className="flex items-baseline justify-between">
-                    <p className="text-[11px] text-gray-500 dark:text-slate-500">本周进度</p>
-                    <p className="text-[11px] text-gray-400 dark:text-slate-600">
-                      {weekTarget ? `${actualHours.toFixed(1)}/${weekTarget}h` : '未设定'}
-                    </p>
-                  </div>
-                  {weekTarget ? (
-                    <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden mt-2">
-                      <div
-                        className={`h-full rounded-full transition-all ${progress >= 100 ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-indigo-500 dark:bg-indigo-400'}`}
-                        style={{ width: `${progress}%` }}
-                      />
-                    </div>
-                  ) : (
-                    <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1.5">去设定目标 →</p>
-                  )}
-                </Link>
-              </div>
-            </>
-          )}
-
-          {/* 英语长难句打卡入口 */}
-          {user && (
-            <Link
-              to="/english-checkin"
-              className="block rounded-xl bg-white dark:bg-slate-900 p-3 border border-gray-100 dark:border-slate-800 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-8 h-8 shrink-0 rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400 flex items-center justify-center">
-                    <Icon name="book" size={17} />
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium text-gray-800 dark:text-slate-100">英语长难句打卡</p>
-                    <p className="text-[11px] text-gray-500 dark:text-slate-500">柴荣老师 {ENGLISH_TOTAL_DAYS} 天 · 逐句翻译打分</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 dark:text-slate-400">{checkinCount}/{ENGLISH_TOTAL_DAYS} 天</span>
-                  <span className="text-gray-400 dark:text-slate-600">→</span>
-                </div>
-              </div>
-              {checkinCount > 0 && (
-                <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden mt-2">
-                  <div
-                    className="h-full rounded-full bg-emerald-500 dark:bg-emerald-400 transition-all"
-                    style={{ width: `${(checkinCount / ENGLISH_TOTAL_DAYS) * 100}%` }}
-                  />
-                </div>
-              )}
-            </Link>
-          )}
-
-          {/* 生词本 / 每周总结 快捷入口（比英语卡更轻量的两格） */}
-          {user && (
-            <div className="grid grid-cols-2 gap-2">
-              <Link
-                to="/vocabulary"
-                className="flex items-center gap-2 rounded-xl bg-white dark:bg-slate-900 px-3 py-2 border border-gray-100 dark:border-slate-800 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800"
-              >
-                <span className="w-7 h-7 shrink-0 rounded-lg bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400 flex items-center justify-center">
-                  <Icon name="vocab" size={15} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-gray-800 dark:text-slate-100">生词本</p>
-                  <p className="text-[10px] text-gray-500 dark:text-slate-500 truncate">背单词与复习</p>
-                </div>
-                <Icon name="chevronRight" size={14} className="text-gray-400 dark:text-slate-600 shrink-0" />
-              </Link>
-
-              <Link
-                to="/weekly-summary"
-                className="flex items-center gap-2 rounded-xl bg-white dark:bg-slate-900 px-3 py-2 border border-gray-100 dark:border-slate-800 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800"
-              >
-                <span className="w-7 h-7 shrink-0 rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400 flex items-center justify-center">
-                  <Icon name="star" size={15} />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-gray-800 dark:text-slate-100">每周总结</p>
-                  <p className="text-[10px] text-gray-500 dark:text-slate-500 truncate">本周 vs 上周 · 反思</p>
-                </div>
-                <Icon name="chevronRight" size={14} className="text-gray-400 dark:text-slate-600 shrink-0" />
-              </Link>
-            </div>
-          )}
-
-          {/* 待办事项清单（长难句打卡下方） */}
+          {/* ③ 待办事项清单（未完成任务） */}
           <TodoList />
 
-          <div className="grid gap-3 sm:gap-4 items-start grid-cols-1 lg:grid-cols-[1fr_340px] xl:grid-cols-[1fr_360px]">
-            <div>
-              <div className="card relative px-3 py-3 sm:px-4 sm:py-4 overflow-hidden">
-                <Countdown />
-                {/* 阶段 + 累计 / 登录引导 —— 填空 */}
-                <div className="mt-3 pt-2 border-t border-dashed border-gray-200 dark:border-slate-800">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <span
-                      className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r ${phaseInfo.tone} text-white text-[10px] sm:text-[11px] font-semibold px-2.5 py-0.5 shadow-sm`}
-                    >
-                      {phaseInfo.tag}
-                    </span>
-                    <span className="text-[10px] sm:text-[11px] text-gray-400 dark:text-slate-500 italic truncate">
-                      「{dailyQuote}」
-                    </span>
-                  </div>
-                  {user ? (
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="rounded-xl bg-gradient-to-b from-blue-50 to-white dark:from-blue-500/10 dark:to-slate-900 border border-blue-100 dark:border-blue-500/15 p-2 sm:p-2.5 text-center">
-                        <p className="text-[10px] sm:text-[11px] text-blue-500/90 dark:text-blue-400/80 font-medium">今日时长</p>
-                        <p className="text-base sm:text-lg font-bold tabular-nums text-blue-700 dark:text-blue-300 mt-0.5 leading-none">
-                          {todayHours.toFixed(1)}<span className="text-[10px] font-medium ml-0.5">h</span>
-                        </p>
-                        <p className="text-[9px] sm:text-[10px] text-blue-400/80 dark:text-blue-400/50 mt-0.5 leading-none">
-                          累计 {stats.totalHours.toFixed(0)}h
-                        </p>
-                      </div>
-                      <div className="rounded-xl bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-500/10 dark:to-slate-900 border border-indigo-100 dark:border-indigo-500/15 p-2 sm:p-2.5 text-center">
-                        <p className="text-[10px] sm:text-[11px] text-indigo-500/90 dark:text-indigo-400/80 font-medium">打卡天数</p>
-                        <p className="text-base sm:text-lg font-bold tabular-nums text-indigo-700 dark:text-indigo-300 mt-0.5 leading-none">
-                          {stats.checkedDays}<span className="text-[10px] font-medium ml-0.5">天</span>
-                        </p>
-                      </div>
-                      <Link
-                        to="/my-records/new"
-                        className="group rounded-xl bg-gradient-to-b from-violet-50 to-white dark:from-violet-500/10 dark:to-slate-900 border border-violet-100 dark:border-violet-500/15 p-2 sm:p-2.5 text-center transition-colors hover:from-violet-100 dark:hover:from-violet-500/20"
-                      >
-                        <p className="text-[10px] sm:text-[11px] text-violet-500/90 dark:text-violet-400/80 font-medium">
-                          {hasCheckedToday ? '今日继续' : '今日去打卡'}
-                        </p>
-                        <p className="text-base sm:text-lg font-bold tabular-nums text-violet-700 dark:text-violet-300 mt-0.5 leading-none group-hover:translate-y-px transition-transform">
-                          {hasCheckedToday ? '继续+' : '打卡→'}
-                        </p>
-                      </Link>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl bg-gradient-to-br from-indigo-50 via-violet-50 to-white dark:from-indigo-500/10 dark:via-violet-500/5 dark:to-slate-900 border border-indigo-100/80 dark:border-indigo-500/20 px-3 py-2.5 flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[11px] sm:text-xs font-semibold text-indigo-700 dark:text-indigo-300">{phaseInfo.desc}</p>
-                        <p className="text-[10px] sm:text-[11px] text-gray-500 dark:text-slate-500 mt-0.5">登录后开始记录你的考研足迹</p>
-                      </div>
-                      <Link
-                        to="/login"
-                        className="shrink-0 inline-flex items-center px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[11px] sm:text-xs font-semibold shadow-sm transition-colors"
-                      >
-                        立即登录
-                      </Link>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="lg:self-start">
-              <Calendar logs={logs} loading={loading} />
-            </div>
-          </div>
+          {/* ④ 日历 */}
+          <Calendar logs={logs} loading={loading} />
+
+          {/* ⑤ 英语打卡 / 生词本 / 每周总结（次要，置底） */}
+          {user && <EnglishCheckinEntry size="normal" checkinCount={checkinCount} />}
+          {user && <QuickLinksRow />}
         </>
       )}
     </div>

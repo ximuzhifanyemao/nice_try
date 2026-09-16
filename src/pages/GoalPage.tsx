@@ -18,10 +18,13 @@ import {
   type Wallet,
   type WalletTransaction,
   type WeeklyCommitment,
+  type SubjectTarget,
 } from '../lib/commitments'
+import { getAvailableSubjects, loadUserSubjects, type Subject } from '../lib/subjects'
 import { formatDateShort } from '../lib/format'
 import { useWideLayout } from '../App'
 import PromptDialog from '../components/PromptDialog'
+import EmptyState from '../components/EmptyState'
 
 const TX_TYPE_COLORS: Record<string, string> = {
   recharge: 'text-green-600 dark:text-green-400',
@@ -47,6 +50,11 @@ export default function GoalPage() {
   const [editing, setEditing] = useState(false)
   const [targetInput, setTargetInput] = useState('')
   const [depositInput, setDepositInput] = useState('')
+  // 分科目标：折叠区显隐 + 每科的输入值（subjectId → 小时输入字符串，空=未设定）
+  const [showSubjectTargets, setShowSubjectTargets] = useState(false)
+  const [subjectTargetsDraft, setSubjectTargetsDraft] = useState<Record<string, string>>({})
+  // 用户自建科目列表（AuthContext 已登录加载缓存，此处兜底补拉一次）
+  const [userSubjects, setUserSubjects] = useState<Subject[]>([])
 
   const loadData = useCallback(async () => {
     if (!user) return
@@ -74,6 +82,13 @@ export default function GoalPage() {
     loadData()
   }, [loadData])
 
+  // 兜底加载用户科目（AuthContext 登录时已加载缓存；此处确保折叠区能列出科目）
+  useEffect(() => {
+    if (!user) return
+    setUserSubjects(getAvailableSubjects())
+    loadUserSubjects(user.id).then(() => setUserSubjects(getAvailableSubjects()))
+  }, [user])
+
   const isLoading = loading || logsLoading
 
   const weekStart = getWeekStartStr()
@@ -83,6 +98,21 @@ export default function GoalPage() {
     [commitments, weekStart]
   )
   const actualHours = useMemo(() => sumHoursInRange(logs, weekStart, weekEnd), [logs, weekStart, weekEnd])
+  /** 本周各科目已学时长（小时），按 daily_logs.subjects 的 subjectId 汇总，用于分科目标进度 */
+  const subjectHoursThisWeek = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const log of logs) {
+      if (log.date < weekStart || log.date > weekEnd) continue
+      for (const s of log.subjects) {
+        map[s.id] = Math.round(((map[s.id] ?? 0) + (s.hours || 0)) * 100) / 100
+      }
+    }
+    return map
+  }, [logs, weekStart, weekEnd])
+  const historyCommitments = useMemo(
+    () => commitments.filter((c) => c.week_start !== weekStart),
+    [commitments, weekStart]
+  )
   const progressPercent = useMemo(() => {
     if (!currentCommitment || currentCommitment.target_hours <= 0) return 0
     return Math.min(100, (actualHours / currentCommitment.target_hours) * 100)
@@ -119,7 +149,24 @@ export default function GoalPage() {
     }
     setBusy(true)
     try {
-      await saveCommitment(user.id, weekStart, Math.round(target * 10) / 10, Math.round(deposit * 100) / 100)
+      // 汇总分科目标：仅收集 >0 的输入，附上科目名便于跨设备/归档回显；无输入则清空分科目标
+      const subjectTargets: SubjectTarget[] = Object.entries(subjectTargetsDraft)
+        .filter(([, v]) => Number(v) > 0)
+        .map(([id, v]) => {
+          const subj = userSubjects.find((s) => s.id === id)
+          return {
+            subjectId: id,
+            name: subj?.name ?? id,
+            hours: Math.round(Number(v) * 10) / 10,
+          }
+        })
+      await saveCommitment(
+        user.id,
+        weekStart,
+        Math.round(target * 10) / 10,
+        Math.round(deposit * 100) / 100,
+        subjectTargets,
+      )
       setEditing(false)
       await loadData()
     } catch (err) {
@@ -132,6 +179,12 @@ export default function GoalPage() {
   const startEdit = () => {
     setTargetInput(currentCommitment ? String(currentCommitment.target_hours) : '')
     setDepositInput(currentCommitment ? String(currentCommitment.deposit_amount) : '')
+    // 回填已有的分科目标，避免编辑总时长时误清空分科设定
+    const draft: Record<string, string> = {}
+    for (const t of currentCommitment?.subject_targets ?? []) {
+      if (t?.subjectId) draft[t.subjectId] = String(t.hours)
+    }
+    setSubjectTargetsDraft(draft)
     setEditing(true)
   }
 
@@ -191,7 +244,7 @@ export default function GoalPage() {
           </div>
 
           {/* 本周承诺 */}
-          <div className="card p-5 space-y-4">
+          <div id="commit-form" className="card p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">
                 本周承诺 <span className="text-xs text-gray-400 font-normal">（{formatDateShort(weekStart)} ~ {formatDateShort(weekEnd)}）</span>
@@ -234,6 +287,35 @@ export default function GoalPage() {
                         ? '已达成目标，周末结算后押金将返还到钱包 🎉'
                         : `还差 ${Math.max(0, currentCommitment.target_hours - actualHours).toFixed(1)}h 达成目标，未达成将扣除 ¥${fmtMoney(currentCommitment.deposit_amount)}`}
                     </p>
+                    {/* 分科目标达成（仅当设定了分科目标时展示，避免信息过载） */}
+                    {(currentCommitment.subject_targets?.length ?? 0) > 0 && (
+                      <div className="pt-2 space-y-2 border-t border-gray-50 dark:border-slate-700">
+                        <p className="text-xs text-gray-400 dark:text-slate-500">分科目标</p>
+                        {(currentCommitment.subject_targets ?? []).map((t) => {
+                          const done = subjectHoursThisWeek[t.subjectId] ?? 0
+                          const pct = t.hours > 0 ? Math.min(100, (done / t.hours) * 100) : 0
+                          return (
+                            <div key={t.subjectId} className="space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-gray-600 dark:text-slate-300">{t.name}</span>
+                                <span className="text-gray-400">
+                                  <span className={`font-semibold ${done >= t.hours ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                                    {done.toFixed(1)}h
+                                  </span>
+                                  <span> / {t.hours}h</span>
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-green-500 dark:bg-green-400' : 'bg-blue-500 dark:bg-blue-400'}`}
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </>
                 )}
                 {currentCommitment.status !== 'active' && (
@@ -291,6 +373,48 @@ export default function GoalPage() {
                 {wallet && (Number(depositInput) || 0) > wallet.balance && (
                   <p className="text-xs text-red-500 dark:text-red-400">余额不足，请先充值（当前 ¥{fmtMoney(wallet.balance)}）</p>
                 )}
+                {/* 分科目标（可选）：折叠面板，逐科填目标小时 */}
+                <div className="pt-1 border-t border-gray-50 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setShowSubjectTargets((v) => !v)}
+                    className="w-full flex items-center justify-between text-sm font-medium text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100 cursor-pointer"
+                  >
+                    <span>按科目设定目标（可选）</span>
+                    <span className="text-xs text-gray-400">{showSubjectTargets ? '收起' : '展开'}</span>
+                  </button>
+                  {showSubjectTargets && (
+                    <div className="mt-2 space-y-2">
+                      {userSubjects.length === 0 ? (
+                        <p className="text-xs text-gray-400 dark:text-slate-500">
+                          暂无科目，请先到「计时」页创建科目后再设定分科目标
+                        </p>
+                      ) : (
+                        userSubjects.map((s) => {
+                          const learned = subjectHoursThisWeek[s.id] ?? 0
+                          const val = subjectTargetsDraft[s.id] ?? ''
+                          return (
+                            <div key={s.id} className="flex items-center gap-2 text-sm">
+                              <span className="w-24 flex-shrink-0 truncate text-gray-600 dark:text-slate-300">{s.name}</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                value={val}
+                                onChange={(e) =>
+                                  setSubjectTargetsDraft((d) => ({ ...d, [s.id]: e.target.value }))
+                                }
+                                placeholder="目标小时"
+                                className="input w-28 py-1.5"
+                              />
+                              <span className="text-xs text-gray-400">本周已学 {learned.toFixed(1)}h</span>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-2">
                   <button
                     onClick={handleSave}
@@ -318,36 +442,50 @@ export default function GoalPage() {
           </div>
 
           {/* 历史承诺 */}
-          {commitments.filter((c) => c.week_start !== weekStart).length > 0 && (
-            <div className="card p-5 space-y-3">
-              <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">历史承诺</h2>
+          <div className="card p-5 space-y-3">
+            <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">历史承诺</h2>
+            {historyCommitments.length === 0 ? (
+              <EmptyState
+                icon="clock"
+                title="暂无历史承诺"
+                desc="立下本周承诺后，每周结算会归档到这里，方便回顾目标的达成情况。"
+              />
+            ) : (
               <div className="space-y-2">
-                {commitments
-                  .filter((c) => c.week_start !== weekStart)
-                  .map((c) => {
-                    const meta = statusMeta(c.status)
-                    return (
-                      <div key={c.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
-                        <div className="min-w-0">
-                          <p className="text-gray-700 dark:text-slate-200">
-                            {formatDateShort(c.week_start)} ~ {formatDateShort(getWeekEndStr(new Date(c.week_start)))}
-                          </p>
-                          <p className="text-xs text-gray-400 dark:text-slate-500">
-                            目标 {c.target_hours}h · 押金 ¥{fmtMoney(c.deposit_amount)}
-                          </p>
-                        </div>
-                        <span className={`flex-shrink-0 text-sm ${meta.cls}`}>{meta.label}</span>
+                {historyCommitments.map((c) => {
+                  const meta = statusMeta(c.status)
+                  return (
+                    <div key={c.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
+                      <div className="min-w-0">
+                        <p className="text-gray-700 dark:text-slate-200">
+                          {formatDateShort(c.week_start)} ~ {formatDateShort(getWeekEndStr(new Date(c.week_start)))}
+                        </p>
+                        <p className="text-xs text-gray-400 dark:text-slate-500">
+                          目标 {c.target_hours}h · 押金 ¥{fmtMoney(c.deposit_amount)}
+                        </p>
                       </div>
-                    )
-                  })}
+                      <span className={`flex-shrink-0 text-sm ${meta.cls}`}>{meta.label}</span>
+                    </div>
+                  )
+                })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* 资金流水 */}
-          {transactions.length > 0 && (
-            <div className="card p-5 space-y-3">
-              <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">资金流水</h2>
+          <div className="card p-5 space-y-3">
+            <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">资金流水</h2>
+            {transactions.length === 0 ? (
+              <EmptyState
+                icon="chart"
+                title="暂无资金流水"
+                desc="充值、结算与押金变动都会记录在这里，形成完整的资金去向。"
+                action={{
+                  label: '去立下本周承诺',
+                  onClick: () => document.getElementById('commit-form')?.scrollIntoView({ behavior: 'smooth' }),
+                }}
+              />
+            ) : (
               <div className="space-y-2">
                 {transactions.map((tx) => {
                   const meta = TX_TYPE_META[tx.type]
@@ -364,8 +502,8 @@ export default function GoalPage() {
                   )
                 })}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <p className="text-center text-xs text-gray-400 dark:text-slate-500 pb-2">
             承诺金为虚拟资金，仅用于自我激励，不涉及任何真实金钱交易

@@ -30,6 +30,10 @@ CREATE TABLE IF NOT EXISTS public.daily_logs (
   deleted_at TIMESTAMPTZ
 );
 
+-- updated_at：建表 DEFAULT now()，并由下方 BEFORE UPDATE 触发器自动维护。
+-- 此处幂等 ALTER 仅兜底历史存量库（早期形态无该列），重复执行无副作用。
+ALTER TABLE public.daily_logs ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT now();
+
 -- 注意：原 UNIQUE(user_id, date) 已改为"仅未删除记录"的部分唯一索引，
 -- 使同一天记录删除进回收站后仍可再新建当天记录。
 -- （原 demo 提示执行 supabase-migration-trash.sql，此合并文件已将其纳入下方第二节）
@@ -134,6 +138,11 @@ CREATE TABLE IF NOT EXISTS public.weekly_commitments (
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE (user_id, week_start)
 );
+
+-- 分科目标：每科一条 { subjectId, name, hours } 组成的 JSONB 数组，可空。
+-- 仅前端「目标与承诺金」页读写（RPC create_commitment 不涉及该列，保存时单独 UPDATE）。
+-- 幂等 ALTER：存量库无该列时补列，重复执行无副作用。
+ALTER TABLE public.weekly_commitments ADD COLUMN IF NOT EXISTS subject_targets JSONB;
 
 -- ============================================
 -- 二、回收站（软删除）功能迁移（原 supabase-migration-trash.sql）

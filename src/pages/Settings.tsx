@@ -140,7 +140,9 @@ export default function Settings() {
       {/* 显示偏好 */}
       <div className="card p-4">
         <p className="text-sm font-medium text-gray-800 dark:text-slate-100">显示模式</p>
-        <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">切换主题外观，晨光 / 暮色为渐变背景</p>
+        <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+          晨光 / 暮色 / 午夜繁星为背景风格，会同步调整卡片与按钮的基调色；强调色随浅色 / 深色主题
+        </p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {THEMES.map((t) => (
             <button

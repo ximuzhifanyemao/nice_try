@@ -240,6 +240,8 @@ export async function createLog(userId: string, logData: DailyLogInput): Promise
       date: logData.date,
       subjects: logData.subjects,
       summary: logData.summary,
+      // 显式写入初始版本时间戳（表 DEFAULT now() 亦会兜底，双保险利于版本比对）
+      updated_at: new Date().toISOString(),
     })
     .select()
     .single()
@@ -288,8 +290,13 @@ function isLogVersionConflict(err: unknown): boolean {
   return err instanceof LogVersionConflictError
 }
 
+/** 供组件判断是否命中「他端已修改」的版本冲突（如 LogCard 编辑保存时的覆盖确认弹窗） */
+export function isVersionConflict(err: unknown): boolean {
+  return isLogVersionConflict(err)
+}
+
 /** 带版本校验的更新：仅当 updated_at 与读取时一致才写入；不一致（0 行命中）抛版本冲突 */
-async function updateLogVersioned(
+export async function updateLogVersioned(
   logId: string,
   logData: DailyLogInput,
   expectedUpdatedAt: string | null,

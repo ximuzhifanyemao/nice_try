@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import { addDays, endOfWeek, format, parseISO } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
@@ -18,6 +19,16 @@ import {
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 import { Icon } from '../components/Icon'
+import ShareCard, { CARD_WIDTH, CARD_HEIGHT } from '../components/ShareCard'
+import {
+  generateSharePng,
+  downloadPng,
+  sharePngFile,
+  pickMotto,
+  subjectCategoryColor,
+  type ShareCardData,
+  type ShareCardSubject,
+} from '../lib/shareCard'
 
 /** 数值展示：保留 1 位小数，整数省略小数位 */
 function fmtNum(n: number): string {
@@ -170,6 +181,9 @@ const WeeklySummary: React.FC = () => {
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const [shareData, setShareData] = useState<ShareCardData | null>(null)
+  const shareNodeRef = useRef<HTMLDivElement | null>(null)
 
   const currentWeekStart = getWeekStartStr()
   const isCurrentWeek = weekStart === currentWeekStart
@@ -248,6 +262,72 @@ const WeeklySummary: React.FC = () => {
     setEditing(false)
   }
 
+  // 轮询等待分享卡 DOM 挂载完成（React 提交渲染后 ref 才可用），超时返回 null
+  const waitForShareNode = () =>
+    new Promise<HTMLDivElement | null>((resolve) => {
+      let tries = 0
+      const check = () => {
+        const el = shareNodeRef.current
+        if (el) resolve(el)
+        else if (tries++ > 30) resolve(null)
+        else setTimeout(check, 40)
+      }
+      setTimeout(check, 0)
+    })
+
+  // 点击「分享」：校验数据充足 → 渲染 ShareCard → 截图 → 按平台导出/分享
+  const handleShare = async () => {
+    if (sharing) return
+    if (thisWeek.totalHours <= 0) {
+      toast.show('有学习记录才能生成分享图', { icon: '×' })
+      return
+    }
+    const subjects: ShareCardSubject[] = comparison.subjectDiffs
+      .filter((d) => d.thisWeekHours > 0)
+      .sort((a, b) => b.thisWeekHours - a.thisWeekHours)
+      .map((d) => ({
+        name: d.name,
+        hours: d.thisWeekHours,
+        color: subjectCategoryColor(getSubjectById(d.subjectId)?.category),
+      }))
+    setShareData({
+      title: '本周学习总结',
+      dateLabel,
+      totalHours: thisWeek.totalHours,
+      checkedDays: thisWeek.checkedDays,
+      subjects,
+      motto: pickMotto(weekStart),
+    })
+    setSharing(true)
+    try {
+      const node = await waitForShareNode()
+      if (!node) return
+      const dataUrl = await generateSharePng(node)
+      if (!dataUrl) {
+        toast.show('生成分享图失败，请重试', { icon: '×' })
+        return
+      }
+      if (Capacitor.isNativePlatform()) {
+        // Capacitor 原生：优先系统分享；该环境不支持文件分享时回退下载
+        const shared = await sharePngFile(dataUrl)
+        if (shared) {
+          toast.show('分享图已生成', { icon: '✓' })
+        } else {
+          downloadPng(dataUrl)
+          toast.show('当前环境不支持直接分享，已保存分享图', { icon: '✓' })
+        }
+      } else {
+        // Web / Tauri：触发浏览器下载
+        downloadPng(dataUrl)
+        toast.show('分享图已生成', { icon: '✓' })
+      }
+    } finally {
+      // 截图完成即卸载分享卡、复位按钮状态
+      setShareData(null)
+      setSharing(false)
+    }
+  }
+
   const { thisWeek, lastWeek, totalHoursDiff, checkedDaysDiff, avgDailyDiff } = comparison
   const thisWeekHasNoData = thisWeek.totalHours === 0 && lastWeek.totalHours === 0
   const hasLastWeek = lastWeek.totalHours > 0
@@ -256,6 +336,16 @@ const WeeklySummary: React.FC = () => {
     <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-4xl'} px-4 py-4 space-y-4`}>
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">每周总结</h1>
+        <button
+          type="button"
+          onClick={handleShare}
+          disabled={sharing}
+          title="生成分享图"
+          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 cursor-pointer"
+        >
+          <Icon name={sharing ? 'refresh' : 'download'} size={16} className={sharing ? 'animate-spin' : ''} />
+          {sharing ? '生成中…' : '分享'}
+        </button>
       </div>
 
       {/* 周次切换 */}
@@ -460,6 +550,17 @@ const WeeklySummary: React.FC = () => {
             )}
           </div>
         </>
+      )}
+
+      {/* 分享图渲染容器：固定尺寸、移到视口外，截图完成后即卸载 */}
+      {shareData && (
+        <div
+          aria-hidden
+          ref={shareNodeRef}
+          style={{ position: 'fixed', left: -9999, top: -9999, width: CARD_WIDTH, height: CARD_HEIGHT, pointerEvents: 'none' }}
+        >
+          <ShareCard data={shareData} />
+        </div>
       )}
     </div>
   )
