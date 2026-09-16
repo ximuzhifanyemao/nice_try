@@ -59,7 +59,7 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
   const totalHours = log.subjects?.reduce((sum, s) => sum + (s.hours || 0), 0) ?? 0
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-3 hover:shadow-md transition-shadow">
+    <div className="card-hover p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{formattedDate}</h3>
         <div className="flex items-center gap-2">

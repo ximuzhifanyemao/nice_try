@@ -963,7 +963,7 @@ export default function StudyTimer() {
       </div>
 
       {/* 计时器面板 */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 text-center">
+      <div className="card p-5 text-center">
         {running ? (
           <p className="text-xs text-gray-500 dark:text-slate-400 mb-1.5">
             正在学习：<span className="font-semibold text-gray-700 dark:text-slate-200">{currentSubject}</span>
@@ -1003,7 +1003,7 @@ export default function StudyTimer() {
 
       {/* 今日累计 */}
       {Object.keys(accum).length > 0 && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-4 space-y-3">
+        <div className="card p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div>
               <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
@@ -1082,7 +1082,7 @@ export default function StudyTimer() {
 
       {/* 科目管理 */}
       {user && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-4">
+        <div className="card p-4">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">计时科目管理</h3>
           <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
             科目保存在云端，可随时编辑改名或删除；历史记录不受影响，改名后历史记录会显示新名称。

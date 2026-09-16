@@ -73,7 +73,7 @@ export default function Achievements() {
       )}
 
       {error && !loading && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 text-center">
+        <div className="card p-8 text-center">
           <p className="text-red-500 dark:text-red-400">{error}</p>
           <button
             type="button"

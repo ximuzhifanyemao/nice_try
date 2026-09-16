@@ -125,7 +125,7 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
   const selectedKey = format(selectedDate, 'yyyy-MM-dd')
 
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-4">
+    <div className="card p-5 space-y-4">
       {/* 标题行 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">本周学习时长</h2>

@@ -21,6 +21,7 @@ import {
 } from '../lib/commitments'
 import { formatDateShort } from '../lib/format'
 import { useWideLayout } from '../App'
+import PromptDialog from '../components/PromptDialog'
 
 const TX_TYPE_COLORS: Record<string, string> = {
   recharge: 'text-green-600 dark:text-green-400',
@@ -40,6 +41,7 @@ export default function GoalPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const [rechargeOpen, setRechargeOpen] = useState(false)
 
   // 表单状态
   const [editing, setEditing] = useState(false)
@@ -86,21 +88,18 @@ export default function GoalPage() {
     return Math.min(100, (actualHours / currentCommitment.target_hours) * 100)
   }, [currentCommitment, actualHours])
 
-  const handleRecharge = async () => {
-    if (!user) return
-    const raw = window.prompt('输入虚拟充值金额（元）：')
-    if (raw === null) return
+  /** 充值：金额由 PromptDialog 收集（替代 window.prompt，弹窗样式与全站统一） */
+  const handleRecharge = async (raw: string): Promise<string | void> => {
+    if (!user) return '请先登录'
     const amount = Number(raw)
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast.show('请输入有效的正数金额', { icon: '⚠️' })
-      return
-    }
+    if (!Number.isFinite(amount) || amount <= 0) return '请输入有效的正数金额'
     setBusy(true)
     try {
       await rechargeWallet(user.id, amount)
       await loadData()
+      setRechargeOpen(false)
     } catch (err) {
-      toast.show('充值失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
+      return '充值失败：' + (err instanceof Error ? err.message : '未知错误')
     } finally {
       setBusy(false)
     }
@@ -136,10 +135,11 @@ export default function GoalPage() {
     setEditing(true)
   }
 
+  /** 状态文案：改用与全站一致的语义色，不再混用 emoji */
   const statusMeta = (status: string) => {
-    if (status === 'won') return { label: '✅ 目标达成', cls: 'text-green-600 dark:text-green-400' }
-    if (status === 'lost') return { label: '❌ 未达成', cls: 'text-red-600 dark:text-red-400' }
-    return { label: '⏳ 进行中', cls: 'text-blue-600 dark:text-blue-400' }
+    if (status === 'won') return { label: '目标达成', cls: 'text-green-600 dark:text-green-400' }
+    if (status === 'lost') return { label: '未达成', cls: 'text-red-600 dark:text-red-400' }
+    return { label: '进行中', cls: 'text-blue-600 dark:text-blue-400' }
   }
 
   return (
@@ -155,12 +155,12 @@ export default function GoalPage() {
       )}
 
       {error && !isLoading && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-8 text-center">
+        <div className="card p-8 text-center">
           <p className="text-red-500 dark:text-red-400">{error}</p>
           <button
             type="button"
             onClick={loadData}
-            className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg mt-3 transition-colors cursor-pointer"
+            className="btn-primary mt-3"
           >
             重试
           </button>
@@ -181,7 +181,7 @@ export default function GoalPage() {
                 <p className="text-xs text-white/70 mt-1">充值的是虚拟金额，用于自我约束，无真实资金</p>
               </div>
               <button
-                onClick={handleRecharge}
+                onClick={() => setRechargeOpen(true)}
                 disabled={busy}
                 className="flex-shrink-0 whitespace-nowrap px-3 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors cursor-pointer"
               >
@@ -191,7 +191,7 @@ export default function GoalPage() {
           </div>
 
           {/* 本周承诺 */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-4">
+          <div className="card p-5 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">
                 本周承诺 <span className="text-xs text-gray-400 font-normal">（{formatDateShort(weekStart)} ~ {formatDateShort(weekEnd)}）</span>
@@ -271,7 +271,7 @@ export default function GoalPage() {
                     value={targetInput}
                     onChange={(e) => setTargetInput(e.target.value)}
                     placeholder="例如 20"
-                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="input"
                   />
                 </div>
                 <div>
@@ -285,7 +285,7 @@ export default function GoalPage() {
                     value={depositInput}
                     onChange={(e) => setDepositInput(e.target.value)}
                     placeholder="例如 50"
-                    className="w-full rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="input"
                   />
                 </div>
                 {wallet && (Number(depositInput) || 0) > wallet.balance && (
@@ -295,7 +295,7 @@ export default function GoalPage() {
                   <button
                     onClick={handleSave}
                     disabled={busy}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 dark:disabled:bg-slate-700 text-white rounded-lg py-2 text-sm font-medium transition-colors cursor-pointer disabled:cursor-not-allowed"
+                    className="btn-primary flex-1"
                   >
                     {busy ? '保存中...' : currentCommitment ? '保存修改' : '立下承诺'}
                   </button>
@@ -319,7 +319,7 @@ export default function GoalPage() {
 
           {/* 历史承诺 */}
           {commitments.filter((c) => c.week_start !== weekStart).length > 0 && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-3">
+            <div className="card p-5 space-y-3">
               <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">历史承诺</h2>
               <div className="space-y-2">
                 {commitments
@@ -346,7 +346,7 @@ export default function GoalPage() {
 
           {/* 资金流水 */}
           {transactions.length > 0 && (
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-5 space-y-3">
+            <div className="card p-5 space-y-3">
               <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">资金流水</h2>
               <div className="space-y-2">
                 {transactions.map((tx) => {
@@ -370,6 +370,19 @@ export default function GoalPage() {
           <p className="text-center text-xs text-gray-400 dark:text-slate-500 pb-2">
             承诺金为虚拟资金，仅用于自我激励，不涉及任何真实金钱交易
           </p>
+
+          <PromptDialog
+            open={rechargeOpen}
+            title="充值到虚拟钱包"
+            label="充值金额（元）"
+            inputType="number"
+            inputMode="decimal"
+            placeholder="例如 100"
+            hint={`当前余额 ¥${fmtMoney(wallet?.balance ?? 0)}`}
+            confirmText="确认充值"
+            onConfirm={handleRecharge}
+            onCancel={() => setRechargeOpen(false)}
+          />
         </>
       )}
     </div>

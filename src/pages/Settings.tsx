@@ -87,6 +87,16 @@ export default function Settings() {
     if (nextEnabled) toast.show('打卡提醒已开启', { icon: '🔔' })
   }
 
+  /** 自定义提醒时间（预设之外的时间段，如 23:30 / 07:00） */
+  const handleCustomTime = (value: string) => {
+    const m = /^(\d{1,2}):(\d{2})$/.exec(value)
+    if (!m) return
+    const hour = Number(m[1])
+    const minute = Number(m[2])
+    if (hour > 23 || minute > 59) return
+    setReminder(saveReminderConfig({ ...reminder, hour, minute }))
+  }
+
   const handlePickPreset = (hour: number, minute: number) => {
     setReminder(saveReminderConfig({ ...reminder, hour, minute }))
     toast.show(`提醒时间设为 ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`, { icon: '⏰' })
@@ -186,6 +196,18 @@ export default function Settings() {
                   </button>
                 )
               })}
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <label htmlFor="reminder-time" className="text-xs text-gray-500 dark:text-slate-400">
+                自定义时间
+              </label>
+              <input
+                id="reminder-time"
+                type="time"
+                value={`${String(reminder.hour).padStart(2, '0')}:${String(reminder.minute).padStart(2, '0')}`}
+                onChange={(e) => handleCustomTime(e.target.value)}
+                className="input h-8 w-auto py-0 text-xs"
+              />
             </div>
             <p className="mt-2 text-[11px] text-gray-400 dark:text-slate-500">
               提醒只在打开 DiveDeep 时生效（如浏览器标签页开着）。打卡后当天不再提醒。

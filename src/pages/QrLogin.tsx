@@ -43,7 +43,7 @@ export default function QrLogin() {
   if (!authLoading && !user) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-4">
-        <div className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 text-center">
+        <div className="w-full max-w-sm card p-6 text-center">
           <p className="text-5xl mb-4">📱</p>
           <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-2">扫码登录</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
@@ -64,7 +64,7 @@ export default function QrLogin() {
   if (tokenValid === false) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-4">
-        <div className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 text-center">
+        <div className="w-full max-w-sm card p-6 text-center">
           <p className="text-5xl mb-4">❌</p>
           <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-2">二维码已失效</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -79,7 +79,7 @@ export default function QrLogin() {
   if (done) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center px-4">
-        <div className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 text-center">
+        <div className="w-full max-w-sm card p-6 text-center">
           <p className="text-5xl mb-4">✅</p>
           <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-2">登录成功</h1>
           <p className="text-sm text-gray-500 dark:text-slate-400">
@@ -93,7 +93,7 @@ export default function QrLogin() {
   // 等待确认
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
-      <div className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100 dark:border-slate-700 p-6 text-center">
+      <div className="w-full max-w-sm card p-6 text-center">
         <p className="text-5xl mb-4">💻</p>
         <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100 mb-2">桌面端扫码登录</h1>
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-1">

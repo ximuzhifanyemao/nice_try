@@ -148,6 +148,8 @@ export default function Profile() {
         <Row icon="medal" tint="bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-400" label="成就" desc="徽章与里程碑" to="/achievements" />
         <Row icon="target" label="目标与承诺金" desc="每周目标 · 承诺" to="/goal" />
         <Row icon="vocab" tint="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400" label="生词本" desc="背单词与复习" to="/vocabulary" />
+        <Row icon="star" tint="bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400" label="每周总结" desc="本周 vs 上周 · 反思笔记" to="/weekly-summary" />
+        <Row icon="heart" tint="bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-400" label="健康打卡" desc="饮食 · 饮水 · 体重" to="/health" />
       </div>
 
       {/* 设备与数据 */}
@@ -155,7 +157,7 @@ export default function Profile() {
       <div className="space-y-2 pt-1.5">
         <Row icon="smartphone" tint="bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400" label="扫码登录电脑" desc="扫电脑二维码，一键登录" to="/scan-qr" />
         <Row icon="cloud" tint="bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400" label="同步数据" desc={syncing ? '正在同步…' : '同步生词本到云'} onClick={handleSync} />
-        <Row icon="download" tint="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400" label={exporting ? '正在导出…' : '导出数据'} desc="备份学习 · 健康 · 生词本" onClick={handleExport} />
+        <Row icon="download" tint="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400" label={exporting ? '正在导出…' : '导出数据'} desc="备份学习 · 健康 · 生词本 · 待办" onClick={handleExport} />
         <Row icon="settings" tint="bg-slate-100 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300" label="设置" desc="倒计时 · 科目 · 主题" to="/settings" />
       </div>
 

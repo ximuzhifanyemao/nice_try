@@ -10,9 +10,10 @@ import { Icon } from '../components/Icon'
 import { todayStr } from '../lib/dailyLogs'
 import { computeStudyStats, computeStreak } from '../lib/achievements'
 import { fetchCommitments, getWeekStartStr, getWeekEndStr, sumHoursInRange } from '../lib/commitments'
-import { fetchMyCheckins } from '../lib/englishCheckin'
+import { fetchMyCheckins, ENGLISH_TOTAL_DAYS } from '../lib/englishCheckin'
 import { format, differenceInCalendarDays, parseISO } from 'date-fns'
 import { fetchUserSettings } from '../lib/settings'
+import { resolveTargetDate, hasTargetDate } from '../lib/countdown'
 
 export default function Home() {
   const { user } = useAuth()
@@ -20,15 +21,12 @@ export default function Home() {
   const { logs, loading } = useLogs()
   const [weekTarget, setWeekTarget] = useState<number | null>(null)
   const [checkinCount, setCheckinCount] = useState(0)
-  const [targetDate, setTargetDate] = useState<Date>(() => new Date('2026-12-20T00:00:00'))
+  const [targetDate, setTargetDate] = useState<Date>(() => resolveTargetDate(null))
+  /** 登录用户是否真的设置了目标日期：未设置时不给基于兜底日期的备考阶段判断（会误导） */
+  const [hasTarget, setHasTarget] = useState(false)
 
-  const DEFAULT_TARGET = new Date('2026-12-20T00:00:00')
-  function resolveTargetDate(dateStr: string | null): Date {
-    if (!dateStr) return DEFAULT_TARGET
-    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr)
-    if (!m) return DEFAULT_TARGET
-    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
-  }
+  // 目标日期的解析统一走 src/lib/countdown.ts，避免与 Countdown 组件各写一份导致不一致
+  const DEFAULT_TARGET = resolveTargetDate(null)
 
   useEffect(() => {
     if (!user) {
@@ -50,8 +48,14 @@ export default function Home() {
       .catch(() => setCheckinCount(0))
     // 目标日期（用于阶段判断）
     fetchUserSettings(user.id)
-      .then((s) => setTargetDate(resolveTargetDate(s.target_date)))
-      .catch(() => setTargetDate(DEFAULT_TARGET))
+      .then((s) => {
+        setTargetDate(resolveTargetDate(s.target_date))
+        setHasTarget(hasTargetDate(s.target_date))
+      })
+      .catch(() => {
+        setTargetDate(DEFAULT_TARGET)
+        setHasTarget(false)
+      })
   }, [user])
 
   const streak = useMemo(() => computeStreak(logs.map((l) => l.date)), [logs])
@@ -59,6 +63,13 @@ export default function Home() {
   const weekStart = getWeekStartStr()
   const weekEnd = getWeekEndStr()
   const actualHours = useMemo(() => sumHoursInRange(logs, weekStart, weekEnd), [logs, weekStart, weekEnd])
+
+  /** 今日已学时长：打卡类应用里用户一天最想看的数字，此前首页只展示了累计与本周 */
+  const todayHours = useMemo(() => {
+    const todayLog = logs.find((l) => l.date === todayStr() && !l.deleted_at)
+    if (!todayLog) return 0
+    return todayLog.subjects.reduce((s, x) => s + (x.hours || 0), 0)
+  }, [logs])
 
   const hasCheckedToday = logs.some((l) => l.date === todayStr())
   const hasAnyLog = logs.length > 0
@@ -86,6 +97,9 @@ export default function Home() {
 
   /** 考试阶段：根据距考试天数给出提醒 */
   const phaseInfo = useMemo(() => {
+    if (user && !hasTarget) {
+      return { tag: '未设定目标', desc: '去设置里填上目标日期，开启备考阶段提示', tone: 'from-slate-400 to-slate-500' }
+    }
     const days = Math.max(0, differenceInCalendarDays(targetDate, new Date()))
     if (days <= 0) return { tag: '冲刺决战', desc: '考试已至，沉着应考 🎯', tone: 'from-rose-500 to-red-600' }
     if (days <= 30) return { tag: '最后冲刺', desc: '30 天内，查漏补缺，回归真题错题', tone: 'from-rose-500 to-orange-500' }
@@ -93,7 +107,7 @@ export default function Home() {
     if (days <= 180) return { tag: '攻坚阶段', desc: '全面真题、形成知识体系', tone: 'from-violet-500 to-indigo-500' }
     if (days <= 300) return { tag: '基础阶段', desc: '按部就班过教材，每日一题不松懈', tone: 'from-indigo-500 to-blue-500' }
     return { tag: '长线备考', desc: '每天一点点，累积就是飞跃', tone: 'from-sky-500 to-indigo-500' }
-  }, [targetDate])
+  }, [targetDate, user, hasTarget])
 
   /** 每日格言（按日期伪随机，保持一天内不变） */
   const dailyQuote = useMemo(() => {
@@ -190,9 +204,12 @@ export default function Home() {
                 {user ? (
                   <div className="grid grid-cols-3 gap-2">
                     <div className="rounded-xl bg-gradient-to-b from-blue-50 to-white dark:from-blue-500/10 dark:to-slate-900 border border-blue-100 dark:border-blue-500/15 p-2 text-center">
-                      <p className="text-[10px] text-blue-500/90 dark:text-blue-400/80 font-medium">累计时长</p>
+                      <p className="text-[10px] text-blue-500/90 dark:text-blue-400/80 font-medium">今日时长</p>
                       <p className="text-[15px] font-bold tabular-nums text-blue-700 dark:text-blue-300 mt-0.5 leading-none">
-                        {stats.totalHours.toFixed(0)}<span className="text-[10px] font-medium ml-0.5">h</span>
+                        {todayHours.toFixed(1)}<span className="text-[10px] font-medium ml-0.5">h</span>
+                      </p>
+                      <p className="text-[9px] text-blue-400/80 dark:text-blue-400/50 mt-0.5 leading-none">
+                        累计 {stats.totalHours.toFixed(0)}h
                       </p>
                     </div>
                     <div className="rounded-xl bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-500/10 dark:to-slate-900 border border-indigo-100 dark:border-indigo-500/15 p-2 text-center">
@@ -243,11 +260,11 @@ export default function Home() {
                   </span>
                     <div>
                       <p className="text-sm font-medium text-gray-800 dark:text-slate-100">英语长难句打卡</p>
-                      <p className="text-[11px] text-gray-500 dark:text-slate-500">150 天</p>
+                      <p className="text-[11px] text-gray-500 dark:text-slate-500">{ENGLISH_TOTAL_DAYS} 天</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 dark:text-slate-400">{checkinCount}/150 天</span>
+                    <span className="text-xs text-gray-500 dark:text-slate-400">{checkinCount}/{ENGLISH_TOTAL_DAYS} 天</span>
                     <span className="text-gray-400 dark:text-slate-600">→</span>
                   </div>
                 </div>
@@ -414,11 +431,11 @@ export default function Home() {
                   </span>
                   <div>
                     <p className="text-sm font-medium text-gray-800 dark:text-slate-100">英语长难句打卡</p>
-                    <p className="text-[11px] text-gray-500 dark:text-slate-500">柴荣老师 150 天 · 逐句翻译打分</p>
+                    <p className="text-[11px] text-gray-500 dark:text-slate-500">柴荣老师 {ENGLISH_TOTAL_DAYS} 天 · 逐句翻译打分</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500 dark:text-slate-400">{checkinCount}/150 天</span>
+                  <span className="text-xs text-gray-500 dark:text-slate-400">{checkinCount}/{ENGLISH_TOTAL_DAYS} 天</span>
                   <span className="text-gray-400 dark:text-slate-600">→</span>
                 </div>
               </div>
@@ -426,7 +443,7 @@ export default function Home() {
                 <div className="w-full bg-gray-100 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden mt-2">
                   <div
                     className="h-full rounded-full bg-emerald-500 dark:bg-emerald-400 transition-all"
-                    style={{ width: `${(checkinCount / 150) * 100}%` }}
+                    style={{ width: `${(checkinCount / ENGLISH_TOTAL_DAYS) * 100}%` }}
                   />
                 </div>
               )}
@@ -455,9 +472,12 @@ export default function Home() {
                   {user ? (
                     <div className="grid grid-cols-3 gap-2">
                       <div className="rounded-xl bg-gradient-to-b from-blue-50 to-white dark:from-blue-500/10 dark:to-slate-900 border border-blue-100 dark:border-blue-500/15 p-2 sm:p-2.5 text-center">
-                        <p className="text-[10px] sm:text-[11px] text-blue-500/90 dark:text-blue-400/80 font-medium">累计时长</p>
+                        <p className="text-[10px] sm:text-[11px] text-blue-500/90 dark:text-blue-400/80 font-medium">今日时长</p>
                         <p className="text-base sm:text-lg font-bold tabular-nums text-blue-700 dark:text-blue-300 mt-0.5 leading-none">
-                          {stats.totalHours.toFixed(0)}<span className="text-[10px] font-medium ml-0.5">h</span>
+                          {todayHours.toFixed(1)}<span className="text-[10px] font-medium ml-0.5">h</span>
+                        </p>
+                        <p className="text-[9px] sm:text-[10px] text-blue-400/80 dark:text-blue-400/50 mt-0.5 leading-none">
+                          累计 {stats.totalHours.toFixed(0)}h
                         </p>
                       </div>
                       <div className="rounded-xl bg-gradient-to-b from-indigo-50 to-white dark:from-indigo-500/10 dark:to-slate-900 border border-indigo-100 dark:border-indigo-500/15 p-2 sm:p-2.5 text-center">
