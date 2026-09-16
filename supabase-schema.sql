@@ -1145,6 +1145,10 @@ CREATE TABLE IF NOT EXISTS public.todos (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 软删除：删除待办时置 deleted_at 而非真删，便于回收站恢复
+-- CREATE TABLE IF NOT EXISTS 对存量库不会补列，故单独执行幂等的 ALTER
+ALTER TABLE public.todos ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
 CREATE INDEX IF NOT EXISTS idx_todos_user ON public.todos(user_id, done);
 
 ALTER TABLE public.todos ENABLE ROW LEVEL SECURITY;
@@ -1230,3 +1234,92 @@ CREATE POLICY "Users can delete own weekly reflections"
   USING (auth.uid() = user_id);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.weekly_reflections TO authenticated;
+
+-- ============================================
+-- 二十一、承诺金定时结算（可选）
+--  服务端批量结算函数，供 pg_cron 定时任务调用，保证用户长时间不打开 App
+--  也能被服务端自动结算过期承诺（不再依赖前端打开「目标与承诺金」页触发）。
+--
+--  与前端 src/lib/commitments.ts::settleExpiredCommitments()
+--  -> RPC public.settle_commitments(UUID) 为「同一业务」，结算规则完全一致：
+--    遍历 status='active' 且 week_end(=week_start+6) < CURRENT_DATE 的承诺，
+--    汇总 daily_logs 中该周（week_start~week_end，deleted_at IS NULL）实际学习时长：
+--      - 实际时长 >= target_hours -> 状态置 won，押金返还钱包（type='refund'）
+--      - 实际时长 <  target_hours -> 状态置 lost，押金扣除（type='forfeit'）
+--    并写入 wallet_transactions 流水（note 唯一标识 'settle:承诺id'，天然幂等）。
+--  本函数为 SECURITY DEFINER 且不校验 auth.uid()（后台定时无 auth 会话）；
+--  前端按单用户触发的结算仍走 public.settle_commitments(UUID)。两处请保持一致，避免漂移。
+--
+--  幂等防重设计：
+--    1) 只处理 status='active' 且已结束的周；一次结算后状态即变为 won/lost，重跑不会再次处理；
+--    2) 写流水前先 DELETE 该承诺既有的 'settle:承诺id' 流水再写入；
+--    3) 对 wallet_transactions.note 建「仅 settle 前缀」的部分唯一索引，DB 层兜底防止重复结算流水。
+-- -> 函数体可安全重复执行。
+-- ============================================
+
+-- 结算流水幂等唯一约束：同一承诺（'settle:承诺id'）最多一条结算流水；不影响其它类型流水
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wallet_tx_settle_note
+  ON public.wallet_transactions (note)
+  WHERE note LIKE 'settle:%';
+
+CREATE OR REPLACE FUNCTION public.settle_expired_commitments_all()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  c public.weekly_commitments%ROWTYPE;
+  actual_hours NUMERIC;
+  week_end DATE;
+BEGIN
+  FOR c IN
+    SELECT * FROM public.weekly_commitments
+    WHERE status = 'active'
+      AND week_start + 6 < CURRENT_DATE
+    ORDER BY user_id, id
+  LOOP
+    week_end := c.week_start + 6;
+
+    -- 汇总该周实际学习时长（与 public.settle_commitments 完全一致）
+    SELECT COALESCE(SUM((sub.value->>'hours')::numeric), 0)
+    INTO actual_hours
+    FROM public.daily_logs dl
+    CROSS JOIN LATERAL jsonb_array_elements(dl.subjects) AS sub
+    WHERE dl.user_id = c.user_id
+      AND dl.date >= c.week_start
+      AND dl.date <= week_end
+      AND dl.deleted_at IS NULL;
+
+    -- 幂等防重：先清理该承诺既有结算流水，再写入（唯一索引兜底，重复执行不产生重复流水）
+    DELETE FROM public.wallet_transactions
+    WHERE user_id = c.user_id AND note = 'settle:' || c.id::text;
+
+    IF actual_hours >= c.target_hours THEN
+      -- 达标：押金返还钱包
+      UPDATE public.wallets
+        SET balance = balance + c.deposit_amount, updated_at = now()
+        WHERE user_id = c.user_id;
+      INSERT INTO public.wallet_transactions(user_id, type, amount, note)
+      VALUES (c.user_id, 'refund', c.deposit_amount, 'settle:' || c.id::text);
+      UPDATE public.weekly_commitments
+        SET status = 'won', settled_at = now()
+        WHERE id = c.id;
+    ELSE
+      -- 未达标：押金扣除（已在本周开始时扣减，此处仅记录流水）
+      INSERT INTO public.wallet_transactions(user_id, type, amount, note)
+      VALUES (c.user_id, 'forfeit', c.deposit_amount, 'settle:' || c.id::text);
+      UPDATE public.weekly_commitments
+        SET status = 'lost', settled_at = now()
+        WHERE id = c.id;
+    END IF;
+  END LOOP;
+END;
+$$;
+
+-- 仅允许后台（超级用户/pg_cron）执行，禁止登录用户触发全局批量结算
+REVOKE ALL ON FUNCTION public.settle_expired_commitments_all() FROM PUBLIC;
+
+-- 可选：Supabase 控制台『Database → Extensions』先启用 pg_cron，再执行下行启用周一定时：
+-- CREATE EXTENSION IF NOT EXISTS pg_cron;
+-- SELECT cron.schedule('settle-commitments-monday', '0 5 * * 1', $$SELECT public.settle_expired_commitments_all()$$);

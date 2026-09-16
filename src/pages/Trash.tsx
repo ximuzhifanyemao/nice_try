@@ -8,6 +8,8 @@ import LogCard from '../components/LogCard'
 import ConfirmDialog from '../components/ConfirmDialog'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchTrashedLogs, restoreLog, purgeLog, isDuplicateDateError } from '../lib/dailyLogs'
+import type { Todo } from '../lib/todos'
+import { fetchDeletedTodos, restoreTodo, permanentlyDeleteTodo } from '../lib/todos'
 import { formatDateShort } from '../lib/format'
 import { useWideLayout } from '../App'
 
@@ -29,6 +31,10 @@ export default function Trash() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [purgeTarget, setPurgeTarget] = useState<DailyLog | null>(null)
+  const [todos, setTodos] = useState<Todo[]>([])
+  const [todosLoading, setTodosLoading] = useState(true)
+  const [todosError, setTodosError] = useState<string | null>(null)
+  const [purgeTodoTarget, setPurgeTodoTarget] = useState<Todo | null>(null)
 
   const loadLogs = useCallback(() => {
     if (!user) return
@@ -43,6 +49,20 @@ export default function Trash() {
   useEffect(() => {
     loadLogs()
   }, [loadLogs])
+
+  const loadTodos = useCallback(() => {
+    if (!user) return
+    setTodosLoading(true)
+    setTodosError(null)
+    fetchDeletedTodos(user.id)
+      .then(setTodos)
+      .catch((err) => setTodosError(err instanceof Error ? err.message : '加载失败'))
+      .finally(() => setTodosLoading(false))
+  }, [user])
+
+  useEffect(() => {
+    loadTodos()
+  }, [loadTodos])
 
   const handleRestore = async (logId: string) => {
     try {
@@ -69,6 +89,25 @@ export default function Trash() {
     }
   }
 
+  const handleRestoreTodo = async (todoId: string) => {
+    try {
+      await restoreTodo(todoId)
+      loadTodos()
+    } catch {
+      toast.show('恢复失败，请重试', { icon: '❌' })
+    }
+  }
+
+  const handlePurgeTodo = async (todoId: string) => {
+    setPurgeTodoTarget(null)
+    try {
+      await permanentlyDeleteTodo(todoId)
+      loadTodos()
+    } catch {
+      toast.show('删除失败，请重试', { icon: '❌' })
+    }
+  }
+
   return (
     <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-3xl'} px-4 py-6 space-y-6`}>
       <div className="flex items-center justify-between">
@@ -84,53 +123,115 @@ export default function Trash() {
       </div>
 
       <p className="text-xs text-gray-400 dark:text-slate-500">
-        删除的学习记录会保留在这里，可随时恢复；彻底删除后无法找回。
+        删除的学习记录和待办会保留在这里，可随时恢复；彻底删除后无法找回。
       </p>
 
-      {loading && (
-        <div className="flex justify-center py-12">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:border-slate-700 border-t-blue-600 dark:border-t-blue-500" />
-        </div>
-      )}
+      {/* 学习记录回收站 */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">学习记录</h2>
+        {loading && (
+          <div className="flex justify-center py-10">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:border-slate-700 border-t-blue-600 dark:border-t-blue-500" />
+          </div>
+        )}
 
-      {error && (
-        <div className="text-center py-8 text-red-500 dark:text-red-400">加载失败: {error}</div>
-      )}
+        {error && (
+          <div className="text-center py-8 text-red-500 dark:text-red-400">加载失败: {error}</div>
+        )}
 
-      {!loading && !error && logs.length === 0 && (
-        <div className="text-center py-12 text-gray-400 dark:text-slate-500">回收站是空的</div>
-      )}
+        {!loading && !error && logs.length === 0 && (
+          <div className="text-center py-8 text-gray-400 dark:text-slate-500">
+            回收站里没有学习记录
+          </div>
+        )}
 
-      {!loading && !error && (
-        <div className="space-y-4">
-          {logs.map((log) => (
-            <div key={log.id} className="space-y-2">
-              <LogCard log={log} isOwner={false} onEdit={NOOP} onDelete={NOOP} />
-              <div className="flex items-center justify-between px-1">
-                <span className="text-xs text-gray-400 dark:text-slate-500">
-                  {log.deleted_at ? `删除于 ${formatDeletedAt(log.deleted_at)}` : '已删除'}
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleRestore(log.id)}
-                    className="px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors cursor-pointer"
-                  >
-                    恢复
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPurgeTarget(log)}
-                    className="px-3 py-1.5 text-sm text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors cursor-pointer"
-                  >
-                    彻底删除
-                  </button>
+        {!loading && !error && logs.length > 0 && (
+          <div className="space-y-4">
+            {logs.map((log) => (
+              <div key={log.id} className="space-y-2">
+                <LogCard log={log} isOwner={false} onEdit={NOOP} onDelete={NOOP} />
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs text-gray-400 dark:text-slate-500">
+                    {log.deleted_at ? `删除于 ${formatDeletedAt(log.deleted_at)}` : '已删除'}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleRestore(log.id)}
+                      className="px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors cursor-pointer"
+                    >
+                      恢复
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPurgeTarget(log)}
+                      className="px-3 py-1.5 text-sm text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors cursor-pointer"
+                    >
+                      彻底删除
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* 待办回收站 */}
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">待办事项</h2>
+        {todosLoading && (
+          <div className="flex justify-center py-10">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-200 dark:border-slate-700 border-t-indigo-600 dark:border-t-indigo-500" />
+          </div>
+        )}
+
+        {todosError && (
+          <div className="text-center py-8 text-red-500 dark:text-red-400">加载失败: {todosError}</div>
+        )}
+
+        {!todosLoading && !todosError && todos.length === 0 && (
+          <div className="text-center py-8 text-gray-400 dark:text-slate-500">回收站里没有待办</div>
+        )}
+
+        {!todosLoading && !todosError && todos.length > 0 && (
+          <div className="space-y-2">
+            {todos.map((todo) => (
+              <div
+                key={todo.id}
+                className="rounded-lg bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 p-3 space-y-2"
+              >
+                <p className="text-sm text-gray-800 dark:text-slate-200 break-words">
+                  {todo.content}
+                </p>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-400 dark:text-slate-500">
+                    {todo.deleted_at
+                      ? `删除于 ${formatDeletedAt(todo.deleted_at)}`
+                      : '已删除'}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleRestoreTodo(todo.id)}
+                      className="px-3 py-1.5 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors cursor-pointer"
+                    >
+                      恢复
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPurgeTodoTarget(todo)}
+                      className="px-3 py-1.5 text-sm text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors cursor-pointer"
+                    >
+                      彻底删除
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <ConfirmDialog
         open={!!purgeTarget}
@@ -144,6 +245,20 @@ export default function Trash() {
         danger
         onConfirm={() => purgeTarget && handlePurge(purgeTarget.id)}
         onCancel={() => setPurgeTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!purgeTodoTarget}
+        title="彻底删除待办？"
+        message={
+          purgeTodoTarget
+            ? `「${purgeTodoTarget.content}」将被永久删除，无法恢复。确定要删除吗？`
+            : ''
+        }
+        confirmText="彻底删除"
+        danger
+        onConfirm={() => purgeTodoTarget && handlePurgeTodo(purgeTodoTarget.id)}
+        onCancel={() => setPurgeTodoTarget(null)}
       />
     </div>
   )

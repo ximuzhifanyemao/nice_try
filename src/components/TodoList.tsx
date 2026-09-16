@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react'
 import type { Todo } from '../lib/todos'
 import { fetchMyTodos, createTodo, toggleTodo, deleteTodo } from '../lib/todos'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../lib/Toast'
 import { Icon } from './Icon'
 
 /** 首页「英语长难句打卡」下方的待办事项清单：添加 / 勾选完成 / 删除 */
 export default function TodoList() {
   const { user } = useAuth()
+  const toast = useToast()
   const [todos, setTodos] = useState<Todo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -57,10 +59,13 @@ export default function TodoList() {
 
   const handleDelete = async (todoId: string) => {
     try {
+      // deleteTodo 现在是软删除，记录会进回收站
       await deleteTodo(todoId)
       setTodos((prev) => prev.filter((t) => t.id !== todoId))
+      toast.show('已移入回收站', { icon: '🗑️' })
     } catch (err) {
       setError((err as Error)?.message ?? '删除失败')
+      toast.show('删除失败，请重试', { icon: '❌' })
     }
   }
 

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import { useAuth } from '../contexts/AuthContext'
+import { useLogs } from '../contexts/LogsContext'
 import { useToast } from '../lib/Toast'
 import { getCurrentTheme, setTheme as persistTheme, THEMES, type ThemeMode } from '../lib/theme'
 import { fetchUserSettings, saveUserSettings } from '../lib/settings'
@@ -7,6 +9,9 @@ import {
   loadReminderConfig,
   saveReminderConfig,
   requestNotificationPermission,
+  requestNativeNotificationPermission,
+  syncNativeReminderSchedule,
+  cancelNativeReminderSchedule,
   notificationsSupported,
   REMINDER_PRESETS,
   type ReminderConfig,
@@ -16,8 +21,10 @@ import { useWideLayout } from '../App'
 export default function Settings() {
   const wide = useWideLayout()
   const { user } = useAuth()
+  const { logs } = useLogs()
   const toast = useToast()
   const userId = user?.id
+  const isNative = Capacitor.isNativePlatform()
 
   /* ── 倒计时设置 ── */
   const [title, setTitle] = useState('')
@@ -70,7 +77,10 @@ export default function Settings() {
   const handleToggleReminder = async (nextEnabled: boolean) => {
     // 开启提醒前先征得通知授权
     let granted = true
-    if (nextEnabled && notificationsSupported()) {
+    if (nextEnabled && isNative) {
+      // 原生端走系统通知权限
+      granted = await requestNativeNotificationPermission()
+    } else if (nextEnabled && notificationsSupported()) {
       if (Notification.permission === 'default') {
         granted = await requestNotificationPermission()
       } else if (Notification.permission === 'denied') {
@@ -79,11 +89,19 @@ export default function Settings() {
     }
     if (nextEnabled && !granted) {
       setNotifOk(false)
-      toast.show('通知权限被拒，无法提醒。请在浏览器设置中允许通知', { icon: '🔕' })
+      toast.show(
+        isNative ? '需要允许通知权限才能收到打卡提醒' : '通知权限被拒，无法提醒。请在浏览器设置中允许通知',
+        { icon: '🔕' },
+      )
       return
     }
-    setNotifOk(notificationsSupported() && Notification.permission === 'granted')
+    setNotifOk(isNative ? granted : notificationsSupported() && Notification.permission === 'granted')
     setReminder(saveReminderConfig({ ...reminder, enabled: nextEnabled }))
+    // 原生端：开启/关闭后重建（或清理）系统每日提醒调度
+    if (isNative && userId) {
+      if (nextEnabled) rebuildNativeSchedule()
+      else void cancelNativeReminderSchedule()
+    }
     if (nextEnabled) toast.show('打卡提醒已开启', { icon: '🔔' })
   }
 
@@ -95,12 +113,23 @@ export default function Settings() {
     const minute = Number(m[2])
     if (hour > 23 || minute > 59) return
     setReminder(saveReminderConfig({ ...reminder, hour, minute }))
+    rebuildNativeSchedule()
   }
 
   const handlePickPreset = (hour: number, minute: number) => {
     setReminder(saveReminderConfig({ ...reminder, hour, minute }))
+    rebuildNativeSchedule()
     toast.show(`提醒时间设为 ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`, { icon: '⏰' })
   }
+
+  /** 原生端重建系统每日提醒调度（内部会读取最新配置；仅原生 + 已登录时生效） */
+  const rebuildNativeSchedule = useCallback(() => {
+    if (!isNative || !userId) return
+    const checkedDates = new Set(
+      logs.filter((l) => !l.deleted_at).map((l) => l.date),
+    )
+    void syncNativeReminderSchedule(userId, checkedDates)
+  }, [isNative, userId, logs])
 
   return (
     <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-2xl'} px-4 py-4 space-y-4`}>
@@ -172,7 +201,9 @@ export default function Settings() {
         )}
         {reminder.enabled && notifOk === false && (
           <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 rounded-lg bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1.5">
-            通知权限未开启：请在浏览器地址栏左侧点击 🔔 图标，允许本站发送通知。
+            {isNative
+              ? '通知权限未开启：请在系统设置中允许本应用发送通知。'
+              : '通知权限未开启：请在浏览器地址栏左侧点击 🔔 图标，允许本站发送通知。'}
           </p>
         )}
 
@@ -210,7 +241,9 @@ export default function Settings() {
               />
             </div>
             <p className="mt-2 text-[11px] text-gray-400 dark:text-slate-500">
-              提醒只在打开 DiveDeep 时生效（如浏览器标签页开着）。打卡后当天不再提醒。
+              {isNative
+                ? '关闭 App 也能收到提醒（Android 8+ 可能有少量延迟）。打卡后当天不再提醒。'
+                : '提醒只在打开 DiveDeep 时生效（如浏览器标签页开着）。打卡后当天不再提醒。'}
             </p>
           </div>
         )}

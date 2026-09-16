@@ -101,3 +101,96 @@ export function downloadTextFile(filename: string, content: string, mime = 'appl
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
 }
+
+export interface ImportResult {
+  ok: boolean
+  tables: Record<string, { written: number; failed?: string[] }>
+  errors: string[]
+}
+
+/**
+ * 一键导入（恢复/合并）备份 JSON：字段值以文件为准，行替换；
+ * 跨账号迁移时每行 user_id 覆盖为当前用户。单表容错，失败不影响整体。
+ * meal_logs 特殊两步写：先写主体（剔除内嵌 meal_items），再写 meal_items 明细。
+ */
+export async function importAllData(userId: string, payload: unknown): Promise<ImportResult> {
+  const result: ImportResult = { ok: true, tables: {}, errors: [] }
+
+  // ---- 结构校验：非法备份直接抛错 ----
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    throw new Error('备份内容无效：不是合法的 JSON 备份对象')
+  }
+  const obj = payload as Record<string, unknown>
+  if (typeof obj.schema_version !== 'number' || (obj.schema_version !== 1 && obj.schema_version !== 2)) {
+    throw new Error('备份内容无效：缺少可识别的 schema_version（期望 1 或 2）')
+  }
+  if (typeof obj.data !== 'object' || obj.data === null || Array.isArray(obj.data)) {
+    throw new Error('备份内容无效：缺少 data 数据')
+  }
+  const data = obj.data as Record<string, unknown>
+
+  const recordError = (key: string, msg: string) => {
+    const entity = result.tables[key]
+    if (entity) entity.failed = [...(entity.failed ?? []), msg]
+    else result.tables[key] = { written: 0, failed: [msg] }
+    result.errors.push(`${key}: ${msg}`)
+    result.ok = false
+  }
+
+  /** 优先 upsert（onConflict id、字段以文件为准），失败降级为 insert（如无 id 列的表） */
+  const writeRows = async (table: string, rows: Record<string, unknown>[]) => {
+    try {
+      const { error } = await supabase.from(table).upsert(rows, { onConflict: 'id' })
+      if (error) throw error
+      return
+    } catch {
+      // 降级
+    }
+    const { error } = await supabase.from(table).insert(rows)
+    if (error) throw error
+  }
+
+  // 逐表处理，复用 TABLES 保证导入导出范围一致
+  for (const t of TABLES) {
+    const tableData = data[t.key]
+    if (!Array.isArray(tableData) || tableData.length === 0) continue
+
+    try {
+      if (t.key === 'meal_logs') {
+        // 第一步：写主体（去掉内嵌 meal_items，归属当前用户）
+        const bodyRows = tableData.map((raw) => {
+          const row = { ...(raw as Record<string, unknown>) }
+          delete row.meal_items
+          row.user_id = userId
+          return row
+        })
+        await writeRows('meal_logs', bodyRows)
+
+        // 第二步：写内嵌 meal_items（关联回原日志 id，归属当前用户）
+        const itemRows: Record<string, unknown>[] = []
+        for (const raw of tableData) {
+          const row = raw as Record<string, unknown>
+          const logId = row.id
+          const items = Array.isArray(row.meal_items) ? (row.meal_items as Record<string, unknown>[]) : []
+          for (const it of items) {
+            itemRows.push({
+              ...it,
+              user_id: userId,
+              meal_id: typeof it.meal_id === 'string' ? it.meal_id : logId,
+            })
+          }
+        }
+        if (itemRows.length > 0) await writeRows('meal_items', itemRows)
+        result.tables[t.key] = { written: tableData.length }
+      } else {
+        const rows = (tableData as Record<string, unknown>[]).map((r) => ({ ...r, user_id: userId }))
+        await writeRows(t.table, rows)
+        result.tables[t.key] = { written: rows.length }
+      }
+    } catch (err) {
+      recordError(t.key, err instanceof Error ? err.message : String(err))
+    }
+  }
+
+  return result
+}

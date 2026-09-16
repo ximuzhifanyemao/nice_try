@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useState, useRef, type ChangeEvent, type ReactNode } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useUpdateContext } from '../contexts/UpdateContext'
@@ -8,7 +8,8 @@ import { syncVocabularyFromCloud } from '../lib/vocabulary'
 import { Capacitor } from '@capacitor/core'
 import { isTauri } from '@tauri-apps/api/core'
 import { Icon, type IconName } from '../components/Icon'
-import { exportAllData, downloadTextFile } from '../lib/export'
+import { exportAllData, downloadTextFile, importAllData, type ImportResult } from '../lib/export'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { useWideLayout } from '../App'
 
 /** 分组标题 */
@@ -66,6 +67,9 @@ export default function Profile() {
   const [checkingText, setCheckingText] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [pendingImport, setPendingImport] = useState<{ payload: unknown; tables: number; rows: number } | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { show } = useToast()
 
   const handleSync = async () => {
@@ -123,6 +127,67 @@ export default function Profile() {
     }
   }
 
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // 允许重复选择同一文件
+    e.target.value = ''
+    if (!file) return
+    try {
+      const text = await file.text()
+      const payload = JSON.parse(text) as unknown
+      if (typeof payload !== 'object' || payload === null || typeof (payload as Record<string, unknown>).data !== 'object') {
+        throw new Error('bad')
+      }
+      const dataObj = (payload as Record<string, Record<string, unknown>>).data
+      let tables = 0
+      let rows = 0
+      for (const k of Object.keys(dataObj)) {
+        const arr = dataObj[k]
+        if (Array.isArray(arr) && arr.length > 0) {
+          tables += 1
+          rows += arr.length
+        }
+      }
+      if (tables === 0) {
+        show('备份中没有可导入的数据', { icon: '⚠️' })
+        return
+      }
+      setPendingImport({ payload, tables, rows })
+    } catch {
+      show('文件不是有效的备份 JSON', { icon: '⚠️' })
+    }
+  }
+
+  const handleConfirmImport = async () => {
+    if (!user || importing || !pendingImport) return
+    setImporting(true)
+    const { payload } = pendingImport
+    setPendingImport(null)
+    try {
+      const res: ImportResult = await importAllData(user.id, payload)
+      const failedCount = Object.values(res.tables).filter((t) => (t.failed?.length ?? 0) > 0).length
+      const successCount = Object.keys(res.tables).length - failedCount
+      const refreshNote = '部分页面需刷新后可见最新数据'
+      if (res.ok) {
+        show(`导入完成：${successCount} 张表成功，${refreshNote}`, { icon: '✅' })
+      } else {
+        show(`导入完成：${successCount} 张表成功，${failedCount} 张表失败，${refreshNote}`, { icon: '⚠️' })
+      }
+    } catch (err) {
+      show(err instanceof Error ? err.message : '导入失败，请稍后再试', { icon: '⚠️' })
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleImport = () => {
+    if (!user) {
+      show('请先登录后再导入', { icon: '🔐' })
+      return
+    }
+    fileInputRef.current?.click()
+  }
+
   return (
     <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-3xl'} px-4 py-4 pb-6`}>
       {/* 用户信息头部：渐变横幅 */}
@@ -158,6 +223,7 @@ export default function Profile() {
         <Row icon="smartphone" tint="bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400" label="扫码登录电脑" desc="扫电脑二维码，一键登录" to="/scan-qr" />
         <Row icon="cloud" tint="bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400" label="同步数据" desc={syncing ? '正在同步…' : '同步生词本到云'} onClick={handleSync} />
         <Row icon="download" tint="bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400" label={exporting ? '正在导出…' : '导出数据'} desc="备份学习 · 健康 · 生词本 · 待办" onClick={handleExport} />
+        <Row icon="upload" tint="bg-cyan-50 text-cyan-600 dark:bg-cyan-500/15 dark:text-cyan-400" label={importing ? '正在导入…' : '导入数据'} desc="从备份 JSON 恢复 · 合并，文件为准" onClick={handleImport} />
         <Row icon="settings" tint="bg-slate-100 text-slate-600 dark:bg-slate-700/60 dark:text-slate-300" label="设置" desc="倒计时 · 科目 · 主题" to="/settings" />
       </div>
 
@@ -221,6 +287,25 @@ export default function Profile() {
           退出登录
         </button>
       </div>
+
+      {/* 隐藏的文件选择器：点击「导入数据」时触发 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {/* 导入确认弹窗 */}
+      <ConfirmDialog
+        open={pendingImport !== null}
+        title="确认导入数据"
+        message={`将从备份恢复 ${pendingImport?.tables ?? 0} 张表（共 ${pendingImport?.rows ?? 0} 条记录），以文件数据为准，将合并进当前账号。确认导入？`}
+        confirmText="确认导入"
+        onConfirm={handleConfirmImport}
+        onCancel={() => setPendingImport(null)}
+      />
     </div>
   )
 }

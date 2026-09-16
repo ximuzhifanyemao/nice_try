@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { loadUserSubjects, resetSubjectCache, hydrateUserSubjects, ensureBuiltinMigration } from '../lib/subjects'
+// 登录后自动结算过期承诺（不再依赖打开「目标与承诺金」页）。
+// commitments.ts 仅依赖 supabase/dailyLogs，与 AuthContext 无循环依赖，故直接在此触发。
+import { settleExpiredCommitments } from '../lib/commitments'
 import { clearTimerLocalState } from '../lib/timerSync'
 import type { Session, User } from '@supabase/supabase-js'
 
@@ -50,6 +53,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         hydrateUserSubjects(session.user.id)
         // 老用户把历史用过的内置科目迁移为自定义科目（幂等，仅首次生效）
         ensureBuiltinMigration(session.user.id)
+        // 登录/恢复会话后自动结算过期承诺（fire-and-forget，吞错绝不阻塞登录；RPC 幂等）
+        void settleExpiredCommitments(session.user.id).catch(() => {})
       }
     }).catch((err) => {
       if (cancelled) return
@@ -73,6 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loadUserSubjects(session.user.id)
         // 老用户把历史用过的内置科目迁移为自定义科目（幂等，仅首次生效）
         ensureBuiltinMigration(session.user.id)
+        // 登录后自动结算过期承诺（fire-and-forget，吞错；onAuthStateChange 覆盖 SIGNED_IN 等事件）
+        void settleExpiredCommitments(session.user.id).catch(() => {})
       } else {
         resetSubjectCache()
         // 登出：清空计时/累计本地状态，防止与下一登录用户的数据串用
