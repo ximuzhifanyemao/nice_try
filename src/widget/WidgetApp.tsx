@@ -91,15 +91,24 @@ export default function WidgetApp() {
   const [fullMode, setFullMode] = useState(() => localStorage.getItem(MODE_KEY) === 'full')
   // 胶囊条科目下拉是否打开（窗口高度增至 360，选科后自动收回）
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  // 面板出场动画播放中：先淡出下滑，动画结束后再真正收起窗口，避免内容瞬间消失
+  const [dropdownClosing, setDropdownClosing] = useState(false)
+  const closeTimerRef = useRef<number | null>(null)
   // 标记当前是否正在切换模式：切换过程中由 setSize/setPosition 等触发的 onMoved 应跳过落盘，避免覆盖正确位置
   const switchingRef = useRef(false)
-  // 展开下拉前记录胶囊条位置，收起时恢复，避免贴底展开导致窗口被顶离原处
+  // 展开下拉前记录胶囊条位置；仅当展开时窗口被上移（贴底场景）时，收起才恢复，避免无谓跳位
   const preExpandPosRef = useRef<{ x: number; y: number } | null>(null)
+  const layerMovedRef = useRef(false)
 
   /** 将窗口切换到指定模式：精简(compact) / 全部功能(full)，调整尺寸/置顶/位置 */
   const applyMode = useCallback(async (next: boolean) => {
     setFullMode(next)
-    // 科目下拉只属于精简模式，切换模式时一律复位为胶囊条
+    // 科目下拉只属于精简模式，切换模式时一律复位为胶囊条（跳过出场动画，窗口立即变形）
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+    setDropdownClosing(false)
     setDropdownOpen(false)
     switchingRef.current = true
     try {
@@ -178,20 +187,20 @@ export default function WidgetApp() {
   }, [fullMode, applyMode])
 
   /**
-   * 加高窗口（展开面板/科目下拉）：
-   * 以胶囊条底部为锚「从下往上展开」——展开时底部保持原位、顶部向上生长，
-   * 并在上下/左右越界时自动收进屏幕，保证整块面板可见。
+   * 加高窗口（展开面板/科目下拉）：以胶囊条顶部为锚「向下展开」——胶囊条（时间）保持原位，
+   * 面板从下方弹出；仅当面板底部会越出屏幕（贴底）时，才改为顶边上移（底部锚定）并记录原地，
+   * 保证整块面板可见，收起时再恢复。
    */
   const openLayer = useCallback(
     async (height: number) => {
       try {
-        preExpandPosRef.current = (await appWindow.outerPosition().catch(() => null)) ?? null
         const monitor = await currentMonitor()
         const scale = monitor?.scaleFactor || 1
         const cur = (await appWindow.outerPosition().catch(() => null)) ?? null
         let nx = cur?.x ?? 0
-        // 顶边上移 (新高度 - 胶囊高)，底部保持不动
-        let ny = (cur?.y ?? 0) - Math.round((height - WIDGET_H) * scale)
+        // 默认顶部锚定：顶部保持原位，向下弹出面板
+        let ny = cur?.y ?? 0
+        let moved = false
         if (monitor && cur) {
           const top = monitor.position.y
           const bottom = monitor.position.y + monitor.size.height
@@ -202,11 +211,17 @@ export default function WidgetApp() {
           // 左右越界收进屏幕
           if (nx < left) nx = left
           if (nx + physW > right) nx = right - physW
-          // 垂直：优先保持底部不动向上长；仍越界时贴顶/贴底兜底
+          // 底部越界（贴底）：退回「底部锚定」——顶边上移，收起时需恢复原位
+          if (ny + physH > bottom) {
+            ny = bottom - physH
+            moved = true
+          }
           if (ny < top) ny = top
-          if (ny + physH > bottom) ny = bottom - physH
         }
-        await appWindow.setPosition(new PhysicalPosition(nx, ny))
+        preExpandPosRef.current = (await appWindow.outerPosition().catch(() => null)) ?? null
+        layerMovedRef.current = moved
+        // 只有发生位移（贴底上移）时才移动窗口；否则直接变高，胶囊不动
+        if (moved) await appWindow.setPosition(new PhysicalPosition(nx, ny))
         await appWindow.setSize(new LogicalSize(WIDGET_W, height))
         await appWindow.show().catch(() => {})
       } catch {
@@ -216,14 +231,15 @@ export default function WidgetApp() {
     [appWindow],
   )
 
-  /** 收回胶囊条高度，并恢复展开前记录的窗口位置 */
+  /** 收回胶囊条高度：顶部锚定向上收起，时间保持原位；仅贴底展开导致位移时恢复原位置 */
   const closeLayer = useCallback(async () => {
     try {
       await appWindow.setSize(new LogicalSize(WIDGET_W, WIDGET_H))
-      if (preExpandPosRef.current) {
+      if (layerMovedRef.current && preExpandPosRef.current) {
         await appWindow.setPosition(new PhysicalPosition(preExpandPosRef.current.x, preExpandPosRef.current.y))
-        preExpandPosRef.current = null
       }
+      preExpandPosRef.current = null
+      layerMovedRef.current = false
       await appWindow.show().catch(() => {})
     } catch {
       // 尺寸调整失败不阻塞 UI
@@ -231,14 +247,34 @@ export default function WidgetApp() {
   }, [appWindow])
 
   const openDropdown = useCallback(() => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+    setDropdownClosing(false)
     setDropdownOpen(true)
     openLayer(DROPDOWN_H)
   }, [openLayer])
 
+  /** 收起下拉：先播出场动画（淡出下滑），动画结束后再卸载面板并缩回窗口 */
   const closeDropdown = useCallback(() => {
-    setDropdownOpen(false)
-    closeLayer()
+    if (closeTimerRef.current) return
+    setDropdownClosing(true)
+    closeTimerRef.current = window.setTimeout(() => {
+      closeTimerRef.current = null
+      setDropdownClosing(false)
+      setDropdownOpen(false)
+      closeLayer()
+    }, 180)
   }, [closeLayer])
+
+  // 卸载时清理出场动画计时器
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current)
+    },
+    [],
+  )
 
   /** 下拉里选中科目：写入共享计时并收回胶囊条 */
   const quickStart = useCallback(
@@ -415,9 +451,13 @@ export default function WidgetApp() {
         </div>
       </div>
 
-      {/* 科目下拉（快速开始，选科后自动收回胶囊条） */}
+      {/* 科目下拉（快速开始，选科后自动收回）：展开随窗口立即出现，收起先淡出下滑再缩窗 */}
       {dropdownOpen && (
-        <div className="relative min-h-0 flex-1 border-t border-gray-200 dark:border-slate-800">
+        <div
+          className={`relative min-h-0 flex-1 border-t border-gray-200 dark:border-slate-800 ${
+            dropdownClosing ? 'animate-[widget-fade-out-down_0.18s_ease-in] forwards' : ''
+          }`}
+        >
           <SubjectPicker onPick={quickStart} onClose={closeDropdown} />
         </div>
       )}

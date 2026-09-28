@@ -31,7 +31,6 @@ const GoalPage = lazy(() => import('./pages/GoalPage'))
 const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
 const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
 const Settings = lazy(() => import('./pages/Settings'))
-const Health = lazy(() => import('./pages/Health'))
 const WeeklySummary = lazy(() => import('./pages/WeeklySummary'))
 const QrLogin = lazy(() => import('./pages/QrLogin'))
 const ScanQr = lazy(() => import('./pages/ScanQr'))
@@ -200,6 +199,21 @@ function BackButtonHandler() {
   return null
 }
 
+/**
+ * 页面切换淡入过渡：以路由 pathname 为 key 重新挂载子树，
+ * 每次切页触发一次纯透明度淡入（无位移，避免干扰首页一屏布局）。
+ * 需在 Router 内部使用（依赖 useLocation）。
+ * fillHeight：桌面全功能模式下透传 100% 高度，保证首页 h-full 高度链不断。
+ */
+function PageFade({ children, fillHeight }: { children: ReactNode; fillHeight: boolean }) {
+  const { pathname } = useLocation()
+  return (
+    <div key={pathname} className={`animate-[page-fade-in_0.25s_ease-out] ${fillHeight ? 'h-full min-h-0' : ''}`}>
+      {children}
+    </div>
+  )
+}
+
 export default function App({
   hideBottomTab = false,
   hideNavbar = false,
@@ -244,6 +258,7 @@ export default function App({
               <Suspense fallback={<PageLoading />}>
                 <HomeLayoutContext.Provider value={{ twoCol: forceTwoCol, wide: forceTwoCol }}>
                 <ScaleToFit enabled={forceTwoCol}>
+                <PageFade fillHeight={fillHeight}>
                 <Routes>
                   <Route path="/" element={<Home />} />
                   <Route path="/login" element={<Login />} />
@@ -265,11 +280,11 @@ export default function App({
                     <Route path="/english-checkin" element={<EnglishCheckin />} />
                     <Route path="/vocabulary" element={<VocabularyBook />} />
                     <Route path="/settings" element={<Settings />} />
-                    <Route path="/health" element={<Health />} />
                     <Route path="/scan-qr" element={<ScanQr />} />
                   </Route>
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                </PageFade>
                 </ScaleToFit>
                 </HomeLayoutContext.Provider>
               </Suspense>

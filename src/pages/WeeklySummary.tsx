@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
-import { addDays, endOfWeek, format, parseISO } from 'date-fns'
+import { addDays, endOfWeek, format, isToday, parseISO } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
 import { useWideLayout } from '../App'
@@ -15,6 +15,7 @@ import {
   type WeeklyReflection,
   type WeeklyComparison,
   type SubjectDiff,
+  type DayDiff,
 } from '../lib/weeklyReflections'
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
@@ -162,6 +163,122 @@ function GoalCard({ commit, actualHours }: { commit: WeeklyCommitment; actualHou
       ) : (
         <p className="text-sm">{targetShadow}</p>
       )}
+    </div>
+  )
+}
+
+/** 逐日对比星期标签（周一~周日） */
+const DAY_LABELS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
+
+/** 逐日对比差值文案与配色：↑ 绿 / ↓ 红 / — 灰（持平或双 0） */
+function dayDiffText(d: DayDiff, hasLastWeek: boolean): { text: string; cls: string } {
+  const gray = 'text-gray-400 dark:text-slate-500'
+  if (!hasLastWeek) return { text: '—', cls: gray }
+  if (d.thisHours === 0 && d.lastHours === 0) return { text: '—', cls: gray }
+  if (d.diff > 0) return { text: `↑+${fmtNum(d.diff)}`, cls: 'text-emerald-600 dark:text-emerald-400' }
+  if (d.diff < 0) return { text: `↓${fmtNum(Math.abs(d.diff))}`, cls: 'text-rose-500 dark:text-rose-400' }
+  return { text: '—', cls: gray }
+}
+
+/** 逐日对比：上半双柱图（上周灰柱 vs 本周靛蓝柱，生长动画），下半逐日明细行 */
+function DailyCompareChart({ dailyDiffs, hasLastWeek }: { dailyDiffs: DayDiff[]; hasLastWeek: boolean }) {
+  const max = Math.max(1, ...dailyDiffs.flatMap((d) => [d.thisHours, d.lastHours]))
+  return (
+    <div className="card space-y-3 p-5">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">逐日对比 · 本周 vs 上周</h2>
+        <div className="flex items-center gap-3 text-[11px] text-gray-400 dark:text-slate-500">
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-[3px] bg-gray-300 dark:bg-slate-600" />
+            上周
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-[3px] bg-indigo-500" />
+            本周
+          </span>
+        </div>
+      </div>
+
+      {/* 双柱图：7 组并排，每组上周 + 本周两根柱 */}
+      <div className="flex gap-1">
+        {dailyDiffs.map((d) => {
+          const today = isToday(parseISO(d.thisDate))
+          const diff = dayDiffText(d, hasLastWeek)
+          return (
+            <div key={d.dayIndex} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <div className="flex h-28 w-full items-end justify-center gap-0.5">
+                {/* 上周柱 */}
+                <div className="flex h-full w-2.5 flex-col justify-end">
+                  {d.lastHours > 0 ? (
+                    <div
+                      className="w-full origin-bottom animate-[bar-grow_0.5s_ease-out] rounded-t bg-gray-300 dark:bg-slate-600"
+                      style={{ height: `${(d.lastHours / max) * 100}%` }}
+                    />
+                  ) : (
+                    <div className="h-[2px] w-full rounded-full bg-gray-200 dark:bg-slate-700" />
+                  )}
+                </div>
+                {/* 本周柱（有数据时柱顶标时长） */}
+                <div className="relative flex h-full w-2.5 flex-col justify-end">
+                  {d.thisHours > 0 ? (
+                    <>
+                      <span
+                        className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-medium leading-none text-indigo-600 dark:text-indigo-300"
+                        style={{ bottom: `calc(${(d.thisHours / max) * 100}% + 3px)` }}
+                      >
+                        {fmtNum(d.thisHours)}
+                      </span>
+                      <div
+                        className="w-full origin-bottom animate-[bar-grow_0.5s_ease-out] rounded-t bg-gradient-to-t from-indigo-500 to-violet-400"
+                        style={{ height: `${(d.thisHours / max) * 100}%` }}
+                      />
+                    </>
+                  ) : (
+                    <div className="h-[2px] w-full rounded-full bg-gray-200 dark:bg-slate-700" />
+                  )}
+                </div>
+              </div>
+              <span
+                className={`text-[11px] leading-none ${
+                  today ? 'font-bold text-indigo-600 dark:text-indigo-400' : 'text-gray-500 dark:text-slate-400'
+                }`}
+              >
+                {DAY_LABELS[d.dayIndex]}
+              </span>
+              <span className={`text-[9px] leading-none ${diff.cls}`}>{diff.text}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 逐日明细：本周时长 / 上周时长 / 差值 */}
+      <div className="space-y-1.5 border-t border-gray-100 pt-3 dark:border-slate-700/60">
+        <div className="flex items-center gap-2 text-[10px] text-gray-400 dark:text-slate-500">
+          <span className="w-16 shrink-0">日期</span>
+          <span className="ml-auto w-12 shrink-0 text-right">本周</span>
+          <span className="w-12 shrink-0 text-right">上周</span>
+          <span className="w-14 shrink-0 text-right">变化</span>
+        </div>
+        {dailyDiffs.map((d) => {
+          const diff = dayDiffText(d, hasLastWeek)
+          return (
+            <div key={d.dayIndex} className="flex items-center gap-2 text-xs">
+              <span className="w-16 shrink-0 text-gray-500 dark:text-slate-400">
+                {format(parseISO(d.thisDate), 'M月d日')}
+              </span>
+              <span className="ml-auto w-12 shrink-0 text-right font-semibold text-gray-700 dark:text-slate-200">
+                {fmtNum(d.thisHours)}h
+              </span>
+              <span className="w-12 shrink-0 text-right text-gray-400 dark:text-slate-500">
+                {hasLastWeek ? `${fmtNum(d.lastHours)}h` : '—'}
+              </span>
+              <span className={`w-14 shrink-0 text-right font-medium ${diff.cls}`}>
+                {!hasLastWeek ? '上周暂无' : diff.text}
+              </span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -468,8 +585,13 @@ const WeeklySummary: React.FC = () => {
             </div>
           </div>
 
+          {/* 逐日对比：本周每一天 vs 上周同一天（双周均无数据时不渲染） */}
+          {!thisWeekHasNoData && (
+            <DailyCompareChart dailyDiffs={comparison.dailyDiffs} hasLastWeek={hasLastWeek} />
+          )}
+
           {/* 科目对比 */}
-          <div className="card p-5 space-y-3">
+          <div className="card space-y-3 p-5">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">各科目 · 本周 vs 上周</h2>
             {comparison.subjectDiffs.length === 0 ? (
               <p className="text-sm text-gray-400 dark:text-slate-500">本周与上周暂无科目记录</p>

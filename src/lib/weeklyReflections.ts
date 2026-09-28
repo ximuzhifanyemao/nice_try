@@ -62,6 +62,8 @@ export interface WeekStat {
   avgDaily: number
   /** 各科目时长：subjectId -> 小时 */
   subjectHours: Record<string, number>
+  /** 每日时长：yyyy-MM-dd -> 小时（仅含有记录的天） */
+  dailyHours: Record<string, number>
 }
 
 export interface SubjectDiff {
@@ -74,6 +76,18 @@ export interface SubjectDiff {
   improved: boolean
 }
 
+/** 逐日对比：本周某天（星期对齐）与上周同一天的时长差异 */
+export interface DayDiff {
+  /** 0 = 周一 … 6 = 周日 */
+  dayIndex: number
+  thisDate: string
+  lastDate: string
+  thisHours: number
+  lastHours: number
+  /** 本周 - 上周 */
+  diff: number
+}
+
 export interface WeeklyComparison {
   thisWeek: WeekStat
   lastWeek: WeekStat
@@ -82,6 +96,8 @@ export interface WeeklyComparison {
   avgDailyDiff: number
   /** 按本周时长降序 */
   subjectDiffs: SubjectDiff[]
+  /** 周一~周日的逐日对比（长度 7） */
+  dailyDiffs: DayDiff[]
 }
 
 /** 计算某一周（周一起点）的统计，跳过回收站记录 */
@@ -95,12 +111,24 @@ export function computeWeekStat(logs: DailyLog[], weekStart: string): WeekStat {
     subjectHours[s.subjectId] = s.hours
   }
 
+  // 每日时长聚合（与 computeSummary 口径一致：累加各科目的有效时长）
+  const dailyHours: Record<string, number> = {}
+  for (const l of active) {
+    let dayTotal = 0
+    for (const subj of l.subjects ?? []) {
+      const hours = subj.hours ?? 0
+      if (hours > 0) dayTotal += hours
+    }
+    if (dayTotal > 0) dailyHours[l.date] = (dailyHours[l.date] ?? 0) + dayTotal
+  }
+
   return {
     weekStart,
     totalHours: summary.totalHours,
     checkedDays: summary.checkedDays,
     avgDaily: summary.totalHours / 7,
     subjectHours,
+    dailyHours,
   }
 }
 
@@ -128,6 +156,24 @@ export function computeWeeklyComparison(logs: DailyLog[], currentWeekStart: stri
     })
     .sort((a, b) => b.thisWeekHours - a.thisWeekHours)
 
+  // 逐日对比：按星期对齐（周一对周一），日期各自从周起点偏移
+  const base = new Date(currentWeekStart + 'T00:00:00')
+  const lastBase = new Date(lastWeekStart + 'T00:00:00')
+  const dailyDiffs: DayDiff[] = Array.from({ length: 7 }, (_, i) => {
+    const thisDate = format(addDays(base, i), 'yyyy-MM-dd')
+    const lastDate = format(addDays(lastBase, i), 'yyyy-MM-dd')
+    const thisHours = thisWeek.dailyHours[thisDate] ?? 0
+    const lastHours = lastWeek.dailyHours[lastDate] ?? 0
+    return {
+      dayIndex: i,
+      thisDate,
+      lastDate,
+      thisHours,
+      lastHours,
+      diff: Math.round((thisHours - lastHours) * 100) / 100,
+    }
+  })
+
   return {
     thisWeek,
     lastWeek,
@@ -135,5 +181,6 @@ export function computeWeeklyComparison(logs: DailyLog[], currentWeekStart: stri
     checkedDaysDiff: thisWeek.checkedDays - lastWeek.checkedDays,
     avgDailyDiff: Math.round((thisWeek.avgDaily - lastWeek.avgDaily) * 100) / 100,
     subjectDiffs,
+    dailyDiffs,
   }
 }

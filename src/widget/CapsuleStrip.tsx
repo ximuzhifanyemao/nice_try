@@ -5,6 +5,7 @@ import { getSubjectById } from '../lib/subjects'
 import { formatDuration } from '../lib/format'
 import { fetchLogsInRange } from '../lib/dailyLogs'
 import { sumHoursInRange } from '../lib/commitments'
+import { useWeekGoal } from '../hooks/useWeekGoal'
 import { format } from 'date-fns'
 import {
   loadSharedTimer,
@@ -12,6 +13,7 @@ import {
   finishSharedTimer,
   pauseSharedTimer,
   resumeSharedTimer,
+  settleOvernightTimer,
   type SharedTimerState,
 } from '../lib/timerSync'
 
@@ -42,6 +44,30 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
   // 今日已打卡学习时长（小时）：挂载时拉取，结束打卡后刷新
   const [todayHours, setTodayHours] = useState(0)
   const userId = user?.id
+  // 本周目标进度：红线 = 今日目标线（今天总共要学到的位置）。
+  // target = 今日已学 + 剩余缺口均摊的「今天还差」= 学到即完成今天的份额；
+  // 打卡/后台刷新数据时重算一次并冻结，学习过程中不随已学滑动。
+  const { goal, refresh: refreshWeekGoal } = useWeekGoal(userId)
+  const [todayLine, setTodayLine] = useState<{ date: string; target: number; need: number } | null>(null)
+  useEffect(() => {
+    if (!goal || goal.target <= 0) {
+      setTodayLine(null)
+      return
+    }
+    const daysLeft = 8 - Number(format(new Date(), 'i'))
+    if (daysLeft <= 0) {
+      setTodayLine(null)
+      return
+    }
+    const need = (goal.target - goal.actual) / daysLeft
+    if (need <= 0) {
+      setTodayLine(null)
+      return
+    }
+    // 红线画在「今日目标总量」位置：今日已学 + 今天还差的时长
+    setTodayLine({ date: format(new Date(), 'yyyy-MM-dd'), target: todayHours + need, need })
+  }, [goal, todayHours])
+  const linePct = todayLine ? Math.min(todayLine.target / 8, 1) * 100 : null
   const loadTodayHours = useCallback(async () => {
     if (!userId) {
       setTodayHours(0)
@@ -65,18 +91,6 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
     if (e.key === ' ' || e.key === 'Enter') e.preventDefault()
   }, [])
 
-  // 每秒与共享计时对齐（本组件不直接改状态，全部以 localStorage 为准）
-  useEffect(() => {
-    const tick = () => {
-      const s = loadSharedTimer()
-      setRunning(s)
-      setElapsed(s ? computeTimerElapsed(s) : 0)
-    }
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [])
-
   useEffect(
     () => () => {
       if (noteTimer.current) clearTimeout(noteTimer.current)
@@ -90,6 +104,25 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
     noteTimer.current = window.setTimeout(() => setNote(''), 4000)
   }, [])
 
+  // 每秒与共享计时对齐（本组件不直接改状态，全部以 localStorage 为准）
+  useEffect(() => {
+    const tick = () => {
+      // 跨零点：计时 startTime 已属昨日时先留存已学时长（幂等），
+      // 避免被 loadSharedTimer 静默清零导致时长丢失；留存后 UI 自然切回空闲
+      const settled = settleOvernightTimer()
+      const s = loadSharedTimer()
+      setRunning(s)
+      setElapsed(s ? computeTimerElapsed(s) : 0)
+      if (settled && settled.seconds >= 1) {
+        showNote(`跨零点：已留存昨日 ${formatDuration(settled.seconds)}，可在全功能「计时」页保存`)
+      }
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showNote])
+
   const handleStop = useCallback(
     async (e?: MouseEvent<HTMLButtonElement>) => {
       e?.currentTarget.blur()
@@ -99,6 +132,7 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
         const result = await finishSharedTimer(user)
         if (result.status === 'saved') {
           loadTodayHours()
+          refreshWeekGoal()
           showNote(`已记入 ${formatDuration(result.seconds)}`)
         } else if (result.message) {
           showNote(result.message)
@@ -109,7 +143,7 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [user, showNote],
+    [user, showNote, refreshWeekGoal],
   )
 
   /** 暂停 / 恢复：写入共享计时后立即对齐本地状态（无需等下个 tick） */
@@ -137,7 +171,7 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
         <DesktopLogo size={16} />
         {running ? (
           <span
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 ${
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 transition-colors duration-300 ${
               running.paused
                 ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300'
                 : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
@@ -148,7 +182,7 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
               )}
               <span
-                className={`relative inline-flex h-1.5 w-1.5 rounded-full ${
+                className={`relative inline-flex h-1.5 w-1.5 rounded-full transition-colors duration-300 ${
                   running.paused
                     ? 'bg-amber-500 dark:bg-amber-400'
                     : 'bg-emerald-500 dark:bg-emerald-400'
@@ -181,13 +215,13 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
       {/* 计时 / 一次性的保存提示 */}
       <div className="min-w-0 flex-1 text-center">
         {note ? (
-          <span className="block truncate text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+          <span className="block animate-[widget-fade-in_0.2s_ease-out] truncate text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
             {note}
           </span>
         ) : (
           <div className="flex flex-col items-center justify-center">
             <span
-              className={`font-mono text-[15px] font-semibold leading-none tabular-nums tracking-tight ${
+              className={`font-mono text-[15px] font-semibold leading-none tabular-nums tracking-tight transition-colors duration-300 ${
                 running?.paused
                   ? 'text-amber-600 dark:text-amber-400'
                   : running
@@ -197,28 +231,64 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
             >
               {running ? formatDuration(elapsed) : '00:00:00'}
             </span>
-            {/* 今日学习时长：8 段，1 段 = 1 小时，按比例精确填充（仅精简常态展示） */}
+            {/* 今日学习时长：8 段，1 段 = 1 小时，按比例精确填充，下方小字标注小时刻度（仅精简常态展示） */}
             {!expanded && (
-              <div className="mt-1.5 flex items-center gap-[3px]" aria-label={`今日已学 ${todayHours.toFixed(1)} 小时`}>
-                {Array.from({ length: 8 }, (_, i) => {
-                  const fill = Math.max(0, Math.min(1, todayHours - i))
-                  const full = fill >= 1
-                  return (
-                    <span
-                      key={i}
-                      className={`relative h-[5px] w-[9px] overflow-hidden rounded-[2px] ${
-                        full ? 'bg-indigo-500 dark:bg-indigo-400' : 'bg-slate-200 dark:bg-slate-700/70'
-                      }`}
+              <div className="relative mt-1" title={todayLine ? `今天还差约 ${todayLine.need.toFixed(1)}h 达成周目标日均` : undefined}>
+                <div className="relative flex items-center gap-[3px]" aria-label={`今日已学 ${todayHours.toFixed(1)} 小时`}>
+                  {Array.from({ length: 8 }, (_, i) => {
+                    const fill = Math.max(0, Math.min(1, todayHours - i))
+                    const full = fill >= 1
+                    return (
+                      <span
+                        key={i}
+                        className={`relative h-[5px] w-[13px] overflow-hidden rounded-[2px] transition-colors duration-300 ${
+                          full ? 'bg-indigo-500 dark:bg-indigo-400' : 'bg-slate-200 dark:bg-slate-700/70'
+                        }`}
+                      >
+                        {!full && fill > 0 && (
+                          <span
+                            className="absolute inset-y-0 left-0 rounded-[2px] bg-indigo-500/80 transition-[width] duration-500 ease-out dark:bg-indigo-400/80"
+                            style={{ width: `${fill * 100}%` }}
+                          />
+                        )}
+                      </span>
+                    )
+                  })}
+                  {/* 今日目标线：打卡后按最新剩余缺口冻结当天，今日已学超过该线即今天达标 */}
+                  {linePct !== null && (
+                    <div
+                      className="pointer-events-none absolute top-1/2 -translate-y-1/2 transition-[left] duration-500 ease-out"
+                      style={{ left: `${linePct}%` }}
+                      aria-hidden="true"
                     >
-                      {!full && fill > 0 && (
-                        <span
-                          className="absolute inset-y-0 left-0 rounded-[2px] bg-indigo-500/80 dark:bg-indigo-400/80"
-                          style={{ width: `${fill * 100}%` }}
-                        />
-                      )}
+                      <div className="h-[11px] w-[2px] -translate-x-1/2 rounded-full bg-amber-500 dark:bg-amber-400" />
+                    </div>
+                  )}
+                </div>
+                {/* 小时刻度（宽与进度条一致：8 段 × 13px + 7 处 3px 间距），罗马数字标注 */}
+                <div className="relative mt-0.5 h-[10px] w-[125px]" aria-hidden="true">
+                  {[
+                    { h: 0, label: '0' },
+                    { h: 2, label: 'II' },
+                    { h: 4, label: 'IV' },
+                    { h: 6, label: 'VI' },
+                    { h: 8, label: 'VIII' },
+                  ].map(({ h, label }) => (
+                    <span
+                      key={h}
+                      className="absolute text-[9px] leading-none font-medium text-slate-400 dark:text-slate-500"
+                      style={
+                        h === 0
+                          ? { left: 0 }
+                          : h === 8
+                            ? { right: 0 }
+                            : { left: `${(h / 8) * 100}%`, transform: 'translateX(-50%)' }
+                      }
+                    >
+                      {label}
                     </span>
-                  )
-                })}
+                  ))}
+                </div>
               </div>
             )}
           </div>

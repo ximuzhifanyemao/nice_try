@@ -10,6 +10,84 @@ import { useWideLayout } from '../App'
 
 const TOTAL = 150
 
+// ---------- 本地持久化 ----------
+
+/** 打卡状态缓存：进入页面先用缓存秒出，再后台静默刷新（参照周目标缓存模式） */
+const CHECKINS_CACHE_KEY = 'kaoyan_english_checkins_cache'
+
+interface CheckinsCache {
+  userId?: string
+  days: number[]
+  savedAt: string
+}
+
+function loadCheckinsCache(userId: string): Set<number> | null {
+  try {
+    const raw = localStorage.getItem(CHECKINS_CACHE_KEY)
+    if (!raw) return null
+    const c = JSON.parse(raw) as CheckinsCache
+    if (!Array.isArray(c.days) || c.userId !== userId) return null // 防止多账号切换串数据
+    return new Set(c.days)
+  } catch {
+    return null
+  }
+}
+
+function saveCheckinsCache(userId: string, days: number[]): void {
+  try {
+    localStorage.setItem(
+      CHECKINS_CACHE_KEY,
+      JSON.stringify({ userId, days, savedAt: new Date().toISOString() }),
+    )
+  } catch {
+    /* 忽略配额异常 */
+  }
+}
+
+/** 解析 localStorage 中的 Record<key, value> 为 Map（非法值跳过） */
+function loadRecordMap<T>(key: string): Map<string, T> {
+  const map = new Map<string, T>()
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return map
+    const obj = JSON.parse(raw) as Record<string, unknown>
+    if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) return map
+    for (const [k, v] of Object.entries(obj)) {
+      if (k && v != null) map.set(k, v as T)
+    }
+  } catch {
+    /* ignore */
+  }
+  return map
+}
+
+function saveRecordMap<T>(key: string, map: Map<string, T>): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(Object.fromEntries(map)))
+  } catch {
+    /* 忽略配额异常 */
+  }
+}
+
+/** 删除 Record 缓存中的单个 key（用于输入变更/批改失败时清理过期数据） */
+function removeRecordKey(key: string, mapKey: string): void {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return
+    const obj = JSON.parse(raw) as Record<string, unknown>
+    if (obj && typeof obj === 'object' && mapKey in obj) {
+      delete obj[mapKey]
+      localStorage.setItem(key, JSON.stringify(obj))
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+const TRANSLATION_KEY = 'kaoyan_english_translations'
+const SCORE_KEY = 'kaoyan_english_scores'
+const AI_RESULT_KEY = 'kaoyan_english_ai_results'
+
 // ---------- AI 翻译批改 ----------
 
 interface AiCorrection {
@@ -253,12 +331,18 @@ export default function EnglishCheckin() {
 
   // 标记单词：Set<"dayIdx-sentIdx-wordIdx">，从 localStorage 初始化
   const [markedWords, setMarkedWords] = useState<Set<string>>(() => loadMarkedWords())
-  // 翻译输入：Map<"dayIdx-sentIdx", string>
-  const [translations, setTranslations] = useState<Map<string, string>>(new Map())
-  // 打分结果：Map<"dayIdx-sentIdx", number | null>
-  const [scores, setScores] = useState<Map<string, number | null>>(new Map())
-  // AI 批改结果：Map<"dayIdx-sentIdx", AiCorrection | null>
-  const [aiResults, setAiResults] = useState<Map<string, AiCorrection | null>>(new Map())
+  // 翻译输入：Map<"dayIdx-sentIdx", string>（本地持久化，切页/刷新不丢）
+  const [translations, setTranslations] = useState<Map<string, string>>(
+    () => loadRecordMap<string>(TRANSLATION_KEY),
+  )
+  // 打分结果：Map<"dayIdx-sentIdx", number | null>（本地持久化）
+  const [scores, setScores] = useState<Map<string, number | null>>(
+    () => loadRecordMap<number | null>(SCORE_KEY),
+  )
+  // AI 批改结果：Map<"dayIdx-sentIdx", AiCorrection | null>（本地持久化，减少重复消耗 AI 额度）
+  const [aiResults, setAiResults] = useState<Map<string, AiCorrection | null>>(
+    () => loadRecordMap<AiCorrection | null>(AI_RESULT_KEY),
+  )
   // AI 批改进行中的句子：Set<"dayIdx-sentIdx">
   const [aiLoading, setAiLoading] = useState<Set<string>>(new Set())
   // AI 批改错误信息
@@ -279,16 +363,31 @@ export default function EnglishCheckin() {
 
   useEffect(() => {
     if (!user) { setLoading(false); return }
-    setLoading(true)
+    // 先读本地缓存秒出，进入页面不白屏；后台再静默刷新保证新鲜度
+    const cached = loadCheckinsCache(user.id)
+    const hasCache = cached !== null && cached.size > 0
+    if (hasCache) {
+      setCheckins(cached!)
+      for (let d = 1; d <= TOTAL; d++) {
+        if (!cached!.has(d)) { setSelectedDay(d); break }
+      }
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
     fetchMyCheckins(user.id)
       .then((list) => {
         const set = new Set(list.map((c) => c.day))
         setCheckins(set)
+        saveCheckinsCache(user.id, list.map((c) => c.day))
         for (let d = 1; d <= TOTAL; d++) {
           if (!set.has(d)) { setSelectedDay(d); break }
         }
       })
-      .catch((e) => setError(e instanceof Error ? e.message : '加载失败'))
+      .catch((e) => {
+        // 有缓存时静默失败（后台刷新失败不影响已展示数据）；无缓存才提示
+        if (!hasCache) setError(e instanceof Error ? e.message : '加载失败')
+      })
       .finally(() => setLoading(false))
   }, [user])
 
@@ -336,6 +435,7 @@ export default function EnglishCheckin() {
       }
 
       const set = new Set(checkins); set.add(nextDay); setCheckins(set)
+      saveCheckinsCache(user.id, Array.from(set))
       setSelectedDay(nextDay + 1 > TOTAL ? TOTAL : nextDay + 1)
     } catch (e) {
       setError(e instanceof Error ? e.message : '打卡失败')
@@ -344,10 +444,12 @@ export default function EnglishCheckin() {
 
   const handleUndo = async () => {
     if (!user || lastDoneDay < 1 || busy) return
+    if (!window.confirm(`确定撤销 Day ${lastDoneDay} 的打卡？`)) return
     setBusy(true); setError(null)
     try {
       await deleteCheckin(user.id, lastDoneDay)
       const set = new Set(checkins); set.delete(lastDoneDay); setCheckins(set)
+      saveCheckinsCache(user.id, Array.from(set))
       setSelectedDay(lastDoneDay)
     } catch (e) {
       setError(e instanceof Error ? e.message : '撤销失败')
@@ -371,7 +473,12 @@ export default function EnglishCheckin() {
     const day = daily.find(d => d.day === dayIdx)
     const refText = day?.sentences[sentIdx]?.ref || ''
     const score = calcTranslationScore(userText, refText)
-    setScores(prev => { const next = new Map(prev); next.set(key, score); return next })
+    setScores(prev => {
+      const next = new Map(prev)
+      next.set(key, score)
+      saveRecordMap(SCORE_KEY, next) // 打分结果本地持久化
+      return next
+    })
   }, [translations, daily])
 
   // 展开/收起预生成「解析」卡片（本地数据，不消耗 AI token）
@@ -417,9 +524,21 @@ export default function EnglishCheckin() {
         if (error) throw new Error(error.message || 'AI 批改失败')
         result = normalizeAiCorrection(data)
       }
-      setAiResults(prev => { const next = new Map(prev); next.set(key, result); return next })
+      setAiResults(prev => {
+        const next = new Map(prev)
+        next.set(key, result)
+        saveRecordMap(AI_RESULT_KEY, next) // AI 结果本地持久化，减少重复消耗额度
+        return next
+      })
     } catch (e) {
       const aborted = e instanceof Error && e.name === 'AbortError'
+      // 批改失败：清掉该句的过期缓存，避免刷新后展示误导性旧结果
+      setAiResults(prev => {
+        const next = new Map(prev)
+        next.delete(key)
+        removeRecordKey(AI_RESULT_KEY, key)
+        return next
+      })
       setAiError(
         aborted
           ? 'AI 批改超时，请检查网络后重试'
@@ -522,9 +641,24 @@ export default function EnglishCheckin() {
                   value={translations.get(tKey) || ''}
                   onChange={e => {
                     const v = e.target.value
-                    setTranslations(prev => { const next = new Map(prev); next.set(tKey, v); return next })
-                    setScores(prev => { const next = new Map(prev); next.delete(tKey); return next })
-                    setAiResults(prev => { const next = new Map(prev); next.delete(tKey); return next })
+                    setTranslations(prev => {
+                      const next = new Map(prev)
+                      next.set(tKey, v)
+                      saveRecordMap(TRANSLATION_KEY, next) // 翻译输入本地持久化
+                      return next
+                    })
+                    setScores(prev => {
+                      const next = new Map(prev)
+                      next.delete(tKey)
+                      removeRecordKey(SCORE_KEY, tKey)
+                      return next
+                    })
+                    setAiResults(prev => {
+                      const next = new Map(prev)
+                      next.delete(tKey)
+                      removeRecordKey(AI_RESULT_KEY, tKey)
+                      return next
+                    })
                   }}
                   placeholder="在此输入你的翻译..."
                   rows={2}

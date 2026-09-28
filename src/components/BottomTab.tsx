@@ -14,7 +14,7 @@ interface TabItem {
  *
  * 只保留 5 个高频入口，与桌面侧边栏保持同一顺序（首页 → 记录 → 计时 → 统计 → 我的），
  * 避免同一产品两端顺序不同造成肌肉记忆冲突。
- * 英语打卡 / 健康 / 周总结 / 生词本 / 成就 / 目标 这些二级功能统一收进「我的」，
+ * 英语打卡 / 周总结 / 生词本 / 成就 / 目标 这些二级功能统一收进「我的」，
  * 其中英语打卡在首页另有显眼入口卡片。
  */
 const ALL_TABS: TabItem[] = [
@@ -40,7 +40,7 @@ const ROUTE_TAB: [RegExp, string][] = [
   [/^\/summary/, 'summary'],
   [/^\/english-checkin/, 'home'], // 由首页入口进入，高亮首页更符合来源直觉
   [
-    /^\/(profile|settings|goal|vocabulary|achievements|weekly-summary|health|trash|scan-qr|login|register)/,
+    /^\/(profile|settings|goal|vocabulary|achievements|weekly-summary|trash|scan-qr|login|register)/,
     'profile',
   ],
 ]

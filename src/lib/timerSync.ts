@@ -37,9 +37,10 @@ export function loadSharedTimer(): SharedTimerState | null {
       clearAllRunning()
       return null
     }
-    // 跨午夜修复：若计时开始于今天之前，丢弃（避免把昨天甚至更早的时长计入今日）
+    // 跨午夜修复：若计时开始于今天之前，先留存昨日已学时长再丢弃（避免静默丢数据），
+    // 留存记录由全功能「计时」页挂载时自动恢复为昨日补交
     if (new Date(parsed.startTime).toDateString() !== new Date().toDateString()) {
-      clearAllRunning()
+      settleOvernightTimer()
       return null
     }
     const state: SharedTimerState = {
@@ -194,6 +195,44 @@ export function dateOf(ts: number): string {
 function timeStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+/** 幂等。读取原始共享计时，若 startTime 已是昨天（跨午夜），把已流逝时长
+ *  落为昨日待补记录（date = 计时开始那天）并停表，返回 { seconds, date }；
+ *  未跨天 / 无计时 / 解析失败返回 null。
+ *  留存记录会被全功能「计时」页挂载时自动恢复合并，无需调用方处理恢复。 */
+export function settleOvernightTimer(): { seconds: number; date: string } | null {
+  const raw = localStorage.getItem(TIMER_RUNNING_KEY) ?? localStorage.getItem(LEGACY_WIDGET_KEY)
+  if (!raw) return null
+  let parsed: Partial<SharedTimerState>
+  try {
+    parsed = JSON.parse(raw) as Partial<SharedTimerState>
+  } catch {
+    return null
+  }
+  if (!parsed.startTime) return null
+  if (new Date(parsed.startTime).toDateString() === new Date().toDateString()) return null // 未跨天
+  const state: SharedTimerState = {
+    subjectId: parsed.subjectId ?? null,
+    activity: parsed.activity ?? '',
+    startTime: parsed.startTime,
+    paused: parsed.paused ?? false,
+    pausedMs: parsed.pausedMs ?? 0,
+    pausedAt: parsed.pausedAt ?? null,
+  }
+  const seconds = computeTimerElapsed(state)
+  if (seconds >= 1) {
+    savePendingTimer({
+      subjectId: parsed.subjectId ?? '',
+      activity: parsed.activity ?? '',
+      seconds,
+      start: timeHm(parsed.startTime),
+      end: timeHm(state.paused ? (state.pausedAt ?? Date.now()) : Date.now()),
+      date: dateOf(parsed.startTime), // 昨日（计时开始那天），供跨天补交
+    })
+  }
+  clearAllRunning() // 停表并清理 legacy key
+  return { seconds, date: dateOf(parsed.startTime) }
 }
 
 /* ── 结束共享计时并打卡 ──

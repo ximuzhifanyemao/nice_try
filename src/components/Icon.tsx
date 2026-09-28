@@ -11,7 +11,6 @@ export type IconName =
   | 'pencil' // 打卡 / 记录
   | 'clock' // 计时
   | 'chart' // 统计
-  | 'activity' // 健康
   | 'user'
   | 'flame' // 连续打卡
   | 'target' // 目标
@@ -36,9 +35,6 @@ export type IconName =
   | 'calendar'
   | 'star'
   | 'trophy'
-  | 'scale' // 体重
-  | 'heart' // 健康
-  | 'beaker' // 营养
   | 'award'
   | 'key' // 密码提交
 
@@ -73,11 +69,6 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M7 16v-5" />
       <path d="M12 16V8" />
       <path d="M17 16v-3" />
-    </>
-  ),
-  activity: (
-    <>
-      <path d="M22 12h-4l-3 8L9 4l-3 8H2" />
     </>
   ),
   user: (
@@ -229,27 +220,6 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M4 22h16" />
       <path d="M10 14.6V22h4v-7.4" />
       <path d="M12 14.6A5.5 5.5 0 0 0 18 9V6H6v3a5.5 5.5 0 0 0 6 5.6z" />
-    </>
-  ),
-  scale: (
-    <>
-      <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z" />
-      <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1z" />
-      <path d="M7 21h10" />
-      <path d="M12 3v18" />
-      <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
-    </>
-  ),
-  heart: (
-    <>
-      <path d="M19.5 12.6 12 20l-7.5-7.4A5 5 0 1 1 12 6.5a5 5 0 1 1 7.5 6.1z" />
-    </>
-  ),
-  beaker: (
-    <>
-      <path d="M4.5 3h15" />
-      <path d="M6 3v16a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V3" />
-      <path d="M6 14h12" />
     </>
   ),
   award: (

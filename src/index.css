@@ -182,6 +182,31 @@ html[data-theme='starry'] .theme-surface::before {
   50% { opacity: 1; }
 }
 
+/* ─── 通用过渡动画 ───
+   简洁模式（胶囊条）内容层入场/出场、周总结双柱生长、全功能页面切换淡入共用。
+   窗口尺寸变化由 Tauri setSize 原生控制，无法 CSS 过渡，故在内容层柔化观感。 */
+
+/* 面板出场：淡出 + 轻微下滑（结束后再缩窗） */
+@keyframes widget-fade-out-down {
+  from { opacity: 1; transform: translateY(0); }
+  to { opacity: 0; transform: translateY(8px); }
+}
+/* 纯淡入：环境光、保存提示、目标线等小元素 */
+@keyframes widget-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* 柱状图生长：自底部向上长出（元素需 origin-bottom） */
+@keyframes bar-grow {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+/* 全功能页面切换：纯透明度淡入，不带位移以免影响一屏布局 */
+@keyframes page-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* 移动端（& 窄屏）：background-attachment fixed 在 iOS 上易失效/卡顿，降级为 scroll */
 @media (max-width: 640px) {
   html[data-theme] .theme-surface {

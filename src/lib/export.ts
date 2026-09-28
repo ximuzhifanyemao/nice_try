@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 
 /**
- * 一键导出全部个人数据（学习记录 / 健康 / 生词本 / 待办 / 科目 / 设置 …）。
+ * 一键导出全部个人数据（学习记录 / 生词本 / 待办 / 科目 / 设置 …）。
  * 输出 JSON（含时间戳与 schema 版本），每个表单独容错：个别表失败不影响整体导出。
  *
  * ⚠️ 维护约定：**新增任何持久化表时，必须同步加进下面的 TABLES 清单**，
@@ -36,13 +36,6 @@ const TABLES: ExportTable[] = [
   // ── 科目配置 ──
   { key: 'user_subjects', table: 'user_subjects' },
   { key: 'removed_subjects', table: 'removed_subjects' },
-  // ── 健康 ──
-  { key: 'body_metrics', table: 'body_metrics', orderBy: 'date' },
-  { key: 'health_profiles', table: 'health_profiles' },
-  { key: 'water_intake', table: 'water_intake', orderBy: 'date' },
-  { key: 'meal_logs', table: 'meal_logs', select: '*, meal_items(*)', orderBy: 'date' },
-  { key: 'favorites', table: 'favorites' },
-  { key: 'custom_presets', table: 'custom_presets' },
   // ── 设置 ──
   { key: 'user_settings', table: 'user_settings' },
 ]
@@ -111,7 +104,6 @@ export interface ImportResult {
 /**
  * 一键导入（恢复/合并）备份 JSON：字段值以文件为准，行替换；
  * 跨账号迁移时每行 user_id 覆盖为当前用户。单表容错，失败不影响整体。
- * meal_logs 特殊两步写：先写主体（剔除内嵌 meal_items），再写 meal_items 明细。
  */
 export async function importAllData(userId: string, payload: unknown): Promise<ImportResult> {
   const result: ImportResult = { ok: true, tables: {}, errors: [] }
@@ -156,37 +148,9 @@ export async function importAllData(userId: string, payload: unknown): Promise<I
     if (!Array.isArray(tableData) || tableData.length === 0) continue
 
     try {
-      if (t.key === 'meal_logs') {
-        // 第一步：写主体（去掉内嵌 meal_items，归属当前用户）
-        const bodyRows = tableData.map((raw) => {
-          const row = { ...(raw as Record<string, unknown>) }
-          delete row.meal_items
-          row.user_id = userId
-          return row
-        })
-        await writeRows('meal_logs', bodyRows)
-
-        // 第二步：写内嵌 meal_items（关联回原日志 id，归属当前用户）
-        const itemRows: Record<string, unknown>[] = []
-        for (const raw of tableData) {
-          const row = raw as Record<string, unknown>
-          const logId = row.id
-          const items = Array.isArray(row.meal_items) ? (row.meal_items as Record<string, unknown>[]) : []
-          for (const it of items) {
-            itemRows.push({
-              ...it,
-              user_id: userId,
-              meal_id: typeof it.meal_id === 'string' ? it.meal_id : logId,
-            })
-          }
-        }
-        if (itemRows.length > 0) await writeRows('meal_items', itemRows)
-        result.tables[t.key] = { written: tableData.length }
-      } else {
-        const rows = (tableData as Record<string, unknown>[]).map((r) => ({ ...r, user_id: userId }))
-        await writeRows(t.table, rows)
-        result.tables[t.key] = { written: rows.length }
-      }
+      const rows = (tableData as Record<string, unknown>[]).map((r) => ({ ...r, user_id: userId }))
+      await writeRows(t.table, rows)
+      result.tables[t.key] = { written: rows.length }
     } catch (err) {
       recordError(t.key, err instanceof Error ? err.message : String(err))
     }
