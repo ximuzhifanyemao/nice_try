@@ -11,6 +11,7 @@ interface SubjectRow {
   subjectId: string
   activities: string[] // 可多选；空数组表示未选
   hours: number
+  hoursText: string // 时长输入框原文（保留 "0." / "0" 等中间态，避免输入 0.2 时被清空）
   summary: string
 }
 
@@ -53,6 +54,7 @@ function buildInitialRows(
           subjectId: s.id,
           activities: s.activity ? [s.activity] : [],
           hours: s.hours,
+          hoursText: String(s.hours),
           summary: s.summary ?? '',
         })
       }
@@ -65,6 +67,7 @@ function buildInitialRows(
         subjectId: subj.id,
         activities: [],
         hours: 0,
+        hoursText: '',
         summary: '',
       })
     }
@@ -94,7 +97,7 @@ export default function LogForm({
   }
 
   const addRow = (subjectId: string) => {
-    setRows((prev) => [...prev, { key: nextKey(), subjectId, activities: [], hours: 0, summary: '' }])
+    setRows((prev) => [...prev, { key: nextKey(), subjectId, activities: [], hours: 0, hoursText: '', summary: '' }])
   }
 
   const removeRow = (key: string) => {
@@ -102,8 +105,13 @@ export default function LogForm({
   }
 
   const handleHoursChange = (row: SubjectRow, value: string) => {
-    const num = parseFloat(value)
-    updateRow(row.key, { hours: isNaN(num) ? 0 : num })
+    // 只保留数字与第一个小数点：保留原文以便输入 "0." → "0.2" 这类中间态（不能被 0 值清空）
+    const digits = value.replace(/[^\d.]/g, '')
+    const firstDot = digits.indexOf('.')
+    const cleaned =
+      firstDot === -1 ? digits : digits.slice(0, firstDot + 1) + digits.slice(firstDot + 1).replace(/\./g, '')
+    const num = parseFloat(cleaned)
+    updateRow(row.key, { hoursText: cleaned, hours: isNaN(num) ? 0 : num })
   }
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -239,11 +247,10 @@ export default function LogForm({
 
                       <div className="flex items-center gap-1 ml-auto">
                         <input
-                          type="number"
-                          value={row.hours || ''}
+                          type="text"
+                          inputMode="decimal"
+                          value={row.hoursText}
                           onChange={(e) => handleHoursChange(row, e.target.value)}
-                          step={0.01}
-                          min={0}
                           placeholder="0"
                           className="w-20 px-2 py-1 text-sm text-center border border-gray-300 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-400"
                         />

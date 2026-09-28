@@ -3,7 +3,7 @@ import DesktopLogo from '../components/DesktopLogo'
 import { useAuth } from '../contexts/AuthContext'
 import { getSubjectById } from '../lib/subjects'
 import { formatDuration } from '../lib/format'
-import { fetchLogsInRange } from '../lib/dailyLogs'
+import { fetchLogsInRange, todayStr } from '../lib/dailyLogs'
 import { sumHoursInRange } from '../lib/commitments'
 import { useWeekGoal } from '../hooks/useWeekGoal'
 import { format } from 'date-fns'
@@ -13,7 +13,7 @@ import {
   finishSharedTimer,
   pauseSharedTimer,
   resumeSharedTimer,
-  settleOvernightTimer,
+  dateOf,
   type SharedTimerState,
 } from '../lib/timerSync'
 
@@ -41,6 +41,8 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
   const [note, setNote] = useState('')
   const [stopping, setStopping] = useState(false)
   const noteTimer = useRef<number | null>(null)
+  // 跨零点提示去重：同一段计时只提示一次（按开始日期记录）
+  const crossedNoticeRef = useRef<string | null>(null)
   // 今日已打卡学习时长（小时）：挂载时拉取，结束打卡后刷新
   const [todayHours, setTodayHours] = useState(0)
   const userId = user?.id
@@ -107,21 +109,26 @@ export default function CapsuleStrip({ expanded, onOpenDropdown }: CapsuleStripP
   // 每秒与共享计时对齐（本组件不直接改状态，全部以 localStorage 为准）
   useEffect(() => {
     const tick = () => {
-      // 跨零点：计时 startTime 已属昨日时先留存已学时长（幂等），
-      // 避免被 loadSharedTimer 静默清零导致时长丢失；留存后 UI 自然切回空闲
-      const settled = settleOvernightTimer()
+      // 跨零点不停表：计时继续累计（熬夜学习场景），保存/结束时按「计时开始那天」归属
       const s = loadSharedTimer()
       setRunning(s)
       setElapsed(s ? computeTimerElapsed(s) : 0)
-      if (settled && settled.seconds >= 1) {
-        showNote(`跨零点：已留存昨日 ${formatDuration(settled.seconds)}，可在全功能「计时」页保存`)
+      if (s && dateOf(s.startTime) !== todayStr()) {
+        const startDate = dateOf(s.startTime)
+        // 首次发现跨天时提示一次，避免用户结束打卡时才发现归属日期是昨天
+        if (crossedNoticeRef.current !== startDate) {
+          crossedNoticeRef.current = startDate
+          showNote(`已跨零点：本段将归入 ${format(new Date(s.startTime), 'M月d日')}`)
+          loadTodayHours() // 新的一天：刷新今日学习时长条
+        }
+        return
       }
+      crossedNoticeRef.current = null
     }
     tick()
     const id = setInterval(tick, 1000)
     return () => clearInterval(id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showNote])
+  }, [showNote, loadTodayHours])
 
   const handleStop = useCallback(
     async (e?: MouseEvent<HTMLButtonElement>) => {
