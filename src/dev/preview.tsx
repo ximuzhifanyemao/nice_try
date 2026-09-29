@@ -32,6 +32,11 @@ const THEME_KEY = 'app_theme'
 
 const VALID_THEMES: ThemeMode[] = ['light', 'dark', 'dawn', 'dusk', 'starry']
 
+declare global {
+  interface Window {
+  }
+}
+
 /* ────────────── Tauri 运行时桩 ──────────────
    WidgetApp 通过 @tauri-apps/api 调用窗口 API。Vite 会把该包预打包成
    optimizeDeps，其命名空间导出是只读 getter，无法在外部改写；因此这里改为
@@ -51,6 +56,22 @@ const fakeWindowState = {
   resizable: false,
 }
 
+/**
+ * 把「窗口」尺寸落到宿主容器上（html/body/#root）。
+ * 预览台没有真实窗口，只有把尺寸落到 DOM 上，WidgetApp 里的 setSize 才看得见效果。
+ * 同时把「窗口高度」与浏览器视口高度解耦：宿主固定成窗口尺寸并禁止溢出，
+ * 这样窗口变矮时页面不会因为 min-h-screen 之类的最小高度而撑出滚动条。
+ */
+function applyFakeWindowSize(width: number, height: number) {
+  for (const el of [document.documentElement, document.body, document.getElementById('root')]) {
+    if (!el) continue
+    el.style.width = `${width}px`
+    el.style.height = `${height}px`
+    el.style.overflow = 'hidden'
+  }
+  document.body.style.margin = '0'
+}
+
 const FAKE_MONITOR = {
   name: 'preview-monitor',
   size: { width: 1920, height: 1080 },
@@ -58,9 +79,29 @@ const FAKE_MONITOR = {
   scaleFactor: 1,
 }
 
+/**
+ * 从 Tauri 的命令参数里取逻辑尺寸。
+ * 注意真实的参数形状是 `{ label, value: { Logical: { width, height } } }`（见
+ * @tauri-apps/api 的 `setSize` → `new Size(logicalSize)`），不是扁平的 width/height。
+ */
+function logicalSizeOf(args: InvokeArgs): { width: number; height: number } | null {
+  const value = (args as { value?: { Logical?: { width?: number; height?: number } } })?.value
+  const logical = value?.Logical
+  if (logical && typeof logical.width === 'number' && typeof logical.height === 'number') {
+    return { width: logical.width, height: logical.height }
+  }
+  // 兜底：兼容扁平的 { width, height } 写法
+  const flat = args as { width?: number; height?: number }
+  if (typeof flat.width === 'number' && typeof flat.height === 'number') {
+    return { width: flat.width, height: flat.height }
+  }
+  return null
+}
+
 /** 按 Tauri 命令行约定分发 invoke：命令名形如 plugin:window|set_size */
 async function fakeInvoke(cmd: string, args: InvokeArgs = {}): Promise<unknown> {
-  const { width, height } = (args ?? {}) as { width?: number; height?: number }
+  const size = logicalSizeOf(args)
+  const { width, height } = size ?? { width: undefined, height: undefined }
   switch (cmd) {
     case 'plugin:window|current_monitor':
     case 'plugin:window|primary_monitor':
@@ -69,6 +110,9 @@ async function fakeInvoke(cmd: string, args: InvokeArgs = {}): Promise<unknown> 
     case 'plugin:window|set_size':
       if (typeof width === 'number' && typeof height === 'number') {
         fakeWindowState.size = { width, height }
+        // 预览台没有真实窗口：把请求的尺寸落到宿主容器上，
+        // 这样「科目多时下拉自动加高」这类窗口尺寸行为也能在浏览器里被看到/截图
+        applyFakeWindowSize(width, height)
       }
       return undefined
     case 'plugin:window|inner_size':
@@ -135,6 +179,12 @@ function installTauriStubs() {
     configurable: true,
     writable: true,
   })
+  // 事件插件的 JS 侧内部实现：@tauri-apps/api/event 的 unlisten 需要它
+  Object.defineProperty(window, '__TAURI_EVENT_PLUGIN_INTERNALS__', {
+    value: { unregisterListener: () => {} },
+    configurable: true,
+    writable: true,
+  })
   Object.defineProperty(window, '__TAURI__', { value: {}, configurable: true, writable: true })
 }
 
@@ -166,7 +216,7 @@ function installFakeBackend() {
     }
     if (/\/rest\/v1\/user_subjects/.test(url)) {
       // 科目表返回预览用的假数据（否则空数组会把本地快照里的科目清掉）
-      return new Response(JSON.stringify(PREVIEW_SUBJECTS), {
+      return new Response(JSON.stringify(previewSubjects), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -250,8 +300,25 @@ const PREVIEW_SUBJECTS = [
   { id: 's-other-1', name: '毕业设计', category: 'custom', activities: [], legacy_id: null },
 ]
 
-function seedSubjects() {
-  localStorage.setItem(SUBJECTS_KEY, JSON.stringify(PREVIEW_SUBJECTS))
+/** 生成指定数量的假科目（→ 验证下拉「够则 300 / 不够则长高 / 到顶则滚动」三档） */
+function buildSubjects(count: number) {
+  if (count <= PREVIEW_SUBJECTS.length) return PREVIEW_SUBJECTS.slice(0, count)
+  const extra = Array.from({ length: count - PREVIEW_SUBJECTS.length }, (_, i) => ({
+    id: `s-extra-${i}`,
+    name: `补充科目${i + 1}`,
+    category: i % 2 === 0 ? 'english' : 'custom',
+    activities: ['听课'],
+    legacy_id: null,
+  }))
+  return [...PREVIEW_SUBJECTS, ...extra]
+}
+
+/** 当前预览使用的科目表（由 ?subjects=N 控制，默认 7 个） */
+let previewSubjects = PREVIEW_SUBJECTS
+
+function seedSubjects(count: number) {
+  previewSubjects = buildSubjects(count)
+  localStorage.setItem(SUBJECTS_KEY, JSON.stringify(previewSubjects))
 }
 
 /** 构造一段「已计时 1 小时 12 分」的共享计时状态 */
@@ -302,9 +369,11 @@ export async function startPreview() {
   const view = params.get('view') ?? 'compact'
   const themeParam = params.get('theme') as ThemeMode | null
   const theme: ThemeMode = themeParam && VALID_THEMES.includes(themeParam) ? themeParam : 'dark'
+  // ?subjects=N 控制假科目数量：验证下拉「够则 300 / 不够则长高 / 到顶则滚动」
+  const subjectCount = Number(params.get('subjects') ?? 7)
 
   seedMockSession()
-  seedSubjects()
+  seedSubjects(Number.isFinite(subjectCount) ? Math.max(0, subjectCount) : 7)
   installFakeBackend()
   seedData(view, theme)
   applyTheme(theme)
@@ -313,7 +382,7 @@ export async function startPreview() {
 
   installTauriStubs()
   mark('stubbed')
-  const [{ CompactShell, FullModeShell }, { AuthProvider }, { ToastProvider }] = await Promise.all([
+  const [{ default: WidgetApp, CompactShell, FullModeShell }, { AuthProvider }, { ToastProvider }] = await Promise.all([
     import('../widget/WidgetApp'),
     import('../contexts/AuthContext'),
     import('../lib/Toast'),
@@ -328,9 +397,14 @@ export async function startPreview() {
    * 桌面窗口内容：view=full 走全功能外壳；其余走精简外壳。
    * 关键点：这里渲染的是 WidgetApp 导出的**真实外壳组件**，
    * 而不是另写一份近似布局，保证截图审阅的就是线上界面本身。
+   *
+   * view=widget-dropdown 例外：整窗挂载真实 WidgetApp，并自动点开科目下拉，
+   * 用于验证「下拉按科目数量自适应加高」这类由 WidgetApp 自身状态驱动的行为
+   * （外壳组件是被动接收 dropdownOpen 的，跑不到那段逻辑）。
    */
   function DesktopPreview() {
     if (view === 'full') return <FullModeShell onToggleMode={() => {}} />
+    if (view === 'widget-dropdown') return <WidgetApp />
     return (
       <CompactShell
         // 下拉面板的高度由 Tauri 窗口负责，预览台直接按目标尺寸给出
@@ -342,6 +416,18 @@ export async function startPreview() {
         onPick={() => {}}
       />
     )
+  }
+
+  // 自动点开下拉：模拟用户点「选择科目开始」，跑通真实的展开路径（含窗口加高）
+  if (view === 'widget-dropdown') {
+    const timer = window.setInterval(() => {
+      const trigger = document.querySelector<HTMLButtonElement>('button[aria-label="选择科目开始"]')
+      if (trigger) {
+        trigger.click()
+        window.clearInterval(timer)
+      }
+    }, 100)
+    window.setTimeout(() => window.clearInterval(timer), 10000)
   }
 
   createRoot(document.getElementById('root')!).render(

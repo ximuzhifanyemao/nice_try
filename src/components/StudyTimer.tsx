@@ -19,6 +19,7 @@ import {
 import { fetchLogByDate, isDuplicateDateError, sortSubjectsByStartTime, todayStr, upsertLogSafely, type DailyLogSubject } from '../lib/dailyLogs'
 import { formatDateCn, formatDuration, formatDurationShort, pad, timeRangeHours, toTimeStr } from '../lib/format'
 import { getButtonColor } from '../lib/colors'
+import { Icon } from './Icon'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
 import { useToast } from '../lib/Toast'
@@ -267,6 +268,12 @@ export default function StudyTimer() {
   const [selectionMode, setSelectionMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [batchDeleting, setBatchDeleting] = useState(false)
+  /**
+   * 「计时科目管理」是否展开。
+   * 默认收起：科目数会随使用不断增长，常驻展开会让计时页越滑越长；
+   * 计时页的主体是上方计时器与今日累计，科目管理属于低频维护入口。
+   */
+  const [subjectAdminOpen, setSubjectAdminOpen] = useState(false)
 
   /* 当前运行中的计时器 */
   const [running, setRunning] = useState<TimerState | null>(loadRunningTimer)
@@ -1512,11 +1519,37 @@ export default function StudyTimer() {
         </div>
       )}
 
-      {/* 科目管理 */}
+      {/* 科目管理：默认收起（展开状态见 subjectAdminOpen），避免科目变多后把计时页撑长 */}
       {user && (
         <div className="card p-4">
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-200 mb-1">计时科目管理</h3>
-          <p className="text-xs text-gray-500 dark:text-slate-400 mb-3">
+          <button
+            type="button"
+            onClick={() => setSubjectAdminOpen((v) => !v)}
+            aria-expanded={subjectAdminOpen}
+            className="flex w-full cursor-pointer items-center justify-between gap-2 text-left"
+          >
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-gray-700 dark:text-slate-200">
+                计时科目管理
+              </span>
+              <span className="mt-0.5 block text-xs text-gray-500 dark:text-slate-400">
+                {subjectsLoading
+                  ? '加载中…'
+                  : customSubjects.length === 0
+                    ? '还没有科目，展开后可添加'
+                    : `共 ${customSubjects.length} 个科目，展开可增删改`}
+              </span>
+            </span>
+            <Icon
+              name="chevronDown"
+              size={16}
+              className={`shrink-0 text-gray-400 transition-transform dark:text-slate-500 ${subjectAdminOpen ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          {subjectAdminOpen && (
+            <>
+          <p className="text-xs text-gray-500 dark:text-slate-400 mb-3 mt-3">
             科目保存在云端，可随时编辑改名或删除；历史记录不受影响，改名后历史记录会显示新名称。
           </p>
 
@@ -1707,6 +1740,8 @@ export default function StudyTimer() {
                 {batchDeleting ? '删除中...' : `删除所选 (${selectedIds.size})`}
               </button>
             </div>
+          )}
+            </>
           )}
         </div>
       )}

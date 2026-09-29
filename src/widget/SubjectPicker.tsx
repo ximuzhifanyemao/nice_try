@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, forwardRef } from 'react'
 import { getAvailableSubjects, getActivitiesForSubject, getSubjectById, getCategoryLabel, hydrateUserSubjects, loadUserSubjects, type Subject } from '../lib/subjects'
 import { getDotColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
@@ -16,11 +16,17 @@ interface SubjectPickerProps {
  * 有学习内容的科目先选活动再开始。Esc 逐级返回。
  * 顶部展示本周目标剩余时长，方便随时把握进度。
  *
- * 视觉：窗口只有 300px 高，因此刻意压低装饰——
+ * 视觉：窗口只有 300px 高起步，因此刻意压低装饰——
  * 科目用「中性行 + 类别色点」而不是整块染色胶囊，避免一屏全是彩色方块；
  * 分组用细线与小标签分隔，靠留白而不是边框来划分区域。
+ *
+ * contentRef：把「科目列表内容块」暴露给调用方（WidgetApp）。
+ * 它是内容自然高度，不含头部与本周目标行；窗口据此在放不下时按需加高。
  */
-export default function SubjectPicker({ onPick, onClose }: SubjectPickerProps) {
+const SubjectPicker = forwardRef<HTMLDivElement, SubjectPickerProps>(function SubjectPicker(
+  { onPick, onClose },
+  contentRef,
+) {
   const { user } = useAuth()
   // 先初始恢复本地缓存的自定义科目（若有），避免先内置后自定义的闪烁
   const [subjects, setSubjects] = useState<Subject[]>(() => {
@@ -73,7 +79,7 @@ export default function SubjectPicker({ onPick, onClose }: SubjectPickerProps) {
       <button
         key={subj.id}
         onClick={() => (activities.length > 0 ? setPendingSubject(subj.id) : onPick(subj.id, ''))}
-        className="group flex w-full cursor-pointer items-center gap-2 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-left text-[12px] font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-800/40 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-800"
+        className="group flex w-full cursor-pointer items-center gap-2 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-left text-[12px] font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-800/40 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-800"
       >
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${getDotColor(getSubjectById(subj.id)?.category)}`} aria-hidden="true" />
         <span className="truncate">{subj.name}</span>
@@ -109,7 +115,7 @@ export default function SubjectPicker({ onPick, onClose }: SubjectPickerProps) {
   })()
 
   return (
-    <div className="relative flex h-full flex-col bg-white dark:bg-slate-950">
+    <div data-widget-dropdown className="relative flex h-full flex-col bg-white dark:bg-slate-950">
       {/* 科目列表视图：常驻背景，学习内容卡片弹出时退后变暗 */}
       <div
         className={`flex h-full flex-col transition-opacity duration-200 ${
@@ -158,33 +164,37 @@ export default function SubjectPicker({ onPick, onClose }: SubjectPickerProps) {
             )
           })()}
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3.5 pb-3 pt-2.5">
-          {subjects.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center gap-1 pb-6 text-center">
-              <p className="text-xs text-slate-500 dark:text-slate-400">还没有科目</p>
-              <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-                登录后到「全部功能 → 计时」中添加科目
-              </p>
-            </div>
-          ) : (
-            grouped.map(([cat, subs]) => {
-              const label = getCategoryLabel(cat)
-              const twoCol = subs.length > 3
-              return (
-                <div key={cat} className="pt-2.5 first:pt-0">
-                  {label && (
-                    <p className="mb-1.5 flex items-center gap-2 text-[10px] font-medium tracking-wide text-slate-400 dark:text-slate-500">
-                      <span className="truncate">{label}</span>
-                      <span className="h-px flex-1 bg-slate-100 dark:bg-slate-800/80" aria-hidden="true" />
-                    </p>
-                  )}
-                  <div className={twoCol ? 'grid grid-cols-2 gap-1.5' : 'flex flex-col gap-1.5'}>
-                    {subs.map(renderSubject)}
+        {/* 科目列表滚动容器：窗口加高到上限后仍放不下时，这里内部滚动 */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          {/* 内容块（被 WidgetApp 观测，用于按需加高窗口）：
+              只包科目分组列表，不含头部与本周目标行。
+              不能拿滚动容器自身的高度当内容高度，所以这里单独圈一层。 */}
+          <div ref={contentRef} className="px-3.5 pb-3 pt-2">
+            {subjects.length === 0 ? (
+              <div className="py-6 text-center">
+                <p className="text-xs text-slate-500 dark:text-slate-400">还没有科目</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
+                  登录后到「全部功能 → 计时」中添加科目
+                </p>
+              </div>
+            ) : (
+              grouped.map(([cat, subs]) => {
+                const label = getCategoryLabel(cat)
+                return (
+                  <div key={cat} className="pt-2 first:pt-0">
+                    {label && (
+                      <p className="mb-1.5 flex items-center gap-2 text-[10px] font-medium tracking-wide text-slate-400 dark:text-slate-500">
+                        <span className="truncate">{label}</span>
+                        <span className="h-px flex-1 bg-slate-100 dark:bg-slate-800/80" aria-hidden="true" />
+                      </p>
+                    )}
+                    {/* 统一两列网格：分组只有 1–2 个科目时也并排，避免小组独占整行把列表拉长 */}
+                    <div className="grid grid-cols-2 gap-1">{subs.map(renderSubject)}</div>
                   </div>
-                </div>
-              )
-            })
-          )}
+                )
+              })
+            )}
+          </div>
         </div>
       </div>
 
@@ -238,4 +248,6 @@ export default function SubjectPicker({ onPick, onClose }: SubjectPickerProps) {
       </div>
     </div>
   )
-}
+})
+
+export default SubjectPicker

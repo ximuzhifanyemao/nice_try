@@ -120,8 +120,11 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* 底部：主题选择 + 登录/登出（固定在侧边栏最底部） */}
-      <div className="border-t border-gray-200 dark:border-slate-800 py-2 flex flex-col gap-1 shrink-0">
+      {/* 底部：主题选择 + 登录/登出。
+          作为 shrink-0 的最后一个 flex 子项固定在侧边栏底部：导航再长也只有 nav 内部滚动，
+          这两项在任何窗口高度下都不需要滚动就能看到；padding 与 nav 的 px-2.5 py-2.5 对齐，
+          避免在「登出」下方留出一条空白带。 */}
+      <div className="shrink-0 border-t border-gray-200 p-2.5 space-y-0.5 dark:border-slate-800">
         {/* 主题选择器：向上弹出菜单 */}
         <div className="relative">
           <button
@@ -130,7 +133,7 @@ export default function Sidebar() {
             title="切换主题"
             aria-expanded={themeOpen}
             aria-haspopup="menu"
-            className="flex items-center gap-2.5 w-full px-4 h-9 rounded-md text-[15px] text-gray-600 dark:text-slate-300 hover:text-slate-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800/40 transition-colors cursor-pointer"
+            className="flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-gray-600 transition-colors hover:bg-gray-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50 dark:hover:text-slate-100"
           >
             <span className="shrink-0">{currentTheme.dark ? BlueIcons.moon : BlueIcons.sun}</span>
             <span className="flex-1 text-left">主题</span>
@@ -184,7 +187,7 @@ export default function Sidebar() {
         {user ? (
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-2.5 w-full px-4 h-9 rounded-md text-[15px] text-red-500 hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors cursor-pointer"
+            className="flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 text-sm text-red-500 transition-colors hover:bg-red-50 hover:text-red-400 dark:hover:bg-red-500/10"
           >
             <span className="shrink-0">{BlueIcons.logout}</span>
             <span>登出</span>
@@ -192,7 +195,7 @@ export default function Sidebar() {
         ) : (
           <Link
             to="/login"
-            className="flex items-center justify-center gap-2 w-full mx-auto px-3 h-9 max-w-[170px] rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-[15px] font-medium transition-colors"
+            className="flex h-8 w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-indigo-600 px-3 text-sm font-medium text-white transition-colors hover:bg-indigo-500"
           >
             <span className="shrink-0">{BlueIcons.login}</span>
             <span>登录</span>

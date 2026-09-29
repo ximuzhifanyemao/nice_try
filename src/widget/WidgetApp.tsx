@@ -6,6 +6,17 @@ import Sidebar from '../components/Sidebar'
 import App from '../App'
 import { saveSharedTimer } from '../lib/timerSync'
 
+declare global {
+  interface Window {
+    /**
+     * 内部标记：科目列表内容块已挂载（回调 ref 置位）。
+     * 用于让 WidgetApp 的 effect 知道「待观察节点刚就位」，立即测一次高度；
+     * 未置位时（例如刷新后下拉已开）由 ResizeObserver 兜底。
+     */
+    __widgetContentReady?: boolean
+  }
+}
+
 /** 精简模式下窗口位置的持久化存储键 */
 const WIDGET_POS_KEY = 'kaoyan_widget_pos'
 /** 全功能模式下窗口位置的持久化存储键 */
@@ -18,8 +29,10 @@ const FULL_H = 1000
 const WIDGET_W = 460
 /** 胶囊条常态高度（尽量紧凑） */
 const WIDGET_H = 52
-/** 科目下拉高度（选科后自动收回胶囊条），含本周目标进度行 */
-const DROPDOWN_H = 300
+/** 科目下拉常态高度（内容放得下时就用它，避免窗口无谓变大） */
+const DROPDOWN_H_BASE = 300
+/** 科目下拉高度上限（内容更多时顶到这里，超出部分由列表内部滚动） */
+const DROPDOWN_H_CAP = 560
 
 /** 读取保存的窗口位置（{x,y}），无则返回 null */
 function loadSavedPosition(key: string): { x: number; y: number } | null {
@@ -89,8 +102,7 @@ class FullAppBoundary extends Component<{ children: ReactNode }, { error: string
 const windowBtnBase =
   'flex h-7 w-7 items-center justify-center rounded-md transition-colors cursor-pointer focus-visible:outline-none'
 
-/** 全功能模式的窗口外壳：左侧常驻侧边栏 + 右侧内容（顶部一条可拖动标题栏） */
-export function FullModeShell({ onToggleMode }: { onToggleMode: () => void }) {
+/** 全功能模式的窗口外壳：左侧常驻侧边栏 + 右侧内容（顶部一条可拖动标题栏） */export function FullModeShell({ onToggleMode }: { onToggleMode: () => void }) {
   return (
     // 用 h-full/w-full 填满宿主窗口，而不是 h-screen/w-screen：
     // 窗口尺寸本来就由 Tauri 固定，跟随宿主更准确，也让预览台能把它放进任意尺寸容器里审阅。
@@ -164,6 +176,7 @@ export function CompactShell({
   onOpenDropdown,
   onCloseDropdown,
   onPick,
+  dropdownContentRef,
 }: {
   dropdownOpen: boolean
   dropdownClosing: boolean
@@ -171,6 +184,8 @@ export function CompactShell({
   onOpenDropdown: () => void
   onCloseDropdown: () => void
   onPick: (subjectId: string, activity: string) => void
+  /** 透传给 SubjectPicker 的科目列表内容块回调 ref（供 WidgetApp 测量并加高窗口） */
+  dropdownContentRef?: (node: HTMLDivElement | null) => void
 }) {
   const window = getCurrentWindow()
   return (
@@ -249,7 +264,7 @@ export function CompactShell({
             dropdownClosing ? 'animate-[widget-fade-out-down_0.18s_ease-in] forwards' : ''
           }`}
         >
-          <SubjectPicker onPick={onPick} onClose={onCloseDropdown} />
+          <SubjectPicker ref={dropdownContentRef} onPick={onPick} onClose={onCloseDropdown} />
         </div>
       )}
     </div>
@@ -260,7 +275,7 @@ export default function WidgetApp() {
   const appWindow: Window = getCurrentWindow()
   // 记忆模式：初始状态读取上次退出时保存的模式
   const [fullMode, setFullMode] = useState(() => localStorage.getItem(MODE_KEY) === 'full')
-  // 胶囊条科目下拉是否打开（窗口高度增至 360，选科后自动收回）
+  // 胶囊条科目下拉是否打开
   const [dropdownOpen, setDropdownOpen] = useState(false)
   // 面板出场动画播放中：先淡出下滑，动画结束后再真正收起窗口，避免内容瞬间消失
   const [dropdownClosing, setDropdownClosing] = useState(false)
@@ -270,6 +285,107 @@ export default function WidgetApp() {
   // 展开下拉前记录胶囊条位置；仅当展开时窗口被上移（贴底场景）时，收起才恢复，避免无谓跳位
   const preExpandPosRef = useRef<{ x: number; y: number } | null>(null)
   const layerMovedRef = useRef(false)
+
+  /* ── 科目下拉按内容自适应高度 ──
+     窗口常态高度是 DROPDOWN_H_BASE；科目多到放不下时按需加高，
+     最多到「半屏且不超过 DROPDOWN_H_CAP」——缓解「要下滑找科目」。
+     测量点是 SubjectPicker 内部科目列表内容块的自然高度，
+     所以被观察节点必须与窗口高度解耦（不能用 h-full / flex-1），
+     否则窗口变高会让内容跟着变高，形成「长高 → 更高」的正反馈。
+
+     用**回调 ref** 而不是 useRef：SubjectPicker 挂在 CompactShell 这个子组件里，
+     它的 ref 是在子组件提交阶段才赋值的，WidgetApp 自己的 effect 会先跑完
+     （那时 ref.current 还是 null，观察逻辑会被整段跳过）。 */
+  const dropdownContentElRef = useRef<HTMLElement | null>(null)
+  const [dropdownContentH, setDropdownContentH] = useState(0)
+  const [dropdownMaxH, setDropdownMaxH] = useState(DROPDOWN_H_CAP)
+  /**
+   * 回调 ref：SubjectPicker 挂载时置位。除了记录节点，还要触发一次「内容已就位」标记，
+   * 因为待观察节点随下拉一起挂载时，WidgetApp 的 effect 早于子组件 ref 赋值跑完。
+   */
+  const setDropdownContentEl = useCallback((node: HTMLDivElement | null) => {
+    dropdownContentElRef.current = node
+    if (node) window.__widgetContentReady = true
+  }, [])
+  // 展开时读取的当前值：避免把两个 state 塞进 openDropdown 的依赖里反复重建回调
+  const dropdownContentHRef = useRef(0)
+  const dropdownMaxHRef = useRef(DROPDOWN_H_CAP)
+  /** 下拉里「非科目列表」部分的固定高度（展开后由观测得到） */
+  const chromeHRef = useRef(0)
+  dropdownContentHRef.current = dropdownContentH
+  dropdownMaxHRef.current = dropdownMaxH
+
+  /** 需要的高度 = 固定头部（胶囊条那一行 + 快速开始行 + 本周目标行 + 分隔线） + 科目列表 */
+  const dropdownTargetH = useCallback(() => {
+    const base = DROPDOWN_H_BASE
+    const cap = Math.max(base, dropdownMaxHRef.current)
+    return Math.min(cap, Math.max(base, Math.ceil(chromeHRef.current + dropdownContentHRef.current)))
+  }, [])
+
+  // 显示器高度决定上限：半屏且不超过 DROPDOWN_H_CAP，至少不低于常态高度
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const monitor = await currentMonitor()
+        if (cancelled || !monitor) return
+        const scale = monitor.scaleFactor || 1
+        const logicalH = monitor.size.height / scale
+        setDropdownMaxH(Math.max(DROPDOWN_H_BASE, Math.min(DROPDOWN_H_CAP, Math.floor(logicalH * 0.5))))
+      } catch {
+        // 取不到显示器信息就沿用 DROPDOWN_H_CAP 兜底
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // 观察科目列表内容块的自然高度（rAF 节流 + 200ms 静默窗口，与 App.tsx 的 ScaleToFit 同一写法）
+  useEffect(() => {
+    if (!dropdownOpen) return
+    const el = dropdownContentElRef.current
+    if (!el) return
+    // 下拉面板根节点：用来推算「非科目列表」部分的固定高度
+    const panelRoot = el.closest('[data-widget-dropdown]') as HTMLElement | null
+    let raf = 0
+    let settleTimer: ReturnType<typeof setTimeout> | null = null
+    const measure = () => {
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        // 内容自然高度：offsetHeight 是布局高度，不受滚动位置影响
+        const contentH = el.offsetHeight
+        // 固定头部高度 = 面板根高度 - 内容块所占高度
+        const chromeH = panelRoot && panelRoot.offsetHeight > contentH ? panelRoot.offsetHeight - contentH : 0
+        chromeHRef.current = chromeH
+        // 迟滞：微小变化保持原值，避免科目增删时窗口抖动
+        setDropdownContentH((prev) => (Math.abs(prev - contentH) < 2 ? prev : contentH))
+      })
+    }
+    const schedule = () => {
+      if (settleTimer !== null) clearTimeout(settleTimer)
+      settleTimer = setTimeout(measure, 200)
+    }
+    if (window.__widgetContentReady) {
+      // 元素已就位（回调 ref 在挂载时置位），立即测量
+      measure()
+      window.__widgetContentReady = false
+    }
+    const ro = new ResizeObserver(schedule)
+    ro.observe(el)
+    return () => {
+      cancelAnimationFrame(raf)
+      if (settleTimer !== null) clearTimeout(settleTimer)
+      ro.disconnect()
+    }
+  }, [dropdownOpen])
+
+  // 内容高度或上限变化时同步窗口高度：变高/变矮都跟随（上限内）
+  useEffect(() => {
+    if (!dropdownOpen) return
+    const h = dropdownTargetH()
+    void appWindow.setSize(new LogicalSize(WIDGET_W, h)).catch(() => {})
+  }, [dropdownContentH, dropdownMaxH, dropdownOpen, dropdownTargetH, appWindow])
 
   /** 将窗口切换到指定模式：精简(compact) / 全部功能(full)，调整尺寸/置顶/位置 */
   const applyMode = useCallback(async (next: boolean) => {
@@ -424,8 +540,9 @@ export default function WidgetApp() {
     }
     setDropdownClosing(false)
     setDropdownOpen(true)
-    openLayer(DROPDOWN_H)
-  }, [openLayer])
+    // 首次展开按上次测得的内容高度决定；挂载后的测量会再精确校正一次
+    openLayer(dropdownTargetH())
+  }, [openLayer, dropdownTargetH])
 
   /** 收起下拉：先播出场动画（淡出下滑），动画结束后再卸载面板并缩回窗口 */
   const closeDropdown = useCallback(() => {
@@ -512,6 +629,7 @@ export default function WidgetApp() {
       onToggleMode={toggleMode}
       onOpenDropdown={openDropdown}
       onCloseDropdown={closeDropdown}
+      dropdownContentRef={setDropdownContentEl}
       onPick={quickStart}
     />
   )

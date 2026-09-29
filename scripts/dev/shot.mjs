@@ -9,6 +9,7 @@
  * 可选：
  *   --raw <png>   额外输出一张「未裁剪的整视口」截图，便于排查
  *   --eval "<表达式>"  在页面内求值并打印结果，用于核对布局尺寸
+ *   --pre "<表达式>"   截图前在页面内执行一段脚本（用于摆出特定状态，如放大预览宿主）
  *
  * 之所以不用 `chrome --screenshot`：--timeout 会冻结页面脚本执行，
  * --virtual-time-budget 又会让应用里的 setInterval 疯狂空转，两者都拿不到稳定结果。
@@ -37,7 +38,7 @@ const CHROME_CANDIDATES = [
 ]
 
 function parseArgs(argv) {
-  const out = { scale: 2, settle: 9000, raw: null, eval: null }
+  const out = { scale: 2, settle: 9000, raw: null, eval: null, pre: null }
   for (let i = 0; i < argv.length; i += 2) {
     const key = argv[i].replace(/^--/, '')
     const val = argv[i + 1]
@@ -49,6 +50,7 @@ function parseArgs(argv) {
     else if (key === 'settle') out.settle = Number(val)
     else if (key === 'raw') out.raw = val
     else if (key === 'eval') out.eval = val
+    else if (key === 'pre') out.pre = val
   }
   if (!out.url || !out.out || !out.width || !out.height) {
     throw new Error('用法: node scripts/dev/shot.mjs --url <url> --out <png> --w <宽> --h <高> [--scale 2] [--settle 9000]')
@@ -199,6 +201,12 @@ async function main() {
     }
     // 给尾帧动画（进度条/淡入）留一点时间落定
     await sleep(700)
+
+    // 可选的「截图前摆状态」脚本：例如把预览宿主放大到某个窗口尺寸
+    if (args.pre) {
+      await cdp.send('Runtime.evaluate', { expression: args.pre, returnByValue: true })
+      await sleep(600)
+    }
 
     if (args.eval) {
       const evaled = await cdp.send('Runtime.evaluate', {

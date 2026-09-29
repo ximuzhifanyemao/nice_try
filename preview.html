@@ -22,7 +22,10 @@
           if (dark) root.classList.add('dark')
 
           var host = p.get('host')
-          var m = host && /^(\d+)x(\d+)$/.exec(host)
+          // view=widget-dropdown 走页面内真实 WidgetApp，尺寸由它自己调 setSize 决定；
+          // 此时不注入宿主尺寸，否则 CSS 会盖掉运行时 resize 的结果
+          var selfSized = p.get('view') === 'widget-dropdown'
+          var m = host && !selfSized && /^(\d+)x(\d+)$/.exec(host)
           if (m) {
             var w = Number(m[1])
             var h = Number(m[2])

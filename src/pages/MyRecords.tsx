@@ -1,15 +1,23 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { format, parseISO, addDays } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
 import { useLogs } from '../contexts/LogsContext'
 import { useToast } from '../lib/Toast'
 import LogCard from '../components/LogCard'
+import WeekSwitcher from '../components/WeekSwitcher'
 import type { DailyLog } from '../lib/dailyLogs'
-import { fetchMyLogsPaginated, deleteLog, todayStr } from '../lib/dailyLogs'
+import { fetchLogsInRange, deleteLog, todayStr } from '../lib/dailyLogs'
+import { getWeekStartStr } from '../lib/commitments'
 import { useWideLayout } from '../App'
 
-const PAGE_SIZE = 20
-
+/**
+ * 记录页：只展示「一天一天」的打卡记录，范围限定在一周内。
+ *
+ * 刻意不做无限分页——记录会随使用不断累积，无边界列表会让页面越滑越长；
+ * 而按天查看学习情况已经有首页日历这个更直观的入口，
+ * 所以这里只保留「本周（可翻往周）」这一个有上限的视图。
+ */
 export default function MyRecords() {
   const wide = useWideLayout()
   const { user } = useAuth()
@@ -18,49 +26,40 @@ export default function MyRecords() {
   const navigate = useNavigate()
   const [logs, setLogs] = useState<DailyLog[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [page, setPage] = useState(0)
-  const [totalCount, setTotalCount] = useState(0)
+  /** 当前查看的周起点（周一，yyyy-MM-dd）；初始为本周 */
+  const [weekStart, setWeekStart] = useState<string>(() => getWeekStartStr())
 
-  const hasMore = page * PAGE_SIZE < totalCount
+  const weekEnd = format(addDays(parseISO(weekStart), 6), 'yyyy-MM-dd')
+  const currentWeekStart = getWeekStartStr()
+  const isCurrentWeek = weekStart === currentWeekStart
 
   const loadLogs = useCallback(() => {
     if (!user) return
+    let cancelled = false
     setLoading(true)
     setError(null)
-    fetchMyLogsPaginated(user.id, 1, PAGE_SIZE)
-      .then((result) => {
-        setLogs(result.data)
-        setTotalCount(result.total)
-        setPage(1)
+    fetchLogsInRange(user.id, weekStart, weekEnd)
+      .then((rows) => {
+        if (!cancelled) setLogs(rows)
       })
-      .catch((err) => setError(err instanceof Error ? err.message : '加载失败'))
-      .finally(() => setLoading(false))
-  }, [user])
-
-  useEffect(() => {
-    loadLogs()
-  }, [loadLogs])
-
-  const loadMore = useCallback(async () => {
-    if (!user || loadingMore) return
-    setLoadingMore(true)
-    try {
-      const nextPage = page + 1
-      const result = await fetchMyLogsPaginated(user.id, nextPage, PAGE_SIZE)
-      setLogs((prev) => [...prev, ...result.data])
-      setPage(nextPage)
-      setTotalCount(result.total)
-    } catch {
-      toast.show('加载更多失败', { icon: '❌' })
-    } finally {
-      setLoadingMore(false)
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : '加载失败')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    // 切周/切用户时丢弃上一次请求的结果，避免旧数据覆盖新周
+    return () => {
+      cancelled = true
     }
-  }, [user, page, loadingMore])
+  }, [user, weekStart, weekEnd])
+
+  useEffect(() => loadLogs(), [loadLogs])
 
   const today = todayStr()
-  const todayLog = logs.find((l) => l.date === today) ?? null
+  // 「今日」状态只在查看本周时才有意义（往周没有今天这一说）
+  const todayLog = isCurrentWeek ? (logs.find((l) => l.date === today) ?? null) : null
   const hasTodayLog = !!todayLog
   const todayMissing = !!todayLog && !(todayLog.summary ?? '').trim()
 
@@ -68,12 +67,11 @@ export default function MyRecords() {
     try {
       await deleteLog(logId)
       setLogs((prev) => prev.filter((l) => l.id !== logId))
-      setTotalCount((prev) => Math.max(0, prev - 1))
       refetch()
     } catch {
       toast.show('删除失败，请重试', { icon: '❌' })
     }
-  }, [refetch])
+  }, [refetch, toast])
 
   const handleEdit = useCallback((logId: string) => {
     navigate(`/my-records/${logId}/edit`)
@@ -95,7 +93,10 @@ export default function MyRecords() {
         </Link>
       </div>
 
-      {/* 今日总结状态 */}
+      {/* 周次切换：把列表范围限制在一周内 */}
+      <WeekSwitcher weekStart={weekStart} onChange={setWeekStart} />
+
+      {/* 今日总结状态（仅本周视图） */}
       {todayLog && (
         <div
           className={`rounded-xl shadow-sm border px-5 py-4 ${
@@ -127,7 +128,7 @@ export default function MyRecords() {
 
       {!loading && !error && logs.length === 0 && (
         <div className="text-center py-12 text-gray-400 dark:text-slate-500">
-          你还没有学习记录，点击上方按钮开始记录
+          {isCurrentWeek ? '本周还没有学习记录' : '这一周没有学习记录'}
         </div>
       )}
 
@@ -144,23 +145,16 @@ export default function MyRecords() {
             />
           ))}
 
-          {/* 加载更多 / 已全部加载 */}
-          <div className="text-center py-4">
-            {hasMore ? (
-              <button
-                type="button"
-                onClick={loadMore}
-                disabled={loadingMore}
-                className="btn-ghost px-6 py-2 text-xs"
-              >
-                {loadingMore ? '加载中...' : `加载更多（${logs.length}/${totalCount}）`}
-              </button>
-            ) : logs.length > 0 ? (
-              <p className="text-sm text-gray-400 dark:text-slate-500">
-                共 {totalCount} 条记录，已全部加载
-              </p>
-            ) : null}
-          </div>
+          {/* 范围说明：记录列表到此为止，更早的记录用日历按天回看 */}
+          {logs.length > 0 && (
+            <p className="py-4 text-center text-xs text-gray-400 dark:text-slate-500">
+              共 {logs.length} 条记录 · 更早的记录请用
+              <Link to="/" className="mx-1 text-indigo-500 hover:underline dark:text-indigo-400">
+                首页日历
+              </Link>
+              按天回看
+            </p>
+          )}
         </div>
       )}
     </div>

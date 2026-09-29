@@ -181,13 +181,19 @@ npm run dev
 # 精简胶囊条（空闲 / 计时中）
 open http://localhost:5173/preview.html?preview=1&view=compact&theme=dark
 open http://localhost:5173/preview.html?preview=1&view=idle&theme=dark
-# 科目快速开始下拉
+# 科目快速开始下拉（外壳直出，尺寸固定）
 open http://localhost:5173/preview.html?preview=1&view=dropdown&theme=dark
-# 全部功能窗口
-open http://localhost:5173/preview.html?preview=1&view=full&theme=dark
+# 整窗挂载真实 WidgetApp 并自动点开下拉：用于验证「按科目数量自适应加高窗口」
+open http://localhost:5173/preview.html?preview=1&view=widget-dropdown&subjects=16&theme=dark
+# 全部功能窗口（加 #/timer、#/my-records 等可直接进对应页面）
+open "http://localhost:5173/preview.html?preview=1&view=full&theme=dark#/my-records"
 ```
 
-`theme` 可取 `light` / `dark` / `dawn` / `dusk` / `starry`；加 `&diag=1` 可把启动流程写入页面便于排错。
+- `theme`：`light` / `dark` / `dawn` / `dusk` / `starry`
+- `subjects=N`：假科目数量（验证下拉的自适应高度：少则保持 300px、多则加高、到上限则内部滚动）
+- `diag=1`：把启动流程写入页面便于排错
+- 全部功能窗口用 URL hash 直接进页面：`#/timer`、`#/my-records`、`#/goal` …
+
 同一入口也挂在正式页面上（开发环境下带 `?preview=1` 即进入预览台）。
 
 需要出图做前后对比时，用截图脚本按 Tauri 窗口的真实逻辑尺寸取图：
@@ -199,6 +205,7 @@ node scripts/dev/shot.mjs --url "http://localhost:5173/preview.html?preview=1&vi
 
 `--w/--h` 是窗口内容区的逻辑尺寸（胶囊条 460×52、下拉 460×300、全部功能 1600×1000）；
 脚本用 CDP 精确设定视口再截图，并会校验页面确实渲染成功，避免拿到空白帧。
+另有 `--eval "<表达式>"` 可在页面内求值打印（核对布局尺寸）、`--pre "<表达式>"` 可在截图前摆出特定状态（如点开某个折叠区）。
 
 ## 数据库 Schema
 
