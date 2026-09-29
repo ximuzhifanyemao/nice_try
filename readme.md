@@ -157,6 +157,8 @@ src/
 ├── lib/            # 业务逻辑（Supabase 查询、数据处理）
 ├── pages/          # 页面组件
 ├── hooks/          # 自定义 Hooks
+├── widget/         # Tauri 桌面端窗口（置顶胶囊条 + 全部功能窗口）
+├── dev/            # 开发工具（桌面端界面预览台，生产构建不引入）
 └── App.tsx         # 路由配置
 
 android/
@@ -167,6 +169,36 @@ android/
 │       └── TimerForegroundService.java   # 前台通知 Service
 └── app/src/main/res/              # Android 资源文件
 ```
+
+## 桌面端界面预览（开发用）
+
+Tauri 的置顶胶囊条与「全部功能」窗口在浏览器里默认不会渲染（`isTauri()` 为 false），
+改版时难以核对效果。`preview.html` + `src/dev/preview.tsx` 提供了一套预览台：
+在浏览器里桩掉 Tauri 窗口 API、注入假登录态与假数据，用**真实的窗口外壳组件**渲染出这两套界面。
+
+```bash
+npm run dev
+# 精简胶囊条（空闲 / 计时中）
+open http://localhost:5173/preview.html?preview=1&view=compact&theme=dark
+open http://localhost:5173/preview.html?preview=1&view=idle&theme=dark
+# 科目快速开始下拉
+open http://localhost:5173/preview.html?preview=1&view=dropdown&theme=dark
+# 全部功能窗口
+open http://localhost:5173/preview.html?preview=1&view=full&theme=dark
+```
+
+`theme` 可取 `light` / `dark` / `dawn` / `dusk` / `starry`；加 `&diag=1` 可把启动流程写入页面便于排错。
+同一入口也挂在正式页面上（开发环境下带 `?preview=1` 即进入预览台）。
+
+需要出图做前后对比时，用截图脚本按 Tauri 窗口的真实逻辑尺寸取图：
+
+```bash
+node scripts/dev/shot.mjs --url "http://localhost:5173/preview.html?preview=1&view=full&theme=dark" \
+  --out shots/full-dark.png --w 1600 --h 1000
+```
+
+`--w/--h` 是窗口内容区的逻辑尺寸（胶囊条 460×52、下拉 460×300、全部功能 1600×1000）；
+脚本用 CDP 精确设定视口再截图，并会校验页面确实渲染成功，避免拿到空白帧。
 
 ## 数据库 Schema
 

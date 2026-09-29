@@ -240,7 +240,7 @@ export default function App({
         <UpdateProvider>
           <AuthProvider>
           <LogsProvider>
-          <div className={`relative isolate overflow-x-clip ${pageHeight} theme-surface bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-0`}>
+          <div className={`relative isolate overflow-x-clip ${pageHeight} theme-surface bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 ${hideBottomTab ? '' : 'pb-16 sm:pb-0'}`}>
           {/* 顶部环境光：页面顶部分层淡出，增加呼吸感 */}
           <div
             aria-hidden

@@ -219,10 +219,12 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
     )
   }
 
-  // expanded：最小高度保证日历不瘦高；高度随详情区内容自适应展开（重要日/表单不用滚动即可直接看到）
+  // expanded：方正的日期格让日历不显瘦高。
+  // 最小高度只做「地板」用途，取 300 是为了在桌面全功能窗口（内容区高度有限、
+  // 日历下方还压着两张小卡）时仍能靠 flex 收缩到可用高度，避免底部被裁切。
   const bodyWrap = (content: React.ReactNode) =>
     expanded ? (
-      <div className="w-full flex flex-col" style={{ minHeight: 480 }}>
+      <div className="w-full flex flex-col" style={{ minHeight: 300 }}>
         {content}
       </div>
     ) : (
@@ -321,7 +323,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
           <div
             className={`grid grid-cols-7 text-center px-2 pb-1.5 ${
               expanded
-                ? 'flex-1 grid-rows-[repeat(6,1fr)] shrink-1 min-h-[240px] gap-x-2 gap-y-1'
+                ? 'flex-1 grid-rows-[repeat(6,1fr)] shrink-1 min-h-[200px] gap-x-2 gap-y-1'
                 : 'gap-x-1.5 gap-y-0.5'
             }`}
           >

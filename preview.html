@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DiveDeep 桌面端预览台</title>
+    <script>
+      // 与 index.html 一致：首帧前应用主题，避免预览时闪烁。
+      //
+      // 截图工具会带 ?host=<宽>x<高>：此时把内容区精确锁定成该逻辑尺寸
+      //（= Tauri 窗口的内容区尺寸），并同步用内联样式写死 html/body 的宽高。
+      // 必须内联、且必须同时给 html 写背景色：Tailwind 在 body 上设了
+      // `min-height:100%`，若 html 高度仍是 auto，百分比高度会塌掉，
+      // 整页高度链条断裂，页面会缩到内容高度而不是填满窗口。
+      (function () {
+        try {
+          var p = new URLSearchParams(location.search)
+          var saved = p.get('theme') || localStorage.getItem('app_theme')
+          var dark = saved === 'dark' || saved === 'dusk' || saved === 'starry'
+          var root = document.documentElement
+          if (saved) root.setAttribute('data-theme', saved)
+          if (dark) root.classList.add('dark')
+
+          var host = p.get('host')
+          var m = host && /^(\d+)x(\d+)$/.exec(host)
+          if (m) {
+            var w = Number(m[1])
+            var h = Number(m[2])
+            root.classList.add('preview-host')
+            var s = document.createElement('style')
+            s.textContent =
+              'html.preview-host,html.preview-host body{width:' + w + 'px;height:' + h + 'px;margin:0;padding:0;overflow:hidden;background-color:' +
+              (dark ? '#0f172a' : '#f9fafb') + '}' +
+              'html.preview-host #root{width:' + w + 'px;height:' + h + 'px}'
+            document.head.appendChild(s)
+          }
+        } catch (e) {}
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/dev/preview.tsx"></script>
+  </body>
+</html>

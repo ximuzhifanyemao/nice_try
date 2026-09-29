@@ -80,6 +80,10 @@ if (isTauri()) {
       </ToastProvider>
     </StrictMode>,
   )
+} else if (import.meta.env.DEV && new URLSearchParams(location.search).has('preview')) {
+  // 开发专用：在浏览器里预览 Tauri 桌面端界面（胶囊条 / 科目下拉 / 全部功能窗口）。
+  // 见 src/dev/preview.tsx 与 preview.html 顶部注释；生产构建不会引入该模块。
+  void import('./dev/preview').then((m) => m.startPreview())
 } else {
   createRoot(document.getElementById('root')!).render(
     <StrictMode>

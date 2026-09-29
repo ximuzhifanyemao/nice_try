@@ -36,6 +36,19 @@ export const CHIP_FALLBACK = 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:t
 export const BAR_FALLBACK = 'bg-gray-400 dark:bg-slate-500'
 export const CARD_FALLBACK = 'bg-gray-50 border-gray-200 dark:bg-slate-700/30 dark:border-slate-600'
 
+/**
+ * 类别色点：用于「中性列表 + 一点色相」的轻量表达
+ * （如桌面精简下拉里的科目列表：不整块染色，只在名称前点一个小圆点）。
+ */
+export const DOT_COLORS: Record<string, string> = {
+  math: 'bg-blue-500 dark:bg-blue-400',
+  english: 'bg-emerald-500 dark:bg-emerald-400',
+  '408': 'bg-violet-500 dark:bg-violet-400',
+  politics: 'bg-rose-500 dark:bg-rose-400',
+}
+
+export const DOT_FALLBACK = 'bg-slate-400 dark:bg-slate-500'
+
 /** 科目标签/徽章配色（LogCard、Calendar、Summary 等） */
 export function getChipColor(category?: string): string {
   return (category && CHIP_COLORS[category]) || CHIP_FALLBACK
@@ -54,4 +67,9 @@ export function getCardColor(category?: string): string {
 /** 科目按钮配色（StudyTimer） */
 export function getButtonColor(category?: string): string {
   return (category && BUTTON_COLORS[category]) || BUTTON_COLORS['408']
+}
+
+/** 类别色点配色：中性列表里的轻量色相标记 */
+export function getDotColor(category?: string): string {
+  return (category && DOT_COLORS[category]) || DOT_FALLBACK
 }

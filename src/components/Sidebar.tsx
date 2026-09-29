@@ -81,36 +81,43 @@ export default function Sidebar() {
 
   return (
     <aside className="theme-surface relative isolate flex w-56 flex-col bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 h-full shrink-0">
-      {/* Logo */}
+      {/* Logo：高度与窗口标题栏（h-12）一致，让顶部两条边落在同一水平线上 */}
       <Link
         to="/"
-        className="flex items-center justify-start gap-2 px-4 h-11 border-b border-gray-200 dark:border-slate-800 text-sm font-semibold text-gray-700 dark:text-slate-200 shrink-0"
+        className="flex h-12 shrink-0 items-center gap-2.5 border-b border-gray-200/80 px-4 text-sm font-semibold text-gray-700 transition-colors hover:text-slate-900 dark:border-slate-800/80 dark:text-slate-200 dark:hover:text-white"
         title="DiveDeep"
       >
         <DesktopLogo size={22} />
         <span className="truncate">DiveDeep</span>
       </Link>
 
-      {/* 导航项 */}
-      <nav className="flex-1 overflow-y-auto py-2">
-        {items.map((item) => (
-          <button
-            key={item.key}
-            onClick={() => navigate(item.path)}
-            title={item.label}
-            className={`flex items-center gap-2.5 w-full px-4 py-2.5 text-[15px] text-left transition-all cursor-pointer relative ${
-              activeKey === item.key
-                ? 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
-                : 'text-gray-600 dark:text-slate-300 hover:text-slate-900 hover:bg-gray-100 dark:hover:text-slate-100 dark:hover:bg-slate-800/40'
-            }`}
-          >
-            {activeKey === item.key && (
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-r bg-indigo-500" />
-            )}
-            <span className="shrink-0">{BlueIcons[item.iconKey]}</span>
-            <span className="truncate">{item.label}</span>
-          </button>
-        ))}
+      {/* 导航项：圆角块 + 左侧指示条；用 padding 而不是整宽高亮，边界更柔和 */}
+      <nav className="flex-1 overflow-y-auto px-2.5 py-2.5">
+        {items.map((item) => {
+          const active = activeKey === item.key
+          return (
+            <button
+              key={item.key}
+              onClick={() => navigate(item.path)}
+              title={item.label}
+              aria-current={active ? 'page' : undefined}
+              className={`relative flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[14px] transition-colors duration-150 ${
+                active
+                  ? 'bg-indigo-50 font-medium text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300'
+                  : 'text-gray-600 hover:bg-gray-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/50 dark:hover:text-slate-100'
+              }`}
+            >
+              {active && (
+                <span
+                  className="absolute left-0 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-r-full bg-indigo-500 dark:bg-indigo-400"
+                  aria-hidden="true"
+                />
+              )}
+              <span className="shrink-0">{BlueIcons[item.iconKey]}</span>
+              <span className="truncate">{item.label}</span>
+            </button>
+          )
+        })}
       </nav>
 
       {/* 底部：主题选择 + 登录/登出（固定在侧边栏最底部） */}

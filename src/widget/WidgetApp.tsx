@@ -85,6 +85,177 @@ class FullAppBoundary extends Component<{ children: ReactNode }, { error: string
   }
 }
 
+/** 窗口控制按钮的统一样式：图标按钮，悬停给底色反馈 */
+const windowBtnBase =
+  'flex h-7 w-7 items-center justify-center rounded-md transition-colors cursor-pointer focus-visible:outline-none'
+
+/** 全功能模式的窗口外壳：左侧常驻侧边栏 + 右侧内容（顶部一条可拖动标题栏） */
+export function FullModeShell({ onToggleMode }: { onToggleMode: () => void }) {
+  return (
+    // 用 h-full/w-full 填满宿主窗口，而不是 h-screen/w-screen：
+    // 窗口尺寸本来就由 Tauri 固定，跟随宿主更准确，也让预览台能把它放进任意尺寸容器里审阅。
+    //
+    // 注意：侧边栏必须由 App 在 HashRouter 内部渲染（Sidebar 用了 useLocation），
+    // 所以这里只能把它作为 sidebar 属性传进去；标题栏因此放在 App 之外、
+    // 通过负 margin 覆盖到内容区上方，视觉上只横跨右侧内容列。
+    <div className="theme-surface relative isolate flex h-full w-full overflow-hidden bg-gray-50 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
+      <div className="relative flex h-full w-full flex-col">
+        {/* 顶部标题栏：整条都是窗口拖拽区，右侧放模式切换与窗口控制。
+            高度与侧边栏品牌区（h-12）一致，让顶部横线连贯 */}
+        <div
+          data-tauri-drag-region
+          className="flex h-12 shrink-0 select-none items-center justify-end gap-1 border-b border-gray-200 px-2.5 dark:border-slate-800/80"
+        >
+          <button
+            onClick={onToggleMode}
+            title="切换到置顶计时小挂件"
+            className="flex h-7 cursor-pointer items-center gap-1 rounded-md px-2.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200"
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 21H3v-6" />
+              <path d="M3 21l7-7" />
+            </svg>
+            精简计时
+          </button>
+          <span className="mx-0.5 h-4 w-px bg-gray-200 dark:bg-slate-800" aria-hidden="true" />
+          <button
+            onClick={() => getCurrentWindow().minimize()}
+            className={`${windowBtnBase} text-gray-400 hover:bg-gray-100 hover:text-slate-900 dark:text-slate-500 dark:hover:bg-slate-800/60 dark:hover:text-slate-200`}
+            aria-label="最小化"
+            title="最小化"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+              <path d="M5 12h14" />
+            </svg>
+          </button>
+          <button
+            onClick={() => getCurrentWindow().close()}
+            className={`${windowBtnBase} text-gray-400 hover:bg-rose-50 hover:text-rose-500 dark:text-slate-500 dark:hover:bg-rose-500/15 dark:hover:text-rose-400`}
+            aria-label="关闭"
+            title="关闭"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* 页面内容：首页靠 fillHeight/forceTwoCol 内部严格一屏无滚动条；
+            记录统计、打卡等页面内容超高时允许纵向滚动 */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <FullAppBoundary>
+            <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight forceTwoCol />
+          </FullAppBoundary>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 精简模式的窗口外壳：胶囊条 + 可展开的科目下拉。
+ * dropdownOpen / dropdownClosing 由调用方控制，因此预览台可以强制展开下拉来审阅该界面，
+ * 无需真的去改窗口尺寸。
+ */
+export function CompactShell({
+  dropdownOpen,
+  dropdownClosing,
+  onToggleMode,
+  onOpenDropdown,
+  onCloseDropdown,
+  onPick,
+}: {
+  dropdownOpen: boolean
+  dropdownClosing: boolean
+  onToggleMode: () => void
+  onOpenDropdown: () => void
+  onCloseDropdown: () => void
+  onPick: (subjectId: string, activity: string) => void
+}) {
+  const window = getCurrentWindow()
+  return (
+    <div
+      data-tauri-drag-region={dropdownOpen ? undefined : 'deep'}
+      className={`theme-surface relative isolate flex h-full w-full overflow-hidden border border-gray-200 bg-white text-slate-900 shadow-[0_16px_48px_-20px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.7)] ${
+        dropdownOpen ? 'flex-col rounded-2xl' : 'flex-row items-center rounded-full'
+      }`}
+    >
+      {/* 顶部环境光：仅下拉展开时展示 */}
+      {dropdownOpen && (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-[52px] h-24 bg-gradient-to-b from-indigo-400/10 via-indigo-400/5 to-transparent dark:from-indigo-500/15 dark:via-indigo-500/5 dark:to-transparent"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-10 top-0 h-36 w-36 rounded-full bg-violet-500/10 blur-2xl"
+          />
+        </>
+      )}
+
+      {/* 胶囊条：品牌/科目 + 实时计时 + 开始/结束；右侧为窗口控制
+          deep 拖拽区：胶囊条任意位置（含文字/空白/内边距）均可拖动窗口，按钮除外 */}
+      <div
+        data-tauri-drag-region="deep"
+        className={`relative z-10 flex shrink-0 select-none items-center ${
+          dropdownOpen ? 'h-[52px] w-full gap-2 border-b border-gray-200 px-3 dark:border-slate-800' : 'w-full min-w-0 flex-1 gap-2 pl-3 pr-2'
+        }`}
+      >
+        <CapsuleStrip expanded={dropdownOpen} onOpenDropdown={onOpenDropdown} />
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            onClick={onToggleMode}
+            title="全部功能"
+            aria-label="全部功能"
+            className={`${windowBtnBase} text-slate-500 hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 3h6v6" />
+              <path d="M9 21H3v-6" />
+              <path d="M21 3l-7 7" />
+              <path d="M3 21l7-7" />
+            </svg>
+          </button>
+          {dropdownOpen && (
+            <button
+              onClick={() => window.minimize()}
+              aria-label="最小化"
+              title="最小化"
+              className={`${windowBtnBase} text-slate-500 hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+                <path d="M5 12h14" />
+              </svg>
+            </button>
+          )}
+          <button
+            onClick={() => window.close()}
+            title="关闭"
+            aria-label="关闭"
+            className={`${windowBtnBase} text-slate-500 hover:bg-red-50 hover:text-red-500 dark:text-slate-400 dark:hover:bg-red-500/15 dark:hover:text-red-400`}
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* 科目下拉（快速开始，选科后自动收回）：展开随窗口立即出现，收起先淡出下滑再缩窗 */}
+      {dropdownOpen && (
+        <div
+          className={`relative min-h-0 flex-1 border-t border-gray-200 dark:border-slate-800 ${
+            dropdownClosing ? 'animate-[widget-fade-out-down_0.18s_ease-in] forwards' : ''
+          }`}
+        >
+          <SubjectPicker onPick={onPick} onClose={onCloseDropdown} />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function WidgetApp() {
   const appWindow: Window = getCurrentWindow()
   // 记忆模式：初始状态读取上次退出时保存的模式
@@ -332,135 +503,16 @@ export default function WidgetApp() {
     }
   }, [fullMode, appWindow])
 
-  if (fullMode) {
-    return (
-      <div className="theme-surface relative isolate flex h-screen w-screen flex-col overflow-hidden bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-        {/* 顶部标题栏（全功能模式：可拖动窗口） */}
-        <div
-          data-tauri-drag-region
-          className="flex items-center justify-end px-4 py-2.5 border-b border-gray-200 dark:border-slate-800 shrink-0 select-none"
-        >
-          <div className="flex items-center gap-1">
-            <button
-              onClick={toggleMode}
-              className="flex items-center gap-1 px-2.5 h-7 rounded-md text-xs text-gray-500 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-            >
-              ⤙ 精简计时
-            </button>
-            <button
-              onClick={() => appWindow.minimize()}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-slate-200 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-              aria-label="最小化"
-              title="最小化"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-                <path d="M5 12h14" />
-              </svg>
-            </button>
-            <button
-              onClick={() => appWindow.close()}
-              className="w-7 h-7 flex items-center justify-center rounded-md text-gray-400 hover:text-slate-900 hover:bg-gray-100 dark:text-slate-500 dark:hover:text-red-400 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-              aria-label="关闭"
-              title="关闭"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-                <path d="M18 6 6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* 侧边栏 + App 内容（Sidebar 必须在 Router 内部，由 App 接收）
-        首页靠 fillHeight/forceTwoCol 内部严格一屏无滚动条；
-        记录统计、打卡等页面内容超高时允许纵向滚动 */}
-        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-          <FullAppBoundary>
-            <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight forceTwoCol />
-          </FullAppBoundary>
-        </div>
-      </div>
-    )
-  }
+  if (fullMode) return <FullModeShell onToggleMode={toggleMode} />
 
   return (
-    <div
-      data-tauri-drag-region={dropdownOpen ? undefined : 'deep'}
-      className={`theme-surface relative isolate flex h-screen w-screen overflow-hidden border border-gray-200 bg-white text-slate-900 shadow-[0_16px_48px_-20px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.7)] ${
-        dropdownOpen ? 'flex-col rounded-2xl' : 'flex-row items-center rounded-full'
-      }`}
-    >
-      {/* 顶部环境光：仅下拉展开时展示 */}
-      {dropdownOpen && (
-        <>
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-[52px] h-24 bg-gradient-to-b from-indigo-400/10 via-indigo-400/5 to-transparent dark:from-indigo-500/15 dark:via-indigo-500/5 dark:to-transparent"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -right-10 top-0 h-36 w-36 rounded-full bg-violet-500/10 blur-2xl"
-          />
-        </>
-      )}
-
-      {/* 胶囊条：品牌/科目 + 实时计时 + 开始/结束；右侧为窗口控制
-          deep 拖拽区：胶囊条任意位置（含文字/空白/内边距）均可拖动窗口，按钮除外 */}
-      <div
-        data-tauri-drag-region="deep"
-        className={`relative z-10 flex shrink-0 select-none items-center ${
-          dropdownOpen ? 'h-[52px] w-full gap-2 border-b border-gray-200 px-3 dark:border-slate-800' : 'w-full min-w-0 flex-1 gap-2 pl-3 pr-2'
-        }`}
-      >
-        <CapsuleStrip expanded={dropdownOpen} onOpenDropdown={openDropdown} />
-        <div className="flex shrink-0 items-center gap-0.5">
-          <button
-            onClick={toggleMode}
-            title="全部功能"
-            aria-label="全部功能"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 cursor-pointer"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M15 3h6v6" />
-              <path d="M9 21H3v-6" />
-              <path d="M21 3l-7 7" />
-              <path d="M3 21l7-7" />
-            </svg>
-          </button>
-          {dropdownOpen && (
-            <button
-              onClick={() => appWindow.minimize()}
-              aria-label="最小化"
-              title="最小化"
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-gray-200 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100 cursor-pointer"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-                <path d="M5 12h14" />
-              </svg>
-            </button>
-          )}
-          <button
-            onClick={() => appWindow.close()}
-            title="关闭"
-            aria-label="关闭"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-red-50 hover:text-red-500 dark:text-slate-400 dark:hover:bg-red-500/15 dark:hover:text-red-400 cursor-pointer"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {/* 科目下拉（快速开始，选科后自动收回）：展开随窗口立即出现，收起先淡出下滑再缩窗 */}
-      {dropdownOpen && (
-        <div
-          className={`relative min-h-0 flex-1 border-t border-gray-200 dark:border-slate-800 ${
-            dropdownClosing ? 'animate-[widget-fade-out-down_0.18s_ease-in] forwards' : ''
-          }`}
-        >
-          <SubjectPicker onPick={quickStart} onClose={closeDropdown} />
-        </div>
-      )}
-    </div>
+    <CompactShell
+      dropdownOpen={dropdownOpen}
+      dropdownClosing={dropdownClosing}
+      onToggleMode={toggleMode}
+      onOpenDropdown={openDropdown}
+      onCloseDropdown={closeDropdown}
+      onPick={quickStart}
+    />
   )
 }

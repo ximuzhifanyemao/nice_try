@@ -177,12 +177,16 @@ export default function Home() {
             <TodoList />
           </div>
 
-          {/* ===== 【B 版】日历 + 下方两小卡（本周学习分布 + 今日格言/阶段提示），垂直居中 ===== */}
-          <div className="w-full h-full min-h-0 flex flex-col items-center justify-center gap-3 py-1">
-            <Calendar logs={logs} loading={loading} expanded />
+          {/* ===== 【B 版】日历 + 下方两小卡（本周学习分布 + 今日格言/阶段提示） =====
+              日历用 flex-1 吸收剩余高度（min-h-0 允许收缩），两张小卡按内容固定高度，
+              这样窗口高度变化时底部小卡不会被裁掉 */}
+          <div className="w-full h-full min-h-0 flex flex-col gap-3 py-1">
+            <div className="flex min-h-0 flex-1 flex-col">
+              <Calendar logs={logs} loading={loading} expanded />
+            </div>
 
             {/* 日历下方：两小卡并排 */}
-            <div className="grid grid-cols-2 gap-3 w-full">
+            <div className="grid grid-cols-2 gap-3 w-full shrink-0">
               {/* 左卡：本周学习分布（迷你柱状图） */}
               <div className="card p-3">
                 <div className="flex items-center justify-between mb-2">

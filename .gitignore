@@ -63,3 +63,6 @@ scripts/_ky*.txt
 
 # WorkBuddy 会话数据
 .workbuddy/
+
+# 桌面端界面截图（开发时用 scripts/dev/shot.mjs 生成，不入库）
+shots/
