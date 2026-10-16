@@ -222,292 +222,302 @@ export default function GoalPage() {
 
       {!isLoading && !error && (
         <>
-          {/* 钱包 */}
-          <div className="rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white p-5 shadow-md">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-white/80">虚拟钱包余额</p>
-                <p className="text-4xl font-bold mt-1">
-                  <span className="text-2xl mr-1">¥</span>
-                  {fmtMoney(wallet?.balance ?? 0)}
-                </p>
-                <p className="text-xs text-white/70 mt-1">充值的是虚拟金额，用于自我约束，无真实资金</p>
-              </div>
-              <button
-                onClick={() => setRechargeOpen(true)}
-                disabled={busy}
-                className="flex-shrink-0 whitespace-nowrap px-3 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors cursor-pointer"
-              >
-                + 充值
-              </button>
-            </div>
-          </div>
-
-          {/* 本周承诺 */}
-          <div id="commit-form" className="card p-5 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">
-                本周承诺 <span className="text-xs text-gray-400 font-normal">（{formatDateShort(weekStart)} ~ {formatDateShort(weekEnd)}）</span>
-              </h2>
-              {currentCommitment && !editing && (
-                <button
-                  onClick={startEdit}
-                  className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
-                >
-                  修改
-                </button>
-              )}
-            </div>
-
-            {currentCommitment ? (
-              <>
-                {currentCommitment.status === 'active' && (
-                  <>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600 dark:text-slate-300">
-                        目标 <span className="font-semibold">{currentCommitment.target_hours}h</span>
-                        <span className="mx-2 text-gray-300 dark:text-slate-600">|</span>
-                        押金 <span className="font-semibold">¥{fmtMoney(currentCommitment.deposit_amount)}</span>
-                      </span>
-                      <span className="text-sm">
-                        <span className="font-semibold text-blue-600 dark:text-blue-400">{actualHours.toFixed(1)}h</span>
-                        <span className="text-gray-400"> / {currentCommitment.target_hours}h</span>
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          progressPercent >= 100 ? 'bg-green-500 dark:bg-green-400' : 'bg-blue-500 dark:bg-blue-400'
-                        }`}
-                        style={{ width: `${progressPercent}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-gray-400 dark:text-slate-500">
-                      {progressPercent >= 100
-                        ? '已达成目标，周末结算后押金将返还到钱包 🎉'
-                        : `还差 ${Math.max(0, currentCommitment.target_hours - actualHours).toFixed(1)}h 达成目标，未达成将扣除 ¥${fmtMoney(currentCommitment.deposit_amount)}`}
+          <div className={wide ? 'grid grid-cols-2 items-start gap-4' : 'space-y-4'}>
+            {/* 左列：钱包 + 本周承诺（含设置目标/押金表单） */}
+            <div className={wide ? 'min-w-0 space-y-4' : 'space-y-4'}>
+              {/* 钱包 */}
+              <div className="rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 text-white p-5 shadow-md">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-white/80">虚拟钱包余额</p>
+                    <p className="text-4xl font-bold mt-1">
+                      <span className="text-2xl mr-1">¥</span>
+                      {fmtMoney(wallet?.balance ?? 0)}
                     </p>
-                    {/* 分科目标达成（仅当设定了分科目标时展示，避免信息过载） */}
-                    {(currentCommitment.subject_targets?.length ?? 0) > 0 && (
-                      <div className="pt-2 space-y-2 border-t border-gray-50 dark:border-slate-700">
-                        <p className="text-xs text-gray-400 dark:text-slate-500">分科目标</p>
-                        {(currentCommitment.subject_targets ?? []).map((t) => {
-                          const done = subjectHoursThisWeek[t.subjectId] ?? 0
-                          const pct = t.hours > 0 ? Math.min(100, (done / t.hours) * 100) : 0
-                          return (
-                            <div key={t.subjectId} className="space-y-1">
-                              <div className="flex items-center justify-between text-xs">
-                                <span className="text-gray-600 dark:text-slate-300">{t.name}</span>
-                                <span className="text-gray-400">
-                                  <span className={`font-semibold ${done >= t.hours ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
-                                    {done.toFixed(1)}h
-                                  </span>
-                                  <span> / {t.hours}h</span>
-                                </span>
-                              </div>
-                              <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-green-500 dark:bg-green-400' : 'bg-blue-500 dark:bg-blue-400'}`}
-                                  style={{ width: `${pct}%` }}
-                                />
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </>
-                )}
-                {currentCommitment.status !== 'active' && (
-                  <div className="space-y-2 text-sm">
-                    <p className="text-gray-600 dark:text-slate-300">
-                      目标 <span className="font-semibold">{currentCommitment.target_hours}h</span>
-                      <span className="mx-2 text-gray-300 dark:text-slate-600">|</span>
-                      实际 <span className="font-semibold">
-                        {sumHoursInRange(logs, currentCommitment.week_start, getWeekEndStr(new Date(currentCommitment.week_start))).toFixed(1)}h
-                      </span>
-                      <span className="mx-2 text-gray-300 dark:text-slate-600">|</span>
-                      押金 <span className="font-semibold">¥{fmtMoney(currentCommitment.deposit_amount)}</span>
-                    </p>
-                    <p className={`font-semibold ${statusMeta(currentCommitment.status).cls}`}>
-                      {statusMeta(currentCommitment.status).label}
-                      {currentCommitment.status === 'won' && <span className="text-gray-500 dark:text-slate-400 font-normal"> — 已返还到钱包</span>}
-                      {currentCommitment.status === 'lost' && <span className="text-gray-500 dark:text-slate-400 font-normal"> — 押金已扣除</span>}
-                    </p>
+                    <p className="text-xs text-white/70 mt-1">充值的是虚拟金额，用于自我约束，无真实资金</p>
                   </div>
-                )}
-              </>
-            ) : null}
-
-            {/* 表单：无承诺或点击修改时显示 */}
-            {(!currentCommitment || editing) && (
-              <div className="space-y-3 pt-1">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    本周目标学习时长（小时）
-                  </label>
-                  <input
-                    type="number"
-                    min="0.1"
-                    step="0.1"
-                    value={targetInput}
-                    onChange={(e) => setTargetInput(e.target.value)}
-                    placeholder="例如 20"
-                    className="input"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
-                    承诺押金（虚拟金额，未达成将被扣除）
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    step="1"
-                    value={depositInput}
-                    onChange={(e) => setDepositInput(e.target.value)}
-                    placeholder="例如 50"
-                    className="input"
-                  />
-                </div>
-                {wallet && (Number(depositInput) || 0) > wallet.balance && (
-                  <p className="text-xs text-red-500 dark:text-red-400">余额不足，请先充值（当前 ¥{fmtMoney(wallet.balance)}）</p>
-                )}
-                {/* 分科目标（可选）：折叠面板，逐科填目标小时 */}
-                <div className="pt-1 border-t border-gray-50 dark:border-slate-700">
                   <button
-                    type="button"
-                    onClick={() => setShowSubjectTargets((v) => !v)}
-                    className="w-full flex items-center justify-between text-sm font-medium text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100 cursor-pointer"
-                  >
-                    <span>按科目设定目标（可选）</span>
-                    <span className="text-xs text-gray-400">{showSubjectTargets ? '收起' : '展开'}</span>
-                  </button>
-                  {showSubjectTargets && (
-                    <div className="mt-2 space-y-2">
-                      {userSubjects.length === 0 ? (
-                        <p className="text-xs text-gray-400 dark:text-slate-500">
-                          暂无科目，请先到「计时」页创建科目后再设定分科目标
-                        </p>
-                      ) : (
-                        userSubjects.map((s) => {
-                          const learned = subjectHoursThisWeek[s.id] ?? 0
-                          const val = subjectTargetsDraft[s.id] ?? ''
-                          return (
-                            <div key={s.id} className="flex items-center gap-2 text-sm">
-                              <span className="w-24 flex-shrink-0 truncate text-gray-600 dark:text-slate-300">{s.name}</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.5"
-                                value={val}
-                                onChange={(e) =>
-                                  setSubjectTargetsDraft((d) => ({ ...d, [s.id]: e.target.value }))
-                                }
-                                placeholder="目标小时"
-                                className="input w-28 py-1.5"
-                              />
-                              <span className="text-xs text-gray-400">本周已学 {learned.toFixed(1)}h</span>
-                            </div>
-                          )
-                        })
-                      )}
-                    </div>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleSave}
+                    onClick={() => setRechargeOpen(true)}
                     disabled={busy}
-                    className="btn-primary flex-1"
+                    className="flex-shrink-0 whitespace-nowrap px-3 py-2 bg-white/20 hover:bg-white/30 disabled:opacity-50 rounded-lg text-sm font-medium transition-colors cursor-pointer"
                   >
-                    {busy ? '保存中...' : currentCommitment ? '保存修改' : '立下承诺'}
+                    + 充值
                   </button>
-                  {editing && (
+                </div>
+              </div>
+
+              {/* 本周承诺 */}
+              <div id="commit-form" className="card p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">
+                    本周承诺 <span className="text-xs text-gray-400 font-normal">（{formatDateShort(weekStart)} ~ {formatDateShort(weekEnd)}）</span>
+                  </h2>
+                  {currentCommitment && !editing && (
                     <button
-                      onClick={() => setEditing(false)}
-                      className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer"
+                      onClick={startEdit}
+                      className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 cursor-pointer"
                     >
-                      取消
+                      修改
                     </button>
                   )}
                 </div>
-                {!currentCommitment && (
-                  <p className="text-xs text-gray-400 dark:text-slate-500">
-                    承诺规则：达成目标 → 押金返还到钱包；未达成 → 押金扣除。每周日自动结算。
-                  </p>
+
+                {currentCommitment ? (
+                  <>
+                    {currentCommitment.status === 'active' && (
+                      <>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 dark:text-slate-300">
+                            目标 <span className="font-semibold">{currentCommitment.target_hours}h</span>
+                            <span className="mx-2 text-gray-300 dark:text-slate-600">|</span>
+                            押金 <span className="font-semibold">¥{fmtMoney(currentCommitment.deposit_amount)}</span>
+                          </span>
+                          <span className="text-sm">
+                            <span className="font-semibold text-blue-600 dark:text-blue-400">{actualHours.toFixed(1)}h</span>
+                            <span className="text-gray-400"> / {currentCommitment.target_hours}h</span>
+                          </span>
+                        </div>
+                        <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-3 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              progressPercent >= 100 ? 'bg-green-500 dark:bg-green-400' : 'bg-blue-500 dark:bg-blue-400'
+                            }`}
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-gray-400 dark:text-slate-500">
+                          {progressPercent >= 100
+                            ? '已达成目标，周末结算后押金将返还到钱包 🎉'
+                            : `还差 ${Math.max(0, currentCommitment.target_hours - actualHours).toFixed(1)}h 达成目标，未达成将扣除 ¥${fmtMoney(currentCommitment.deposit_amount)}`}
+                        </p>
+                        {/* 分科目标达成（仅当设定了分科目标时展示，避免信息过载） */}
+                        {(currentCommitment.subject_targets?.length ?? 0) > 0 && (
+                          <div className="pt-2 space-y-2 border-t border-gray-50 dark:border-slate-700">
+                            <p className="text-xs text-gray-400 dark:text-slate-500">分科目标</p>
+                            {(currentCommitment.subject_targets ?? []).map((t) => {
+                              const done = subjectHoursThisWeek[t.subjectId] ?? 0
+                              const pct = t.hours > 0 ? Math.min(100, (done / t.hours) * 100) : 0
+                              return (
+                                <div key={t.subjectId} className="space-y-1">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="text-gray-600 dark:text-slate-300">{t.name}</span>
+                                    <span className="text-gray-400">
+                                      <span className={`font-semibold ${done >= t.hours ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400'}`}>
+                                        {done.toFixed(1)}h
+                                      </span>
+                                      <span> / {t.hours}h</span>
+                                    </span>
+                                  </div>
+                                  <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-green-500 dark:bg-green-400' : 'bg-blue-500 dark:bg-blue-400'}`}
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {currentCommitment.status !== 'active' && (
+                      <div className="space-y-2 text-sm">
+                        <p className="text-gray-600 dark:text-slate-300">
+                          目标 <span className="font-semibold">{currentCommitment.target_hours}h</span>
+                          <span className="mx-2 text-gray-300 dark:text-slate-600">|</span>
+                          实际 <span className="font-semibold">
+                            {sumHoursInRange(logs, currentCommitment.week_start, getWeekEndStr(new Date(currentCommitment.week_start))).toFixed(1)}h
+                          </span>
+                          <span className="mx-2 text-gray-300 dark:text-slate-600">|</span>
+                          押金 <span className="font-semibold">¥{fmtMoney(currentCommitment.deposit_amount)}</span>
+                        </p>
+                        <p className={`font-semibold ${statusMeta(currentCommitment.status).cls}`}>
+                          {statusMeta(currentCommitment.status).label}
+                          {currentCommitment.status === 'won' && <span className="text-gray-500 dark:text-slate-400 font-normal"> — 已返还到钱包</span>}
+                          {currentCommitment.status === 'lost' && <span className="text-gray-500 dark:text-slate-400 font-normal"> — 押金已扣除</span>}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : null}
+
+                {/* 表单：无承诺或点击修改时显示 */}
+                {(!currentCommitment || editing) && (
+                  <div className="space-y-3 pt-1">
+                    <div className={wide ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                          本周目标学习时长（小时）
+                        </label>
+                        <input
+                          type="number"
+                          min="0.1"
+                          step="0.1"
+                          value={targetInput}
+                          onChange={(e) => setTargetInput(e.target.value)}
+                          placeholder="例如 20"
+                          className="input"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1.5">
+                          承诺押金（虚拟金额，未达成将被扣除）
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          value={depositInput}
+                          onChange={(e) => setDepositInput(e.target.value)}
+                          placeholder="例如 50"
+                          className="input"
+                        />
+                      </div>
+                    </div>
+                    {wallet && (Number(depositInput) || 0) > wallet.balance && (
+                      <p className="text-xs text-red-500 dark:text-red-400">余额不足，请先充值（当前 ¥{fmtMoney(wallet.balance)}）</p>
+                    )}
+                    {/* 分科目标（可选）：折叠面板，逐科填目标小时 */}
+                    <div className="pt-1 border-t border-gray-50 dark:border-slate-700">
+                      <button
+                        type="button"
+                        onClick={() => setShowSubjectTargets((v) => !v)}
+                        className="w-full flex items-center justify-between text-sm font-medium text-gray-600 dark:text-slate-300 hover:text-gray-900 dark:hover:text-slate-100 cursor-pointer"
+                      >
+                        <span>按科目设定目标（可选）</span>
+                        <span className="text-xs text-gray-400">{showSubjectTargets ? '收起' : '展开'}</span>
+                      </button>
+                      {showSubjectTargets && (
+                        <div className="mt-2 space-y-2">
+                          {userSubjects.length === 0 ? (
+                            <p className="text-xs text-gray-400 dark:text-slate-500">
+                              暂无科目，请先到「计时」页创建科目后再设定分科目标
+                            </p>
+                          ) : (
+                            userSubjects.map((s) => {
+                              const learned = subjectHoursThisWeek[s.id] ?? 0
+                              const val = subjectTargetsDraft[s.id] ?? ''
+                              return (
+                                <div key={s.id} className="flex items-center gap-2 text-sm">
+                                  <span className="w-24 flex-shrink-0 truncate text-gray-600 dark:text-slate-300">{s.name}</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.5"
+                                    value={val}
+                                    onChange={(e) =>
+                                      setSubjectTargetsDraft((d) => ({ ...d, [s.id]: e.target.value }))
+                                    }
+                                    placeholder="目标小时"
+                                    className="input w-28 py-1.5"
+                                  />
+                                  <span className="text-xs text-gray-400">本周已学 {learned.toFixed(1)}h</span>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSave}
+                        disabled={busy}
+                        className="btn-primary flex-1"
+                      >
+                        {busy ? '保存中...' : currentCommitment ? '保存修改' : '立下承诺'}
+                      </button>
+                      {editing && (
+                        <button
+                          onClick={() => setEditing(false)}
+                          className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200 rounded-lg transition-colors cursor-pointer"
+                        >
+                          取消
+                        </button>
+                      )}
+                    </div>
+                    {!currentCommitment && (
+                      <p className="text-xs text-gray-400 dark:text-slate-500">
+                        承诺规则：达成目标 → 押金返还到钱包；未达成 → 押金扣除。每周日自动结算。
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* 历史承诺 */}
-          <div className="card p-5 space-y-3">
-            <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">历史承诺</h2>
-            {historyCommitments.length === 0 ? (
-              <EmptyState
-                icon="clock"
-                title="暂无历史承诺"
-                desc="立下本周承诺后，每周结算会归档到这里，方便回顾目标的达成情况。"
-              />
-            ) : (
-              <div className="space-y-2">
-                {historyCommitments.map((c) => {
-                  const meta = statusMeta(c.status)
-                  return (
-                    <div key={c.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
-                      <div className="min-w-0">
-                        <p className="text-gray-700 dark:text-slate-200">
-                          {formatDateShort(c.week_start)} ~ {formatDateShort(getWeekEndStr(new Date(c.week_start)))}
-                        </p>
-                        <p className="text-xs text-gray-400 dark:text-slate-500">
-                          目标 {c.target_hours}h · 押金 ¥{fmtMoney(c.deposit_amount)}
-                        </p>
-                      </div>
-                      <span className={`flex-shrink-0 text-sm ${meta.cls}`}>{meta.label}</span>
-                    </div>
-                  )
-                })}
+            {/* 右列：历史承诺 + 资金流水 */}
+            <div className={wide ? 'min-w-0 space-y-4' : 'space-y-4'}>
+              {/* 历史承诺 */}
+              <div className="card p-5 space-y-3">
+                <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">历史承诺</h2>
+                {historyCommitments.length === 0 ? (
+                  <EmptyState
+                    icon="clock"
+                    title="暂无历史承诺"
+                    desc="立下本周承诺后，每周结算会归档到这里，方便回顾目标的达成情况。"
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {historyCommitments.map((c) => {
+                      const meta = statusMeta(c.status)
+                      return (
+                        <div key={c.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
+                          <div className="min-w-0">
+                            <p className="text-gray-700 dark:text-slate-200">
+                              {formatDateShort(c.week_start)} ~ {formatDateShort(getWeekEndStr(new Date(c.week_start)))}
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-slate-500">
+                              目标 {c.target_hours}h · 押金 ¥{fmtMoney(c.deposit_amount)}
+                            </p>
+                          </div>
+                          <span className={`flex-shrink-0 text-sm ${meta.cls}`}>{meta.label}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* 资金流水 */}
-          <div className="card p-5 space-y-3">
-            <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">资金流水</h2>
-            {transactions.length === 0 ? (
-              <EmptyState
-                icon="chart"
-                title="暂无资金流水"
-                desc="充值、结算与押金变动都会记录在这里，形成完整的资金去向。"
-                action={{
-                  label: '去立下本周承诺',
-                  onClick: () => document.getElementById('commit-form')?.scrollIntoView({ behavior: 'smooth' }),
-                }}
-              />
-            ) : (
-              <div className="space-y-2">
-                {transactions.map((tx) => {
-                  const meta = TX_TYPE_META[tx.type]
-                  return (
-                    <div key={tx.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
-                      <div className="min-w-0">
-                        <p className="text-gray-700 dark:text-slate-200">{meta.label}</p>
-                        {tx.note && <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{tx.note}</p>}
-                      </div>
-                      <span className={`flex-shrink-0 font-semibold tabular-nums ${TX_TYPE_COLORS[tx.type]}`}>
-                        {meta.sign}¥{fmtMoney(tx.amount)}
-                      </span>
-                    </div>
-                  )
-                })}
+              {/* 资金流水 */}
+              <div className="card p-5 space-y-3">
+                <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">资金流水</h2>
+                {transactions.length === 0 ? (
+                  <EmptyState
+                    icon="chart"
+                    title="暂无资金流水"
+                    desc="充值、结算与押金变动都会记录在这里，形成完整的资金去向。"
+                    action={{
+                      label: '去立下本周承诺',
+                      onClick: () => document.getElementById('commit-form')?.scrollIntoView({ behavior: 'smooth' }),
+                    }}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {transactions.map((tx) => {
+                      const meta = TX_TYPE_META[tx.type]
+                      return (
+                        <div key={tx.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
+                          <div className="min-w-0">
+                            <p className="text-gray-700 dark:text-slate-200">{meta.label}</p>
+                            {tx.note && <p className="text-xs text-gray-400 dark:text-slate-500 truncate">{tx.note}</p>}
+                          </div>
+                          <span className={`flex-shrink-0 font-semibold tabular-nums ${TX_TYPE_COLORS[tx.type]}`}>
+                            {meta.sign}¥{fmtMoney(tx.amount)}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <p className="text-center text-xs text-gray-400 dark:text-slate-500 pb-2">
-            承诺金为虚拟资金，仅用于自我激励，不涉及任何真实金钱交易
-          </p>
+              <p className="text-center text-xs text-gray-400 dark:text-slate-500 pb-2">
+                承诺金为虚拟资金，仅用于自我激励，不涉及任何真实金钱交易
+              </p>
+            </div>
+          </div>
 
           <PromptDialog
             open={rechargeOpen}

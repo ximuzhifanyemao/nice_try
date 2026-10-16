@@ -24,6 +24,7 @@ import ShareCard, { CARD_WIDTH, CARD_HEIGHT } from '../components/ShareCard'
 import {
   generateSharePng,
   downloadPng,
+  savePng,
   sharePngFile,
   pickMotto,
   subjectCategoryColor,
@@ -434,9 +435,9 @@ const WeeklySummary: React.FC = () => {
           toast.show('当前环境不支持直接分享，已保存分享图', { icon: '✓' })
         }
       } else {
-        // Web / Tauri：触发浏览器下载
-        downloadPng(dataUrl)
-        toast.show('分享图已生成', { icon: '✓' })
+        // 网页 / 电脑程序：电脑程序弹系统「另存为」对话框（用户取消则不提示成功），网页走浏览器下载
+        const saved = await savePng(dataUrl)
+        if (saved) toast.show('分享图已生成', { icon: '✓' })
       }
     } finally {
       // 截图完成即卸载分享卡、复位按钮状态
@@ -543,6 +544,9 @@ const WeeklySummary: React.FC = () => {
 
       {!loading && !error && (
         <>
+          <div className={wide ? 'grid grid-cols-2 items-start gap-4' : 'space-y-4'}>
+          {/* 左列：本周 vs 上周（核心对比卡 + 逐日对比图表） */}
+          <div className={wide ? 'min-w-0 space-y-4' : 'space-y-4'}>
           {/* 本周 vs 上周 核心对比 */}
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 p-4 text-white shadow-[0_8px_28px_-10px_rgba(79,70,229,0.5)] dark:shadow-none sm:p-5">
             <div aria-hidden className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-white/10 blur-xl" />
@@ -589,7 +593,10 @@ const WeeklySummary: React.FC = () => {
           {!thisWeekHasNoData && (
             <DailyCompareChart dailyDiffs={comparison.dailyDiffs} hasLastWeek={hasLastWeek} />
           )}
+          </div>
 
+          {/* 右列：各科目对比 + 周目标 + 反思笔记 */}
+          <div className={wide ? 'min-w-0 space-y-4' : 'space-y-4'}>
           {/* 科目对比 */}
           <div className="card space-y-3 p-5">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">各科目 · 本周 vs 上周</h2>
@@ -671,6 +678,8 @@ const WeeklySummary: React.FC = () => {
               </div>
             )}
           </div>
+          </div>
+        </div>
         </>
       )}
 

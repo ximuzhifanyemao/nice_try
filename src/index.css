@@ -83,6 +83,17 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* 确定高度链：html/body/#root 都撑满视口。
+   桌面端「左侧固定侧边栏 + 右侧内容列内部滚动」依赖 h-full 层层成立；
+   若 #root 高度是 auto，h-full 会塌成内容高度，整页退回文档滚动，
+   侧边栏被拉成整页高度（底部主题/登出要滚到底才看得见）。
+   移动端仍按 body 溢出滚动，min-h-screen 布局不受影响。 */
+html,
+body,
+#root {
+  height: 100%;
+}
+
 /* ─── 扩展主题：渐变氛围背景 ───
    light/dark 是纯色底；dawn（晨光）/dusk（暮色）在主题根容器（.theme-surface）
    上叠一层柔和渐变，替换原来的纯色底，卡片等局部仍保持实色保证对比度 */

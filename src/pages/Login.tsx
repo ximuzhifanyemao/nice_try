@@ -4,7 +4,9 @@ import QRCode from 'qrcode'
 import { useAuth } from '../contexts/AuthContext'
 import { supabase } from '../lib/supabase'
 import { createQrSession, pollQrSession } from '../lib/qrLogin'
+import { useWideLayout } from '../App'
 import DesktopLogo from '../components/DesktopLogo'
+import AuthDialogShell from '../components/AuthDialogShell'
 
 type Tab = 'password' | 'qr'
 type QrStatus = 'loading' | 'waiting' | 'success' | 'expired' | 'error'
@@ -12,6 +14,7 @@ type QrStatus = 'loading' | 'waiting' | 'success' | 'expired' | 'error'
 export default function Login() {
   const { signIn } = useAuth()
   const navigate = useNavigate()
+  const wide = useWideLayout()
   const [searchParams] = useSearchParams()
   const [tab, setTab] = useState<Tab>('password')
 
@@ -117,6 +120,157 @@ export default function Login() {
     navigate(redirect)
   }
 
+  /** 登录主体（Tab 切换 + 账号密码 / 扫码登录）：手机端与桌面端共用同一份 */
+  const authBody = (
+    <>
+      {/* Tab 切换 */}
+      <div className="seg mb-5">
+        <button
+          type="button"
+          onClick={() => setTab('password')}
+          className={`seg-item ${tab === 'password' ? 'seg-item-active' : 'seg-item-idle'}`}
+        >
+          账号密码
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('qr')}
+          className={`seg-item ${tab === 'qr' ? 'seg-item-active' : 'seg-item-idle'}`}
+        >
+          扫码登录
+        </button>
+      </div>
+
+      {tab === 'password' ? (
+        <>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="email" className="label">
+                邮箱
+              </label>
+              <input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="input"
+                required
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="label">
+                密码
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="至少6位"
+                className="input"
+                required
+              />
+            </div>
+
+            <div className="flex justify-end">
+              <Link to="/forgot-password" className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
+                忘记密码？
+              </Link>
+            </div>
+
+            {error && (
+              <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 dark:text-red-400 px-3 py-2 rounded-lg">{error}</p>
+            )}
+
+            <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
+              {loading ? '登录中...' : '登录'}
+            </button>
+          </form>
+
+          <p className="mt-4 text-center text-sm text-gray-500 dark:text-slate-400">
+            还没有账号？{' '}
+            <Link to="/register" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+              去注册
+            </Link>
+          </p>
+        </>
+      ) : (
+        <div className="flex flex-col items-center text-center py-2">
+          {qrStatus === 'success' ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
+                <span className="text-2xl text-emerald-500 dark:text-emerald-400">✓</span>
+              </div>
+              <p className="text-sm font-medium text-gray-700 dark:text-slate-200">登录成功</p>
+            </div>
+          ) : qrStatus === 'expired' ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center">
+                <span className="text-2xl text-amber-500 dark:text-amber-400">⏰</span>
+              </div>
+              <p className="text-sm text-gray-500 dark:text-slate-400">二维码已过期</p>
+              <button
+                type="button"
+                onClick={startQr}
+                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+              >
+                重新生成
+              </button>
+            </div>
+          ) : qrStatus === 'error' ? (
+            <div className="flex flex-col items-center gap-3 py-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center">
+                <span className="text-2xl text-red-500 dark:text-red-400">✕</span>
+              </div>
+              <p className="text-sm text-red-500 dark:text-red-400 max-w-[220px]">{qrError}</p>
+              <button
+                type="button"
+                onClick={startQr}
+                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+              >
+                重试
+              </button>
+            </div>
+          ) : qrStatus === 'loading' ? (
+            <div className="flex flex-col items-center gap-3 py-6">
+              <div className="w-8 h-8 animate-spin rounded-full border-2 border-gray-200 dark:border-slate-700 border-t-indigo-500" />
+              <p className="text-xs text-gray-500 dark:text-slate-400">生成二维码中…</p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                {wide ? '用手机 DiveDeep 扫码确认' : '用已登录的手机 App 扫描下方二维码'}
+              </p>
+              {qrDataUrl && (
+                <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 p-2 bg-white">
+                  <img src={qrDataUrl} alt="登录二维码" className="rounded-lg" width={180} height={180} />
+                </div>
+              )}
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                <p className="text-xs text-gray-500 dark:text-slate-400">等待手机确认…</p>
+              </div>
+              <p className="text-[11px] text-gray-400 dark:text-slate-500">
+                {wide ? '手机端打开 DiveDeep：我的 → 扫码登录电脑' : '打开手机 App/网页登录后扫码即可在此登录'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  )
+
+  /* 桌面端：左品牌 + 右表单的双栏（不用 min-h-[70vh] 把表单顶在屏幕正中） */
+  if (wide) {
+    return (
+      <AuthDialogShell title="欢迎回来" desc="登录后开启你的考研学习之旅">
+        {authBody}
+      </AuthDialogShell>
+    )
+  }
+
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4 py-6">
       <div className="w-full max-w-sm">
@@ -130,144 +284,8 @@ export default function Login() {
         </div>
 
         <div className="card p-6 sm:p-7">
-        <h2 className="mb-4 text-center text-lg font-semibold text-gray-800 dark:text-slate-100">欢迎回来</h2>
-
-        {/* Tab 切换 */}
-        <div className="seg mb-5">
-          <button
-            type="button"
-            onClick={() => setTab('password')}
-            className={`seg-item ${tab === 'password' ? 'seg-item-active' : 'seg-item-idle'}`}
-          >
-            账号密码
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('qr')}
-            className={`seg-item ${tab === 'qr' ? 'seg-item-active' : 'seg-item-idle'}`}
-          >
-            扫码登录
-          </button>
-        </div>
-
-        {tab === 'password' ? (
-          <>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="email" className="label">
-                  邮箱
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  className="input"
-                  required
-                />
-              </div>
-
-              <div>
-                <label htmlFor="password" className="label">
-                  密码
-                </label>
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="至少6位"
-                  className="input"
-                  required
-                />
-              </div>
-
-              <div className="flex justify-end">
-                <Link to="/forgot-password" className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">
-                  忘记密码？
-                </Link>
-              </div>
-
-              {error && (
-                <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 dark:text-red-400 px-3 py-2 rounded-lg">{error}</p>
-              )}
-
-              <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
-                {loading ? '登录中...' : '登录'}
-              </button>
-            </form>
-
-            <p className="mt-4 text-center text-sm text-gray-500 dark:text-slate-400">
-              还没有账号？{' '}
-              <Link to="/register" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-                去注册
-              </Link>
-            </p>
-          </>
-        ) : (
-          <div className="flex flex-col items-center text-center py-2">
-            {qrStatus === 'success' ? (
-              <div className="flex flex-col items-center gap-3 py-4">
-                <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-500/20 flex items-center justify-center">
-                  <span className="text-2xl text-emerald-500 dark:text-emerald-400">✓</span>
-                </div>
-                <p className="text-sm font-medium text-gray-700 dark:text-slate-200">登录成功</p>
-              </div>
-            ) : qrStatus === 'expired' ? (
-              <div className="flex flex-col items-center gap-3 py-4">
-                <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-500/20 flex items-center justify-center">
-                  <span className="text-2xl text-amber-500 dark:text-amber-400">⏰</span>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-slate-400">二维码已过期</p>
-                <button
-                  type="button"
-                  onClick={startQr}
-                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
-                >
-                  重新生成
-                </button>
-              </div>
-            ) : qrStatus === 'error' ? (
-              <div className="flex flex-col items-center gap-3 py-4">
-                <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-500/20 flex items-center justify-center">
-                  <span className="text-2xl text-red-500 dark:text-red-400">✕</span>
-                </div>
-                <p className="text-sm text-red-500 dark:text-red-400 max-w-[220px]">{qrError}</p>
-                <button
-                  type="button"
-                  onClick={startQr}
-                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
-                >
-                  重试
-                </button>
-              </div>
-            ) : qrStatus === 'loading' ? (
-              <div className="flex flex-col items-center gap-3 py-6">
-                <div className="w-8 h-8 animate-spin rounded-full border-2 border-gray-200 dark:border-slate-700 border-t-indigo-500" />
-                <p className="text-xs text-gray-500 dark:text-slate-400">生成二维码中…</p>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center gap-3">
-                <p className="text-xs text-gray-500 dark:text-slate-400">
-                  用已登录的手机 App 扫描下方二维码
-                </p>
-                {qrDataUrl && (
-                  <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-slate-700 p-2 bg-white">
-                    <img src={qrDataUrl} alt="登录二维码" className="rounded-lg" width={180} height={180} />
-                  </div>
-                )}
-                <div className="flex items-center gap-1.5">
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
-                  <p className="text-xs text-gray-500 dark:text-slate-400">等待手机确认…</p>
-                </div>
-                <p className="text-[11px] text-gray-400 dark:text-slate-500">
-                  打开手机 App/网页登录后扫码即可在此登录
-                </p>
-              </div>
-            )}
-          </div>
-        )}
+          <h2 className="mb-4 text-center text-lg font-semibold text-gray-800 dark:text-slate-100">欢迎回来</h2>
+          {authBody}
         </div>
       </div>
     </div>

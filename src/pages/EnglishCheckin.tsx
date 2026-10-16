@@ -564,19 +564,31 @@ export default function EnglishCheckin() {
 
   return (
     <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-5xl'} px-4 py-4 space-y-4`}>
-      {/* 进度条 */}
+      {/* 进度条：桌面端压成一条横向状态栏（标题 + 进度 + 天数），手机端保持纵向卡片 */}
       <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
-        <div className="flex items-center justify-between">
-          <h1 className="text-base font-bold">英语长难句打卡</h1>
-          <span className="text-sm text-gray-500 dark:text-slate-400">{completedDays.size}/{TOTAL} 天</span>
+        <div className={wide ? 'flex items-center gap-4' : ''}>
+          <div className={wide ? 'shrink-0' : ''}>
+            <div className="flex items-center justify-between">
+              <h1 className="text-base font-bold">英语长难句打卡</h1>
+              {!wide && <span className="text-sm text-gray-500 dark:text-slate-400">{completedDays.size}/{TOTAL} 天</span>}
+            </div>
+            {wide && (
+              <p className="text-xs text-gray-500 dark:text-slate-400">
+                {allDone ? '🎉 恭喜完成全部 150 天打卡！' : `按顺序打卡，接下来是 Day ${nextDay}`}
+              </p>
+            )}
+          </div>
+          <div className={`${wide ? 'min-w-0 flex-1' : 'mt-3'} w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden`}>
+            <div className={`h-full rounded-full transition-all ${progress >= 100 ? 'bg-green-500' : 'bg-blue-500'}`}
+              style={{ width: `${progress}%` }} />
+          </div>
+          {wide && <span className="shrink-0 text-sm font-medium text-gray-600 dark:text-slate-300">{completedDays.size}/{TOTAL} 天</span>}
         </div>
-        <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden mt-3">
-          <div className={`h-full rounded-full transition-all ${progress >= 100 ? 'bg-green-500' : 'bg-blue-500'}`}
-            style={{ width: `${progress}%` }} />
-        </div>
-        <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
-          {allDone ? '🎉 恭喜完成全部 150 天打卡！' : `按顺序打卡，接下来是 Day ${nextDay}`}
-        </p>
+        {!wide && (
+          <p className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+            {allDone ? '🎉 恭喜完成全部 150 天打卡！' : `按顺序打卡，接下来是 Day ${nextDay}`}
+          </p>
+        )}
       </div>
 
       {error && (
@@ -597,7 +609,7 @@ export default function EnglishCheckin() {
         </div>
         <p className="text-xs text-gray-400 dark:text-slate-500 mb-3">点击单词标记生词 · 逐句翻译后点击「打分」</p>
 
-        <div className="space-y-5">
+        <div className={wide ? 'grid grid-cols-2 items-start gap-4' : 'space-y-5'}>
           {dayData.sentences.map((s, sentIdx) => {
             const tokens = tokenizeSentence(s.en)
             const tKey = `${dayData.day}-${sentIdx}`
@@ -869,7 +881,7 @@ export default function EnglishCheckin() {
         <button
           onClick={handleCheckIn}
           disabled={!isNext || isDone || allDone || busy || loading}
-          className="w-full rounded-xl bg-green-600 hover:bg-green-700 disabled:bg-gray-300 dark:disabled:bg-slate-700 disabled:text-gray-500 dark:disabled:text-slate-400 text-white py-3 text-base font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed"
+          className={`${wide ? 'px-8' : 'w-full'} rounded-xl bg-green-600 hover:bg-green-700 disabled:bg-gray-300 dark:disabled:bg-slate-700 disabled:text-gray-500 dark:disabled:text-slate-400 text-white py-3 text-base font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed`}
         >
           {allDone ? '全部完成 🎉' : isDone ? `Day ${selectedDay} 已打卡 ✓` : isNext ? `完成今日打卡 Day ${nextDay}` : `Day ${selectedDay} 待打卡`}
         </button>
@@ -877,17 +889,17 @@ export default function EnglishCheckin() {
           <button
             onClick={handleUndo}
             disabled={busy}
-            className="w-full rounded-xl border border-gray-300 dark:border-slate-600 bg-transparent text-gray-600 dark:text-slate-300 py-2 text-sm transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer disabled:opacity-50"
+            className={`${wide ? 'px-8' : 'w-full'} rounded-xl border border-gray-300 dark:border-slate-600 bg-transparent text-gray-600 dark:text-slate-300 py-2 text-sm transition-colors hover:bg-gray-50 dark:hover:bg-slate-700 cursor-pointer disabled:opacity-50`}
           >
             撤销 Day {lastDoneDay} 打卡
           </button>
         )}
       </div>
 
-      {/* 150 天进度网格 */}
+      {/* 150 天进度网格：桌面端铺成一行 15 天（150 天正好 10 行），手机端保持 10 列 */}
       <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
         <p className="text-sm font-medium text-gray-600 dark:text-slate-300 mb-3">150 天进度</p>
-        <div className="grid grid-cols-10 gap-1.5">
+        <div className={wide ? 'grid grid-cols-[repeat(15,minmax(0,1fr))] gap-1.5' : 'grid grid-cols-10 gap-1.5'}>
           {daily.map((d) => {
             const done = completedDays.has(d.day)
             const isCurrent = d.day === nextDay

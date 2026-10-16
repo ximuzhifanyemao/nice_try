@@ -1,5 +1,11 @@
 import { supabase } from './supabase'
 
+/** 一次暂停记录：at=暂停开始的 HH:mm，ms=本次暂停时长（毫秒） */
+export interface DailyLogPause {
+  at: string
+  ms: number
+}
+
 export interface DailyLogSubject {
   id: string
   hours: number
@@ -8,6 +14,13 @@ export interface DailyLogSubject {
   // 学习时间段（HH:mm，零填充如 "14:05"），仅由计时器记录
   startTime?: string
   endTime?: string
+  // 本次学习中的暂停明细（仅由计时器记录，用于回顾当天节奏）
+  pauses?: DailyLogPause[]
+}
+
+/** 暂停明细总时长（毫秒） */
+export function totalPauseMs(pauses?: DailyLogPause[]): number {
+  return (pauses ?? []).reduce((sum, p) => sum + (p.ms || 0), 0)
 }
 
 export interface DailyLog {

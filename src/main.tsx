@@ -54,8 +54,9 @@ function WebDesktopLayout({ forceTwoCol = true }: { forceTwoCol?: boolean }) {
         </div>
         <span className="text-xs text-gray-400 dark:text-slate-600">网页版</span>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
-        <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight={forceTwoCol} forceTwoCol={forceTwoCol} />
+      {/* 滚动职责在 App 内部：只有右侧内容列滚动，侧边栏整列固定不随滚轮移动 */}
+      <div className="min-h-0 flex-1">
+        <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight forceTwoCol={forceTwoCol} />
       </div>
     </div>
   )

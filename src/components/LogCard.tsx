@@ -5,6 +5,7 @@ import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 import { formatDateShort, formatTimeRange } from '../lib/format'
 import { useToast } from '../lib/Toast'
+import DayTimeline from './DayTimeline'
 import ConfirmDialog from './ConfirmDialog'
 
 interface LogCardProps {
@@ -132,6 +133,9 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
       ) : (
         <p className="text-sm text-gray-400 dark:text-slate-500">暂无科目记录</p>
       )}
+
+      {/* 当日节奏时间轴：把有起止时间的时段画在一条 24 小时轴上，并对比各时段时长 */}
+      <DayTimeline subjects={log.subjects ?? []} />
 
       {log.summary && (
         <p className="text-sm text-gray-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap line-clamp-6">

@@ -10,6 +10,15 @@ import {
 } from '../lib/achievements'
 import { useWideLayout } from '../App'
 
+/**
+ * 宽屏两栏的分类分组：按徽章行数把 7 个分类配平（左右各 7 行，每栏内部仍按原顺序），
+ * 避免一列堆满、另一列留白；窄屏不参与，仍按 ACHIEVEMENT_CATEGORIES 原顺序单栏排列。
+ */
+const WIDE_COLUMN_KEYS: AchievementCategory[][] = [
+  ['day', 'total', 'streak'],
+  ['days', 'subject', 'timer', 'fun'],
+]
+
 /** 单个成就徽章 */
 function Badge({ state }: { state: AchievementState }) {
   const { def, unlocked, current, progress } = state
@@ -59,6 +68,32 @@ export default function Achievements() {
     }
     return map
   }, [states])
+
+  /** 宽屏两栏的分类（按 WIDE_COLUMN_KEYS 配平；窄屏不参与） */
+  const wideColumns = WIDE_COLUMN_KEYS.map((keys) =>
+    ACHIEVEMENT_CATEGORIES.filter((c) => keys.includes(c.key)),
+  )
+
+  const renderCategory = (cat: (typeof ACHIEVEMENT_CATEGORIES)[number]) => {
+    const list = grouped.get(cat.key) ?? []
+    if (list.length === 0) return null
+    const catUnlocked = list.filter((s) => s.unlocked).length
+    return (
+      <div key={cat.key} className="space-y-2">
+        <div className="flex items-center gap-2 pt-2">
+          <span className="text-base">{cat.icon}</span>
+          <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">{cat.label}</h2>
+          <span className="text-xs text-gray-400 dark:text-slate-500">{catUnlocked} / {list.length}</span>
+        </div>
+        {/* 宽屏少列铺开（徽章更宽），窄屏保持原来的多列密度 */}
+        <div className={wide ? 'grid grid-cols-3 gap-3' : 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3'}>
+          {list.map((state) => (
+            <Badge key={state.def.id} state={state} />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-4xl'} px-4 py-4 space-y-4`}>
@@ -111,26 +146,16 @@ export default function Achievements() {
             </div>
           </div>
 
-          {/* 分类徽章 */}
-          {ACHIEVEMENT_CATEGORIES.map((cat) => {
-            const list = grouped.get(cat.key) ?? []
-            if (list.length === 0) return null
-            const catUnlocked = list.filter((s) => s.unlocked).length
-            return (
-              <div key={cat.key} className="space-y-2">
-                <div className="flex items-center gap-2 pt-2">
-                  <span className="text-base">{cat.icon}</span>
-                  <h2 className="text-base font-semibold text-gray-700 dark:text-slate-200">{cat.label}</h2>
-                  <span className="text-xs text-gray-400 dark:text-slate-500">{catUnlocked} / {list.length}</span>
-                </div>
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-                  {list.map((state) => (
-                    <Badge key={state.def.id} state={state} />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
+          {/* 分类徽章：宽屏分两栏铺开（缩短纵向长度），窄屏单栏保持原顺序 */}
+          <div className={wide ? 'grid grid-cols-2 items-start gap-4' : 'space-y-4'}>
+            {wide
+              ? wideColumns.map((cats, i) => (
+                  <div key={i} className="min-w-0 space-y-4">
+                    {cats.map(renderCategory)}
+                  </div>
+                ))
+              : ACHIEVEMENT_CATEGORIES.map(renderCategory)}
+          </div>
         </>
       )}
     </div>

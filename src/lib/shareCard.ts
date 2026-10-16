@@ -1,8 +1,10 @@
 import html2canvas from 'html2canvas'
+import { isTauri } from '@tauri-apps/api/core'
 
 /**
  * 分享图（周报生成分享卡）相关类型与导出逻辑。
- * 说明：仅用 html2canvas 对 DOM 节点截图，导出为 PNG；Web/Tauri 走 <a download>，
+ * 说明：仅用 html2canvas 对 DOM 节点截图，导出为 PNG；
+ * 电脑程序（Tauri）走系统「另存为」对话框，网页走 <a download>，
  * Capacitor 原生优先用 navigator.share 分享文件（不支持再回退下载）。
  */
 
@@ -88,6 +90,49 @@ export function downloadPng(dataUrl: string, filename = 'weekly-summary.png') {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
+}
+
+/**
+ * 保存分享图 PNG。
+ * - 电脑程序（Tauri）：弹系统「另存为」对话框后落盘
+ * - 网页 / 安卓：沿用浏览器下载
+ * 返回 false 表示用户取消了保存。
+ */
+export async function savePng(dataUrl: string, filename = 'weekly-summary.png'): Promise<boolean> {
+  if (isTauri()) {
+    const result = await savePngViaDialog(dataUrl, filename)
+    if (result !== null) return result
+  }
+  downloadPng(dataUrl, filename)
+  return true
+}
+
+/** dataURL(PNG) → 字节：手工 base64 解码，避免 fetch(data:) 被 CSP 的 connect-src 拦下 */
+function dataUrlToBytes(dataUrl: string): Uint8Array {
+  const base64 = dataUrl.slice(dataUrl.indexOf(',') + 1)
+  const bin = atob(base64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  return bytes
+}
+
+/** 桌面端：系统「另存为」对话框 + 写文件；插件不可用时返回 null（交给调用方回退） */
+async function savePngViaDialog(dataUrl: string, filename: string): Promise<boolean | null> {
+  try {
+    const [{ save }, { writeFile }] = await Promise.all([
+      import('@tauri-apps/plugin-dialog'),
+      import('@tauri-apps/plugin-fs'),
+    ])
+    const path = await save({
+      defaultPath: filename,
+      filters: [{ name: 'PNG 图片', extensions: ['png'] }],
+    })
+    if (!path) return false
+    await writeFile(path, dataUrlToBytes(dataUrl))
+    return true
+  } catch {
+    return null
+  }
 }
 
 /** 带文件分享能力判定用的 navigator 类型 */

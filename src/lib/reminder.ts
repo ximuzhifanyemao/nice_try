@@ -1,5 +1,6 @@
 import type { LocalNotificationSchema } from '@capacitor/local-notifications'
 import { Capacitor } from '@capacitor/core'
+import { isTauri } from '@tauri-apps/api/core'
 
 /**
  * 打卡提醒配置（设备本地，不随账号同步）。
@@ -7,7 +8,7 @@ import { Capacitor } from '@capacitor/core'
  */
 
 // ── 原生（Android）端本地通知调度 ──
-// 说明：Web/Tauri 依赖浏览器 Notification（见 notifyMissedCheckin）。
+// 说明：电脑程序（Tauri）走系统通知插件，浏览器走 Web Notification（见 notifyMissedCheckin）。
 // Android 端改用 @capacitor/local-notifications 做系统级「每日提醒」，
 // App 关闭/杀后台时也能按调度送达。这里用「固定 id 区间」调度，
 // 登录态/开关/时间/打卡状态变化后整体 cancel+schedule 重建，天然幂等。
@@ -168,13 +169,70 @@ export function markNotifiedToday(): void {
   }
 }
 
-/** 浏览器通知可用性 */
+/* ── 通知渠道分发（浏览器 / 电脑程序 / Android 三端一套入口） ──
+   - 电脑程序（Tauri）：tauri-plugin-notification 的 Windows 原生 Toast
+   - 浏览器：Web Notification（需用户授权，只在页面打开时生效）
+   - Android：走上方的 local-notifications 每日调度
+   Tauri 分支按需加载插件；若拿不到插件（例如安装包仍是未接入插件的旧版本），
+   自动回退到浏览器方案，保证任何环境下都不会因缺插件而报错。 */
+
+type TauriNotifApi = typeof import('@tauri-apps/plugin-notification')
+
+let tauriNotifPromise: Promise<TauriNotifApi | null> | null = null
+
+/** 按需加载 Tauri 系统通知插件；非电脑程序或插件不可用时返回 null */
+function loadTauriNotif(): Promise<TauriNotifApi | null> {
+  if (!isTauri()) return Promise.resolve(null)
+  if (!tauriNotifPromise) {
+    tauriNotifPromise = import('@tauri-apps/plugin-notification').catch(() => null)
+  }
+  return tauriNotifPromise
+}
+
+/**
+ * 确认电脑程序的通知可用（并让插件把授权状态翻正）。
+ *
+ * Windows 没有系统级通知授权概念：插件的桌面实现恒返回 granted，但它的 JS 侧
+ * 在本次会话首次 `requestPermission()` 之前会把 `Notification.permission` 误报为
+ * denied（导致 `isPermissionGranted()` 返回 false）。桌面端 requestPermission 不会
+ * 弹任何系统对话框，所以这里统一「先问一次再发」。
+ */
+async function ensureTauriPermission(api: TauriNotifApi): Promise<boolean> {
+  try {
+    if (await api.isPermissionGranted()) return true
+    return (await api.requestPermission()) === 'granted'
+  } catch {
+    return false
+  }
+}
+
+/** 是否运行在电脑程序（Tauri）里：用于把「浏览器设置」这类文案换成系统通知的说法 */
+export function isDesktopApp(): boolean {
+  return isTauri()
+}
+
+/** 通知授权状态：unsupported = 当前环境没有可用通道 */
+export type NotificationPermissionState = 'granted' | 'denied' | 'default' | 'unsupported'
+
+/** 浏览器通知可用性（电脑程序由系统通知插件提供，恒为可用） */
 export function notificationsSupported(): boolean {
+  if (isTauri()) return true
   return typeof window !== 'undefined' && 'Notification' in window
 }
 
-/** 请求通知权限（返回是否已授权） */
+/** 读取当前通知授权状态（不触发任何请求） */
+export async function getNotificationPermission(): Promise<NotificationPermissionState> {
+  const tauri = await loadTauriNotif()
+  // 电脑程序：桌面实现恒为已授权（Windows 没有系统级授权开关），直接按可用处理
+  if (tauri) return 'granted'
+  if (!notificationsSupported()) return 'unsupported'
+  return Notification.permission as NotificationPermissionState
+}
+
+/** 请求通知权限（返回是否已授权；环境不支持或用户拒绝时返回 false） */
 export async function requestNotificationPermission(): Promise<boolean> {
+  const tauri = await loadTauriNotif()
+  if (tauri) return ensureTauriPermission(tauri)
   if (!notificationsSupported()) return false
   if (Notification.permission === 'granted') return true
   if (Notification.permission === 'denied') return false
@@ -186,23 +244,52 @@ export async function requestNotificationPermission(): Promise<boolean> {
   }
 }
 
-/** 发送一条打卡提醒（失败时静默，不影响使用） */
-export function notifyMissedCheckin(extra?: string): void {
+/** 发送一条系统通知：电脑程序走原生 Toast，浏览器走 Web Notification（失败时静默） */
+export async function sendSystemNotification(title: string, body: string, tag?: string): Promise<void> {
+  const tauri = await loadTauriNotif()
+  if (tauri) {
+    try {
+      if (await ensureTauriPermission(tauri)) tauri.sendNotification({ title, body })
+    } catch {
+      /* 忽略发送失败 */
+    }
+    return
+  }
   if (!notificationsSupported() || Notification.permission !== 'granted') return
   try {
-    const n = new Notification('DiveDeep · 今日还没打卡', {
-      body: `${extra ? extra + '；' : ''}记得今天也得记录学习哦 📚`,
-      tag: 'divedeep-checkin-reminder',
-    })
-    n.onclick = () => {
-      window.focus()
-      try {
-        window.location.hash = '#/my-records/new'
-      } catch {
-        /* 忽略 */
-      }
-    }
+    new Notification(title, { body, tag })
   } catch {
     /* 部分环境不支持构造 Notification，忽略 */
   }
+}
+
+/** 发送一条打卡提醒（失败时静默，不影响使用） */
+export function notifyMissedCheckin(extra?: string): void {
+  const title = 'DiveDeep · 今日还没打卡'
+  const body = `${extra ? extra + '；' : ''}记得今天也得记录学习哦 📚`
+  void (async () => {
+    const tauri = await loadTauriNotif()
+    if (tauri) {
+      try {
+        if (await ensureTauriPermission(tauri)) tauri.sendNotification({ title, body })
+      } catch {
+        /* 忽略 */
+      }
+      return
+    }
+    if (!notificationsSupported() || Notification.permission !== 'granted') return
+    try {
+      const n = new Notification(title, { body, tag: 'divedeep-checkin-reminder' })
+      n.onclick = () => {
+        window.focus()
+        try {
+          window.location.hash = '#/my-records/new'
+        } catch {
+          /* 忽略 */
+        }
+      }
+    } catch {
+      /* 部分环境不支持构造 Notification，忽略 */
+    }
+  })()
 }

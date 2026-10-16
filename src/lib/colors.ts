@@ -1,7 +1,8 @@
 /**
  * 科目类别的统一配色方案
- * 按用途区分：chip（标签/徽章）、bar（进度条/图形）、card（表单卡片）、button（按钮）
- * 所有组件从本模块取色，避免重复定义不一致
+ * 按用途区分：chip（标签/徽章）、bar（进度条/图形）、card（表单卡片）、dot（中性列表里的类别色点）
+ * 所有组件从本模块取色，避免重复定义不一致。
+ * 计时界面的科目行/按钮配色见 lib/timerTone.ts（按计时状态而非类别取色）。
  */
 
 export const CHIP_COLORS: Record<string, string> = {
@@ -23,13 +24,6 @@ export const CARD_COLORS: Record<string, string> = {
   english: 'bg-green-50 border-green-300 dark:bg-green-900/20 dark:border-green-700/50',
   '408': 'bg-purple-50 border-purple-300 dark:bg-purple-900/20 dark:border-purple-700/50',
   politics: 'bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-700/50',
-}
-
-export const BUTTON_COLORS: Record<string, string> = {
-  math: 'border-blue-500/40 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/30 dark:hover:bg-blue-500/20',
-  english: 'border-green-500/40 bg-green-500/10 text-green-600 hover:bg-green-500/20 dark:bg-green-500/10 dark:text-green-400 dark:border-green-500/30 dark:hover:bg-green-500/20',
-  '408': 'border-purple-500/40 bg-purple-500/10 text-purple-600 hover:bg-purple-500/20 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/30 dark:hover:bg-purple-500/20',
-  politics: 'border-red-500/40 bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:bg-red-500/10 dark:text-red-400 dark:border-red-500/30 dark:hover:bg-red-500/20',
 }
 
 export const CHIP_FALLBACK = 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-300'
@@ -62,11 +56,6 @@ export function getBarColor(category?: string): string {
 /** 表单卡片边框配色（LogForm） */
 export function getCardColor(category?: string): string {
   return (category && CARD_COLORS[category]) || CARD_FALLBACK
-}
-
-/** 科目按钮配色（StudyTimer） */
-export function getButtonColor(category?: string): string {
-  return (category && BUTTON_COLORS[category]) || BUTTON_COLORS['408']
 }
 
 /** 类别色点配色：中性列表里的轻量色相标记 */

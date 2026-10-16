@@ -38,6 +38,10 @@ export type IconName =
   | 'trophy'
   | 'award'
   | 'key' // 密码提交
+  | 'play' // 计时：开始/继续（实心，配合 fill="currentColor"）
+  | 'pause' // 计时：暂停（实心）
+  | 'stop' // 计时：结束（实心）
+  | 'copy' // 复制（桌面端复制邮箱/ID）
 
 const PATHS: Record<IconName, ReactNode> = {
   home: (
@@ -240,6 +244,28 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="m11 12 9-9" />
       <path d="M17 6l2.5 2.5" />
       <path d="M14 9l2.5 2.5" />
+    </>
+  ),
+  play: (
+    <>
+      <path d="M8 5.5v13l11-6.5z" />
+    </>
+  ),
+  pause: (
+    <>
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
+    </>
+  ),
+  stop: (
+    <>
+      <rect x="6" y="6" width="12" height="12" rx="2" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="12" height="12" rx="2" />
+      <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
     </>
   ),
 }

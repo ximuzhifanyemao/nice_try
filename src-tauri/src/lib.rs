@@ -5,6 +5,13 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
   tauri::Builder::default()
+    // 系统通知（Windows 原生 Toast）：桌面端打卡提醒/番茄钟提醒走这条通道，
+    // 不再依赖 WebView 内被拒绝授权的浏览器 Notification
+    .plugin(tauri_plugin_notification::init())
+    // 系统「另存为」对话框 + 文件写入：桌面端导出数据/分享图用它落盘，
+    // 取代浏览器 <a download>（后者只能默默写进下载目录，用户无法选路径）
+    .plugin(tauri_plugin_dialog::init())
+    .plugin(tauri_plugin_fs::init())
     .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
       // 单实例限制：重复启动时只把已有窗口带到前台，不再新开一个实例
       if let Some(window) = app.get_webview_window("main") {

@@ -1,9 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useWideLayout } from '../App'
+import AuthDialogShell from '../components/AuthDialogShell'
 
 /** 忘记密码：输入邮箱 → 发送重置链接（链接跳回 /reset-password 设置新密码） */
 export default function ForgotPassword() {
+  const wide = useWideLayout()
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [sent, setSent] = useState(false)
@@ -33,6 +36,71 @@ export default function ForgotPassword() {
     setSent(true)
   }
 
+  /** 已发送状态的内容块（标题由两种布局各自渲染，避免重复出现两个标题） */
+  const sentBody = (
+    <div className="text-center py-2">
+      <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20">
+        <span className="text-2xl text-emerald-500 dark:text-emerald-400">✓</span>
+      </div>
+      <p className="text-sm text-gray-500 dark:text-slate-400 leading-relaxed">
+        如果该邮箱已注册，我们已向 <span className="font-medium text-gray-700 dark:text-slate-300">{email}</span> 发送密码重置链接，请查收邮件并按提示设置新密码。
+      </p>
+      <p className="mt-2 text-xs text-gray-400 dark:text-slate-500">如未收到，请检查垃圾邮件箱，或确认输入的邮箱为注册邮箱。</p>
+      <Link to="/login" className="mt-5 inline-block text-sm text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+        返回登录
+      </Link>
+    </div>
+  )
+
+  /** 表单内容块 */
+  const formBody = (
+    <>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="email" className="label">
+            邮箱
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="your@email.com"
+            className="input"
+            required
+          />
+        </div>
+
+        {error && (
+          <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 dark:text-red-400 px-3 py-2 rounded-lg">{error}</p>
+        )}
+
+        <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
+          {loading ? '发送中...' : '发送重置链接'}
+        </button>
+      </form>
+
+      <p className="mt-4 text-center text-sm text-gray-500 dark:text-slate-400">
+        想起密码了？{' '}
+        <Link to="/login" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+          返回登录
+        </Link>
+      </p>
+    </>
+  )
+
+  /* 桌面端：左品牌 + 右表单的双栏 */
+  if (wide) {
+    return (
+      <AuthDialogShell
+        title={sent ? '邮件已发送' : '忘记密码'}
+        desc={sent ? '请查收邮件并按提示设置新密码' : '输入注册邮箱，我们将发送密码重置链接'}
+      >
+        {sent ? sentBody : formBody}
+      </AuthDialogShell>
+    )
+  }
+
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4 py-6">
       <div className="w-full max-w-sm">
@@ -50,56 +118,17 @@ export default function ForgotPassword() {
 
         <div className="card p-6 sm:p-7">
           {sent ? (
-            <div className="text-center py-2">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20">
-                <span className="text-2xl text-emerald-500 dark:text-emerald-400">✓</span>
-              </div>
-              <h2 className="mb-2 text-lg font-semibold text-gray-800 dark:text-slate-100">邮件已发送</h2>
-              <p className="text-sm text-gray-500 dark:text-slate-400 leading-relaxed">
-                如果该邮箱已注册，我们已向 <span className="font-medium text-gray-700 dark:text-slate-300">{email}</span> 发送密码重置链接，请查收邮件并按提示设置新密码。
-              </p>
-              <p className="mt-2 text-xs text-gray-400 dark:text-slate-500">如未收到，请检查垃圾邮件箱，或确认输入的邮箱为注册邮箱。</p>
-              <Link to="/login" className="mt-5 inline-block text-sm text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-                返回登录
-              </Link>
-            </div>
+            <>
+              <h2 className="mb-2 text-lg font-semibold text-gray-800 dark:text-slate-100 text-center">邮件已发送</h2>
+              {sentBody}
+            </>
           ) : (
             <>
               <h2 className="mb-4 text-center text-lg font-semibold text-gray-800 dark:text-slate-100">忘记密码</h2>
               <p className="mb-4 text-center text-xs text-gray-500 dark:text-slate-400">
                 输入注册邮箱，我们将发送密码重置链接
               </p>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="email" className="label">
-                    邮箱
-                  </label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    className="input"
-                    required
-                  />
-                </div>
-
-                {error && (
-                  <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 dark:text-red-400 px-3 py-2 rounded-lg">{error}</p>
-                )}
-
-                <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
-                  {loading ? '发送中...' : '发送重置链接'}
-                </button>
-              </form>
-
-              <p className="mt-4 text-center text-sm text-gray-500 dark:text-slate-400">
-                想起密码了？{' '}
-                <Link to="/login" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-                  返回登录
-                </Link>
-              </p>
+              {formBody}
             </>
           )}
         </div>

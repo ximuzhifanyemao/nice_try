@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import jsQR from 'jsqr'
 import { Capacitor } from '@capacitor/core'
 import { BarcodeScanner, BarcodeFormat, LensFacing } from '@capacitor-mlkit/barcode-scanning'
 import type { PluginListenerHandle } from '@capacitor/core'
 import { useAuth } from '../contexts/AuthContext'
+import { useWideLayout } from '../App'
+import { Icon } from '../components/Icon'
 import { confirmQrLogin } from '../lib/qrLogin'
 import './scan-overlay.css'
 
@@ -55,6 +57,8 @@ function stopStream(stream: MediaStream | null) {
 export default function ScanQr() {
   const navigate = useNavigate()
   const { user } = useAuth()
+  /** 电脑程序（全部功能窗口）：桌面没有扫码场景，只渲染说明面板，不碰相机 */
+  const wide = useWideLayout()
   const [status, setStatus] = useState<Status>('idle')
   const [error, setError] = useState('')
   const [startingStream, setStartingStream] = useState(true)
@@ -74,6 +78,8 @@ export default function ScanQr() {
   // - 浏览器：getUserMedia + jsQR 逐帧解码
   // 卸载时分别做对应清理，避免相机常开/泄漏。
   useEffect(() => {
+    // 桌面端不启动相机（连权限都不会请求），界面由下方的说明面板承担
+    if (wide) return
     if (isNative) {
       startNativeScan()
     } else {
@@ -317,6 +323,34 @@ export default function ScanQr() {
   }
 
   const back = () => navigate(-1)
+
+  /* 桌面端：不渲染相机取景与选图入口，改为说明面板（扫码这件事天然属于手机） */
+  if (wide) {
+    return (
+      <div className="mx-auto flex h-full max-w-[640px] flex-col items-center justify-center gap-3 px-8 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+          <Icon name="smartphone" size={26} />
+        </div>
+        <h1 className="text-xl font-semibold text-gray-800 dark:text-slate-100">扫码登录在手机上完成</h1>
+        <p className="max-w-[520px] text-sm leading-relaxed text-gray-500 dark:text-slate-400">
+          电脑端不需要摄像头：在「登录 → 扫码登录」标签下会显示二维码，
+          用手机 DiveDeep 登录后打开「我的 → 扫码登录电脑」，扫描该二维码即可完成登录。
+        </p>
+        <div className="mt-2 flex items-center gap-3">
+          <Link to="/login" className="btn-primary h-9 px-4 py-0 text-xs">
+            去登录页
+          </Link>
+          <button
+            type="button"
+            onClick={back}
+            className="h-9 cursor-pointer rounded-lg px-4 text-xs text-gray-600 transition-colors hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-800/60"
+          >
+            返回上一页
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const renderScannable =
     status === 'idle' || status === 'no-camera' || status === 'error'

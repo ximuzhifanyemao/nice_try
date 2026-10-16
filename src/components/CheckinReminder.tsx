@@ -15,7 +15,8 @@ import {
 
 /**
  * 打卡断签提醒触发器（全局挂载，随 App 常驻）。
- * - Web/Tauri：已登录 + 开启提醒 + 过了提醒时间 + 今天尚未打卡 + 今天还没提醒过 → 弹浏览器通知。
+ * - Web / 电脑程序（Tauri）：已登录 + 开启提醒 + 过了提醒时间 + 今天尚未打卡 + 今天还没提醒过
+ *   → 电脑程序弹系统 Toast（tauri-plugin-notification），浏览器弹 Web Notification。
  * - Android 原生：登录态/开关/时间/打卡状态变化或回到前台时，重建系统级「每日提醒」调度
  *   （App 关闭/杀后台也能按点送达），见 syncNativeReminderSchedule。
  */
@@ -68,7 +69,8 @@ export default function CheckinReminder() {
     }
   }, [isNative, user, logs, loading])
 
-  // ── Web/Tauri 路径：原有浏览器通知逻辑保持不变（原生用上面的系统提醒，无需再弹 Web 通知） ──
+  // ── Web / 电脑程序路径：到点提醒一次（通知通道由 lib/reminder 按平台分发） ──
+  // 原生端用上面的系统每日调度，无需再走这里。
   useEffect(() => {
     if (isNative) return
     if (!user || loading) return

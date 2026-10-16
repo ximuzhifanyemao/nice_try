@@ -1,10 +1,12 @@
 import { Component, useState, useCallback, useEffect, useRef, type ReactNode } from 'react'
+import { useLocation } from 'react-router-dom'
 import { getCurrentWindow, LogicalSize, PhysicalPosition, currentMonitor, type Window } from '@tauri-apps/api/window'
 import CapsuleStrip from './CapsuleStrip'
 import SubjectPicker from './SubjectPicker'
-import Sidebar from '../components/Sidebar'
+import Sidebar, { desktopPageTitle } from '../components/Sidebar'
 import App from '../App'
 import { saveSharedTimer } from '../lib/timerSync'
+import { loadPomoFocusMin, savePomoState, startPomo, type TimerMode } from '../lib/pomodoro'
 
 declare global {
   interface Window {
@@ -23,16 +25,41 @@ const WIDGET_POS_KEY = 'kaoyan_widget_pos'
 const FULL_POS_KEY = 'kaoyan_widget_full_pos'
 /** 模式记忆存储键：记住上次退出时是精简还是全部功能 */
 const MODE_KEY = 'kaoyan_widget_mode'
-const FULL_W = 1600
-const FULL_H = 1000
+/**
+ * 全功能窗口的期望尺寸。
+ * 1440×900：在 1080p（逻辑约 1707×1067、150% 缩放）上留出足够余量，
+ * 内容列仍有约 1250px 宽，足够两栏铺开；比 1600×1000 更不容易顶到任务栏。
+ * 实际尺寸还会按显示器工作区钳制，见 applyMode。
+ */
+const FULL_W = 1440
+const FULL_H = 900
+/**
+ * 任务栏/底栏预留高度（逻辑像素）。
+ * Tauri 的 Monitor 只给整屏尺寸、不给工作区，这里按常见任务栏高度预留，
+ * 避免全功能窗口居中后底边被任务栏盖住。
+ */
+const TASKBAR_MARGIN = 48
 /** 胶囊条宽度：保证「选择科目开始」等文案完整显示 */
 const WIDGET_W = 460
 /** 胶囊条常态高度（尽量紧凑） */
 const WIDGET_H = 52
 /** 科目下拉常态高度（内容放得下时就用它，避免窗口无谓变大） */
 const DROPDOWN_H_BASE = 300
-/** 科目下拉高度上限（内容更多时顶到这里，超出部分由列表内部滚动） */
+/**
+ * 下拉面板之外的固定高度：根容器上下各 1px 边框 + 52px 胶囊条行 + 面板上方 1px 分隔线。
+ * 这几段都是同一份布局里的写死高度（见 CompactShell），直接量常数比从 DOM 反推可靠：
+ * 展开瞬间窗口还没变高，反推会退化成「胶囊条高度」，窗口就永远漏掉面板头部那几十像素。
+ */
+const DROPDOWN_OUTER_CHROME = WIDGET_H + 3
+/**
+ * 科目下拉高度上限的兜底值（拿不到显示器信息时使用）。
+ * 正常情况下的上限由显示器可用高度决定（见下方 effect）：
+ * 用户要求「科目一页看全、不要翻页」，所以不再按半屏截断，
+ * 而是允许窗口长到几乎占满可用高度，只有科目真的多到放不下才在列表内部滚动。
+ */
 const DROPDOWN_H_CAP = 560
+/** 科目下拉的绝对上限：超大显示器上也不让面板无限长下去 */
+const DROPDOWN_H_ABS_CAP = 1000
 
 /** 读取保存的窗口位置（{x,y}），无则返回 null */
 function loadSavedPosition(key: string): { x: number; y: number } | null {
@@ -102,64 +129,82 @@ class FullAppBoundary extends Component<{ children: ReactNode }, { error: string
 const windowBtnBase =
   'flex h-7 w-7 items-center justify-center rounded-md transition-colors cursor-pointer focus-visible:outline-none'
 
-/** 全功能模式的窗口外壳：左侧常驻侧边栏 + 右侧内容（顶部一条可拖动标题栏） */export function FullModeShell({ onToggleMode }: { onToggleMode: () => void }) {
+/**
+ * 全功能模式的窗口标题栏：整条都是窗口拖拽区，左侧显示当前页面名（桌面窗口惯例），
+ * 右侧放模式切换与窗口控制。
+ * 高度与侧边栏品牌区（h-12）一致，两者顶部落在同一水平线上、横线连贯。
+ * 由 App 渲染在右侧内容列顶部（侧边栏不在该列内），因此只横跨内容区、不参与滚动。
+ */
+function FullModeTitleBar({ onToggleMode }: { onToggleMode: () => void }) {
+  const { pathname } = useLocation()
   return (
-    // 用 h-full/w-full 填满宿主窗口，而不是 h-screen/w-screen：
-    // 窗口尺寸本来就由 Tauri 固定，跟随宿主更准确，也让预览台能把它放进任意尺寸容器里审阅。
-    //
-    // 注意：侧边栏必须由 App 在 HashRouter 内部渲染（Sidebar 用了 useLocation），
-    // 所以这里只能把它作为 sidebar 属性传进去；标题栏因此放在 App 之外、
-    // 通过负 margin 覆盖到内容区上方，视觉上只横跨右侧内容列。
-    <div className="theme-surface relative isolate flex h-full w-full overflow-hidden bg-gray-50 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
-      <div className="relative flex h-full w-full flex-col">
-        {/* 顶部标题栏：整条都是窗口拖拽区，右侧放模式切换与窗口控制。
-            高度与侧边栏品牌区（h-12）一致，让顶部横线连贯 */}
-        <div
-          data-tauri-drag-region
-          className="flex h-12 shrink-0 select-none items-center justify-end gap-1 border-b border-gray-200 px-2.5 dark:border-slate-800/80"
-        >
-          <button
-            onClick={onToggleMode}
-            title="切换到置顶计时小挂件"
-            className="flex h-7 cursor-pointer items-center gap-1 rounded-md px-2.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M9 21H3v-6" />
-              <path d="M3 21l7-7" />
-            </svg>
-            精简计时
-          </button>
-          <span className="mx-0.5 h-4 w-px bg-gray-200 dark:bg-slate-800" aria-hidden="true" />
-          <button
-            onClick={() => getCurrentWindow().minimize()}
-            className={`${windowBtnBase} text-gray-400 hover:bg-gray-100 hover:text-slate-900 dark:text-slate-500 dark:hover:bg-slate-800/60 dark:hover:text-slate-200`}
-            aria-label="最小化"
-            title="最小化"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-              <path d="M5 12h14" />
-            </svg>
-          </button>
-          <button
-            onClick={() => getCurrentWindow().close()}
-            className={`${windowBtnBase} text-gray-400 hover:bg-rose-50 hover:text-rose-500 dark:text-slate-500 dark:hover:bg-rose-500/15 dark:hover:text-rose-400`}
-            aria-label="关闭"
-            title="关闭"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+    <div
+      data-tauri-drag-region
+      className="flex h-12 shrink-0 select-none items-center gap-1 border-b border-gray-200 px-3 dark:border-slate-800/80"
+    >
+      <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-gray-500 dark:text-slate-400">
+        {desktopPageTitle(pathname)}
+      </span>
+      <button
+        onClick={onToggleMode}
+        title="切换到置顶计时小挂件"
+        className="flex h-7 cursor-pointer items-center gap-1 rounded-md px-2.5 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800/60 dark:hover:text-slate-200"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 21H3v-6" />
+          <path d="M3 21l7-7" />
+        </svg>
+        精简计时
+      </button>
+      <span className="mx-0.5 h-4 w-px bg-gray-200 dark:bg-slate-800" aria-hidden="true" />
+      <button
+        onClick={() => getCurrentWindow().minimize()}
+        className={`${windowBtnBase} text-gray-400 hover:bg-gray-100 hover:text-slate-900 dark:text-slate-500 dark:hover:bg-slate-800/60 dark:hover:text-slate-200`}
+        aria-label="最小化"
+        title="最小化"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+          <path d="M5 12h14" />
+        </svg>
+      </button>
+      <button
+        onClick={() => getCurrentWindow().close()}
+        className={`${windowBtnBase} text-gray-400 hover:bg-rose-50 hover:text-rose-500 dark:text-slate-500 dark:hover:bg-rose-500/15 dark:hover:text-rose-400`}
+        aria-label="关闭"
+        title="关闭"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  )
+}
 
-        {/* 页面内容：首页靠 fillHeight/forceTwoCol 内部严格一屏无滚动条；
-            记录统计、打卡等页面内容超高时允许纵向滚动 */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-          <FullAppBoundary>
-            <App hideBottomTab hideNavbar sidebar={<Sidebar />} fillHeight forceTwoCol />
-          </FullAppBoundary>
-        </div>
-      </div>
+/**
+ * 全功能模式的窗口外壳：左侧常驻侧边栏 + 右侧内容（顶部一条可拖动标题栏）。
+ *
+ * 用 h-full/w-full 填满宿主窗口，而不是 h-screen/w-screen：
+ * 窗口尺寸本来就由 Tauri 固定，跟随宿主更准确，也让预览台能把它放进任意尺寸容器里审阅
+ * （高度链条靠 index.css 的 html/body/#root=100% 与 App 的 fillHeight 成立）。
+ *
+ * 侧边栏必须由 App 在 HashRouter 内部渲染（Sidebar 用了 useLocation），
+ * 因此滚动职责也放在 App 里：只有右侧内容列滚动，侧边栏整列固定在窗口高度上，
+ * 滚轮上划下滑都不会带着它移动。
+ */
+export function FullModeShell({ onToggleMode }: { onToggleMode: () => void }) {
+  return (
+    <div className="theme-surface relative isolate flex h-full w-full overflow-hidden bg-gray-50 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
+      <FullAppBoundary>
+        <App
+          hideBottomTab
+          hideNavbar
+          fillHeight
+          forceTwoCol
+          sidebar={<Sidebar />}
+          topBar={<FullModeTitleBar onToggleMode={onToggleMode} />}
+        />
+      </FullAppBoundary>
     </div>
   )
 }
@@ -183,7 +228,7 @@ export function CompactShell({
   onToggleMode: () => void
   onOpenDropdown: () => void
   onCloseDropdown: () => void
-  onPick: (subjectId: string, activity: string) => void
+  onPick: (subjectId: string, activity: string, mode: TimerMode) => void
   /** 透传给 SubjectPicker 的科目列表内容块回调 ref（供 WidgetApp 测量并加高窗口） */
   dropdownContentRef?: (node: HTMLDivElement | null) => void
 }) {
@@ -288,8 +333,8 @@ export default function WidgetApp() {
 
   /* ── 科目下拉按内容自适应高度 ──
      窗口常态高度是 DROPDOWN_H_BASE；科目多到放不下时按需加高，
-     最多到「半屏且不超过 DROPDOWN_H_CAP」——缓解「要下滑找科目」。
-     测量点是 SubjectPicker 内部科目列表内容块的自然高度，
+     上限由显示器可用高度决定（见下方 effect）——用户要求「科目一页看全、不要翻页」。
+     测量点是 SubjectPicker 内部科目列表内容块的自然高度 + 头部/目标行等固定部分，
      所以被观察节点必须与窗口高度解耦（不能用 h-full / flex-1），
      否则窗口变高会让内容跟着变高，形成「长高 → 更高」的正反馈。
 
@@ -297,7 +342,8 @@ export default function WidgetApp() {
      它的 ref 是在子组件提交阶段才赋值的，WidgetApp 自己的 effect 会先跑完
      （那时 ref.current 还是 null，观察逻辑会被整段跳过）。 */
   const dropdownContentElRef = useRef<HTMLElement | null>(null)
-  const [dropdownContentH, setDropdownContentH] = useState(0)
+  /** 放下全部科目所需的窗口高度（含胶囊条/头部/目标行）：变化即触发窗口调整 */
+  const [dropdownNeedH, setDropdownNeedH] = useState(DROPDOWN_H_BASE)
   const [dropdownMaxH, setDropdownMaxH] = useState(DROPDOWN_H_CAP)
   /**
    * 回调 ref：SubjectPicker 挂载时置位。除了记录节点，还要触发一次「内容已就位」标记，
@@ -308,21 +354,19 @@ export default function WidgetApp() {
     if (node) window.__widgetContentReady = true
   }, [])
   // 展开时读取的当前值：避免把两个 state 塞进 openDropdown 的依赖里反复重建回调
-  const dropdownContentHRef = useRef(0)
+  const dropdownNeedHRef = useRef(DROPDOWN_H_BASE)
   const dropdownMaxHRef = useRef(DROPDOWN_H_CAP)
-  /** 下拉里「非科目列表」部分的固定高度（展开后由观测得到） */
-  const chromeHRef = useRef(0)
-  dropdownContentHRef.current = dropdownContentH
+  dropdownNeedHRef.current = dropdownNeedH
   dropdownMaxHRef.current = dropdownMaxH
 
-  /** 需要的高度 = 固定头部（胶囊条那一行 + 快速开始行 + 本周目标行 + 分隔线） + 科目列表 */
+  /** 目标高度 = 上次测得的需求值（按上限钳制）：展开时先照它变形，挂载后再精确校正 */
   const dropdownTargetH = useCallback(() => {
     const base = DROPDOWN_H_BASE
     const cap = Math.max(base, dropdownMaxHRef.current)
-    return Math.min(cap, Math.max(base, Math.ceil(chromeHRef.current + dropdownContentHRef.current)))
+    return Math.min(cap, Math.max(base, Math.ceil(dropdownNeedHRef.current)))
   }, [])
 
-  // 显示器高度决定上限：半屏且不超过 DROPDOWN_H_CAP，至少不低于常态高度
+  // 显示器高度决定上限：允许用到几乎整个屏幕可用高度，让科目尽量一页看全（不滚动）
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -330,8 +374,8 @@ export default function WidgetApp() {
         const monitor = await currentMonitor()
         if (cancelled || !monitor) return
         const scale = monitor.scaleFactor || 1
-        const logicalH = monitor.size.height / scale
-        setDropdownMaxH(Math.max(DROPDOWN_H_BASE, Math.min(DROPDOWN_H_CAP, Math.floor(logicalH * 0.5))))
+        const usableH = monitor.size.height / scale - TASKBAR_MARGIN
+        setDropdownMaxH(Math.max(DROPDOWN_H_BASE, Math.min(Math.floor(usableH - 24), DROPDOWN_H_ABS_CAP)))
       } catch {
         // 取不到显示器信息就沿用 DROPDOWN_H_CAP 兜底
       }
@@ -346,20 +390,37 @@ export default function WidgetApp() {
     if (!dropdownOpen) return
     const el = dropdownContentElRef.current
     if (!el) return
-    // 下拉面板根节点：用来推算「非科目列表」部分的固定高度
+    // 下拉面板根节点（被观察，窗口尺寸变化会改变它的高度）
     const panelRoot = el.closest('[data-widget-dropdown]') as HTMLElement | null
+    // 科目列表滚动容器与它的父节点（面板内容列）：用来把「固定行」与「列表」分开
+    const listBox = el.parentElement as HTMLElement | null
+    const view = listBox?.parentElement as HTMLElement | null
     let raf = 0
     let settleTimer: ReturnType<typeof setTimeout> | null = null
     const measure = () => {
       cancelAnimationFrame(raf)
       raf = requestAnimationFrame(() => {
-        // 内容自然高度：offsetHeight 是布局高度，不受滚动位置影响
+        // 科目列表内容自然高度：offsetHeight 是布局高度，不受滚动位置影响
         const contentH = el.offsetHeight
-        // 固定头部高度 = 面板根高度 - 内容块所占高度
-        const chromeH = panelRoot && panelRoot.offsetHeight > contentH ? panelRoot.offsetHeight - contentH : 0
-        chromeHRef.current = chromeH
+        /* 面板内部的固定高度（快速开始行 + 本周目标行）：
+           直接累加「除列表滚动容器外的兄弟节点」的高度与外边距。
+           不能写成「面板高度 − 列表高度」：展开瞬间窗口还没变高、面板被压扁，
+           该式退化成 0，窗口就永远漏掉头部这几十像素，列表差一截要滚动
+           （用户反馈的「科目要翻页」正是这个原因）。这几行都是 shrink-0，
+           被压扁时仍保持自然高度，直接量它们才可靠。 */
+        let panelChromeH = 0
+        if (view) {
+          for (const child of Array.from(view.children)) {
+            if (child === listBox) continue
+            const row = child as HTMLElement
+            const cs = getComputedStyle(row)
+            panelChromeH += row.offsetHeight + (parseFloat(cs.marginTop) || 0) + (parseFloat(cs.marginBottom) || 0)
+          }
+        }
+        // 需求高度 = 面板外的固定部分（胶囊条/边框）+ 面板内的固定行 + 科目列表
+        const needH = DROPDOWN_OUTER_CHROME + panelChromeH + contentH
         // 迟滞：微小变化保持原值，避免科目增删时窗口抖动
-        setDropdownContentH((prev) => (Math.abs(prev - contentH) < 2 ? prev : contentH))
+        setDropdownNeedH((prev) => (Math.abs(prev - needH) < 2 ? prev : needH))
       })
     }
     const schedule = () => {
@@ -373,19 +434,21 @@ export default function WidgetApp() {
     }
     const ro = new ResizeObserver(schedule)
     ro.observe(el)
+    // 面板本身也要观察：窗口尺寸变化会改变面板高度，据此校正需求值
+    if (panelRoot) ro.observe(panelRoot)
+    /* 本周目标行是异步取数后才出现的：它出现时面板尺寸不变（差额由列表让位吸收），
+       ResizeObserver 观察不到，得靠 DOM 变化（固定行增删）再测一次 */
+    const mo = new MutationObserver(schedule)
+    if (view) mo.observe(view, { childList: true })
     return () => {
       cancelAnimationFrame(raf)
       if (settleTimer !== null) clearTimeout(settleTimer)
       ro.disconnect()
+      mo.disconnect()
     }
   }, [dropdownOpen])
 
-  // 内容高度或上限变化时同步窗口高度：变高/变矮都跟随（上限内）
-  useEffect(() => {
-    if (!dropdownOpen) return
-    const h = dropdownTargetH()
-    void appWindow.setSize(new LogicalSize(WIDGET_W, h)).catch(() => {})
-  }, [dropdownContentH, dropdownMaxH, dropdownOpen, dropdownTargetH, appWindow])
+  
 
   /** 将窗口切换到指定模式：精简(compact) / 全部功能(full)，调整尺寸/置顶/位置 */
   const applyMode = useCallback(async (next: boolean) => {
@@ -402,42 +465,44 @@ export default function WidgetApp() {
       if (next) {
         // 进入全部功能：窗口在屏幕中心展开
         await appWindow.setResizable(true)
-        // 钳制到显示器工作区可用尺寸，避免窄屏/小工作区下溢出屏幕
+        // 钳制到显示器可用尺寸（屏高扣掉任务栏预留），避免溢出屏幕或被任务栏盖住
         let w = FULL_W
         let h = FULL_H
+        let cx = 0
+        let cy = 0
+        let hasCenter = false
         try {
           const monitor = await currentMonitor()
           if (monitor) {
             // monitor.size 为物理像素，除以 scaleFactor 换算为逻辑像素，与 setSize 的逻辑单位一致
             const scale = monitor.scaleFactor || 1
             const logicalW = monitor.size.width / scale
-            const logicalH = monitor.size.height / scale
+            const logicalH = monitor.size.height / scale - TASKBAR_MARGIN
             w = Math.min(FULL_W, logicalW)
             h = Math.min(FULL_H, logicalH)
             // 至少保留合理下限，避免过度钳制导致窗口过小
             w = Math.max(w, Math.min(960, logicalW))
-            h = Math.max(h, Math.min(700, logicalH))
+            h = Math.max(h, Math.min(640, logicalH))
+            // 以「扣掉任务栏后的可用区域」中心为对称点，窗口整体落在任务栏上方
+            cx = monitor.position.x + Math.round(monitor.size.width / 2)
+            cy = monitor.position.y + Math.round((monitor.size.height / scale - TASKBAR_MARGIN) * scale / 2)
+            hasCenter = true
           }
         } catch {
-          // 取显示器失败则维持 1600×1000 兜底
+          // 取显示器失败则维持 FULL_W×FULL_H 兜底
         }
         await appWindow.setSize(new LogicalSize(w, h))
-        // 显式居中：以当前显示器中心为对称点放置窗口，避免窗口停在角落时展开伸出桌面
-        try {
-          const monitor = await currentMonitor()
-          if (monitor) {
-            const scale = monitor.scaleFactor || 1
-            const cx = monitor.position.x + Math.round(monitor.size.width / 2)
-            const cy = monitor.position.y + Math.round(monitor.size.height / 2)
+        // 显式居中：以可用区域中心为对称点放置窗口，避免停在角落或被任务栏遮挡
+        if (hasCenter) {
+          try {
+            const scale = (await currentMonitor())?.scaleFactor || 1
             const wPhys = Math.round(w * scale)
             const hPhys = Math.round(h * scale)
             await appWindow.setPosition(new PhysicalPosition(cx - Math.round(wPhys / 2), cy - Math.round(hPhys / 2)))
-          } else {
-            // 拿不到显示器信息则回退默认居中
+          } catch {
             await appWindow.center().catch(() => {})
           }
-        } catch {
-          // 显式居中失败则回退默认居中
+        } else {
           await appWindow.center().catch(() => {})
         }
         await appWindow.setResizable(false)
@@ -474,23 +539,28 @@ export default function WidgetApp() {
   }, [fullMode, applyMode])
 
   /**
-   * 加高窗口（展开面板/科目下拉）：以胶囊条顶部为锚「向下展开」——胶囊条（时间）保持原位，
-   * 面板从下方弹出；仅当面板底部会越出屏幕（贴底）时，才改为顶边上移（底部锚定）并记录原地，
-   * 保证整块面板可见，收起时再恢复。
+   * 把精简窗口调整到目标高度（展开面板 / 科目下拉加高）：以胶囊条顶部为锚「向下展开」——
+   * 胶囊条（时间）保持原位，面板从下方弹出；仅当面板底部会越出屏幕可用区域（贴底、
+   * 或科目变多后继续加高）时，才整窗上移（底部锚定），保证整块面板都能看到、不压在任务栏下。
+   * record=true（展开时）记录当前窗口位置为「展开前位置」，收起时若发生过上移则恢复。
    */
-  const openLayer = useCallback(
-    async (height: number) => {
+  const fitLayer = useCallback(
+    async (height: number, record: boolean) => {
       try {
+        const cur = (await appWindow.outerPosition().catch(() => null)) ?? null
+        if (record) {
+          preExpandPosRef.current = cur
+          layerMovedRef.current = false
+        }
         const monitor = await currentMonitor()
         const scale = monitor?.scaleFactor || 1
-        const cur = (await appWindow.outerPosition().catch(() => null)) ?? null
         let nx = cur?.x ?? 0
         // 默认顶部锚定：顶部保持原位，向下弹出面板
         let ny = cur?.y ?? 0
-        let moved = false
         if (monitor && cur) {
           const top = monitor.position.y
-          const bottom = monitor.position.y + monitor.size.height
+          // 屏幕底部要扣掉任务栏预留（逻辑→物理），否则面板最后几行会被任务栏盖住
+          const bottom = monitor.position.y + monitor.size.height - Math.round(TASKBAR_MARGIN * scale)
           const left = monitor.position.x
           const right = monitor.position.x + monitor.size.width
           const physW = Math.round(WIDGET_W * scale)
@@ -498,17 +568,17 @@ export default function WidgetApp() {
           // 左右越界收进屏幕
           if (nx < left) nx = left
           if (nx + physW > right) nx = right - physW
-          // 底部越界（贴底）：退回「底部锚定」——顶边上移，收起时需恢复原位
+          // 底部越界（贴底 / 加高后超出）：退回「底部锚定」——顶边上移，收起时需恢复原位
           if (ny + physH > bottom) {
             ny = bottom - physH
-            moved = true
+            layerMovedRef.current = true
           }
           if (ny < top) ny = top
         }
-        preExpandPosRef.current = (await appWindow.outerPosition().catch(() => null)) ?? null
-        layerMovedRef.current = moved
         // 只有发生位移（贴底上移）时才移动窗口；否则直接变高，胶囊不动
-        if (moved) await appWindow.setPosition(new PhysicalPosition(nx, ny))
+        if (cur && (nx !== cur.x || ny !== cur.y)) {
+          await appWindow.setPosition(new PhysicalPosition(nx, ny))
+        }
         await appWindow.setSize(new LogicalSize(WIDGET_W, height))
         await appWindow.show().catch(() => {})
       } catch {
@@ -517,6 +587,15 @@ export default function WidgetApp() {
     },
     [appWindow],
   )
+
+  // 需求高度或上限变化时同步窗口高度：变高/变矮都跟随（上限内）
+  useEffect(() => {
+    if (!dropdownOpen) return
+    const base = DROPDOWN_H_BASE
+    const cap = Math.max(base, dropdownMaxH)
+    const h = Math.min(cap, Math.max(base, Math.ceil(dropdownNeedH)))
+    void fitLayer(h, false)
+  }, [dropdownNeedH, dropdownMaxH, dropdownOpen, fitLayer])
 
   /** 收回胶囊条高度：顶部锚定向上收起，时间保持原位；仅贴底展开导致位移时恢复原位置 */
   const closeLayer = useCallback(async () => {
@@ -540,9 +619,9 @@ export default function WidgetApp() {
     }
     setDropdownClosing(false)
     setDropdownOpen(true)
-    // 首次展开按上次测得的内容高度决定；挂载后的测量会再精确校正一次
-    openLayer(dropdownTargetH())
-  }, [openLayer, dropdownTargetH])
+    // 首次展开按上次测得的需求高度决定；挂载后的测量会再精确校正一次
+    fitLayer(dropdownTargetH(), true)
+  }, [fitLayer, dropdownTargetH])
 
   /** 收起下拉：先播出场动画（淡出下滑），动画结束后再卸载面板并缩回窗口 */
   const closeDropdown = useCallback(() => {
@@ -564,10 +643,15 @@ export default function WidgetApp() {
     [],
   )
 
-  /** 下拉里选中科目：写入共享计时并收回胶囊条 */
+  /** 下拉里选中科目：按当前计时模式写入共享正计时或共享番茄钟，并收回胶囊条 */
   const quickStart = useCallback(
-    (subjectId: string, activity: string) => {
-      saveSharedTimer({ subjectId, activity, startTime: Date.now() })
+    (subjectId: string, activity: string, mode: TimerMode) => {
+      if (mode === 'pomodoro') {
+        // 番茄钟：开始一轮专注倒计时（时长取当前偏好），胶囊条随即展示倒计时
+        savePomoState(startPomo(subjectId, activity, loadPomoFocusMin(), Date.now()))
+      } else {
+        saveSharedTimer({ subjectId, activity, startTime: Date.now() })
+      }
       closeDropdown()
     },
     [closeDropdown],

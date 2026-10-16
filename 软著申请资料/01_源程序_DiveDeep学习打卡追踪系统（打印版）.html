@@ -1,0 +1,3501 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<title>DiveDeep学习打卡追踪系统 V1.0 源程序</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm 14mm 12mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #fff; color: #000; }
+  body { font-family: Consolas, 'Courier New', 'NSimSun', monospace; font-size: 7.8pt; line-height: 12.8pt; }
+  .page { page-break-after: always; }
+  .page:last-child { page-break-after: auto; }
+  header { font-family: 'Microsoft YaHei', 'SimSun', sans-serif; font-size: 10.5pt; text-align: center;
+           font-weight: bold; border-bottom: 0.6pt solid #000; padding-bottom: 3pt; margin-bottom: 6pt; }
+  pre.code { font-family: inherit; font-size: inherit; line-height: inherit;
+             white-space: pre-wrap; overflow-wrap: normal; }
+</style>
+</head>
+<body>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第1页（共60页）</header>
+<pre class="code">    1 // ==================== 文件: src/App.tsx ====================
+    2 import { lazy, Suspense, useEffect, useLayoutEffect, createContext, useContext, useRef, useSta
+      te, type ReactNode } from 'react'
+    3 import { HashRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
+    4 import { AuthProvider, useAuth } from './contexts/AuthContext'
+    5 import { UpdateProvider } from './contexts/UpdateContext'
+    6 import { LogsProvider } from './contexts/LogsContext'
+    7 import Navbar from './components/Navbar'
+    8 import BottomTab from './components/BottomTab'
+    9 import ProtectedRoute from './components/ProtectedRoute'
+   10 import UpdateChecker from './components/UpdateChecker'
+   11 import AchievementNotifier from './components/AchievementNotifier'
+   12 import CheckinReminder from './components/CheckinReminder'
+   13 import { ToastProvider } from './lib/Toast'
+   14 import { Capacitor } from '@capacitor/core'
+   15 import { App as CapacitorApp } from '@capacitor/app'
+   16 
+   17 // 路由级代码分割：按需加载页面，减少首屏 bundle 体积
+   18 const Home = lazy(() =&gt; import('./pages/Home'))
+   19 const Login = lazy(() =&gt; import('./pages/Login'))
+   20 const Register = lazy(() =&gt; import('./pages/Register'))
+   21 const ForgotPassword = lazy(() =&gt; import('./pages/ForgotPassword'))
+   22 const ResetPassword = lazy(() =&gt; import('./pages/ResetPassword'))
+   23 const MyRecords = lazy(() =&gt; import('./pages/MyRecords'))
+   24 const NewRecord = lazy(() =&gt; import('./pages/NewRecord'))
+   25 const EditRecord = lazy(() =&gt; import('./pages/EditRecord'))
+   26 const Summary = lazy(() =&gt; import('./pages/Summary'))
+   27 const TimerPage = lazy(() =&gt; import('./pages/TimerPage'))
+   28 const Profile = lazy(() =&gt; import('./pages/Profile'))
+   29 const Trash = lazy(() =&gt; import('./pages/Trash'))
+   30 const Achievements = lazy(() =&gt; import('./pages/Achievements'))
+   31 const GoalPage = lazy(() =&gt; import('./pages/GoalPage'))
+   32 const EnglishCheckin = lazy(() =&gt; import('./pages/EnglishCheckin'))
+   33 const VocabularyBook = lazy(() =&gt; import('./pages/VocabularyBook'))
+   34 const Settings = lazy(() =&gt; import('./pages/Settings'))
+   35 const Health = lazy(() =&gt; import('./pages/Health'))
+   36 const QrLogin = lazy(() =&gt; import('./pages/QrLogin'))
+   37 const ScanQr = lazy(() =&gt; import('./pages/ScanQr'))
+   38 
+   39 /** 首页布局上下文：桌面端「全部功能」全功能模式下强制双栏布局 */
+   40 export const HomeLayoutContext = createContext&lt;{ twoCol: boolean; wide: boolean }&gt;({ twoCol: f
+      alse, wide: false })
+   41 
+   42 /** 页面内容是否放宽到更宽的布局（桌面端全功能模式下） */
+   43 export function useWideLayout(): boolean {
+   44   return useContext(HomeLayoutContext).wide
+   45 }
+   46 
+   47 /** 自适应缩放的下限兜底：极端窄高窗口下也不至于缩到看不清 */
+   48 const MIN_FIT_SCALE = 0.4
+   49 
+   50 /**
+   51  * 桌面「全部功能」模式下，让页面内容按内容高度自适应缩放填满窗口。
+   52  * 首页本身已用 forceTwoCol 双栏单屏，无需缩放，故跳过首页。
+   53  *</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第2页（共60页）</header>
+<pre class="code">   54  * 当内容高度超过视口 1.2 倍时，允许纵向滚动而非继续缩小，保证长页面可读性。
+   55  *
+   56  * 关键约束：内容层必须始终保持固定布局宽度（100%），绝不能用 `width: 100% / scale`
+   57  * 反向补偿缩放后的视觉宽度。否则会形成正反馈——
+   58  * scale 变小 → 布局变宽 → aspect-square / aspect-[5/4] 这类元素高度变大 → scrollHeight 变
+      大
+   59  * → scale 更小；再加上宽度兜底分支 `ow / scrollWidth` 恒 ≤ 当前 scale（因为
+   60  * scrollWidth ≥ clientWidth = ow / scale），scale 就成了只能降不能升的单向棘轮，
+   61  * 页面会一路缩小下去。固定布局宽度后，测量值与已应用的缩放无关，结果天然收敛。
+   62  */
+   63 function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+   64   const location = useLocation()
+   65   const outerRef = useRef&lt;HTMLDivElement&gt;(null)
+   66   const innerRef = useRef&lt;HTMLDivElement&gt;(null)
+   67   const [scale, setScale] = useState(1)
+   68 
+   69   useLayoutEffect(() =&gt; {
+   70     if (!enabled) {
+   71       setScale(1)
+   72       return
+   73     }
+   74     const outer = outerRef.current
+   75     const inner = innerRef.current
+   76     if (!outer || !inner) return
+   77 
+   78     let raf = 0
+   79     // rAF 节流：合并同一帧内的多次回调，避免 ResizeObserver 抖动与循环告警
+   80     const apply = () =&gt; {
+   81       cancelAnimationFrame(raf)
+   82       raf = requestAnimationFrame(() =&gt; {
+   83         const ow = outer.clientWidth
+   84         const oh = outer.clientHeight
+   85         const ih = inner.scrollHeight
+   86         const iw = inner.scrollWidth
+   87         if (ow &lt;= 0 || oh &lt;= 0 || ih &lt;= 0 || iw &lt;= 0) return
+   88         // 内容超高（超过视口 1.2 倍）时允许滚动，不再继续缩小
+   89         if (ih &gt; oh * 1.2) {
+   90           setScale(1)
+   91           return
+   92         }
+   93         // 按高度缩放，同时用宽度兜底保证不横向溢出；不放大（上限 1）
+   94         const next = Math.max(MIN_FIT_SCALE, Math.min(1, oh / ih, ow / iw))
+   95         // 变化极小则忽略，避免浮点误差引起无意义的重渲染
+   96         setScale((prev) =&gt; (Math.abs(prev - next) &lt; 0.005 ? prev : next))
+   97       })
+   98     }
+   99 
+  100     apply()
+  101     const ro = new ResizeObserver(apply)
+  102     ro.observe(outer)
+  103     ro.observe(inner)
+  104     return () =&gt; {
+  105       cancelAnimationFrame(raf)
+  106       ro.disconnect()
+  107     }</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第3页（共60页）</header>
+<pre class="code">  108   }, [location.pathname, enabled])
+  109 
+  110   // 非桌面全功能模式，或首页已双栏单屏，直接渲染不缩放
+  111   if (!enabled || location.pathname === '/') return &lt;&gt;{children}&lt;/&gt;
+  112 
+  113   return (
+  114     &lt;div ref={outerRef} className="w-full h-full overflow-y-auto min-h-0"&gt;
+  115       &lt;div
+  116         ref={innerRef}
+  117         style={{ transform: `scale(${scale})`, transformOrigin: 'top center', width: '100%' }}
+  118       &gt;
+  119         {children}
+  120       &lt;/div&gt;
+  121     &lt;/div&gt;
+  122   )
+  123 }
+  124 
+  125 function PageLoading() {
+  126   return (
+  127     &lt;div className="flex min-h-[40vh] items-center justify-center"&gt;
+  128       &lt;div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:border-s
+      late-700 border-t-blue-600 dark:border-t-blue-500" /&gt;
+  129     &lt;/div&gt;
+  130   )
+  131 }
+  132 
+  133 function NotFound() {
+  134   return (
+  135     &lt;div className="mx-auto max-w-2xl px-4 py-16 text-center"&gt;
+  136       &lt;p className="text-6xl font-bold text-gray-200 dark:text-slate-700 mb-4"&gt;404&lt;/p&gt;
+  137       &lt;p className="text-lg text-gray-600 dark:text-slate-300 mb-6"&gt;页面不存在或已被移除&lt;/p&gt;
+  138       &lt;Link
+  139         to="/"
+  140         className="inline-block px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-l
+      g text-sm font-medium transition-colors cursor-pointer"
+  141       &gt;
+  142         返回首页
+  143       &lt;/Link&gt;
+  144     &lt;/div&gt;
+  145   )
+  146 }
+  147 
+  148 /** 全局配置/认证错误横幅（如 Supabase 未配置时给出明确提示，避免无感知白屏） */
+  149 function ConfigBanner() {
+  150   const { error } = useAuth()
+  151   if (!error) return null
+  152   return (
+  153     &lt;div className="bg-amber-100 dark:bg-amber-900/40 border-b border-amber-200 dark:border-am
+      ber-700/50 text-amber-800 dark:text-amber-200 text-center text-sm py-2 px-4"&gt;
+  154       {error}
+  155     &lt;/div&gt;
+  156   )
+  157 }
+  158 
+  159 /** Capacitor 原生返回按钮处理：在 App 内导航回退，而非直接退出应用 */</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第4页（共60页）</header>
+<pre class="code">  160 function BackButtonHandler() {
+  161   const navigate = useNavigate()
+  162   useEffect(() =&gt; {
+  163     if (!Capacitor.isNativePlatform()) return
+  164     const handler = CapacitorApp.addListener('backButton', () =&gt; {
+  165       // 如果当前页面不是首页，则导航回退；否则最小化应用
+  166       if (window.location.hash !== '#/') {
+  167         navigate(-1)
+  168       } else {
+  169         CapacitorApp.minimizeApp()
+  170       }
+  171     })
+  172     return () =&gt; {
+  173       handler.then((h) =&gt; h.remove())
+  174     }
+  175   }, [navigate])
+  176   return null
+  177 }
+  178 
+  179 export default function App({
+  180   hideBottomTab = false,
+  181   hideNavbar = false,
+  182   sidebar = null,
+  183   fillHeight = false,
+  184   forceTwoCol = false,
+  185 }: {
+  186   hideBottomTab?: boolean
+  187   hideNavbar?: boolean
+  188   /** 需要侧边栏导航时传入（如桌面端展开模式）；必须在 Router 内部渲染，故由 App 接收）
+  189    */ sidebar?: ReactNode | null
+  190   /** 桌面展开模式下用 100% 高度替代 100vh，配合滚动容器避免页面底部被裁切 */
+  191   fillHeight?: boolean
+  192   /** 桌面「全部功能」全功能模式下强制首页双栏布局（无视视口宽度） */
+  193   forceTwoCol?: boolean
+  194 }) {
+  195   // 桌面展开模式（fillHeight）：用确定高度 h-full 替代 min-h，让百分比高度链条成立，
+  196   // 侧边栏才能撑满整列高度并把底部按钮钉在可见区最底部；移动端保持 min-h-screen 原逻辑
+  197   const pageHeight = fillHeight ? 'h-full' : 'min-h-screen'
+  198   return (
+  199     &lt;HashRouter&gt;
+  200       &lt;ToastProvider&gt;
+  201         &lt;BackButtonHandler /&gt;
+  202         &lt;UpdateProvider&gt;
+  203           &lt;AuthProvider&gt;
+  204           &lt;LogsProvider&gt;
+  205           &lt;div className={`relative isolate overflow-x-clip ${pageHeight} theme-surface bg-gra
+      y-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 pb-16 sm:pb-
+      0`}&gt;
+  206           {/* 顶部环境光：页面顶部分层淡出，增加呼吸感 */}
+  207           &lt;div
+  208             aria-hidden
+  209             className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-gradient-to-b from
+      -indigo-100/70 via-indigo-50/40 to-transparent dark:from-indigo-500/10 dark:via-indigo-900/5 dark:to
+      -transparent"
+  210           /&gt;</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第5页（共60页）</header>
+<pre class="code">  211           &lt;div className={`relative flex ${pageHeight}`}&gt;
+  212             {/* 侧边栏：stretch 撑满整列高度，配合 sticky 让底部的主题/登出始终固定在可见区最
+      底部 */}
+  213             {sidebar &amp;&amp; &lt;div className="sticky top-0 shrink-0 self-stretch"&gt;{sidebar}&lt;/div&gt;}
+  214             &lt;div className="flex-1 min-w-0"&gt;
+  215               &lt;ConfigBanner /&gt;
+  216               &lt;UpdateChecker /&gt;
+  217               &lt;AchievementNotifier /&gt;
+  218               &lt;CheckinReminder /&gt;
+  219               {!hideNavbar &amp;&amp; &lt;Navbar /&gt;}
+  220               &lt;Suspense fallback={&lt;PageLoading /&gt;}&gt;
+  221                 &lt;HomeLayoutContext.Provider value={{ twoCol: forceTwoCol, wide: forceTwoCol }}
+      &gt;
+  222                 &lt;ScaleToFit enabled={forceTwoCol}&gt;
+  223                 &lt;Routes&gt;
+  224                   &lt;Route path="/" element={&lt;Home /&gt;} /&gt;
+  225                   &lt;Route path="/login" element={&lt;Login /&gt;} /&gt;
+  226                   &lt;Route path="/register" element={&lt;Register /&gt;} /&gt;
+  227                   &lt;Route path="/forgot-password" element={&lt;ForgotPassword /&gt;} /&gt;
+  228                   &lt;Route path="/reset-password" element={&lt;ResetPassword /&gt;} /&gt;
+  229                   &lt;Route path="/qr-login" element={&lt;QrLogin /&gt;} /&gt;
+  230                   &lt;Route element={&lt;ProtectedRoute /&gt;}&gt;
+  231                     &lt;Route path="/my-records" element={&lt;MyRecords /&gt;} /&gt;
+  232                     &lt;Route path="/profile" element={&lt;Profile /&gt;} /&gt;
+  233                     &lt;Route path="/summary" element={&lt;Summary /&gt;} /&gt;
+  234                     &lt;Route path="/my-records/new" element={&lt;NewRecord /&gt;} /&gt;
+  235                     &lt;Route path="/my-records/:id/edit" element={&lt;EditRecord /&gt;} /&gt;
+  236                     &lt;Route path="/timer" element={&lt;TimerPage /&gt;} /&gt;
+  237                     &lt;Route path="/trash" element={&lt;Trash /&gt;} /&gt;
+  238                     &lt;Route path="/achievements" element={&lt;Achievements /&gt;} /&gt;
+  239                     &lt;Route path="/goal" element={&lt;GoalPage /&gt;} /&gt;
+  240                     &lt;Route path="/english-checkin" element={&lt;EnglishCheckin /&gt;} /&gt;
+  241                     &lt;Route path="/vocabulary" element={&lt;VocabularyBook /&gt;} /&gt;
+  242                     &lt;Route path="/settings" element={&lt;Settings /&gt;} /&gt;
+  243                     &lt;Route path="/health" element={&lt;Health /&gt;} /&gt;
+  244                     &lt;Route path="/scan-qr" element={&lt;ScanQr /&gt;} /&gt;
+  245                   &lt;/Route&gt;
+  246                   &lt;Route path="*" element={&lt;NotFound /&gt;} /&gt;
+  247                 &lt;/Routes&gt;
+  248                 &lt;/ScaleToFit&gt;
+  249                 &lt;/HomeLayoutContext.Provider&gt;
+  250               &lt;/Suspense&gt;
+  251               {!hideBottomTab &amp;&amp; &lt;BottomTab /&gt;}
+  252             &lt;/div&gt;
+  253           &lt;/div&gt;
+  254           &lt;/div&gt;
+  255           &lt;/LogsProvider&gt;
+  256       &lt;/AuthProvider&gt;
+  257       &lt;/UpdateProvider&gt;
+  258       &lt;/ToastProvider&gt;
+  259     &lt;/HashRouter&gt;
+  260   )
+  261 }
+  262 
+  263 // ==================== 文件: src/main.tsx ====================</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第6页（共60页）</header>
+<pre class="code">  264 import { StrictMode, useEffect, useState } from 'react'
+  265 import { createRoot } from 'react-dom/client'
+  266 import './index.css'
+  267 import { isTauri } from '@tauri-apps/api/core'
+  268 import App from './App.tsx'
+  269 import WidgetApp from './widget/WidgetApp'
+  270 import Sidebar from './components/Sidebar'
+  271 import DesktopLogo from './components/DesktopLogo'
+  272 import { AuthProvider } from './contexts/AuthContext'
+  273 import { ToastProvider } from './lib/Toast'
+  274 import { applyTheme, getInitialTheme } from './lib/theme'
+  275 
+  276 // 在首帧渲染前应用主题，避免闪烁（HTML &lt;head&gt; 内联脚本会在 index.html 兜底）
+  277 applyTheme(getInitialTheme())
+  278 
+  279 // 清理 PWA 时代残留的 Service Worker 与缓存，避免旧版页面被缓存拦截导致更新后仍显示旧内容
+  280 if ('serviceWorker' in navigator) {
+  281   navigator.serviceWorker.getRegistrations().then((registrations) =&gt; {
+  282     registrations.forEach((registration) =&gt; registration.unregister())
+  283   })
+  284 }
+  285 if ('caches' in window) {
+  286   caches.keys().then((keys) =&gt; {
+  287     keys.forEach((key) =&gt; caches.delete(key))
+  288   })
+  289 }
+  290 
+  291 /** 视口宽度媒体查询，与 Tailwind 的 sm 断点（min-width: 640px）保持一致 */
+  292 function useMediaQuery(query: string): boolean {
+  293   const [matches, setMatches] = useState(() =&gt; typeof window !== 'undefined' &amp;&amp; window.matchMe
+      dia(query).matches)
+  294   useEffect(() =&gt; {
+  295     const mql = window.matchMedia(query)
+  296     const onChange = (e: MediaQueryListEvent) =&gt; setMatches(e.matches)
+  297     mql.addEventListener('change', onChange)
+  298     setMatches(mql.matches)
+  299     return () =&gt; mql.removeEventListener('change', onChange)
+  300   }, [query])
+  301   return matches
+  302 }
+  303 
+  304 /**
+  305  * 网站桌面端布局：与电脑程序（Tauri「全部功能」模式）一致的「顶栏 + 左侧边栏」布局。
+  306  * 顶部栏不含窗口控制按钮，用「网页版」标识；内容区按高度自适应、首页双栏单屏。
+  307  */
+  308 function WebDesktopLayout() {
+  309   return (
+  310     &lt;div className="theme-surface relative isolate flex h-screen w-full flex-col overflow-hidd
+      en bg-gray-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100"&gt;
+  311       &lt;div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 d
+      ark:border-slate-800 shrink-0 select-none"&gt;
+  312         &lt;div className="flex items-center gap-2"&gt;
+  313           &lt;DesktopLogo size={22} /&gt;
+  314           &lt;span className="text-sm font-semibold text-gray-700 dark:text-slate-300"&gt;DiveDeep&lt;/
+      span&gt;</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第7页（共60页）</header>
+<pre class="code">  315         &lt;/div&gt;
+  316         &lt;span className="text-xs text-gray-400 dark:text-slate-600"&gt;网页版&lt;/span&gt;
+  317       &lt;/div&gt;
+  318       &lt;div className="flex-1 min-h-0 overflow-y-auto overscroll-contain"&gt;
+  319         &lt;App hideBottomTab hideNavbar sidebar={&lt;Sidebar /&gt;} fillHeight forceTwoCol /&gt;
+  320       &lt;/div&gt;
+  321     &lt;/div&gt;
+  322   )
+  323 }
+  324 
+  325 /** 网站根组件：宽屏用电脑程序同款侧边栏布局，窄屏（手机/App）保留底部 Tab 移动布局 */
+  326 function WebRoot() {
+  327   const isDesktop = useMediaQuery('(min-width: 640px)')
+  328   return isDesktop ? &lt;WebDesktopLayout /&gt; : &lt;App /&gt;
+  329 }
+  330 
+  331 // Tauri 桌面版：渲染置顶计时小挂件；浏览器/移动端：渲染完整应用
+  332 if (isTauri()) {
+  333   // 挂件与全部功能模式共用同一主题（data-theme + dark class），保证两种模式外观一致
+  334   createRoot(document.getElementById('root')!).render(
+  335     &lt;StrictMode&gt;
+  336       &lt;ToastProvider&gt;
+  337         &lt;AuthProvider&gt;
+  338           &lt;WidgetApp /&gt;
+  339         &lt;/AuthProvider&gt;
+  340       &lt;/ToastProvider&gt;
+  341     &lt;/StrictMode&gt;,
+  342   )
+  343 } else {
+  344   createRoot(document.getElementById('root')!).render(
+  345     &lt;StrictMode&gt;
+  346       &lt;WebRoot /&gt;
+  347     &lt;/StrictMode&gt;,
+  348   )
+  349 }
+  350 
+  351 // ==================== 文件: src/contexts/AuthContext.tsx ====================
+  352 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+  353 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+  354 import { loadUserSubjects, resetSubjectCache } from '../lib/subjects'
+  355 import type { Session, User } from '@supabase/supabase-js'
+  356 
+  357 interface AuthContextValue {
+  358   user: User | null
+  359   session: Session | null
+  360   loading: boolean
+  361   error: string | null
+  362   signUp: (email: string, password: string) =&gt; Promise&lt;{ error: Error | null; needsEmailConfir
+      mation: boolean }&gt;
+  363   signIn: (email: string, password: string) =&gt; Promise&lt;{ error: Error | null }&gt;
+  364   signOut: () =&gt; Promise&lt;void&gt;
+  365 }
+  366 
+  367 const AuthContext = createContext&lt;AuthContextValue | undefined&gt;(undefined)
+  368 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第8页（共60页）</header>
+<pre class="code">  369 export function AuthProvider({ children }: { children: ReactNode }) {
+  370   const [user, setUser] = useState&lt;User | null&gt;(null)
+  371   const [session, setSession] = useState&lt;Session | null&gt;(null)
+  372   const [loading, setLoading] = useState(true)
+  373   const [error, setError] = useState&lt;string | null&gt;(null)
+  374 
+  375   useEffect(() =&gt; {
+  376     let cancelled = false
+  377 
+  378     // 环境变量未配置时，跳过网络请求，直接给出友好错误（避免请求占位域名导致超时）
+  379     if (!isSupabaseConfigured) {
+  380       setError('后端服务未配置，请检查部署环境变量设置')
+  381       setLoading(false)
+  382       return () =&gt; {
+  383         cancelled = true
+  384       }
+  385     }
+  386 
+  387     // Get initial session
+  388     supabase.auth.getSession().then(({ data: { session }, error: sessionError }) =&gt; {
+  389       if (cancelled) return
+  390       if (sessionError) {
+  391         console.error('[Auth] getSession error:', sessionError.message)
+  392         setError('认证服务连接失败，部分功能可能不可用')
+  393       }
+  394       setSession(session)
+  395       setUser(session?.user ?? null)
+  396       setLoading(false)
+  397     }).catch((err) =&gt; {
+  398       if (cancelled) return
+  399       console.error('[Auth] getSession failed:', err)
+  400       if (err instanceof DOMException &amp;&amp; err.name === 'AbortError') {
+  401         setError('认证服务连接超时，请检查网络后刷新重试')
+  402       } else {
+  403         setError('认证服务连接失败，部分功能可能不可用')
+  404       }
+  405       setLoading(false)
+  406     })
+  407 
+  408     // Listen for auth state changes
+  409     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) =&gt; {
+  410       if (cancelled) return
+  411       setSession(session)
+  412       setUser(session?.user ?? null)
+  413       setLoading(false)
+  414       // 登录成功后加载该用户的云端自定义科目；登出时清空科目缓存
+  415       if (session?.user) {
+  416         loadUserSubjects(session.user.id)
+  417       } else {
+  418         resetSubjectCache()
+  419       }
+  420     })
+  421 
+  422     return () =&gt; {
+  423       cancelled = true</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第9页（共60页）</header>
+<pre class="code">  424       subscription.unsubscribe()
+  425     }
+  426   }, [])
+  427 
+  428   const signUp = async (email: string, password: string) =&gt; {
+  429     const { data, error } = await supabase.auth.signUp({ email, password })
+  430     // 如果 user 存在但 session 为空，说明需要邮箱确认
+  431     const needsEmailConfirmation = !error &amp;&amp; !!data.user &amp;&amp; !data.session
+  432     return { error, needsEmailConfirmation }
+  433   }
+  434 
+  435   const signIn = async (email: string, password: string) =&gt; {
+  436     const { error } = await supabase.auth.signInWithPassword({ email, password })
+  437     return { error }
+  438   }
+  439 
+  440   const signOut = async () =&gt; {
+  441     await supabase.auth.signOut()
+  442   }
+  443 
+  444   return (
+  445     &lt;AuthContext.Provider value={{ user, session, loading, error, signUp, signIn, signOut }}&gt;
+  446       {children}
+  447     &lt;/AuthContext.Provider&gt;
+  448   )
+  449 }
+  450 
+  451 export function useAuth(): AuthContextValue {
+  452   const context = useContext(AuthContext)
+  453   if (context === undefined) {
+  454     throw new Error('useAuth must be used within an AuthProvider')
+  455   }
+  456   return context
+  457 }
+  458 
+  459 // ==================== 文件: src/contexts/LogsContext.tsx ====================
+  460 import { createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode }
+       from 'react'
+  461 import { useAuth } from './AuthContext'
+  462 import { fetchMyLogs, type DailyLog } from '../lib/dailyLogs'
+  463 
+  464 interface LogsContextType {
+  465   logs: DailyLog[]
+  466   loading: boolean
+  467   error: string | null
+  468   refetch: () =&gt; void
+  469 }
+  470 
+  471 const LogsContext = createContext&lt;LogsContextType&gt;({
+  472   logs: [],
+  473   loading: true,
+  474   error: null,
+  475   refetch: () =&gt; {},
+  476 })
+  477 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第10页（共60页）</header>
+<pre class="code">  478 export function LogsProvider({ children }: { children: ReactNode }) {
+  479   const { user } = useAuth()
+  480   const [logs, setLogs] = useState&lt;DailyLog[]&gt;([])
+  481   const [loading, setLoading] = useState(true)
+  482   const [error, setError] = useState&lt;string | null&gt;(null)
+  483   const versionRef = useRef(0)
+  484 
+  485   const refetch = useCallback(() =&gt; {
+  486     if (!user) return
+  487     versionRef.current++
+  488     setLoading(true)
+  489     setError(null)
+  490     const v = versionRef.current
+  491     fetchMyLogs(user.id)
+  492       .then((data) =&gt; {
+  493         if (versionRef.current !== v) return
+  494         setLogs(data)
+  495       })
+  496       .catch((err) =&gt; {
+  497         if (versionRef.current !== v) return
+  498         setError(err.message || '加载失败')
+  499       })
+  500       .finally(() =&gt; {
+  501         if (versionRef.current !== v) return
+  502         setLoading(false)
+  503       })
+  504   }, [user])
+  505 
+  506   useEffect(() =&gt; {
+  507     if (!user) {
+  508       setLogs([])
+  509       setLoading(false)
+  510       setError(null)
+  511       return
+  512     }
+  513     refetch()
+  514   }, [user, refetch])
+  515 
+  516   /* 回到前台/窗口重新聚焦时自动拉一次最新数据：
+  517      其他设备修改后切回本端（或从后台返回）能立即看到最新记录，无需手动刷新 */
+  518   useEffect(() =&gt; {
+  519     if (!user) return
+  520     const onVisibilityChange = () =&gt; {
+  521       if (document.visibilityState === 'visible') refetch()
+  522     }
+  523     const onFocus = () =&gt; refetch()
+  524     document.addEventListener('visibilitychange', onVisibilityChange)
+  525     window.addEventListener('focus', onFocus)
+  526     return () =&gt; {
+  527       document.removeEventListener('visibilitychange', onVisibilityChange)
+  528       window.removeEventListener('focus', onFocus)
+  529     }
+  530   }, [user, refetch])
+  531 
+  532   return (</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第11页（共60页）</header>
+<pre class="code">  533     &lt;LogsContext.Provider value={{ logs, loading, error, refetch }}&gt;
+  534       {children}
+  535     &lt;/LogsContext.Provider&gt;
+  536   )
+  537 }
+  538 
+  539 export function useLogs() {
+  540   return useContext(LogsContext)
+  541 }
+  542 
+  543 // ==================== 文件: src/contexts/UpdateContext.tsx ====================
+  544 import { createContext, useContext, type ReactNode } from 'react'
+  545 import { useAppUpdate, type UpdateStatus, type UpdateInfo } from '../hooks/useAppUpdate'
+  546 
+  547 interface UpdateContextType {
+  548   status: UpdateStatus
+  549   updateInfo: UpdateInfo | null
+  550   downloadProgress: number
+  551   error: string | null
+  552   checkForUpdate: () =&gt; Promise&lt;UpdateInfo | null&gt;
+  553   downloadAndInstall: (info: UpdateInfo) =&gt; Promise&lt;any&gt;
+  554 }
+  555 
+  556 const UpdateContext = createContext&lt;UpdateContextType | null&gt;(null)
+  557 
+  558 /** 在 App 根组件包裹，实现启动时自动静默检查更新 */
+  559 export function UpdateProvider({ children }: { children: ReactNode }) {
+  560   const update = useAppUpdate()
+  561   return (
+  562     &lt;UpdateContext.Provider value={update}&gt;
+  563       {children}
+  564     &lt;/UpdateContext.Provider&gt;
+  565   )
+  566 }
+  567 
+  568 /** 在「我的」页面等子组件中使用，读取共享的更新状态 */
+  569 export function useUpdateContext() {
+  570   const ctx = useContext(UpdateContext)
+  571   if (!ctx) throw new Error('useUpdateContext 必须在 UpdateProvider 内使用')
+  572   return ctx
+  573 }
+  574 
+  575 // ==================== 文件: src/pages/Achievements.tsx ====================
+  576 import { useMemo } from 'react'
+  577 import { useLogs } from '../contexts/LogsContext'
+  578 import { Icon } from '../components/Icon'
+  579 import {
+  580   ACHIEVEMENT_CATEGORIES,
+  581   computeAchievements,
+  582   computeStudyStats,
+  583   type AchievementState,
+  584   type AchievementCategory,
+  585 } from '../lib/achievements'
+  586 import { useWideLayout } from '../App'
+  587 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第12页（共60页）</header>
+<pre class="code">  588 /** 单个成就徽章 */
+  589 function Badge({ state }: { state: AchievementState }) {
+  590   const { def, unlocked, current, progress } = state
+  591   const displayCurrent = Math.min(current, def.target)
+  592   const fmtNum = (n: number) =&gt; (Number.isInteger(n) ? String(n) : n.toFixed(1))
+  593   return (
+  594     &lt;div
+  595       className={`flex flex-col items-center gap-1 rounded-xl border p-3 text-center transitio
+      n-colors ${
+  596         unlocked
+  597           ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700/50'
+  598           : 'bg-white dark:bg-slate-800 border-gray-100 dark:border-slate-700 opacity-60'
+  599       }`}
+  600       title={`${def.name}：${def.desc}（${fmtNum(displayCurrent)} / ${def.target}）`}
+  601     &gt;
+  602       &lt;span className={`text-2xl leading-none ${unlocked ? '' : 'grayscale'}`}&gt;{def.icon}&lt;/spa
+      n&gt;
+  603       &lt;span className={`text-sm font-semibold ${unlocked ? 'text-amber-700 dark:text-amber-300
+      ' : 'text-gray-600 dark:text-slate-300'}`}&gt;
+  604         {def.name}
+  605       &lt;/span&gt;
+  606       &lt;span className="text-[11px] leading-tight text-gray-400 dark:text-slate-400 min-h-[2rem
+      ]"&gt;{def.desc}&lt;/span&gt;
+  607       &lt;div className="w-full h-1.5 bg-gray-100 dark:bg-slate-700 rounded-full overflow-hidden 
+      mt-1"&gt;
+  608         &lt;div
+  609           className={`h-full rounded-full transition-all ${unlocked ? 'bg-amber-400 dark:bg-am
+      ber-500' : 'bg-gray-300 dark:bg-slate-500'}`}
+  610           style={{ width: `${progress}%` }}
+  611         /&gt;
+  612       &lt;/div&gt;
+  613       &lt;span className={`text-[11px] tabular-nums ${unlocked ? 'text-amber-600 dark:text-amber-
+      300 font-medium' : 'text-gray-400 dark:text-slate-500'}`}&gt;
+  614         {unlocked ? '已解锁' : `${fmtNum(displayCurrent)} / ${def.target}`}
+  615       &lt;/span&gt;
+  616     &lt;/div&gt;
+  617   )
+  618 }
+  619 
+  620 export default function Achievements() {
+  621   const wide = useWideLayout()
+  622   const { logs, loading, error, refetch } = useLogs()
+  623 
+  624   const states = useMemo(() =&gt; computeAchievements(logs), [logs])
+  625   const stats = useMemo(() =&gt; computeStudyStats(logs), [logs])
+  626   const unlockedCount = states.filter((s) =&gt; s.unlocked).length
+  627 
+  628   const grouped = useMemo(() =&gt; {
+  629     const map = new Map&lt;AchievementCategory, AchievementState[]&gt;()
+  630     for (const state of states) {
+  631       const list = map.get(state.def.category) ?? []
+  632       list.push(state)
+  633       map.set(state.def.category, list)
+  634     }
+  635     return map</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第13页（共60页）</header>
+<pre class="code">  636   }, [states])
+  637 
+  638   return (
+  639     &lt;div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-4xl'} px-4 py-4 space-y-4`}&gt;
+  640       &lt;h1 className="flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-slate-1
+      00"&gt;
+  641         &lt;Icon name="medal" size={20} className="text-amber-500" /&gt; 成就
+  642       &lt;/h1&gt;
+  643 
+  644       {loading &amp;&amp; (
+  645         &lt;div className="flex justify-center py-12"&gt;
+  646           &lt;div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:bord
+      er-slate-700 border-t-blue-600 dark:border-t-blue-500" /&gt;
+  647         &lt;/div&gt;
+  648       )}
+  649 
+  650       {error &amp;&amp; !loading &amp;&amp; (
+  651         &lt;div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-100
+       dark:border-slate-700 p-8 text-center"&gt;
+  652           &lt;p className="text-red-500 dark:text-red-400"&gt;{error}&lt;/p&gt;
+  653           &lt;button
+  654             type="button"
+  655             onClick={refetch}
+  656             className="bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-lg mt-3 tran
+      sition-colors cursor-pointer"
+  657           &gt;
+  658             重试
+  659           &lt;/button&gt;
+  660         &lt;/div&gt;
+  661       )}
+  662 
+  663       {!loading &amp;&amp; !error &amp;&amp; (
+  664         &lt;&gt;
+  665           {/* 总览卡片 */}
+  666           &lt;div className="grid grid-cols-2 sm:grid-cols-4 gap-3"&gt;
+  667             &lt;div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-
+      gray-100 dark:border-slate-700"&gt;
+  668               &lt;p className="text-xs text-gray-500 dark:text-slate-400"&gt;已解锁&lt;/p&gt;
+  669               &lt;p className="text-2xl font-bold text-gray-900 dark:text-slate-100 mt-1"&gt;
+  670                 {unlockedCount}&lt;span className="text-sm text-gray-400 font-normal"&gt; / {states.
+      length}&lt;/span&gt;
+  671               &lt;/p&gt;
+  672             &lt;/div&gt;
+  673             &lt;div className="rounded-xl bg-orange-50 dark:bg-orange-900/20 border-orange-200 da
+      rk:border-orange-700/50 border p-4"&gt;
+  674               &lt;p className="text-xs text-orange-600 dark:text-orange-300"&gt;当前连续&lt;/p&gt;
+  675               &lt;p className="text-2xl font-bold text-orange-600 dark:text-orange-300 mt-1"&gt;🔥 {
+      stats.currentStreak} 天&lt;/p&gt;
+  676             &lt;/div&gt;
+  677             &lt;div className="rounded-xl bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:bor
+      der-blue-700/50 border p-4"&gt;
+  678               &lt;p className="text-xs text-blue-600 dark:text-blue-300"&gt;最长连续&lt;/p&gt;
+  679               &lt;p className="text-2xl font-bold text-blue-600 dark:text-blue-300 mt-1"&gt;{stats.l
+      ongestStreak} 天&lt;/p&gt;
+  680             &lt;/div&gt;</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第14页（共60页）</header>
+<pre class="code">  681             &lt;div className="rounded-xl bg-green-50 dark:bg-green-900/20 border-green-200 dark:
+      border-green-700/50 border p-4"&gt;
+  682               &lt;p className="text-xs text-green-600 dark:text-green-300"&gt;累计学习&lt;/p&gt;
+  683               &lt;p className="text-2xl font-bold text-green-600 dark:text-green-300 mt-1"&gt;
+  684                 {stats.totalHours.toFixed(1)}&lt;span className="text-sm font-normal"&gt; h&lt;/span&gt;
+  685               &lt;/p&gt;
+  686             &lt;/div&gt;
+  687           &lt;/div&gt;
+  688 
+  689           {/* 分类徽章 */}
+  690           {ACHIEVEMENT_CATEGORIES.map((cat) =&gt; {
+  691             const list = grouped.get(cat.key) ?? []
+  692             if (list.length === 0) return null
+  693             const catUnlocked = list.filter((s) =&gt; s.unlocked).length
+  694             return (
+  695               &lt;div key={cat.key} className="space-y-2"&gt;
+  696                 &lt;div className="flex items-center gap-2 pt-2"&gt;
+  697                   &lt;span className="text-base"&gt;{cat.icon}&lt;/span&gt;
+  698                   &lt;h2 className="text-base font-semibold text-gray-700 dark:text-slate-200"&gt;{c
+      at.label}&lt;/h2&gt;
+  699                   &lt;span className="text-xs text-gray-400 dark:text-slate-500"&gt;{catUnlocked} / 
+      {list.length}&lt;/span&gt;
+  700                 &lt;/div&gt;
+  701                 &lt;div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3"&gt;
+  702                   {list.map((state) =&gt; (
+  703                     &lt;Badge key={state.def.id} state={state} /&gt;
+  704                   ))}
+  705                 &lt;/div&gt;
+  706               &lt;/div&gt;
+  707             )
+  708           })}
+  709         &lt;/&gt;
+  710       )}
+  711     &lt;/div&gt;
+  712   )
+  713 }
+  714 
+  715 // ==================== 文件: src/pages/EditRecord.tsx ====================
+  716 import { useEffect, useRef, useState } from 'react'
+  717 import { useParams, useNavigate } from 'react-router-dom'
+  718 import { useAuth } from '../contexts/AuthContext'
+  719 import { useLogs } from '../contexts/LogsContext'
+  720 import { useToast } from '../lib/Toast'
+  721 import LogForm from '../components/LogForm'
+  722 import ConfirmDialog from '../components/ConfirmDialog'
+  723 import { getAvailableSubjects } from '../lib/subjects'
+  724 import type { DailyLog, DailyLogInput } from '../lib/dailyLogs'
+  725 import { fetchLogById, fetchLogByDate, updateLog, purgeLog, mergeSubjects, isDuplicateDateErro
+      r } from '../lib/dailyLogs'
+  726 import { useWideLayout } from '../App'
+  727 
+  728 /** 合并两段总结：都非空时换行拼接 */
+  729 function combineSummary(a: string, b: string): string {
+  730   if (!a.trim()) return b
+  731   if (!b.trim()) return a</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第15页（共60页）</header>
+<pre class="code">  732   return `${a.trim()}\n${b.trim()}`
+  733 }
+  734 
+  735 export default function EditRecord() {
+  736   const wide = useWideLayout()
+  737   const { id } = useParams&lt;{ id: string }&gt;()
+  738   const { user } = useAuth()
+  739   const { refetch } = useLogs()
+  740   const toast = useToast()
+  741   const navigate = useNavigate()
+  742   const [log, setLog] = useState&lt;DailyLog | null&gt;(null)
+  743   const [loading, setLoading] = useState(true)
+  744   const [error, setError] = useState&lt;string | null&gt;(null)
+  745   const [mergeConfirm, setMergeConfirm] = useState&lt;{ open: boolean; data?: DailyLogInput; targ
+      et?: DailyLog }&gt;({ open: false })
+  746   const pendingRef = useRef&lt;{ data: DailyLogInput; target: DailyLog } | null&gt;(null)
+  747 
+  748   useEffect(() =&gt; {
+  749     if (!user || !id) return
+  750     setLoading(true)
+  751     fetchLogById(id)
+  752       .then((found) =&gt; {
+  753         if (!found) {
+  754           setError('记录不存在')
+  755         } else if (found.user_id !== user.id) {
+  756           setError('无权编辑此记录')
+  757         } else {
+  758           setLog(found)
+  759         }
+  760       })
+  761       .catch((err) =&gt; setError(err instanceof Error ? err.message : '加载失败'))
+  762       .finally(() =&gt; setLoading(false))
+  763   }, [user, id])
+  764 
+  765   const doMerge = async (data: DailyLogInput, target: DailyLog) =&gt; {
+  766     if (!id) return
+  767     try {
+  768       await updateLog(target.id, {
+  769         date: data.date,
+  770         subjects: mergeSubjects(target.subjects, data.subjects),
+  771         summary: combineSummary(target.summary, data.summary),
+  772       })
+  773       await purgeLog(id)
+  774       refetch()
+  775       navigate('/my-records')
+  776     } catch (err) {
+  777       toast.show(err instanceof Error ? err.message : '保存失败，请重试', { icon: '❌' })
+  778     }
+  779   }
+  780 
+  781   const handleSubmit = async (data: DailyLogInput) =&gt; {
+  782     if (!id || !user) return
+  783     try {
+  784       if (log &amp;&amp; data.date !== log.date) {
+  785         const target = await fetchLogByDate(user.id, data.date)</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第16页（共60页）</header>
+<pre class="code">  786         if (target) {
+  787           pendingRef.current = { data, target }
+  788           setMergeConfirm({ open: true, data, target })
+  789           return
+  790         }
+  791       }
+  792       await updateLog(id, data)
+  793       refetch()
+  794       navigate('/my-records')
+  795     } catch (err) {
+  796       if (isDuplicateDateError(err)) {
+  797         toast.show('该日期已有记录，请选择其他日期', { icon: '⚠️' })
+  798       } else {
+  799         toast.show(err instanceof Error ? err.message : '保存失败，请重试', { icon: '❌' })
+  800       }
+  801     }
+  802   }
+  803 
+  804   const handleMergeConfirm = () =&gt; {
+  805     setMergeConfirm({ open: false })
+  806     if (pendingRef.current) {
+  807       doMerge(pendingRef.current.data, pendingRef.current.target)
+  808       pendingRef.current = null
+  809     }
+  810   }
+  811 
+  812   const handleCancel = () =&gt; {
+  813     navigate('/my-records')
+  814   }
+  815 
+  816   if (loading) {
+  817     return (
+  818       &lt;div className="flex justify-center py-12"&gt;
+  819         &lt;div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:border
+      -slate-700 border-t-blue-600 dark:border-t-blue-500" /&gt;
+  820       &lt;/div&gt;
+  821     )
+  822   }
+  823 
+  824   if (error || !log) {
+  825     return (
+  826       &lt;div className="mx-auto max-w-2xl px-4 py-12 text-center"&gt;
+  827         &lt;p className="text-red-500 dark:text-red-400 mb-4"&gt;{error || '记录不存在'}&lt;/p&gt;
+  828         &lt;button
+  829           onClick={() =&gt; navigate('/my-records')}
+  830           className="text-blue-600 dark:text-blue-400 hover:underline"
+  831         &gt;
+  832           返回记录
+  833         &lt;/button&gt;
+  834       &lt;/div&gt;
+  835     )
+  836   }
+  837 
+  838   return (
+  839     &lt;div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-2xl'} px-4 py-6`}&gt;</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第17页（共60页）</header>
+<pre class="code">  840       &lt;h1 className="text-2xl font-bold text-gray-800 dark:text-slate-100 mb-6"&gt;编辑记录&lt;/h1&gt;
+  841       &lt;LogForm
+  842         initialData={{ date: log.date, subjects: log.subjects, summary: log.summary }}
+  843         availableSubjects={getAvailableSubjects()}
+  844         onSubmit={handleSubmit}
+  845         onCancel={handleCancel}
+  846       /&gt;
+  847       &lt;ConfirmDialog
+  848         open={mergeConfirm.open}
+  849         title="合并并删除原记录"
+  850         message={`该日期（${mergeConfirm.target?.date}）已有记录。确认后将把当前编辑内容合并进
+      该记录，并永久删除原记录（不可恢复）。`}
+  851         confirmText="确认合并"
+  852         danger
+  853         onConfirm={handleMergeConfirm}
+  854         onCancel={() =&gt; setMergeConfirm({ open: false })}
+  855       /&gt;
+  856     &lt;/div&gt;
+  857   )
+  858 }
+  859 
+  860 // ==================== 文件: src/pages/EnglishCheckin.tsx ====================
+  861 import { useEffect, useMemo, useState, useCallback, Component } from 'react'
+  862 import type { ReactNode } from 'react'
+  863 import { useAuth } from '../contexts/AuthContext'
+  864 import { loadEnglishDaily, type EnglishDay } from '../data/englishDaily'
+  865 import { fetchMyCheckins, createCheckin, deleteCheckin } from '../lib/englishCheckin'
+  866 import { loadMarkedWords, saveMarkedWords, addDayToVocabulary, pushVocabularyToCloud } from '.
+      ./lib/vocabulary'
+  867 import { supabase } from '../lib/supabase'
+  868 import { postJson } from '../lib/httpRequest'
+  869 import { useWideLayout } from '../App'
+  870 
+  871 const TOTAL = 150
+  872 
+  873 // ---------- AI 翻译批改 ----------
+  874 
+  875 interface AiCorrection {
+  876   score: number | null
+  877   corrected: string
+  878   issues: string[]
+  879   suggestions: string[]
+  880   backbone: string
+  881   structure: string[]
+  882   collocations: string[]
+  883 }
+  884 
+  885 // 兜底归一化 AI 返回：强制所有字段为字符串/字符串数组/数字，杜绝畸形结构导致 React 渲染崩溃
+  886 function normalizeAiCorrection(raw: any): AiCorrection {
+  887   const str = (v: unknown) =&gt; (typeof v === 'string' ? v : v == null ? '' : String(v))
+  888   // 模型偶发把 issues/suggestions/structure 返回成对象列表（如 {问题, 建议}），
+  889   // 这里提取首个字符串字段，避免前端渲染成 [object Object]
+  890   const itemStr = (v: unknown): string =&gt; {
+  891     if (typeof v === 'string') return v
+  892     if (v &amp;&amp; typeof v === 'object') {</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第18页（共60页）</header>
+<pre class="code">  893       const first = Object.values(v as Record&lt;string, unknown&gt;).find(x =&gt; typeof x === 'string
+      ')
+  894       return first != null ? String(first) : JSON.stringify(v)
+  895     }
+  896     return v == null ? '' : String(v)
+  897   }
+  898   const strArr = (v: unknown) =&gt; (Array.isArray(v) ? v.map(itemStr).filter(Boolean) : [])
+  899   const num = (v: unknown) =&gt;
+  900     typeof v === 'number' &amp;&amp; Number.isFinite(v) ? v : v == null ? null : (Number(v) as number)
+       || null
+  901   return {
+  902     score: num(raw?.score),
+  903     corrected: str(raw?.corrected),
+  904     issues: strArr(raw?.issues),
+  905     suggestions: strArr(raw?.suggestions),
+  906     backbone: str(raw?.backbone),
+  907     structure: strArr(raw?.structure),
+  908     collocations: strArr(raw?.collocations),
+  909   }
+  910 }
+  911 
+  912 // 局部错误边界：AI 卡片渲染异常时只显示错误提示，避免整个页面崩溃变黑屏
+  913 interface EBState { hasError: boolean }
+  914 class AiResultBoundary extends Component&lt;{ children: ReactNode }, EBState&gt; {
+  915   state: EBState = { hasError: false }
+  916   static getDerivedStateFromError(): EBState { return { hasError: true } }
+  917   render() {
+  918     if (this.state.hasError) {
+  919       return &lt;p className="text-xs text-red-500"&gt;AI 结果渲染异常，请重新点击解析&lt;/p&gt;
+  920     }
+  921     return this.props.children
+  922   }
+  923 }
+  924 
+  925 // CloudBase 云函数 HTTP 地址（国内节点直连讯飞，稳定）；未配置时回退到 Supabase Edge Function
+  926 const AI_CORRECT_URL = (import.meta.env.VITE_AI_CORRECT_URL as string | undefined)?.trim() || 
+      ''
+  927 
+  928 // ---------- 翻译相似度打分 ----------
+  929 
+  930 /** 计算两个字符串的相似度，返回 0-100 的分数 */
+  931 function calcTranslationScore(userText: string, refText: string): number {
+  932   const u = userText.trim()
+  933   const r = refText.trim()
+  934   if (!u) return 0
+  935   if (u === r) return 100
+  936 
+  937   // 1. 字符级相似度（最长公共子序列比率）
+  938   const lcsLen = lcs(u, r)
+  939   const charScore = (2 * lcsLen) / (u.length + r.length) * 100
+  940 
+  941   // 2. 词级相似度（Jaccard）
+  942   const tokenize = (s: string) =&gt; {
+  943     const tokens: string[] = []
+  944     // 中文按字符拆，英文/数字按词拆</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第19页（共60页）</header>
+<pre class="code">  945     const segs = s.split(/([\u4e00-\u9fff]+)/)
+  946     for (const seg of segs) {
+  947       if (/[\u4e00-\u9fff]/.test(seg)) {
+  948         for (const ch of seg) tokens.push(ch)
+  949       } else {
+  950         tokens.push(...seg.split(/[^a-zA-Z0-9]+/).filter(Boolean).map(t =&gt; t.toLowerCase()))
+  951       }
+  952     }
+  953     return new Set(tokens)
+  954   }
+  955   const uSet = tokenize(u)
+  956   const rSet = tokenize(r)
+  957   const intersection = new Set([...uSet].filter(x =&gt; rSet.has(x)))
+  958   const union = new Set([...uSet, ...rSet])
+  959   const wordScore = union.size &gt; 0 ? (intersection.size / union.size) * 100 : 0
+  960 
+  961   // 综合：字符 60% + 词 40%
+  962   return Math.round(charScore * 0.6 + wordScore * 0.4)
+  963 }
+  964 
+  965 function lcs(a: string, b: string): number {
+  966   const m = a.length, n = b.length
+  967   if (m === 0 || n === 0) return 0
+  968   // 使用滚动数组节省内存
+  969   let prev = new Array(n + 1).fill(0)
+  970   let cur = new Array(n + 1).fill(0)
+  971   for (let i = 1; i &lt;= m; i++) {
+  972     for (let j = 1; j &lt;= n; j++) {
+  973       cur[j] = a[i - 1] === b[j - 1] ? prev[j - 1] + 1 : Math.max(prev[j], cur[j - 1])
+  974     }
+  975     ;[prev, cur] = [cur, prev]
+  976   }
+  977   return prev[n]
+  978 }
+  979 
+  980 // ---------- 单词分词 ----------
+  981 
+  982 interface Token {
+  983   text: string
+  984   isWord: boolean
+  985   idx: number
+  986 }
+  987 
+  988 /** 将英文句子拆分为可点击的单词 token */
+  989 function tokenizeSentence(text: string): Token[] {
+  990   const tokens: Token[] = []
+  991   let wordIdx = 0
+  992   // 匹配单词（含缩写 don't, it's 和连字符词 co-operative, state-of-the-art）
+  993   const re = /([a-zA-Z]+(?:[-'][a-zA-Z]+)*)|([^a-zA-Z]+)/g
+  994   let m
+  995   while ((m = re.exec(text)) !== null) {
+  996     if (m[1]) {
+  997       tokens.push({ text: m[1], isWord: true, idx: wordIdx++ })
+  998     } else if (m[2]) {
+  999       // 非单词字符，按字符拆分</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第20页（共60页）</header>
+<pre class="code"> 1000       for (const ch of m[2]) {
+ 1001         tokens.push({ text: ch, isWord: false, idx: -1 })
+ 1002       }
+ 1003     }
+ 1004   }
+ 1005   return tokens
+ 1006 }
+ 1007 
+ 1008 // ---------- 长难句切分还原 ----------
+ 1009 
+ 1010 /** 切分片段是无空格的粘连文本，对照原句 en 还原出空格，让单词可读。
+ 1011  * 数据里可能存在三种噪音：① 单词粘连；② 讲解性括号注释（如 (that)、(at least)，
+ 1012  * 括号或括号内的词在原句中并不存在）；③ 连字符/撇号/引号被 PDF 抽取改写（-- vs -、’ vs '）
+      。
+ 1013  * 这里通过「标点折叠 + 多候选匹配」尽可能把片段还原成原句中的连续子串。 */
+ 1014 function restoreChunkSpaces(chunk: string, orig: string): string {
+ 1015   if (!chunk) return chunk
+ 1016   const needleRaw = chunk.replace(/\s+/g, '')
+ 1017   if (!needleRaw) return chunk
+ 1018 
+ 1019   // 原句去掉空格，并记录「去空格下标 -&gt; 原句下标」映射
+ 1020   const origMap: number[] = []
+ 1021   let strippedBuilder = ''
+ 1022   for (let i = 0; i &lt; orig.length; i++) {
+ 1023     if (/\s/.test(orig[i])) continue
+ 1024     strippedBuilder += orig[i]
+ 1025     origMap.push(i)
+ 1026   }
+ 1027 
+ 1028   // 标点折叠：连字符/破折号统一为 '-'（连续多个合并成一个）、撇号统一为 "'"、引号统一为 '"'
+ 1029   const foldChar = (c: string): { out: string; skip: boolean } =&gt; {
+ 1030     if (/[\u002D\u2010-\u2015]/.test(c)) return { out: '-', skip: false }
+ 1031     if (/[\u0027\u2018\u2019\u201A\u201B]/.test(c)) return { out: "'", skip: false }
+ 1032     if (/[\u0022\u201C\u201D\u201E\u201F]/.test(c)) return { out: '"', skip: false }
+ 1033     return { out: c, skip: false }
+ 1034   }
+ 1035 
+ 1036   // 从「去空格字符串」折叠，同时记录折叠下标 -&gt; 去空格下标
+ 1037   let folded = ''
+ 1038   const foldMap: number[] = []
+ 1039   let prevDash = false
+ 1040   for (let i = 0; i &lt; strippedBuilder.length; i++) {
+ 1041     const { out, skip } = foldChar(strippedBuilder[i])
+ 1042     if (skip) continue
+ 1043     if (out === '-') {
+ 1044       if (prevDash) continue // 合并连续连字符
+ 1045       prevDash = true
+ 1046       folded += '-'
+ 1047       foldMap.push(i)
+ 1048       continue
+ 1049     }
+ 1050     prevDash = false
+ 1051     folded += out
+ 1052     foldMap.push(i)
+ 1053   }</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第21页（共60页）</header>
+<pre class="code"> 1054 
+ 1055   // 片段同样折叠
+ 1056   const foldChunk = (s: string): string =&gt;
+ 1057     s
+ 1058       .replace(/[\u002D\u2010-\u2015]+/g, '-')
+ 1059       .replace(/[\u0027\u2018\u2019\u201A\u201B]+/g, "'")
+ 1060       .replace(/[\u0022\u201C\u201D\u201E\u201F]+/g, '"')
+ 1061 
+ 1062   const F = foldChunk(needleRaw)
+ 1063   // 候选片段（按优先级生成，最终取「最长命中」以保留最多原文信息）：
+ 1064   // 1) 原样 2) 去掉括号保留内容 3) 去掉整组括号 4) 先整组再去残留括号
+ 1065   const candidates = [
+ 1066     F,
+ 1067     F.replace(/[()]/g, ''),
+ 1068     F.replace(/\([^()]*\)/g, ''),
+ 1069     F.replace(/\([^()]*\)/g, '').replace(/[()]/g, ''),
+ 1070   ]
+ 1071 
+ 1072   let bestStart = -1
+ 1073   let bestLen = 0
+ 1074   for (const cand of candidates) {
+ 1075     if (!cand) continue
+ 1076     const idx = folded.indexOf(cand)
+ 1077     if (idx !== -1 &amp;&amp; cand.length &gt; bestLen) {
+ 1078       bestStart = idx
+ 1079       bestLen = cand.length
+ 1080     }
+ 1081   }
+ 1082 
+ 1083   if (bestStart === -1) return chunk // 无法匹配则原样显示
+ 1084   const startOrig = origMap[foldMap[bestStart]]
+ 1085   const endOrig = origMap[foldMap[bestStart + bestLen - 1]]
+ 1086   return orig.slice(startOrig, endOrig + 1)
+ 1087 }
+ 1088 
+ 1089 // ---------- 颜色工具 ----------
+ 1090 
+ 1091 function scoreColor(score: number): string {
+ 1092   if (score &gt;= 80) return 'text-green-600 dark:text-green-400'
+ 1093   if (score &gt;= 60) return 'text-yellow-600 dark:text-yellow-400'
+ 1094   return 'text-red-600 dark:text-red-400'
+ 1095 }
+ 1096 
+ 1097 function scoreBg(score: number): string {
+ 1098   if (score &gt;= 80) return 'bg-green-100 dark:bg-green-900/30'
+ 1099   if (score &gt;= 60) return 'bg-yellow-100 dark:bg-yellow-900/30'
+ 1100   return 'bg-red-100 dark:bg-red-900/30'
+ 1101 }
+ 1102 
+ 1103 // ---------- 页面组件 ----------
+ 1104 
+ 1105 export default function EnglishCheckin() {
+ 1106   const wide = useWideLayout()
+ 1107   const { user } = useAuth()
+ 1108   const [checkins, setCheckins] = useState&lt;Set&lt;number&gt;&gt;(new Set())</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第22页（共60页）</header>
+<pre class="code"> 1109   const [loading, setLoading] = useState(true)
+ 1110   const [selectedDay, setSelectedDay] = useState(1)
+ 1111   const [busy, setBusy] = useState(false)
+ 1112   const [error, setError] = useState&lt;string | null&gt;(null)
+ 1113 
+ 1114   // 标记单词：Set&lt;"dayIdx-sentIdx-wordIdx"&gt;，从 localStorage 初始化
+ 1115   const [markedWords, setMarkedWords] = useState&lt;Set&lt;string&gt;&gt;(() =&gt; loadMarkedWords())
+ 1116   // 翻译输入：Map&lt;"dayIdx-sentIdx", string&gt;
+ 1117   const [translations, setTranslations] = useState&lt;Map&lt;string, string&gt;&gt;(new Map())
+ 1118   // 打分结果：Map&lt;"dayIdx-sentIdx", number | null&gt;
+ 1119   const [scores, setScores] = useState&lt;Map&lt;string, number | null&gt;&gt;(new Map())
+ 1120   // AI 批改结果：Map&lt;"dayIdx-sentIdx", AiCorrection | null&gt;
+ 1121   const [aiResults, setAiResults] = useState&lt;Map&lt;string, AiCorrection | null&gt;&gt;(new Map())
+ 1122   // AI 批改进行中的句子：Set&lt;"dayIdx-sentIdx"&gt;
+ 1123   const [aiLoading, setAiLoading] = useState&lt;Set&lt;string&gt;&gt;(new Set())
+ 1124   // AI 批改错误信息
+ 1125   const [aiError, setAiError] = useState&lt;string | null&gt;(null)
+ 1126   // 预生成「解析」卡片展开状态：Set&lt;"dayIdx-sentIdx"&gt;
+ 1127   const [showAnalysis, setShowAnalysis] = useState&lt;Set&lt;string&gt;&gt;(new Set())
+ 1128   // 150 天语料（懒加载 JSON chunk，含原文/译文/解析）
+ 1129   const [daily, setDaily] = useState&lt;EnglishDay[]&gt;([])
+ 1130 
+ 1131   const completedDays = useMemo(() =&gt; new Set(checkins), [checkins])
+ 1132   const nextDay = useMemo(() =&gt; {
+ 1133     for (let d = 1; d &lt;= TOTAL; d++) if (!completedDays.has(d)) return d
+ 1134     return TOTAL + 1
+ 1135   }, [completedDays])
+ 1136   const lastDoneDay = nextDay - 1
+ 1137   const progress = (completedDays.size / TOTAL) * 100
+ 1138   const allDone = nextDay &gt; TOTAL
+ 1139 
+ 1140   useEffect(() =&gt; {
+ 1141     if (!user) { setLoading(false); return }
+ 1142     setLoading(true)
+ 1143     fetchMyCheckins(user.id)
+ 1144       .then((list) =&gt; {
+ 1145         const set = new Set(list.map((c) =&gt; c.day))
+ 1146         setCheckins(set)
+ 1147         for (let d = 1; d &lt;= TOTAL; d++) {
+ 1148           if (!set.has(d)) { setSelectedDay(d); break }
+ 1149         }
+ 1150       })
+ 1151       .catch((e) =&gt; setError(e instanceof Error ? e.message : '加载失败'))
+ 1152       .finally(() =&gt; setLoading(false))
+ 1153   }, [user])
+ 1154 
+ 1155   // 语料懒加载（独立异步 chunk，不阻塞首屏其它逻辑）
+ 1156   useEffect(() =&gt; {
+ 1157     let cancelled = false
+ 1158     loadEnglishDaily()
+ 1159       .then((d) =&gt; { if (!cancelled) setDaily(d) })
+ 1160       .catch((e) =&gt; setError(e instanceof Error ? e.message : '语料加载失败'))
+ 1161     return () =&gt; { cancelled = true }
+ 1162   }, [])
+ 1163 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第23页（共60页）</header>
+<pre class="code"> 1164   const dayData: EnglishDay | undefined = daily.find((d) =&gt; d.day === selectedDay) ?? daily[0]
+ 1165   const isDone = completedDays.has(selectedDay)
+ 1166   const isNext = selectedDay === nextDay
+ 1167 
+ 1168   const handleCheckIn = async () =&gt; {
+ 1169     if (!user || isDone || nextDay &gt; TOTAL || busy) return
+ 1170     setBusy(true); setError(null)
+ 1171     try {
+ 1172       await createCheckin(user.id, nextDay)
+ 1173 
+ 1174       // 收集当天标记的生词，存入生词本
+ 1175       const dayVocabWords: { word: string; sentence: string; sentIdx: number; wordIdx: number 
+      }[] = []
+ 1176       const dayData = daily.find((d) =&gt; d.day === nextDay)
+ 1177       if (dayData) {
+ 1178         for (let si = 0; si &lt; dayData.sentences.length; si++) {
+ 1179           const tokens = tokenizeSentence(dayData.sentences[si].en)
+ 1180           for (const t of tokens) {
+ 1181             if (t.isWord &amp;&amp; markedWords.has(`${nextDay}-${si}-${t.idx}`)) {
+ 1182               dayVocabWords.push({ word: t.text, sentence: dayData.sentences[si].en, sentIdx: 
+      si, wordIdx: t.idx })
+ 1183             }
+ 1184           }
+ 1185         }
+ 1186         if (dayVocabWords.length &gt; 0) {
+ 1187           addDayToVocabulary(nextDay, dayVocabWords)
+ 1188           // 同步推送到云端生词本（登录用户）
+ 1189           try {
+ 1190             await pushVocabularyToCloud(
+ 1191               user.id,
+ 1192               dayVocabWords.map((w) =&gt; ({ ...w, day: nextDay })),
+ 1193             )
+ 1194           } catch { /* 忽略同步失败，本地已保存 */ }
+ 1195         }
+ 1196       }
+ 1197 
+ 1198       const set = new Set(checkins); set.add(nextDay); setCheckins(set)
+ 1199       setSelectedDay(nextDay + 1 &gt; TOTAL ? TOTAL : nextDay + 1)
+ 1200     } catch (e) {
+ 1201       setError(e instanceof Error ? e.message : '打卡失败')
+ 1202     } finally { setBusy(false) }
+ 1203   }
+ 1204 
+ 1205   const handleUndo = async () =&gt; {
+ 1206     if (!user || lastDoneDay &lt; 1 || busy) return
+ 1207     setBusy(true); setError(null)
+ 1208     try {
+ 1209       await deleteCheckin(user.id, lastDoneDay)
+ 1210       const set = new Set(checkins); set.delete(lastDoneDay); setCheckins(set)
+ 1211       setSelectedDay(lastDoneDay)
+ 1212     } catch (e) {
+ 1213       setError(e instanceof Error ? e.message : '撤销失败')
+ 1214     } finally { setBusy(false) }
+ 1215   }
+ 1216 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第24页（共60页）</header>
+<pre class="code"> 1217   const toggleWord = useCallback((dayIdx: number, sentIdx: number, wordIdx: number) =&gt; {
+ 1218     const key = `${dayIdx}-${sentIdx}-${wordIdx}`
+ 1219     setMarkedWords(prev =&gt; {
+ 1220       const next = new Set(prev)
+ 1221       if (next.has(key)) next.delete(key)
+ 1222       else next.add(key)
+ 1223       saveMarkedWords(next)
+ 1224       return next
+ 1225     })
+ 1226   }, [])
+ 1227 
+ 1228   const handleScore = useCallback((dayIdx: number, sentIdx: number) =&gt; {
+ 1229     const key = `${dayIdx}-${sentIdx}`
+ 1230     const userText = translations.get(key) || ''
+ 1231     const day = daily.find(d =&gt; d.day === dayIdx)
+ 1232     const refText = day?.sentences[sentIdx]?.ref || ''
+ 1233     const score = calcTranslationScore(userText, refText)
+ 1234     setScores(prev =&gt; { const next = new Map(prev); next.set(key, score); return next })
+ 1235   }, [translations, daily])
+ 1236 
+ 1237   // 展开/收起预生成「解析」卡片（本地数据，不消耗 AI token）
+ 1238   const toggleAnalysis = useCallback((dayIdx: number, sentIdx: number) =&gt; {
+ 1239     const key = `${dayIdx}-${sentIdx}`
+ 1240     setShowAnalysis(prev =&gt; {
+ 1241       const next = new Set(prev)
+ 1242       if (next.has(key)) next.delete(key)
+ 1243       else next.add(key)
+ 1244       return next
+ 1245     })
+ 1246   }, [])
+ 1247 
+ 1248   // 调用 Supabase Edge Function 完成 AI 翻译批改
+ 1249   const handleAiCorrect = useCallback(async (dayIdx: number, sentIdx: number) =&gt; {
+ 1250     const key = `${dayIdx}-${sentIdx}`
+ 1251     if (aiLoading.has(key)) return
+ 1252     const userText = translations.get(key) || ''
+ 1253     const day = daily.find(d =&gt; d.day === dayIdx)
+ 1254     const sentence = day?.sentences[sentIdx]?.en || ''
+ 1255     // 参考译文只取当前这一句的（来自逐句译文 ref），不要传整段译文，
+ 1256     // 否则模型会把"修正译文"直接输出成整段参考译文
+ 1257     const refText = day?.sentences[sentIdx]?.ref || ''
+ 1258 
+ 1259     setAiLoading(prev =&gt; new Set(prev).add(key))
+ 1260     setAiError(null)
+ 1261     try {
+ 1262       let result: AiCorrection
+ 1263       if (AI_CORRECT_URL) {
+ 1264         // 走腾讯云 SCF 云函数；原生平台用原生网络栈，绕开 WebView fetch 崩溃黑屏
+ 1265         const { ok, status, body } = await postJson(AI_CORRECT_URL, {
+ 1266           en: sentence,
+ 1267           userTranslation: userText,
+ 1268           refTranslation: refText,
+ 1269         })
+ 1270         if (!ok || !body?.ok) throw new Error(body?.error || `AI 批改失败（${status}）`)
+ 1271         result = normalizeAiCorrection(body.data)</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第25页（共60页）</header>
+<pre class="code"> 1272       } else {
+ 1273         // 回退：Supabase Edge Function
+ 1274         const { data, error } = await supabase.functions.invoke('ai-correct', {
+ 1275           body: { en: sentence, userTranslation: userText, refTranslation: refText },
+ 1276         })
+ 1277         if (error) throw new Error(error.message || 'AI 批改失败')
+ 1278         result = normalizeAiCorrection(data)
+ 1279       }
+ 1280       setAiResults(prev =&gt; { const next = new Map(prev); next.set(key, result); return next })
+ 1281     } catch (e) {
+ 1282       const aborted = e instanceof Error &amp;&amp; e.name === 'AbortError'
+ 1283       setAiError(
+ 1284         aborted
+ 1285           ? 'AI 批改超时，请检查网络后重试'
+ 1286           : e instanceof Error ? e.message : 'AI 批改失败，请稍后重试'
+ 1287       )
+ 1288     } finally {
+ 1289       setAiLoading(prev =&gt; { const next = new Set(prev); next.delete(key); return next })
+ 1290     }
+ 1291   }, [translations, aiLoading, daily])
+ 1292 
+ 1293   // 语料未就绪的兜底（必须放在最后一个 Hooks 之后，避免违反 Hooks 规则）
+ 1294   if (!dayData) {
+ 1295     return (
+ 1296       &lt;div className="mx-auto max-w-5xl px-4 py-4"&gt;
+ 1297         &lt;div className="rounded-xl bg-white dark:bg-slate-800 p-8 shadow-sm border border-gray
+      -100 dark:border-slate-700 text-center"&gt;
+ 1298           &lt;p className="text-sm text-gray-500 dark:text-slate-400"&gt;
+ 1299             {error ? `语料加载失败：${error}` : '语料加载中…'}
+ 1300           &lt;/p&gt;
+ 1301         &lt;/div&gt;
+ 1302       &lt;/div&gt;
+ 1303     )
+ 1304   }
+ 1305 
+ 1306   return (
+ 1307     &lt;div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-5xl'} px-4 py-4 space-y-4`}&gt;
+ 1308       {/* 进度条 */}
+ 1309       &lt;div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-1
+      00 dark:border-slate-700"&gt;
+ 1310         &lt;div className="flex items-center justify-between"&gt;
+ 1311           &lt;h1 className="text-base font-bold"&gt;英语长难句打卡&lt;/h1&gt;
+ 1312           &lt;span className="text-sm text-gray-500 dark:text-slate-400"&gt;{completedDays.size}/{TO
+      TAL} 天&lt;/span&gt;
+ 1313         &lt;/div&gt;
+ 1314         &lt;div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-2.5 overflow-hidde
+      n mt-3"&gt;
+ 1315           &lt;div className={`h-full rounded-full transition-all ${progress &gt;= 100 ? 'bg-green-50
+      0' : 'bg-blue-500'}`}
+ 1316             style={{ width: `${progress}%` }} /&gt;
+ 1317         &lt;/div&gt;
+ 1318         &lt;p className="mt-2 text-xs text-gray-500 dark:text-slate-400"&gt;
+ 1319           {allDone ? '🎉 恭喜完成全部 150 天打卡！' : `按顺序打卡，接下来是 Day ${nextDay}`}
+ 1320         &lt;/p&gt;
+ 1321       &lt;/div&gt;</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第26页（共60页）</header>
+<pre class="code"> 1322 
+ 1323       {error &amp;&amp; (
+ 1324         &lt;div className="rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:bor
+      der-red-700/50 px-3 py-2 text-sm text-red-600 dark:text-red-300"&gt;{error}&lt;/div&gt;
+ 1325       )}
+ 1326 
+ 1327       {aiError &amp;&amp; (
+ 1328         &lt;div className="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 da
+      rk:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300"&gt;AI 批改失败：{aiError}&lt;
+      /div&gt;
+ 1329       )}
+ 1330 
+ 1331       {/* 逐句翻译：原文 + 翻译输入框放在一起 */}
+ 1332       &lt;div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-1
+      00 dark:border-slate-700"&gt;
+ 1333         &lt;h2 className="text-lg font-bold mb-1"&gt;Day {dayData.day}&lt;/h2&gt;
+ 1334         &lt;div className="flex items-center gap-2 mb-3"&gt;
+ 1335           &lt;span className="px-2 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-
+      900/40 dark:text-green-300 text-xs"&gt;{dayData.type}&lt;/span&gt;
+ 1336           &lt;span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 dark:bg-slate-70
+      0 dark:text-slate-300 text-xs"&gt;{dayData.source}&lt;/span&gt;
+ 1337           {isDone &amp;&amp; &lt;span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:
+      bg-blue-900/40 dark:text-blue-300 text-xs"&gt;已打卡&lt;/span&gt;}
+ 1338         &lt;/div&gt;
+ 1339         &lt;p className="text-xs text-gray-400 dark:text-slate-500 mb-3"&gt;点击单词标记生词 · 逐句
+      翻译后点击「打分」&lt;/p&gt;
+ 1340 
+ 1341         &lt;div className="space-y-5"&gt;
+ 1342           {dayData.sentences.map((s, sentIdx) =&gt; {
+ 1343             const tokens = tokenizeSentence(s.en)
+ 1344             const tKey = `${dayData.day}-${sentIdx}`
+ 1345             const scoreVal = scores.get(tKey)
+ 1346             const markedCount = tokens.filter(t =&gt; t.isWord &amp;&amp; markedWords.has(`${dayData.day}
+      -${sentIdx}-${t.idx}`)).length
+ 1347 
+ 1348             return (
+ 1349               &lt;div key={sentIdx} className="border border-gray-100 dark:border-slate-700 round
+      ed-lg p-3"&gt;
+ 1350                 {/* 原文 */}
+ 1351                 &lt;div className="flex items-center justify-between mb-2"&gt;
+ 1352                   &lt;span className="text-xs font-medium text-green-600 dark:text-green-400"&gt;{s.
+      num}&lt;/span&gt;
+ 1353                   {scoreVal != null &amp;&amp; (
+ 1354                     &lt;span className={`text-xs font-bold px-2 py-0.5 rounded-full ${scoreBg(sco
+      reVal)} ${scoreColor(scoreVal)}`}&gt;
+ 1355                       相似度 {scoreVal}%
+ 1356                     &lt;/span&gt;
+ 1357                   )}
+ 1358                 &lt;/div&gt;
+ 1359                 &lt;p className="text-[15px] leading-relaxed text-gray-800 dark:text-slate-100 mb
+      -2 select-none"&gt;
+ 1360                   {tokens.map((t, i) =&gt;
+ 1361                     t.isWord ? (
+ 1362                       &lt;span
+ 1363                         key={i}</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第27页（共60页）</header>
+<pre class="code"> 1364                         onClick={() =&gt; toggleWord(dayData.day, sentIdx, t.idx)}
+ 1365                         className={`cursor-pointer transition-colors rounded px-0.5 ${
+ 1366                           markedWords.has(`${dayData.day}-${sentIdx}-${t.idx}`)
+ 1367                             ? 'bg-red-200 text-red-700 dark:bg-red-900/50 dark:text-red-400 fo
+      nt-medium'
+ 1368                             : 'hover:bg-gray-200 dark:hover:bg-slate-600'
+ 1369                         }`}
+ 1370                       &gt;{t.text}&lt;/span&gt;
+ 1371                     ) : (
+ 1372                       &lt;span key={i}&gt;{t.text}&lt;/span&gt;
+ 1373                     )
+ 1374                   )}
+ 1375                 &lt;/p&gt;
+ 1376                 {markedCount &gt; 0 &amp;&amp; (
+ 1377                   &lt;p className="text-xs text-red-500 dark:text-red-400 mb-2"&gt;{markedCount} 个
+      生词已标记&lt;/p&gt;
+ 1378                 )}
+ 1379 
+ 1380                 {/* 翻译输入 */}
+ 1381                 &lt;textarea
+ 1382                   value={translations.get(tKey) || ''}
+ 1383                   onChange={e =&gt; {
+ 1384                     const v = e.target.value
+ 1385                     setTranslations(prev =&gt; { const next = new Map(prev); next.set(tKey, v); r
+      eturn next })
+ 1386                     setScores(prev =&gt; { const next = new Map(prev); next.delete(tKey); return 
+      next })
+ 1387                     setAiResults(prev =&gt; { const next = new Map(prev); next.delete(tKey); retu
+      rn next })
+ 1388                   }}
+ 1389                   placeholder="在此输入你的翻译..."
+ 1390                   rows={2}
+ 1391                   className="w-full rounded-lg border border-gray-200 dark:border-slate-600 bg
+      -gray-50 dark:bg-slate-700/50 px-3 py-2 text-sm text-gray-800 dark:text-slate-100 placeholder-gray-4
+      00 dark:placeholder-slate-500 resize-none focus:outline-none focus:ring-2 focus:ring-green-400 focus
+      :border-transparent"
+ 1392                 /&gt;
+ 1393                 &lt;div className="mt-1.5 flex flex-wrap items-center gap-2"&gt;
+ 1394                   &lt;button
+ 1395                     onClick={() =&gt; handleScore(dayData.day, sentIdx)}
+ 1396                     disabled={!translations.get(tKey)?.trim()}
+ 1397                     className="px-3 py-1 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:bg-
+      gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-pointer 
+      disabled:cursor-not-allowed"
+ 1398                   &gt;
+ 1399                     打分
+ 1400                   &lt;/button&gt;
+ 1401                   &lt;button
+ 1402                     onClick={() =&gt; toggleAnalysis(dayData.day, sentIdx)}
+ 1403                     disabled={!s.ai}
+ 1404                     title={s.ai ? '查看句子主干/结构/搭配解析' : '该句暂无预生成解析'}
+ 1405                     className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-600 disabl
+      ed:bg-gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-po
+      inter disabled:cursor-not-allowed"
+ 1406                   &gt;</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第28页（共60页）</header>
+<pre class="code"> 1407                     解析
+ 1408                   &lt;/button&gt;
+ 1409                   &lt;button
+ 1410                     onClick={() =&gt; handleAiCorrect(dayData.day, sentIdx)}
+ 1411                     disabled={!translations.get(tKey)?.trim() || aiLoading.has(tKey)}
+ 1412                     title="AI 批改会消耗 AI 调用额度，仅在需要时点击"
+ 1413                     className="px-3 py-1 rounded-lg bg-purple-500 hover:bg-purple-600 disabled
+      :bg-gray-300 dark:disabled:bg-slate-700 text-white text-xs font-medium transition-colors cursor-poin
+      ter disabled:cursor-not-allowed flex items-center gap-1"
+ 1414                   &gt;
+ 1415                     {aiLoading.has(tKey) ? (
+ 1416                       &lt;&gt;
+ 1417                         &lt;span className="inline-block w-3 h-3 border-2 border-white/50 border-
+      t-white rounded-full animate-spin" /&gt;
+ 1418                         批改中...
+ 1419                       &lt;/&gt;
+ 1420                     ) : (
+ 1421                       &lt;&gt;AI 批改&lt;/&gt;
+ 1422                     )}
+ 1423                   &lt;/button&gt;
+ 1424                 &lt;/div&gt;
+ 1425 
+ 1426                 {/* 预生成解析（本地数据，不消耗 AI token） */}
+ 1427                 {showAnalysis.has(tKey) &amp;&amp; s.ai &amp;&amp; (
+ 1428                   &lt;div className="mt-2 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border 
+      border-emerald-100 dark:border-emerald-800/40 p-3 space-y-2"&gt;
+ 1429                     &lt;div className="flex items-center justify-between"&gt;
+ 1430                       &lt;span className="text-xs font-bold text-emerald-700 dark:text-emerald-30
+      0"&gt;句子解析&lt;/span&gt;
+ 1431                     &lt;/div&gt;
+ 1432                     {s.ai.backbone &amp;&amp; (
+ 1433                       &lt;div className="rounded-md border border-emerald-200 dark:border-emerald
+      -700/50 bg-white/60 dark:bg-slate-900/40 px-3 py-2"&gt;
+ 1434                         &lt;p className="text-xs font-bold text-emerald-700 dark:text-emerald-300
+       mb-1"&gt;句子主干&lt;/p&gt;
+ 1435                         &lt;p className="text-sm leading-relaxed text-gray-800 dark:text-slate-10
+      0 break-words"&gt;{s.ai.backbone}&lt;/p&gt;
+ 1436                       &lt;/div&gt;
+ 1437                     )}
+ 1438                     {s.ai.structure.length &gt; 0 &amp;&amp; (
+ 1439                       &lt;div&gt;
+ 1440                         &lt;p className="text-xs font-medium text-emerald-600 dark:text-emerald-4
+      00 mb-1"&gt;结构解析&lt;/p&gt;
+ 1441                         &lt;ul className="list-disc list-inside space-y-0.5"&gt;
+ 1442                           {s.ai.structure.map((item, i) =&gt; (
+ 1443                             &lt;li key={i} className="text-xs text-gray-700 dark:text-slate-200 b
+      reak-words"&gt;{item}&lt;/li&gt;
+ 1444                           ))}
+ 1445                         &lt;/ul&gt;
+ 1446                       &lt;/div&gt;
+ 1447                     )}
+ 1448                     {s.ai.collocations.length &gt; 0 &amp;&amp; (
+ 1449                       &lt;div&gt;
+ 1450                         &lt;p className="text-xs font-medium text-emerald-600 dark:text-emerald-4
+      00 mb-1"&gt;短语搭配&lt;/p&gt;</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第29页（共60页）</header>
+<pre class="code"> 1451                         &lt;ul className="list-disc list-inside space-y-0.5"&gt;
+ 1452                           {s.ai.collocations.map((item, i) =&gt; (
+ 1453                             &lt;li key={i} className="text-xs text-gray-700 dark:text-slate-200 b
+      reak-words"&gt;{item}&lt;/li&gt;
+ 1454                           ))}
+ 1455                         &lt;/ul&gt;
+ 1456                       &lt;/div&gt;
+ 1457                     )}
+ 1458                   &lt;/div&gt;
+ 1459                 )}
+ 1460 
+ 1461                 {/* AI 批改结果 */}
+ 1462                 {aiResults.get(tKey) &amp;&amp; (
+ 1463                   &lt;AiResultBoundary&gt;
+ 1464                     {(() =&gt; {
+ 1465                   const r = aiResults.get(tKey)!
+ 1466                   return (
+ 1467                     &lt;div className="mt-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border 
+      border-purple-100 dark:border-purple-800/40 p-3 space-y-2"&gt;
+ 1468                       &lt;div className="flex items-center justify-between"&gt;
+ 1469                         &lt;span className="text-xs font-bold text-purple-700 dark:text-purple-30
+      0"&gt;AI 批改&lt;/span&gt;
+ 1470                         {r.score != null &amp;&amp; (
+ 1471                           &lt;span className={`text-xs font-bold px-2 py-0.5 rounded-full ${score
+      Bg(r.score)} ${scoreColor(r.score)}`}&gt;
+ 1472                             AI 评分 {r.score}
+ 1473                           &lt;/span&gt;
+ 1474                         )}
+ 1475                       &lt;/div&gt;
+ 1476                       {r.corrected &amp;&amp; (
+ 1477                         &lt;div&gt;
+ 1478                           &lt;p className="text-xs font-medium text-gray-500 dark:text-slate-400 
+      mb-1"&gt;修正译文&lt;/p&gt;
+ 1479                           &lt;p className="text-sm leading-relaxed text-gray-800 dark:text-slate-
+      100 break-words"&gt;{r.corrected}&lt;/p&gt;
+ 1480                         &lt;/div&gt;
+ 1481                       )}
+ 1482                       {r.issues.length &gt; 0 &amp;&amp; (
+ 1483                         &lt;div&gt;
+ 1484                           &lt;p className="text-xs font-medium text-red-500 dark:text-red-400 mb-
+      1"&gt;存在的问题&lt;/p&gt;
+ 1485                           &lt;ul className="list-disc list-inside space-y-0.5"&gt;
+ 1486                             {r.issues.map((issue, i) =&gt; (
+ 1487                               &lt;li key={i} className="text-xs text-gray-700 dark:text-slate-200
+       break-words"&gt;{issue}&lt;/li&gt;
+ 1488                             ))}
+ 1489                           &lt;/ul&gt;
+ 1490                         &lt;/div&gt;
+ 1491                       )}
+ 1492                       {r.suggestions.length &gt; 0 &amp;&amp; (
+ 1493                         &lt;div&gt;
+ 1494                           &lt;p className="text-xs font-medium text-purple-600 dark:text-purple-4
+      00 mb-1"&gt;改进建议&lt;/p&gt;
+ 1495                           &lt;ul className="list-disc list-inside space-y-0.5"&gt;
+ 1496                             {r.suggestions.map((sug, i) =&gt; (</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第30页（共60页）</header>
+<pre class="code"> 1497                               &lt;li key={i} className="text-xs text-gray-700 dark:text-slate-200
+       break-words"&gt;{sug}&lt;/li&gt;
+ 1498                             ))}
+ 1499                           &lt;/ul&gt;
+ 1500                         &lt;/div&gt;
+ 1501                       )}
+ 1502                     &lt;/div&gt;
+ 1503                   )
+ 1504                     })()}
+ 1505                   &lt;/AiResultBoundary&gt;
+ 1506                 )}
+ 1507 
+ 1508                 {/* 长难句解析 */}
+ 1509                 {dayData.analysis &amp;&amp; (() =&gt; {
+ 1510                   const aItem = dayData.analysis.find(a =&gt; a.sentNum === s.num)
+ 1511                   if (!aItem) return null
+ 1512                   const hasContent = aItem.vocab.length &gt; 0 || aItem.split || aItem.grammar.le
+      ngth &gt; 0 || aItem.ref
+ 1513                   if (!hasContent) return null
+ 1514                   return (
+ 1515                     &lt;details className="mt-2 group"&gt;
+ 1516                       &lt;summary className="cursor-pointer text-xs text-purple-600 dark:text-pur
+      ple-400 hover:text-purple-800 dark:hover:text-purple-300 select-none font-medium"&gt;
+ 1517                         长难句解析
+ 1518                       &lt;/summary&gt;
+ 1519                       &lt;div className="mt-2 space-y-2 pl-1"&gt;
+ 1520                         {aItem.vocab.length &gt; 0 &amp;&amp; (
+ 1521                           &lt;div&gt;
+ 1522                             &lt;p className="text-xs font-medium text-gray-500 dark:text-slate-40
+      0 mb-1"&gt;单词&lt;/p&gt;
+ 1523                             &lt;div className="flex flex-wrap gap-1"&gt;
+ 1524                               {aItem.vocab.map((v, vi) =&gt; (
+ 1525                                 &lt;span key={vi} className="inline-flex items-center gap-1 px-1.
+      5 py-0.5 rounded bg-purple-50 dark:bg-purple-900/20 text-xs"&gt;
+ 1526                                   &lt;span className="font-medium text-purple-700 dark:text-purpl
+      e-300"&gt;{v.word}&lt;/span&gt;
+ 1527                                   &lt;span className="text-gray-500 dark:text-slate-400"&gt;{v.meani
+      ng}&lt;/span&gt;
+ 1528                                 &lt;/span&gt;
+ 1529                               ))}
+ 1530                             &lt;/div&gt;
+ 1531                           &lt;/div&gt;
+ 1532                         )}
+ 1533                         {aItem.split &amp;&amp; (() =&gt; {
+ 1534                           // 用 / 分隔各切分段，并对照原句还原空格使单词可读
+ 1535                           const parts = aItem.split.split('//').map((p) =&gt; p.trim())
+ 1536                           const restored = parts.map((p) =&gt; restoreChunkSpaces(p, s.en))
+ 1537                           return (
+ 1538                             &lt;div&gt;
+ 1539                               &lt;p className="text-xs font-medium text-gray-500 dark:text-slate-
+      400 mb-1"&gt;切分&lt;/p&gt;
+ 1540                               &lt;p className="text-xs leading-relaxed text-gray-600 dark:text-sl
+      ate-300 font-mono break-words"&gt;
+ 1541                                 {restored.map((part, pi) =&gt; (
+ 1542                                   &lt;span key={pi}&gt;</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第31页（共60页）</header>
+<pre class="code">14195       .select('*')
+14196       .eq('user_id', userId)
+14197 
+14198     if (error) throw new Error(error.message)
+14199     userSubjectsCache = (data as Array&lt;{
+14200       id: string
+14201       name: string
+14202       category?: string
+14203       activities?: unknown
+14204     }&gt;).map((s) =&gt; ({
+14205       id: s.id,
+14206       name: s.name,
+14207       category: s.category ?? 'custom',
+14208       activities: Array.isArray(s.activities)
+14209         ? (s.activities as string[]).filter((a): a is string =&gt; typeof a === 'string')
+14210         : [],
+14211     }))
+14212     return true
+14213   } catch (err) {
+14214     userSubjectsError = err instanceof Error ? err.message : '未知错误'
+14215     userSubjectsCache = []
+14216     return false
+14217   }
+14218 }
+14219 
+14220 export function getAvailableSubjects(): Subject[] {
+14221   const builtin: Subject[] = ALL_SUBJECTS
+14222   const custom: SubjectWithActivities[] =
+14223     userSubjectsCache &amp;&amp; !userSubjectsError
+14224       ? userSubjectsCache.filter((s) =&gt; !builtin.some((b) =&gt; b.id === s.id))
+14225       : []
+14226   return [...builtin, ...custom]
+14227 }
+14228 
+14229 export function getSubjectById(id: string): Subject | undefined {
+14230   if (!id) return undefined
+14231   const builtin: Subject[] = ALL_SUBJECTS
+14232   const custom: SubjectWithActivities[] = userSubjectsCache ?? []
+14233   return builtin.find((s) =&gt; s.id === id) ?? custom.find((s) =&gt; s.id === id)
+14234 }
+14235 
+14236 /** 按科目 category 返回可选学习内容；无配置（含自定义字符串内容）原样返回 */
+14237 export function getActivitiesForSubject(subjectId: string): string[] {
+14238   const subject = getSubjectById(subjectId)
+14239   if (!subject) return []
+14240   const builtin = SUBJECT_ACTIVITIES[subject.category]
+14241   if (builtin) return builtin
+14242   const custom = userSubjectsCache?.find((s) =&gt; s.id === subjectId)
+14243   return custom?.activities ?? []
+14244 }
+14245 
+14246 /* ── 云端自定义科目增删改 ── */
+14247 
+14248 export interface UserSubject {
+14249   id: string</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第32页（共60页）</header>
+<pre class="code">14250   user_id: string
+14251   name: string
+14252   category: string
+14253   activities: string[]
+14254 }
+14255 
+14256 /** 自定义科目在当前内置科目中已存在则视为内置（避免删除/改名内置科目） */
+14257 function isBuiltinId(id: string): boolean {
+14258   return ALL_SUBJECTS.some((s) =&gt; s.id === id)
+14259 }
+14260 
+14261 export async function fetchUserSubjects(userId: string): Promise&lt;UserSubject[]&gt; {
+14262   const { data, error } = await supabase
+14263     .from('user_subjects')
+14264     .select('*')
+14265     .eq('user_id', userId)
+14266 
+14267   if (error) throw new Error(error.message)
+14268   return (data as Array&lt;{ id: string; user_id: string; name: string; category: string; activit
+      ies: unknown }&gt;).map(
+14269     (s) =&gt; ({
+14270       id: s.id,
+14271       user_id: s.user_id,
+14272       name: s.name,
+14273       category: s.category ?? 'custom',
+14274       activities: Array.isArray(s.activities)
+14275         ? (s.activities as string[]).filter((a): a is string =&gt; typeof a === 'string')
+14276         : [],
+14277     }),
+14278   )
+14279 }
+14280 
+14281 export async function createUserSubject(
+14282   userId: string,
+14283   input: { name: string; activities: string[] },
+14284 ): Promise&lt;UserSubject&gt; {
+14285   const { data, error } = await supabase
+14286     .from('user_subjects')
+14287     .insert({
+14288       user_id: userId,
+14289       name: input.name.trim(),
+14290       category: 'custom',
+14291       activities: input.activities.filter((a) =&gt; a.trim()).map((a) =&gt; a.trim()),
+14292     })
+14293     .select()
+14294     .single()
+14295 
+14296   if (error) throw new Error(error.message)
+14297   return data as UserSubject
+14298 }
+14299 
+14300 export async function updateUserSubject(
+14301   subjectId: string,
+14302   input: { name: string; activities: string[] },
+14303 ): Promise&lt;void&gt; {</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第33页（共60页）</header>
+<pre class="code">14304   const { error } = await supabase
+14305     .from('user_subjects')
+14306     .update({
+14307       name: input.name.trim(),
+14308       activities: input.activities.filter((a) =&gt; a.trim()).map((a) =&gt; a.trim()),
+14309     })
+14310     .eq('id', subjectId)
+14311 
+14312   if (error) throw new Error(error.message)
+14313 }
+14314 
+14315 export async function deleteUserSubject(subjectId: string): Promise&lt;void&gt; {
+14316   const { error } = await supabase
+14317     .from('user_subjects')
+14318     .delete()
+14319     .eq('id', subjectId)
+14320 
+14321   if (error) throw new Error(error.message)
+14322 }
+14323 
+14324 /** 判断 id 是否为内置科目（内置科目不可删改） */
+14325 export function isBuiltinSubject(subjectId: string): boolean {
+14326   return isBuiltinId(subjectId)
+14327 }
+14328 
+14329 // ==================== 文件: src/lib/summary.ts ====================
+14330 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, differenceInCalen
+      darDays } from 'date-fns'
+14331 import type { DailyLog, DailyLogSubject } from './dailyLogs'
+14332 import { getSubjectById } from './subjects'
+14333 
+14334 export interface SummaryRange {
+14335   mode: 'week' | 'month' | 'custom'
+14336   startDate: string
+14337   endDate: string
+14338 }
+14339 
+14340 export interface SubjectBreakdown {
+14341   subjectId: string
+14342   name: string
+14343   hours: number
+14344   percentage: number
+14345 }
+14346 
+14347 export interface DailyTrendItem {
+14348   date: string
+14349   totalHours: number
+14350   subjects: DailyLogSubject[]
+14351 }
+14352 
+14353 export interface SummaryResult {
+14354   totalHours: number
+14355   checkedDays: number
+14356   subjectBreakdown: SubjectBreakdown[]
+14357   dailyTrend: DailyTrendItem[]</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第34页（共60页）</header>
+<pre class="code">14358 }
+14359 
+14360 export function getWeekRange(refDate: Date = new Date()): { startDate: string; endDate: string
+       } {
+14361   const start = startOfWeek(refDate, { weekStartsOn: 1 })
+14362   const end = endOfWeek(refDate, { weekStartsOn: 1 })
+14363   return {
+14364     startDate: format(start, 'yyyy-MM-dd'),
+14365     endDate: format(end, 'yyyy-MM-dd'),
+14366   }
+14367 }
+14368 
+14369 export function getMonthRange(refDate: Date = new Date()): { startDate: string; endDate: strin
+      g } {
+14370   const start = startOfMonth(refDate)
+14371   const end = endOfMonth(refDate)
+14372   return {
+14373     startDate: format(start, 'yyyy-MM-dd'),
+14374     endDate: format(end, 'yyyy-MM-dd'),
+14375   }
+14376 }
+14377 
+14378 export function validateCustomRange(
+14379   start: string,
+14380   end: string
+14381 ): { valid: boolean; error?: string; startDate: string; endDate: string } {
+14382   let startDate = start
+14383   let endDate = end
+14384 
+14385   const startMatch = /^\d{4}-\d{2}-\d{2}$/.test(startDate)
+14386   const endMatch = /^\d{4}-\d{2}-\d{2}$/.test(endDate)
+14387 
+14388   if (!startMatch || !endMatch) {
+14389     return { valid: false, error: '日期格式必须为 yyyy-MM-dd', startDate, endDate }
+14390   }
+14391 
+14392   let startParsed: Date
+14393   let endParsed: Date
+14394 
+14395   try {
+14396     startParsed = parseISO(startDate)
+14397     endParsed = parseISO(endDate)
+14398   } catch {
+14399     return { valid: false, error: '日期解析失败', startDate, endDate }
+14400   }
+14401 
+14402   if (isNaN(startParsed.getTime()) || isNaN(endParsed.getTime())) {
+14403     return { valid: false, error: '无效的日期', startDate, endDate }
+14404   }
+14405 
+14406   if (startParsed &gt; endParsed) {
+14407     ;[startDate, endDate] = [endDate, startDate]
+14408     ;[startParsed, endParsed] = [endParsed, startParsed]
+14409   }
+14410 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第35页（共60页）</header>
+<pre class="code">14411   const diffDays = differenceInCalendarDays(endParsed, startParsed)
+14412   if (diffDays &gt; 365) {
+14413     return { valid: false, error: '跨度不能超过 365 天', startDate, endDate }
+14414   }
+14415 
+14416   return { valid: true, startDate, endDate }
+14417 }
+14418 
+14419 export function filterLogsByRange(
+14420   logs: DailyLog[],
+14421   startDate: string,
+14422   endDate: string
+14423 ): DailyLog[] {
+14424   return logs.filter((log) =&gt; log.date &gt;= startDate &amp;&amp; log.date &lt;= endDate)
+14425 }
+14426 
+14427 export function computeSummary(filteredLogs: DailyLog[]): SummaryResult {
+14428   const subjectHoursMap = new Map&lt;string, number&gt;()
+14429   const dateSet = new Set&lt;string&gt;()
+14430   const dailyMap = new Map&lt;string, { totalHours: number; subjects: Map&lt;string, DailyLogSubject
+      &gt; }&gt;()
+14431 
+14432   let totalHours = 0
+14433 
+14434   for (const log of filteredLogs) {
+14435     dateSet.add(log.date)
+14436 
+14437     let dailyEntry = dailyMap.get(log.date)
+14438     if (!dailyEntry) {
+14439       dailyEntry = { totalHours: 0, subjects: new Map() }
+14440       dailyMap.set(log.date, dailyEntry)
+14441     }
+14442 
+14443     for (const subj of log.subjects) {
+14444       totalHours += subj.hours
+14445       dailyEntry.totalHours += subj.hours
+14446 
+14447       const existing = subjectHoursMap.get(subj.id) ?? 0
+14448       subjectHoursMap.set(subj.id, existing + subj.hours)
+14449 
+14450       const dailySubj = dailyEntry.subjects.get(subj.id)
+14451       if (dailySubj) {
+14452         dailySubj.hours += subj.hours
+14453         if (subj.summary) {
+14454           dailySubj.summary = dailySubj.summary ? dailySubj.summary + '; ' + subj.summary : su
+      bj.summary
+14455         }
+14456       } else {
+14457         dailyEntry.subjects.set(subj.id, { ...subj })
+14458       }
+14459     }
+14460   }
+14461 
+14462   const subjectBreakdown: SubjectBreakdown[] = []
+14463   for (const [subjectId, hours] of subjectHoursMap) {</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第36页（共60页）</header>
+<pre class="code">14464     const subject = getSubjectById(subjectId)
+14465     const name = subject?.name ?? subjectId
+14466     const percentage = totalHours &gt; 0 ? (hours / totalHours) * 100 : 0
+14467     subjectBreakdown.push({ subjectId, name, hours, percentage })
+14468   }
+14469 
+14470   subjectBreakdown.sort((a, b) =&gt; b.hours - a.hours)
+14471 
+14472   if (subjectBreakdown.length &gt; 0 &amp;&amp; totalHours &gt; 0) {
+14473     const roundedPercentages = subjectBreakdown.map((s) =&gt; Math.round(s.percentage * 100) / 10
+      0)
+14474     const sumRounded = roundedPercentages.reduce((a, b) =&gt; a + b, 0)
+14475     const diff = Math.round((100 - sumRounded) * 100) / 100
+14476 
+14477     if (diff !== 0) {
+14478       let maxIdx = 0
+14479       for (let i = 1; i &lt; subjectBreakdown.length; i++) {
+14480         if (subjectBreakdown[i].hours &gt; subjectBreakdown[maxIdx].hours) {
+14481           maxIdx = i
+14482         }
+14483       }
+14484       roundedPercentages[maxIdx] = Math.round((roundedPercentages[maxIdx] + diff) * 100) / 100
+14485     }
+14486 
+14487     for (let i = 0; i &lt; subjectBreakdown.length; i++) {
+14488       subjectBreakdown[i].percentage = roundedPercentages[i]
+14489     }
+14490   }
+14491 
+14492   const sortedDates = Array.from(dailyMap.keys()).sort()
+14493   const dailyTrend: DailyTrendItem[] = sortedDates.map((date) =&gt; {
+14494     const entry = dailyMap.get(date)!
+14495     return {
+14496       date,
+14497       totalHours: entry.totalHours,
+14498       subjects: Array.from(entry.subjects.values()),
+14499     }
+14500   })
+14501 
+14502   return {
+14503     totalHours,
+14504     checkedDays: dateSet.size,
+14505     subjectBreakdown,
+14506     dailyTrend,
+14507   }
+14508 }
+14509 
+14510 // ==================== 文件: src/lib/supabase.ts ====================
+14511 import { createClient } from '@supabase/supabase-js'
+14512 import { Capacitor } from '@capacitor/core'
+14513 import { Preferences } from '@capacitor/preferences'
+14514 
+14515 let supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) ?? ''
+14516 const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) ?? ''
+14517 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第37页（共60页）</header>
+<pre class="code">14518 /** 是否已正确配置 Supabase 环境变量（未配置时 UI 应展示友好错误而非白屏） */
+14519 export const isSupabaseConfigured = Boolean(supabaseUrl.trim() &amp;&amp; supabaseAnonKey)
+14520 
+14521 if (!isSupabaseConfigured) {
+14522   console.error(
+14523     '[Supabase] 缺少环境变量 VITE_SUPABASE_URL 或 VITE_SUPABASE_ANON_KEY，请检查部署环境配置。
+      \n' +
+14524     '部署平台（Vercel/CloudBase）需要在环境变量中设置这两个值，或在项目根目录提供 .env.product
+      ion。'
+14525   )
+14526 }
+14527 
+14528 // 规范化 URL：
+14529 // 1. 去掉首尾空白
+14530 // 2. 确保有 https:// 前缀
+14531 // 3. 剥离多余的路径后缀（如 /rest/v1、/auth/v1、/storage/v1、/realtime/v1 等）
+14532 // 4. 去掉末尾斜杠
+14533 // 未配置环境变量时使用占位 URL，避免 createClient 抛错导致整站白屏（错误由 UI 层展示）
+14534 const PLACEHOLDER_URL = 'https://placeholder.supabase.co'
+14535 const PLACEHOLDER_KEY = 'placeholder-anon-key'
+14536 
+14537 if (!isSupabaseConfigured) {
+14538   supabaseUrl = PLACEHOLDER_URL
+14539 } else {
+14540   try {
+14541     const rawUrl = supabaseUrl.trim()
+14542     const urlObj = new URL(rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`)
+14543     // 只保留 protocol + host，丢弃 pathname（用户常误填 /rest/v1 等路径）
+14544     const normalized = `${urlObj.protocol}//${urlObj.hostname}`
+14545 
+14546     if (import.meta.env.DEV &amp;&amp; urlObj.pathname &amp;&amp; urlObj.pathname !== '/') {
+14547       console.warn(
+14548         `[Supabase] 自动修正 URL：原 URL 包含多余路径 "${urlObj.pathname}"，已剥离。\n` +
+14549         `  原值: ${supabaseUrl}\n` +
+14550         `  修正: ${normalized}\n` +
+14551         `  建议将 VITE_SUPABASE_URL 改为仅包含域名（无路径）。`
+14552       )
+14553     }
+14554 
+14555     supabaseUrl = normalized
+14556   } catch {
+14557     // URL 解析失败时，兜底的简单规范化
+14558     if (import.meta.env.DEV) console.warn('[Supabase] URL 解析失败，使用兜底规范化方式')
+14559     supabaseUrl = supabaseUrl.trim().replace(/\/+$/, '')
+14560     // 剥离常见的路径后缀
+14561     supabaseUrl = supabaseUrl.replace(/\/(rest|auth|storage|realtime)\/v\d+.*$/i, '')
+14562     if (!/^https?:\/\//i.test(supabaseUrl)) {
+14563       supabaseUrl = `https://${supabaseUrl}`
+14564     }
+14565   }
+14566 
+14567   // 验证 Supabase URL 格式：必须是 https://&lt;project-id&gt;.supabase.co 格式
+14568   const supabaseUrlPattern = /^https:\/\/[a-z0-9]+\.supabase\.co$/
+14569   if (import.meta.env.DEV &amp;&amp; !supabaseUrlPattern.test(supabaseUrl)) {
+14570     console.warn(</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第38页（共60页）</header>
+<pre class="code">14571       `[Supabase] URL 格式可能不正确: "${supabaseUrl}"\n` +
+14572       '期望格式: https://&lt;project-id&gt;.supabase.co\n' +
+14573       '请检查 VITE_SUPABASE_URL 是否正确。'
+14574     )
+14575   }
+14576 }
+14577 
+14578 // 带超时的 fetch 封装，避免在移动端因网络问题长时间挂起
+14579 const REQUEST_TIMEOUT_MS = 10000 // 10 秒超时
+14580 
+14581 function fetchWithTimeout(input: RequestInfo | URL, init?: RequestInit): Promise&lt;Response&gt; {
+14582   const controller = new AbortController()
+14583   const timeoutId = setTimeout(() =&gt; controller.abort(), REQUEST_TIMEOUT_MS)
+14584 
+14585   return fetch(input, {
+14586     ...init,
+14587     signal: controller.signal,
+14588   }).finally(() =&gt; clearTimeout(timeoutId))
+14589 }
+14590 
+14591 /**
+14592  * Capacitor 原生环境下的 Storage Adapter
+14593  * 将 Supabase session 持久化到原生 Preferences（SharedPreferences / NSUserDefaults），
+14594  * 比 WebView 的 localStorage 更可靠，App 升级或系统清理缓存后不会丢失登录态。
+14595  * Web 环境继续使用 Supabase 默认的 localStorage。
+14596  */
+14597 const nativeStorageAdapter = {
+14598   getItem: async (key: string) =&gt; {
+14599     const { value } = await Preferences.get({ key })
+14600     return value ?? null
+14601   },
+14602   setItem: async (key: string, value: string) =&gt; {
+14603     await Preferences.set({ key, value })
+14604   },
+14605   removeItem: async (key: string) =&gt; {
+14606     await Preferences.remove({ key })
+14607   },
+14608 }
+14609 
+14610 export const supabase = createClient(
+14611   isSupabaseConfigured ? supabaseUrl : PLACEHOLDER_URL,
+14612   isSupabaseConfigured ? supabaseAnonKey : PLACEHOLDER_KEY,
+14613   {
+14614     global: {
+14615       fetch: fetchWithTimeout,
+14616     },
+14617     auth: {
+14618       // 原生环境用 Preferences 存储 session；Web 环境用默认 localStorage
+14619       storage: Capacitor.isNativePlatform() ? nativeStorageAdapter : undefined,
+14620       persistSession: true,
+14621       autoRefreshToken: true,
+14622     },
+14623   }
+14624 )
+14625 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第39页（共60页）</header>
+<pre class="code">14626 /** 最新 APK 下载地址（Supabase Storage 公开桶，作为网站/App 的 APK 下载源） */
+14627 export const apkDownloadUrl = supabase.storage
+14628   .from('ota-bundles')
+14629   .getPublicUrl('DiveDeep.apk').data.publicUrl
+14630 
+14631 // ==================== 文件: src/lib/theme.ts ====================
+14632 const THEME_STORAGE_KEY = 'app_theme'
+14633 
+14634 /** 主题：light/dark 为纯色基础主题；dawn（晨光）/dusk（暮色）/starry（午夜繁星）为氛围主题 */
+14635 export type ThemeMode = 'light' | 'dark' | 'dawn' | 'dusk' | 'starry'
+14636 
+14637 export interface ThemeMeta {
+14638   key: ThemeMode
+14639   name: string
+14640   desc: string
+14641   /** 是否属于暗色系（决定 html.dark 是否启用） */
+14642   dark: boolean
+14643   /** 主题选择器里的渐变色块 */
+14644   swatch: string
+14645 }
+14646 
+14647 export const THEMES: ThemeMeta[] = [
+14648   { key: 'light', name: '浅色', desc: '纯净白', dark: false, swatch: 'linear-gradient(135deg,#
+      f8fafc,#e2e8f0)' },
+14649   { key: 'dark', name: '深色', desc: '深夜蓝', dark: true, swatch: 'linear-gradient(135deg,#1e
+      293b,#0f172a)' },
+14650   { key: 'dawn', name: '晨光', desc: '晨曦渐变', dark: false, swatch: 'linear-gradient(135deg,
+      #fdf4ff,#c7d2fe,#a5f3fc)' },
+14651   { key: 'dusk', name: '暮色', desc: '星空渐变', dark: true, swatch: 'linear-gradient(135deg,#
+      312e81,#0f172a,#1e3a8a)' },
+14652   { key: 'starry', name: '午夜繁星', desc: '星际闪烁', dark: true, swatch: 'radial-gradient(ci
+      rcle at 30% 25%, #f8fafc 0 1px, transparent 2px), radial-gradient(circle at 65% 45%, #bae6fd 0 1px, 
+      transparent 2px), linear-gradient(135deg,#11173a,#05060f)' },
+14653 ]
+14654 
+14655 const DARK_THEMES = new Set&lt;ThemeMode&gt;(['dark', 'dusk', 'starry'])
+14656 const VALID: ThemeMode[] = ['light', 'dark', 'dawn', 'dusk', 'starry']
+14657 
+14658 function isTheme(v: unknown): v is ThemeMode {
+14659   return typeof v === 'string' &amp;&amp; (VALID as string[]).includes(v)
+14660 }
+14661 
+14662 /** 读取持久化主题；无记录时跟随系统偏好 */
+14663 export function getInitialTheme(): ThemeMode {
+14664   try {
+14665     const saved = localStorage.getItem(THEME_STORAGE_KEY)
+14666     if (isTheme(saved)) return saved
+14667   } catch {
+14668     /* ignore */
+14669   }
+14670   if (typeof window !== 'undefined' &amp;&amp; window.matchMedia) {
+14671     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+14672   }
+14673   return 'light'
+14674 }</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第40页（共60页）</header>
+<pre class="code">14675 
+14676 /** 当前生效的主题（供组件初始化显示） */
+14677 export function getCurrentTheme(): ThemeMode {
+14678   const attr = document.documentElement.getAttribute('data-theme')
+14679   if (isTheme(attr)) return attr
+14680   return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+14681 }
+14682 
+14683 /** 应用主题到 &lt;html&gt;：data-theme 标识主题，dark class 决定 dark: 变体是否生效 */
+14684 export function applyTheme(mode: ThemeMode) {
+14685   const root = document.documentElement
+14686   root.classList.toggle('dark', DARK_THEMES.has(mode))
+14687   root.setAttribute('data-theme', mode)
+14688 }
+14689 
+14690 /** 设置并持久化主题 */
+14691 export function setTheme(mode: ThemeMode): ThemeMode {
+14692   try {
+14693     localStorage.setItem(THEME_STORAGE_KEY, mode)
+14694   } catch {
+14695     /* ignore */
+14696   }
+14697   applyTheme(mode)
+14698   return mode
+14699 }
+14700 
+14701 /** 依次轮换主题：light → dark → dawn → dusk → light */
+14702 export function nextTheme(): ThemeMode {
+14703   const current = getCurrentTheme()
+14704   const idx = VALID.indexOf(current)
+14705   const next = VALID[(idx + 1) % VALID.length]
+14706   return setTheme(next)
+14707 }
+14708 
+14709 // ==================== 文件: src/lib/timerSync.ts ====================
+14710 import type { DailyLogSubject } from './dailyLogs'
+14711 import { sortSubjectsByStartTime, todayStr, upsertLogSafely } from './dailyLogs'
+14712 
+14713 /**
+14714  * 全功能模式计时器（StudyTimer）与精简挂件计时器（DesktopTimer）共享的
+14715  * 「进行中」状态。两套 UI 读写同一个 key，保证在两种模式间切换时计时不中断：
+14716  * - 全功能里开始计时 → 切到精简挂件仍显示计时，可直接结束/打卡
+14717  * - 精简挂件里开始计时 → 进入全功能计时页同样恢复
+14718  */
+14719 
+14720 export interface SharedTimerState {
+14721   subjectId: string | null
+14722   activity: string
+14723   startTime: number // Date.now()
+14724   paused?: boolean // 是否暂停中（硬件 OK 键）
+14725   pausedMs?: number // 累计已暂停的毫秒数
+14726   pausedAt?: number | null // 本次暂停的开始时间戳
+14727 }
+14728 
+14729 /** 统一的进行中计时 key */</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第41页（共60页）</header>
+<pre class="code">14730 export const TIMER_RUNNING_KEY = 'kaoyan_timer_running'
+14731 /** 旧版精简挂件专用 key（仅迁移用，之后统一用 TIMER_RUNNING_KEY） */
+14732 const LEGACY_WIDGET_KEY = 'kaoyan_widget_running'
+14733 
+14734 function clearAllRunning() {
+14735   localStorage.removeItem(TIMER_RUNNING_KEY)
+14736   localStorage.removeItem(LEGACY_WIDGET_KEY)
+14737 }
+14738 
+14739 /** 读取共享的进行中计时（兼容旧版挂件格式，自动迁移）；跨午夜丢弃 */
+14740 export function loadSharedTimer(): SharedTimerState | null {
+14741   try {
+14742     const raw = localStorage.getItem(TIMER_RUNNING_KEY) ?? localStorage.getItem(LEGACY_WIDGET_
+      KEY)
+14743     if (!raw) return null
+14744     const parsed = JSON.parse(raw) as Partial&lt;SharedTimerState&gt;
+14745     if (!parsed.startTime) {
+14746       clearAllRunning()
+14747       return null
+14748     }
+14749     // 跨午夜修复：若计时开始于今天之前，丢弃（避免把昨天甚至更早的时长计入今日）
+14750     if (new Date(parsed.startTime).toDateString() !== new Date().toDateString()) {
+14751       clearAllRunning()
+14752       return null
+14753     }
+14754     const state: SharedTimerState = {
+14755       subjectId: parsed.subjectId ?? null,
+14756       activity: parsed.activity ?? '',
+14757       startTime: parsed.startTime,
+14758       paused: parsed.paused ?? false,
+14759       pausedMs: parsed.pausedMs ?? 0,
+14760       pausedAt: parsed.pausedAt ?? null,
+14761     }
+14762     // 若命中旧版挂件 key，迁移到统一 key 并清理旧值
+14763     if (!localStorage.getItem(TIMER_RUNNING_KEY)) {
+14764       localStorage.setItem(TIMER_RUNNING_KEY, JSON.stringify(state))
+14765     }
+14766     localStorage.removeItem(LEGACY_WIDGET_KEY)
+14767     return state
+14768   } catch {
+14769     return null
+14770   }
+14771 }
+14772 
+14773 export function saveSharedTimer(state: SharedTimerState | null): void {
+14774   if (state) {
+14775     localStorage.setItem(TIMER_RUNNING_KEY, JSON.stringify(state))
+14776   } else {
+14777     localStorage.removeItem(TIMER_RUNNING_KEY)
+14778   }
+14779 }
+14780 
+14781 /** 已流逝秒数（暂停期间不计时） */
+14782 export function computeTimerElapsed(state: SharedTimerState): number {
+14783   const pausedMs = state.pausedMs ?? 0</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第42页（共60页）</header>
+<pre class="code">14784   const now = state.paused ? (state.pausedAt ?? Date.now()) : Date.now()
+14785   return Math.floor((now - state.startTime - pausedMs) / 1000)
+14786 }
+14787 
+14788 /** 暂停共享计时：冻结时长（恢复后继续累计）。未在计时或已暂停时忽略。 */
+14789 export function pauseSharedTimer(): void {
+14790   const running = loadSharedTimer()
+14791   if (!running || running.paused) return
+14792   saveSharedTimer({ ...running, paused: true, pausedAt: Date.now() })
+14793 }
+14794 
+14795 /** 恢复共享计时：把本次暂停的时长累计进 pausedMs。未暂停时忽略。 */
+14796 export function resumeSharedTimer(): void {
+14797   const running = loadSharedTimer()
+14798   if (!running || !running.paused) return
+14799   const add = Date.now() - (running.pausedAt ?? Date.now())
+14800   saveSharedTimer({
+14801     ...running,
+14802     paused: false,
+14803     pausedAt: null,
+14804     pausedMs: (running.pausedMs ?? 0) + add,
+14805   })
+14806 }
+14807 
+14808 /** 生成一条待入库的科目条目（含时间段） */
+14809 export function buildTimerEntry(state: SharedTimerState, endSeconds: number): DailyLogSubject 
+      | null {
+14810   if (!state.subjectId) return null
+14811   const hours = Math.round((endSeconds / 3600) * 100) / 100
+14812   const endNow = state.paused ? (state.pausedAt ?? Date.now()) : Date.now()
+14813   return {
+14814     id: state.subjectId,
+14815     hours,
+14816     ...(state.activity ? { activity: state.activity } : {}),
+14817     startTime: timeStr(new Date(state.startTime)),
+14818     endTime: timeStr(new Date(endNow)),
+14819   }
+14820 }
+14821 
+14822 /* ── 本地待补记备份 ──
+14823    精简挂件结束计时时先把本次会话落一份到 localStorage，云端保存成功后才清除。
+14824    登录/网络/会话异常导致保存失败时，时长不会丢：全功能「计时」页挂载时自动恢复为今日累计，
+14825    再由用户手动保存（或补交）。 */
+14826 export interface PendingTimerEntry {
+14827   subjectId: string
+14828   activity: string
+14829   seconds: number
+14830   start: string // HH:mm
+14831   end: string // HH:mm
+14832   date: string // yyyy-MM-dd（计时开始那天，跨天补交依据）
+14833 }
+14834 
+14835 const PENDING_KEY = 'kaoyan_pending_timer'
+14836 
+14837 export function savePendingTimer(entry: PendingTimerEntry): void {</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第43页（共60页）</header>
+<pre class="code">14838   try {
+14839     localStorage.setItem(PENDING_KEY, JSON.stringify(entry))
+14840   } catch {
+14841     /* ignore */
+14842   }
+14843 }
+14844 
+14845 export function loadPendingTimer(): PendingTimerEntry | null {
+14846   try {
+14847     const raw = localStorage.getItem(PENDING_KEY)
+14848     if (!raw) return null
+14849     const p = JSON.parse(raw) as Partial&lt;PendingTimerEntry&gt;
+14850     if (typeof p.subjectId !== 'string' || typeof p.seconds !== 'number' || typeof p.date !== 
+      'string') return null
+14851     return {
+14852       subjectId: p.subjectId,
+14853       activity: p.activity ?? '',
+14854       seconds: p.seconds,
+14855       start: p.start ?? '',
+14856       end: p.end ?? '',
+14857       date: p.date,
+14858     }
+14859   } catch {
+14860     return null
+14861   }
+14862 }
+14863 
+14864 export function clearPendingTimer(): void {
+14865   try {
+14866     localStorage.removeItem(PENDING_KEY)
+14867   } catch {
+14868     /* ignore */
+14869   }
+14870 }
+14871 
+14872 /** 时间戳 → HH:mm（本地时区） */
+14873 export function timeHm(ts: number): string {
+14874   const d = new Date(ts)
+14875   const pad = (n: number) =&gt; String(n).padStart(2, '0')
+14876   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+14877 }
+14878 
+14879 /** 时间戳 → yyyy-MM-dd（本地时区） */
+14880 export function dateOf(ts: number): string {
+14881   const d = new Date(ts)
+14882   const pad = (n: number) =&gt; String(n).padStart(2, '0')
+14883   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+14884 }
+14885 
+14886 function timeStr(d: Date): string {
+14887   const pad = (n: number) =&gt; String(n).padStart(2, '0')
+14888   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
+14889 }
+14890 
+14891 /* ── 结束共享计时并打卡 ──</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第44页（共60页）</header>
+<pre class="code">14892    胶囊条与精简面板共用的结束逻辑：先停表并本地备份本次会话，
+14893    再按登录状态与是否跨天决定直接入库或提示补交。 */
+14894 
+14895 export type FinishTimerResult =
+14896   | { status: 'saved'; seconds: number }
+14897   | { status: 'stopped'; message: string }
+14898 
+14899 /**
+14900  * 结束共享计时并尝试为用户记录打卡。返回：
+14901  * - saved：已成功写入今日记录（seconds 为实际秒数）
+14902  * - stopped：已停表但未入库，message 是需要 UI 展示的提示（本地暂存/跨天补交/未登录/保存失败
+      ）
+14903  */
+14904 export async function finishSharedTimer(user: { id: string } | null): Promise&lt;FinishTimerResul
+      t&gt; {
+14905   const running = loadSharedTimer()
+14906   if (!running) return { status: 'stopped', message: '' }
+14907   const seconds = computeTimerElapsed(running)
+14908   const entry = buildTimerEntry(running, seconds)
+14909   // 无论是否入库成功，计时都先停止（清掉共享计时，避免两个界面重复操作）
+14910   saveSharedTimer(null)
+14911   if (!entry || seconds &lt; 1) return { status: 'stopped', message: '' }
+14912 
+14913   // 云端保存前先落一份本地备份：登录/网络/会话异常导致保存失败时本次时长不丢，
+14914   // 之后在全功能「计时」页挂载时自动恢复为「今日累计」并可再次保存/补交
+14915   savePendingTimer({
+14916     subjectId: running.subjectId ?? '',
+14917     activity: running.activity ?? '',
+14918     seconds,
+14919     start: timeHm(running.startTime),
+14920     end: timeHm(running.paused ? (running.pausedAt ?? Date.now()) : Date.now()),
+14921     date: dateOf(running.startTime),
+14922   })
+14923 
+14924   if (!user) {
+14925     return { status: 'stopped', message: '已暂存本地，登录后在全功能「计时」页保存即可' }
+14926   }
+14927   const targetDate = dateOf(running.startTime)
+14928   if (targetDate !== todayStr()) {
+14929     // 跨天补交：交给全功能计时页的补交流程（带确认），这里只保全不写错日期
+14930     return { status: 'stopped', message: '已暂存本地（跨天补交），请到全功能「计时」页保存' }
+14931   }
+14932   try {
+14933     const entries: DailyLogSubject[] = [entry]
+14934     sortSubjectsByStartTime(entries)
+14935     // 安全合并写入云端：内部自动读最新→合并→带版本校验写入，并发冲突自动重试一次
+14936     await upsertLogSafely({ userId: user.id, date: targetDate, subjects: entries, summary: '' 
+      })
+14937     clearPendingTimer() // 云端写入成功才清理本地备份
+14938     return { status: 'saved', seconds }
+14939   } catch (err) {
+14940     return {
+14941       status: 'stopped',
+14942       message:
+14943         '保存失败，时长已暂存本地，可到全功能「计时」页重试：' +</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第45页（共60页）</header>
+<pre class="code">14944         (err instanceof Error ? err.message : '未知错误'),
+14945     }
+14946   }
+14947 }
+14948 
+14949 // ==================== 文件: src/lib/Toast.tsx ====================
+14950 // 轻量 Toast 提示
+14951 import { createContext, useContext, useCallback, useRef, useState, type ReactNode } from 'reac
+      t'
+14952 
+14953 interface Toast {
+14954   id: number
+14955   message: string
+14956   icon?: string
+14957   duration: number
+14958 }
+14959 
+14960 interface ToastContextValue {
+14961   show: (message: string, opts?: { icon?: string; duration?: number }) =&gt; void
+14962 }
+14963 
+14964 const ToastContext = createContext&lt;ToastContextValue | null&gt;(null)
+14965 
+14966 export function useToast(): ToastContextValue {
+14967   const ctx = useContext(ToastContext)
+14968   if (!ctx) throw new Error('useToast must be used within ToastProvider')
+14969   return ctx
+14970 }
+14971 
+14972 let toastIdCounter = 0
+14973 
+14974 export function ToastProvider({ children }: { children: ReactNode }) {
+14975   const [toasts, setToasts] = useState&lt;Toast[]&gt;([])
+14976   const timersRef = useRef&lt;Map&lt;number, ReturnType&lt;typeof setTimeout&gt;&gt;&gt;(new Map())
+14977 
+14978   const dismiss = useCallback((id: number) =&gt; {
+14979     setToasts((prev) =&gt; prev.filter((t) =&gt; t.id !== id))
+14980     const timer = timersRef.current.get(id)
+14981     if (timer) {
+14982       clearTimeout(timer)
+14983       timersRef.current.delete(id)
+14984     }
+14985   }, [])
+14986 
+14987   // 只在 toasts 变化时清理空 timer 不做额外逻辑
+14988   void toasts
+14989 
+14990   const show = useCallback(
+14991     (message: string, opts?: { icon?: string; duration?: number }) =&gt; {
+14992       const id = ++toastIdCounter
+14993       const duration = opts?.duration ?? 3000
+14994       setToasts((prev) =&gt; [...prev, { id, message, icon: opts?.icon, duration }])
+14995       const timer = setTimeout(() =&gt; dismiss(id), duration)
+14996       timersRef.current.set(id, timer)
+14997     },</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第46页（共60页）</header>
+<pre class="code">14998     [dismiss],
+14999   )
+15000 
+15001   return (
+15002     &lt;ToastContext.Provider value={{ show }}&gt;
+15003       {children}
+15004       {/* Toast 容器 */}
+15005       &lt;div className="fixed top-16 inset-x-0 z-[100] flex flex-col items-center gap-2 px-4 poi
+      nter-events-none"&gt;
+15006         {toasts.map((t) =&gt; (
+15007           &lt;button
+15008             key={t.id}
+15009             type="button"
+15010             onClick={() =&gt; dismiss(t.id)}
+15011             className="pointer-events-auto max-w-sm w-auto flex items-center gap-2 rounded-xl 
+      bg-gray-900/95 dark:bg-slate-800/95 text-white px-4 py-2.5 text-sm shadow-lg border border-white/10 
+      animate-[toastIn_.25s_ease-out]"
+15012           &gt;
+15013             {t.icon &amp;&amp; &lt;span className="shrink-0 text-base leading-none"&gt;{t.icon}&lt;/span&gt;}
+15014             &lt;span className="leading-snug"&gt;{t.message}&lt;/span&gt;
+15015           &lt;/button&gt;
+15016         ))}
+15017       &lt;/div&gt;
+15018       &lt;style&gt;{`
+15019         @keyframes toastIn {
+15020           from { opacity: 0; transform: translateY(-8px); }
+15021           to { opacity: 1; transform: translateY(0); }
+15022         }
+15023       `}&lt;/style&gt;
+15024     &lt;/ToastContext.Provider&gt;
+15025   )
+15026 }
+15027 
+15028 // ==================== 文件: src/lib/vocabulary.ts ====================
+15029 // 生词本工具：管理标记单词的持久化存储和生词本数据（支持云端同步）
+15030 import { supabase } from './supabase'
+15031 import { isSupabaseConfigured } from './supabase'
+15032 
+15033 const MARKED_WORDS_KEY = 'english_marked_words'
+15034 const VOCABULARY_KEY = 'english_vocabulary'
+15035 
+15036 export interface VocabWord {
+15037   word: string
+15038   sentence: string
+15039   day: number
+15040   sentIdx: number
+15041   wordIdx: number
+15042   addedAt: string // ISO date string
+15043 }
+15044 
+15045 export interface VocabDay {
+15046   day: number
+15047   words: VocabWord[]
+15048 }
+15049 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第47页（共60页）</header>
+<pre class="code">15050 /** 单词在本地的唯一标识（用于去重），与云端列对应 */
+15051 function wordKey(w: Pick&lt;VocabWord, 'word' | 'sentence'&gt;): string {
+15052   return `${w.word.toLowerCase()}|${w.sentence}`
+15053 }
+15054 
+15055 // ---------- 标记单词（红色标记）持久化（纯本地） ----------
+15056 
+15057 /** 从 localStorage 读取已标记的单词 key 集合 */
+15058 export function loadMarkedWords(): Set&lt;string&gt; {
+15059   try {
+15060     const raw = localStorage.getItem(MARKED_WORDS_KEY)
+15061     if (!raw) return new Set()
+15062     const arr: string[] = JSON.parse(raw)
+15063     return new Set(arr)
+15064   } catch {
+15065     return new Set()
+15066   }
+15067 }
+15068 
+15069 /** 将已标记的单词 key 集合保存到 localStorage */
+15070 export function saveMarkedWords(words: Set&lt;string&gt;): void {
+15071   localStorage.setItem(MARKED_WORDS_KEY, JSON.stringify([...words]))
+15072 }
+15073 
+15074 // ---------- 生词本持久化（本地缓存） ----------
+15075 
+15076 /** 从 localStorage 读取本地生词本缓存 */
+15077 export function loadVocabulary(): VocabDay[] {
+15078   try {
+15079     const raw = localStorage.getItem(VOCABULARY_KEY)
+15080     if (!raw) return []
+15081     return JSON.parse(raw) as VocabDay[]
+15082   } catch {
+15083     return []
+15084   }
+15085 }
+15086 
+15087 /** 保存生词本到本地缓存 */
+15088 export function saveVocabulary(data: VocabDay[]): void {
+15089   localStorage.setItem(VOCABULARY_KEY, JSON.stringify(data))
+15090 }
+15091 
+15092 /** 将 VocabDay[] 展平为单词数组 */
+15093 function flattenDays(vocab: VocabDay[]): VocabWord[] {
+15094   return vocab.flatMap((d) =&gt; d.words)
+15095 }
+15096 
+15097 /** 按 day 分组还原为 VocabDay[]（保持 day 升序、每组内 words 保持原序） */
+15098 function groupByDay(words: VocabWord[]): VocabDay[] {
+15099   const map = new Map&lt;number, VocabWord[]&gt;()
+15100   for (const w of words) {
+15101     if (!map.has(w.day)) map.set(w.day, [])
+15102     map.get(w.day)!.push(w)
+15103   }
+15104   return [...map.entries()]</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第48页（共60页）</header>
+<pre class="code">15105     .sort((a, b) =&gt; a[0] - b[0])
+15106     .map(([day, list]) =&gt; ({ day, words: list }))
+15107 }
+15108 
+15109 // ---------- 云端同步接口 ----------
+15110 
+15111 interface CloudVocabRow {
+15112   day: number
+15113   sentIdx: number
+15114   wordIdx: number
+15115   word: string
+15116   sentence: string
+15117   added_at: string
+15118 }
+15119 
+15120 function toWord(r: CloudVocabRow): VocabWord {
+15121   return {
+15122     word: r.word,
+15123     sentence: r.sentence,
+15124     day: r.day,
+15125     sentIdx: r.sentIdx,
+15126     wordIdx: r.wordIdx,
+15127     addedAt: r.added_at || new Date().toISOString(),
+15128   }
+15129 }
+15130 
+15131 /**
+15132  * 拉取云端生词，与本地缓存合并（并集去重），回写本地。
+15133  * 合并规则：同一 day+sentIdx+wordIdx 视为同一位置，云端与本地冲突时保留 addedAt 更早的一条（
+      操作稳定）。
+15134  * 返回合并后的结果。
+15135  */
+15136 export async function syncVocabularyFromCloud(userId: string): Promise&lt;VocabDay[]&gt; {
+15137   if (!isSupabaseConfigured) return loadVocabulary()
+15138 
+15139   const local = flattenDays(loadVocabulary())
+15140   let cloud: VocabWord[] = []
+15141   try {
+15142     const { data, error } = await supabase
+15143       .from('user_vocab')
+15144       .select('day, sentIdx, wordIdx, word, sentence, added_at')
+15145       .eq('user_id', userId)
+15146     if (error) throw new Error(error.message)
+15147     cloud = ((data as unknown) as CloudVocabRow[]).map(toWord)
+15148   } catch (err) {
+15149     // 云端读取失败（如表未建/未授权）：保留本地数据，静默降级
+15150     console.warn('[Vocab] cloud sync read failed, keep local:', err instanceof Error ? err.mes
+      sage : err)
+15151     return loadVocabulary()
+15152   }
+15153 
+15154   // 合并：以 位置键(day-sentIdx-wordIdx) 为主键
+15155   const merged = new Map&lt;string, VocabWord&gt;()
+15156   const localByPos = new Map&lt;string, VocabWord&gt;()
+15157   for (const w of local) localByPos.set(`${w.day}|${w.sentIdx}|${w.wordIdx}`, w)</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第49页（共60页）</header>
+<pre class="code">15158   for (const w of cloud) merged.set(`${w.day}|${w.sentIdx}|${w.wordIdx}`, w)
+15159 
+15160   // 本地有而云端没有的位置，补回云端（本地兜底上传）
+15161   for (const [pos, w] of localByPos) {
+15162     if (!merged.has(pos)) merged.set(pos, w)
+15163   }
+15164   // 云端有而本地无的，补回本地
+15165   const mergedWords = [...merged.values()]
+15166 
+15167   // 冲突时保留 earlier addedAt；若同一位置一条来自云端一条来自本地，以云端为准（它可能更新）
+15168   // 但 merged 已按云端优先。这里仅做稳定排序
+15169   mergedWords.sort((a, b) =&gt; {
+15170     if (a.day !== b.day) return a.day - b.day
+15171     if (a.sentIdx !== b.sentIdx) return a.sentIdx - b.sentIdx
+15172     return a.wordIdx - b.wordIdx
+15173   })
+15174 
+15175   const result = groupByDay(mergedWords)
+15176   saveVocabulary(result)
+15177   return result
+15178 }
+15179 
+15180 /**
+15181  * 将两个位置集合推送到云端（增量 upsert，按 位置唯一键）。
+15182  * positions: { day, sentIdx, wordIdx, word, sentence }
+15183  */
+15184 export async function pushVocabularyToCloud(
+15185   userId: string,
+15186   words: Pick&lt;VocabWord, 'day' | 'sentIdx' | 'wordIdx' | 'word' | 'sentence'&gt;[],
+15187 ): Promise&lt;void&gt; {
+15188   if (!isSupabaseConfigured || words.length === 0) return
+15189   const rows = words.map((w) =&gt; ({
+15190     user_id: userId,
+15191     day: w.day,
+15192     sentIdx: w.sentIdx,
+15193     wordIdx: w.wordIdx,
+15194     word: w.word,
+15195     sentence: w.sentence,
+15196   }))
+15197   try {
+15198     await supabase.from('user_vocab').upsert(rows, { onConflict: 'user_id,day,sentIdx,wordIdx'
+       })
+15199   } catch (err) {
+15200     console.warn('[Vocab] cloud push failed:', err instanceof Error ? err.message : err)
+15201   }
+15202 }
+15203 
+15204 /**
+15205  * 删除某单词在云端的记录（按 user+day+word+sentence 定位）。
+15206  * 返回是否成功。
+15207  */
+15208 export async function removeWordFromCloud(
+15209   userId: string,
+15210   day: number,
+15211   word: string,</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第50页（共60页）</header>
+<pre class="code">15212   sentence: string,
+15213 ): Promise&lt;void&gt; {
+15214   if (!isSupabaseConfigured) return
+15215   try {
+15216     await supabase
+15217       .from('user_vocab')
+15218       .delete()
+15219       .eq('user_id', userId)
+15220       .eq('day', day)
+15221       .eq('word', word)
+15222       .eq('sentence', sentence)
+15223   } catch (err) {
+15224     console.warn('[Vocab] cloud remove failed:', err instanceof Error ? err.message : err)
+15225   }
+15226 }
+15227 
+15228 /** 清空云端生词本 */
+15229 export async function clearVocabularyFromCloud(userId: string): Promise&lt;void&gt; {
+15230   if (!isSupabaseConfigured) return
+15231   try {
+15232     await supabase.from('user_vocab').delete().eq('user_id', userId)
+15233   } catch (err) {
+15234     console.warn('[Vocab] cloud clear failed:', err instanceof Error ? err.message : err)
+15235   }
+15236 }
+15237 
+15238 // ---------- 本地写操作（保持原有接口，供页面调用） ----------
+15239 
+15240 /** 将某一天的标记单词存入生词本（合并去重，并返回本地更新后的结果） */
+15241 export function addDayToVocabulary(
+15242   day: number,
+15243   words: { word: string; sentence: string; sentIdx: number; wordIdx: number }[],
+15244 ): VocabDay[] {
+15245   const vocab = loadVocabulary()
+15246   const existing = vocab.find((v) =&gt; v.day === day)
+15247 
+15248   const newWords: VocabWord[] = words.map((w) =&gt; ({
+15249     ...w,
+15250     day,
+15251     addedAt: new Date().toISOString(),
+15252   }))
+15253 
+15254   if (existing) {
+15255     const existingKeys = new Set(existing.words.map((w) =&gt; wordKey(w)))
+15256     const toAdd = newWords.filter((w) =&gt; !existingKeys.has(wordKey(w)))
+15257     existing.words = [...existing.words, ...toAdd]
+15258   } else {
+15259     vocab.push({ day, words: newWords })
+15260   }
+15261 
+15262   saveVocabulary(vocab)
+15263   return vocab
+15264 }
+15265 
+15266 /** 从生词本中删除某个单词（本地） */</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第51页（共60页）</header>
+<pre class="code">15267 export function removeWordFromVocabulary(day: number, word: string, sentence: string): VocabDa
+      y[] {
+15268   const vocab = loadVocabulary()
+15269   const dayEntry = vocab.find((v) =&gt; v.day === day)
+15270   if (dayEntry) {
+15271     dayEntry.words = dayEntry.words.filter((w) =&gt; !(w.word === word &amp;&amp; w.sentence === sentence
+      ))
+15272     if (dayEntry.words.length === 0) {
+15273       const idx = vocab.indexOf(dayEntry)
+15274       vocab.splice(idx, 1)
+15275     }
+15276   }
+15277   saveVocabulary(vocab)
+15278   return vocab
+15279 }
+15280 
+15281 /** 清空本地生词本 */
+15282 export function clearVocabulary(): void {
+15283   localStorage.removeItem(VOCABULARY_KEY)
+15284 }
+15285 
+15286 // ==================== 文件: src/lib/wordLookup.ts ====================
+15287 // 生词本离线查词：优先本地离线考研词典（0 费用），词库未收录才回退 AI（腾讯云 SCF / Supabase 
+      Edge Function）
+15288 import { loadOfflineDict } from '../data/offlineDict'
+15289 import { supabase } from './supabase'
+15290 import { postJson } from './httpRequest'
+15291 
+15292 export interface WordLookup {
+15293   word: string
+15294   phonetic: string
+15295   meanings: string[]
+15296   mnemonic: string
+15297   collocations: string[]
+15298   example: string
+15299   examNote: string
+15300 }
+15301 
+15302 // 优先走腾讯云 SCF 云函数（国内节点直连讯飞，稳定快速）；未配置时回退到 Supabase Edge Functio
+      n
+15303 const AI_CORRECT_URL = (import.meta.env.VITE_AI_CORRECT_URL as string | undefined)?.trim() || 
+      ''
+15304 
+15305 const LOOKUP_CACHE_KEY = 'english_word_lookup_cache'
+15306 
+15307 // ---------- 本地缓存（按单词缓存，重复查看不消耗 token） ----------
+15308 
+15309 export function loadLookupCache(): Record&lt;string, WordLookup&gt; {
+15310   try {
+15311     const raw = localStorage.getItem(LOOKUP_CACHE_KEY)
+15312     if (!raw) return {}
+15313     return JSON.parse(raw) as Record&lt;string, WordLookup&gt;
+15314   } catch {
+15315     return {}
+15316   }</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第52页（共60页）</header>
+<pre class="code">15317 }
+15318 
+15319 function saveLookupCache(cache: Record&lt;string, WordLookup&gt;): void {
+15320   try {
+15321     localStorage.setItem(LOOKUP_CACHE_KEY, JSON.stringify(cache))
+15322   } catch {
+15323     // 缓存写入失败时静默忽略，不影响查词
+15324   }
+15325 }
+15326 
+15327 /** 读取某个单词的缓存结果（无则返回 null） */
+15328 export function getCachedLookup(word: string): WordLookup | null {
+15329   const key = word.toLowerCase()
+15330   return loadLookupCache()[key] || null
+15331 }
+15332 
+15333 // ---------- 本地离线词典查询（0 费用，优先于 AI） ----------
+15334 
+15335 /** 简单词形还原，匹配离线词库中的原形词（不足 3 字母直接返回原样） */
+15336 function stemWord(w: string, dict: Record&lt;string, string&gt;): string {
+15337   if (w.length &lt;= 3) return w
+15338   if (w.endsWith('ing') &amp;&amp; w.length &gt; 5) return w.slice(0, -3)
+15339   if (w.endsWith('ied') &amp;&amp; w.length &gt; 4) return w.slice(0, -3) + 'y'
+15340   if (w.endsWith('ed') &amp;&amp; w.length &gt; 4 &amp;&amp; !w.endsWith('eed')) return w.slice(0, -2)
+15341   if (w.endsWith('ies') &amp;&amp; w.length &gt; 4) return w.slice(0, -3) + 'y'
+15342   if (w.endsWith('es') &amp;&amp; w.length &gt; 4 &amp;&amp; dict[w.slice(0, -2)]) return w.slice(0, -2)
+15343   if (w.endsWith('s') &amp;&amp; w.length &gt; 3 &amp;&amp; dict[w.slice(0, -1)] &amp;&amp; !w.endsWith('ss') &amp;&amp; !w.endsW
+      ith('us')) return w.slice(0, -1)
+15344   return w
+15345 }
+15346 
+15347 /** 从离线词库查询释义（未收录返回 null）；词库为独立懒加载 chunk，首次调用时加载 */
+15348 export async function lookupOffline(word: string): Promise&lt;WordLookup | null&gt; {
+15349   const dict = await loadOfflineDict()
+15350   const w = word.toLowerCase()
+15351   const meaning = dict[w] || dict[stemWord(w, dict)]
+15352   if (!meaning) return null
+15353   return {
+15354     word: w,
+15355     phonetic: '',
+15356     meanings: meaning.split(/[；;]/).map((s) =&gt; s.trim()).filter(Boolean),
+15357     mnemonic: '',
+15358     collocations: [],
+15359     example: '',
+15360     examNote: '',
+15361   }
+15362 }
+15363 
+15364 // ---------- 调用后端查词（离线未收录时兜底） ----------
+15365 
+15366 /** 查询单词的考研释义：缓存 → 本地离线词典 → AI 兜底 */
+15367 export async function lookupWord(word: string): Promise&lt;WordLookup&gt; {
+15368   const cached = getCachedLookup(word)
+15369   if (cached) return cached
+15370 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第53页（共60页）</header>
+<pre class="code">15371   // 本地离线词典优先，0 费用；词典 chunk 加载失败时静默降级走 AI
+15372   try {
+15373     const offline = await lookupOffline(word)
+15374     if (offline) return offline
+15375   } catch { /* 词典加载失败，降级 AI */ }
+15376 
+15377   let result: WordLookup
+15378   if (AI_CORRECT_URL) {
+15379     // 腾讯云 SCF 云函数；原生平台用原生网络栈，绕开 WebView fetch 崩溃黑屏
+15380     const { ok, status, body } = await postJson(AI_CORRECT_URL, { action: 'lookup', word })
+15381     if (!ok || !body?.ok) throw new Error(body?.error || `AI 查词失败（${status}）`)
+15382     result = body.data
+15383   } else {
+15384     // 兜底：Supabase Edge Function
+15385     const { data, error } = await supabase.functions.invoke('ai-correct', {
+15386       body: { action: 'lookup', word },
+15387     })
+15388     if (error) throw new Error(error.message || 'AI 查词失败')
+15389     result = data as WordLookup
+15390   }
+15391 
+15392   const cache = loadLookupCache()
+15393   cache[word.toLowerCase()] = result
+15394   saveLookupCache(cache)
+15395   return result
+15396 }
+15397 
+15398 // ==================== 文件: src/data/englishDaily.ts ====================
+15399 // 本文件类型定义 + 懒加载入口；数据体在 englishDaily.json（按需加载，独立 chunk）
+15400 // 由 scripts/gen-english-daily.cjs / gen-ai-analysis.cjs 自动生成，请勿手改
+15401 
+15402 export interface EnglishDaySentence {
+15403   num: string
+15404   en: string
+15405   ref: string
+15406   // 预生成的 AI 解析内容（句子主干/结构/搭配），由 scripts/gen-ai-analysis.cjs 批量生成，避免
+      运行时消耗 AI token
+15407   ai?: {
+15408     backbone: string
+15409     structure: string[]
+15410     collocations: string[]
+15411   }
+15412 }
+15413 
+15414 export interface VocabItem {
+15415   raw: string
+15416   word: string
+15417   meaning: string
+15418 }
+15419 
+15420 export interface AnalysisItem {
+15421   sentNum: string
+15422   vocab: VocabItem[]
+15423   split: string
+15424   grammar: string[]</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第54页（共60页）</header>
+<pre class="code">15425   ref: string
+15426 }
+15427 
+15428 export interface EnglishDay {
+15429   day: number
+15430   type: '英一' | '英二'
+15431   source: string
+15432   sentences: EnglishDaySentence[]
+15433   zh: string
+15434   analysis?: AnalysisItem[]
+15435 }
+15436 
+15437 // ---------- 懒加载（模块级缓存 + 并发去重） ----------
+15438 
+15439 let cache: EnglishDay[] | null = null
+15440 let pending: Promise&lt;EnglishDay[]&gt; | null = null
+15441 
+15442 /** 动态 import JSON（独立异步 chunk，JSON.parse 解析比巨型 JS 字面量快数倍） */
+15443 export function loadEnglishDaily(): Promise&lt;EnglishDay[]&gt; {
+15444   if (cache) return Promise.resolve(cache)
+15445   if (!pending) {
+15446     pending = import('./englishDaily.json')
+15447       .then((m) =&gt; {
+15448         cache = m.default as EnglishDay[]
+15449         return cache
+15450       })
+15451       .catch((e) =&gt; {
+15452         pending = null // 失败后允许重试
+15453         throw e
+15454       })
+15455   }
+15456   return pending
+15457 }
+15458 
+15459 // ==================== 文件: src/data/offlineDict.ts ====================
+15460 // 自动生成离线考研词典（合并 初中/高中/四级/六级/考研 词表）
+15461 // 数据源：https://github.com/KyleBing/english-vocabulary (MIT)
+15462 // 数据体在 offlineDict.json（按需加载，独立 chunk）
+15463 // 仅供本地离线查词，勿手动编辑（重新生成：node scripts/build-offline-dict.cjs）
+15464 
+15465 // ---------- 懒加载（模块级缓存 + 并发去重） ----------
+15466 
+15467 let cache: Record&lt;string, string&gt; | null = null
+15468 let pending: Promise&lt;Record&lt;string, string&gt;&gt; | null = null
+15469 
+15470 /** 动态 import JSON（独立异步 chunk，只在真正查词时加载） */
+15471 export function loadOfflineDict(): Promise&lt;Record&lt;string, string&gt;&gt; {
+15472   if (cache) return Promise.resolve(cache)
+15473   if (!pending) {
+15474     pending = import('./offlineDict.json')
+15475       .then((m) =&gt; {
+15476         cache = m.default as Record&lt;string, string&gt;
+15477         return cache
+15478       })
+15479       .catch((e) =&gt; {</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第55页（共60页）</header>
+<pre class="code">15480         pending = null // 失败后允许重试
+15481         throw e
+15482       })
+15483   }
+15484   return pending
+15485 }
+15486 
+15487 // ==================== 文件: src/plugins/timer-foreground/definitions.ts ====================
+15488 export type PermissionState = 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale'
+15489 
+15490 export interface BluetoothPermissionStatus {
+15491   bluetooth: PermissionState
+15492 }
+15493 
+15494 export interface TimerForegroundPlugin {
+15495   startTimer(options: { subject: string; startTimeMs: number }): Promise&lt;void&gt;
+15496   stopTimer(): Promise&lt;void&gt;
+15497   updateTimer(options: { subject: string; elapsedSec: number }): Promise&lt;void&gt;
+15498   addListener(eventName: 'timerStopped', listenerFunc: () =&gt; void): Promise&lt;PluginListenerHand
+      le&gt;
+15499   /** 请求 BLE 扫描/连接所需的运行时权限（Android 12+ 附近设备 / 旧版定位） */
+15500   requestPermissions(): Promise&lt;BluetoothPermissionStatus&gt;
+15501   /** 查询 BLE 相关权限状态 */
+15502   checkPermissions(): Promise&lt;BluetoothPermissionStatus&gt;
+15503 }
+15504 
+15505 export interface PluginListenerHandle {
+15506   remove: () =&gt; Promise&lt;void&gt;
+15507 }
+15508 
+15509 // ==================== 文件: src/plugins/timer-foreground/index.ts ====================
+15510 import { registerPlugin } from '@capacitor/core'
+15511 import type { TimerForegroundPlugin } from './definitions'
+15512 import { WebTimerForeground } from './web'
+15513 
+15514 const TimerForeground = registerPlugin&lt;TimerForegroundPlugin&gt;('TimerForeground', {
+15515   web: () =&gt; new WebTimerForeground(),
+15516 })
+15517 
+15518 export { TimerForeground }
+15519 export type { TimerForegroundPlugin }
+15520 
+15521 // ==================== 文件: src/plugins/timer-foreground/web.ts ====================
+15522 import type { PluginListenerHandle, TimerForegroundPlugin, BluetoothPermissionStatus } from '.
+      /definitions'
+15523 
+15524 export class WebTimerForeground implements TimerForegroundPlugin {
+15525   async startTimer(): Promise&lt;void&gt; {
+15526     // Web 端无需前台服务
+15527   }
+15528   async stopTimer(): Promise&lt;void&gt; {
+15529     // Web 端无需前台服务
+15530   }
+15531   async updateTimer(): Promise&lt;void&gt; {
+15532     // Web 端无需前台服务</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第56页（共60页）</header>
+<pre class="code">15533   }
+15534   async requestPermissions(): Promise&lt;BluetoothPermissionStatus&gt; {
+15535     return { bluetooth: 'granted' }
+15536   }
+15537   async checkPermissions(): Promise&lt;BluetoothPermissionStatus&gt; {
+15538     return { bluetooth: 'granted' }
+15539   }
+15540   async addListener(): Promise&lt;PluginListenerHandle&gt; {
+15541     return { remove: async () =&gt; {} }
+15542   }
+15543 }
+15544 
+15545 // ==================== 文件: src/index.css ====================
+15546 @import "tailwindcss";
+15547 
+15548 /* Tailwind v4：dark 变体基于 .dark class（手动切换主题生效），而非跟随系统 */
+15549 @custom-variant dark (&amp;:where(.dark, .dark *));
+15550 
+15551 /* ─── 设计令牌：字体 / 阴影 ─── */
+15552 @theme {
+15553   /* 中文字体栈：优先系统字体，避免引入网络字体拖慢加载 */
+15554   --font-sans: "HarmonyOS Sans SC", "PingFang SC", "Microsoft YaHei", "Noto Sans SC",
+15555     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+15556     sans-serif;
+15557 
+15558   /* 统一定义卡片/悬停/发光的阴影，页面不再各自手写 */
+15559   --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 24px -14px rgba(15, 23, 42, 0.1);
+15560   --shadow-card-hover: 0 2px 4px rgba(15, 23, 42, 0.05), 0 12px 32px -16px rgba(79, 70, 229, 0
+      .28);
+15561   --shadow-glow: 0 4px 18px -6px rgba(79, 70, 229, 0.55);
+15562 }
+15563 
+15564 /* ─── 全局基础 ─── */
+15565 html {
+15566   -webkit-text-size-adjust: 100%;
+15567 }
+15568 
+15569 html.dark {
+15570   color-scheme: dark;
+15571 }
+15572 
+15573 /* ─── 扩展主题：渐变氛围背景 ───
+15574    light/dark 是纯色底；dawn（晨光）/dusk（暮色）在主题根容器（.theme-surface）
+15575    上叠一层柔和渐变，替换原来的纯色底，卡片等局部仍保持实色保证对比度 */
+15576 html[data-theme='dawn'] body {
+15577   background-color: #eef2ff;
+15578 }
+15579 html[data-theme='dusk'] body {
+15580   background-color: #0f172a;
+15581 }
+15582 html[data-theme='dawn'] .theme-surface {
+15583   background-color: transparent; /* 渐变接管纯色底 */
+15584   background-image: linear-gradient(180deg, #fdf4ff 0%, #eef2ff 42%, #ecfeff 100%);
+15585   background-attachment: fixed;
+15586 }</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第57页（共60页）</header>
+<pre class="code">15587 html[data-theme='dusk'] .theme-surface {
+15588   background-color: transparent; /* 渐变接管纯色底 */
+15589   background-image: linear-gradient(180deg, #221c4d 0%, #0f172a 55%, #172554 100%);
+15590   background-attachment: fixed;
+15591 }
+15592 
+15593 /* ─── 午夜繁星：深蓝夜空渐变 + 随机星星 + 错峰闪烁 ─── */
+15594 html[data-theme='starry'] .theme-surface {
+15595   background-color: transparent; /* 星空接管纯色底 */
+15596   background-image:
+15597     /* 静态星群：固定不发光的细小星星 */
+15598     radial-gradient(1.5px 1.5px at 4% 6%, rgba(255,255,255,0.85) 50%, transparent 51%),
+15599     radial-gradient(1px 1px at 12% 22%, rgba(216,225,255,0.7) 50%, transparent 51%),
+15600     radial-gradient(2px 2px at 18% 48%, rgba(255,255,255,0.8) 50%, transparent 51%),
+15601     radial-gradient(1px 1px at 26% 72%, rgba(199,214,255,0.65) 50%, transparent 51%),
+15602     radial-gradient(1.5px 1.5px at 33% 9%, rgba(255,255,255,0.75) 50%, transparent 51%),
+15603     radial-gradient(1px 1px at 41% 33%, rgba(226,232,255,0.6) 50%, transparent 51%),
+15604     radial-gradient(2px 2px at 49% 60%, rgba(255,255,255,0.9) 50%, transparent 51%),
+15605     radial-gradient(1px 1px at 57% 84%, rgba(199,214,255,0.65) 50%, transparent 51%),
+15606     radial-gradient(1.5px 1.5px at 64% 15%, rgba(255,255,255,0.75) 50%, transparent 51%),
+15607     radial-gradient(1px 1px at 71% 40%, rgba(216,225,255,0.65) 50%, transparent 51%),
+15608     radial-gradient(2px 2px at 79% 66%, rgba(255,255,255,0.8) 50%, transparent 51%),
+15609     radial-gradient(1px 1px at 86% 90%, rgba(226,232,255,0.55) 50%, transparent 51%),
+15610     radial-gradient(1.5px 1.5px at 92% 28%, rgba(255,255,255,0.75) 50%, transparent 51%),
+15611     radial-gradient(1px 1px at 96% 55%, rgba(216,225,255,0.55) 50%, transparent 51%),
+15612     /* 夜空渐变底色 */
+15613     linear-gradient(180deg, #0d1134 0%, #090d26 48%, #04060f 100%);
+15614 }
+15615 
+15616 /* 两层错峰闪烁的星星（z-index:-1 保证星星在内容文字之下） */
+15617 html[data-theme='starry'] .theme-surface::before,
+15618 html[data-theme='starry'] .theme-surface::after {
+15619   content: '';
+15620   position: absolute;
+15621   inset: 0;
+15622   z-index: -1;
+15623   border-radius: inherit;
+15624   background-image:
+15625     radial-gradient(1px 1px at 6% 30%, rgba(255,255,255,0.95) 50%, transparent 51%),
+15626     radial-gradient(1.5px 1.5px at 15% 58%, rgba(226,232,255,0.8) 50%, transparent 51%),
+15627     radial-gradient(1px 1px at 23% 13%, rgba(255,255,255,0.95) 50%, transparent 51%),
+15628     radial-gradient(2px 2px at 30% 82%, rgba(255,255,255,0.85) 50%, transparent 51%),
+15629     radial-gradient(1px 1px at 38% 44%, rgba(199,214,255,0.75) 50%, transparent 51%),
+15630     radial-gradient(1.5px 1.5px at 46% 26%, rgba(255,255,255,0.9) 50%, transparent 51%),
+15631     radial-gradient(1px 1px at 54% 70%, rgba(226,232,255,0.8) 50%, transparent 51%),
+15632     radial-gradient(2px 2px at 62% 8%, rgba(255,255,255,0.95) 50%, transparent 51%),
+15633     radial-gradient(1px 1px at 69% 50%, rgba(255,255,255,0.8) 50%, transparent 51%),
+15634     radial-gradient(1.5px 1.5px at 77% 88%, rgba(216,225,255,0.85) 50%, transparent 51%),
+15635     radial-gradient(1px 1px at 84% 36%, rgba(255,255,255,0.9) 50%, transparent 51%),
+15636     radial-gradient(2px 2px at 91% 62%, rgba(226,232,255,0.8) 50%, transparent 51%),
+15637     radial-gradient(1px 1px at 97% 18%, rgba(255,255,255,0.95) 50%, transparent 51%);
+15638   pointer-events: none;
+15639 }
+15640 
+15641 /* 第二层星星换一批位置，与第一层错峰闪烁 */</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第58页（共60页）</header>
+<pre class="code">15642 html[data-theme='starry'] .theme-surface::after {
+15643   background-image:
+15644     radial-gradient(1px 1px at 8% 55%, rgba(255,255,255,0.8) 50%, transparent 51%),
+15645     radial-gradient(1.5px 1.5px at 17% 85%, rgba(226,232,255,0.7) 50%, transparent 51%),
+15646     radial-gradient(1px 1px at 27% 38%, rgba(255,255,255,0.85) 50%, transparent 51%),
+15647     radial-gradient(1px 1px at 36% 12%, rgba(199,214,255,0.7) 50%, transparent 51%),
+15648     radial-gradient(2px 2px at 44% 68%, rgba(255,255,255,0.9) 50%, transparent 51%),
+15649     radial-gradient(1px 1px at 53% 22%, rgba(226,232,255,0.75) 50%, transparent 51%),
+15650     radial-gradient(1.5px 1.5px at 61% 90%, rgba(255,255,255,0.8) 50%, transparent 51%),
+15651     radial-gradient(1px 1px at 68% 33%, rgba(199,214,255,0.7) 50%, transparent 51%),
+15652     radial-gradient(1px 1px at 76% 72%, rgba(255,255,255,0.85) 50%, transparent 51%),
+15653     radial-gradient(2px 2px at 83% 8%, rgba(226,232,255,0.8) 50%, transparent 51%),
+15654     radial-gradient(1px 1px at 90% 48%, rgba(255,255,255,0.9) 50%, transparent 51%),
+15655     radial-gradient(1.5px 1.5px at 95% 78%, rgba(216,225,255,0.75) 50%, transparent 51%);
+15656   animation: star-twinkle-b 7.5s ease-in-out infinite;
+15657 }
+15658 
+15659 html[data-theme='starry'] .theme-surface::before {
+15660   animation: star-twinkle-a 5.5s ease-in-out infinite;
+15661 }
+15662 
+15663 @keyframes star-twinkle-a {
+15664   0%, 100% { opacity: 1; }
+15665   50% { opacity: 0.3; }
+15666 }
+15667 @keyframes star-twinkle-b {
+15668   0%, 100% { opacity: 0.3; }
+15669   50% { opacity: 1; }
+15670 }
+15671 
+15672 /* 数字统一用等宽字形，统计类数据更整齐 */
+15673 body {
+15674   font-feature-settings: "tnum" 1;
+15675   -webkit-font-smoothing: antialiased;
+15676   -moz-osx-font-smoothing: grayscale;
+15677   text-rendering: optimizeLegibility;
+15678 }
+15679 
+15680 html.dark ::selection {
+15681   background: rgba(99, 102, 241, 0.35);
+15682   color: #e2e8f0;
+15683 }
+15684 
+15685 ::selection {
+15686   background: rgba(99, 102, 241, 0.22);
+15687   color: #0f172a;
+15688 }
+15689 
+15690 /* 键盘可达性焦点提示（表单输入框用 focus:ring 自管，这里只管其余元素） */
+15691 :focus-visible:not(input):not(textarea):not(select) {
+15692   outline: 2px solid rgba(99, 102, 241, 0.55);
+15693   outline-offset: 2px;
+15694   border-radius: 6px;
+15695 }
+15696 </pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第59页（共60页）</header>
+<pre class="code">15697 /* 滚动条 - 亮色 */
+15698 ::-webkit-scrollbar {
+15699   width: 10px;
+15700   height: 10px;
+15701 }
+15702 ::-webkit-scrollbar-track {
+15703   background: transparent;
+15704 }
+15705 ::-webkit-scrollbar-thumb {
+15706   background: #cbd5e1;
+15707   border-radius: 8px;
+15708   border: 2px solid transparent;
+15709   background-clip: content-box;
+15710 }
+15711 ::-webkit-scrollbar-thumb:hover {
+15712   background: #94a3b8;
+15713   background-clip: content-box;
+15714   border: 2px solid transparent;
+15715 }
+15716 
+15717 /* 滚动条 - 暗色 */
+15718 html.dark ::-webkit-scrollbar-thumb {
+15719   background: #475569;
+15720   background-clip: content-box;
+15721   border: 2px solid transparent;
+15722 }
+15723 html.dark ::-webkit-scrollbar-thumb:hover {
+15724   background: #64748b;
+15725   background-clip: content-box;
+15726   border: 2px solid transparent;
+15727 }
+15728 
+15729 /* ─── 统一组件样式：全站卡片 / 按钮 / 输入框 ─── */
+15730 @layer components {
+15731   /* 标准卡片：白卡 + 细边框 + 柔和阴影 */
+15732   .card {
+15733     @apply rounded-2xl border border-gray-200/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04
+      ),0_8px_24px_-14px_rgba(15,23,42,0.1)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-none;
+15734   }
+15735 
+15736   /* 可交互卡片：悬停轻微浮起 + 品牌色描边 */
+15737   .card-hover {
+15738     @apply rounded-2xl border border-gray-200/70 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04
+      ),0_8px_24px_-14px_rgba(15,23,42,0.1)] transition-all duration-150 hover:-translate-y-0.5 hover:bord
+      er-indigo-200 hover:shadow-[0_2px_4px_rgba(15,23,42,0.05),0_12px_32px_-16px_rgba(79,70,229,0.28)] da
+      rk:border-slate-800 dark:bg-slate-900 dark:shadow-none dark:hover:border-indigo-500/40;
+15739   }
+15740 
+15741   /* 主按钮 */
+15742   .btn-primary {
+15743     @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-indigo
+      -600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-all duration-150 hover:bg-ind
+      igo-500 hover:shadow-[0_4px_16px_-6px_rgba(79,70,229,0.6)] active:scale-[0.98] disabled:cursor-not-a
+      llowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400;
+15744   }</pre>
+</section>
+<section class="page">
+<header>DiveDeep学习打卡追踪系统 V1.0　　源程序　　第60页（共60页）</header>
+<pre class="code">15745 
+15746   /* 次按钮 / 幽灵按钮 */
+15747   .btn-ghost {
+15748     @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl border bo
+      rder-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray
+      -50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:b
+      g-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+15749   }
+15750 
+15751   /* 危险按钮（浅底） */
+15752   .btn-danger {
+15753     @apply inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-red-50
+       px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 active:scale-[0.98]
+       disabled:opacity-50 dark:bg-red-500/10 dark:text-red-400 dark:hover:bg-red-500/20;
+15754   }
+15755 
+15756   /* 输入框 */
+15757   .input {
+15758     @apply w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-9
+      00 transition-colors placeholder:text-gray-400 focus:border-indigo-500 focus:outline-none focus:ring
+      -4 focus:ring-indigo-500/15 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeho
+      lder:text-slate-500 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/15;
+15759   }
+15760 
+15761   /* 表单字段标签 */
+15762   .label {
+15763     @apply mb-1 block text-sm font-medium text-gray-700 dark:text-slate-300;
+15764   }
+15765 
+15766   /* 分组小标题（SectionLabel / GroupLabel 通用） */
+15767   .section-label {
+15768     @apply px-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text
+      -slate-500;
+15769   }
+15770 
+15771   /* 分段选择器（登录 Tab 等） */
+15772   .seg {
+15773     @apply flex rounded-xl bg-gray-100 p-1 dark:bg-slate-800;
+15774   }
+15775   .seg-item {
+15776     @apply flex-1 cursor-pointer rounded-lg py-2 text-sm font-medium transition-all;
+15777   }
+15778   .seg-item-active {
+15779     @apply bg-white text-indigo-600 shadow-sm dark:bg-slate-700 dark:text-indigo-400;
+15780   }
+15781   .seg-item-idle {
+15782     @apply text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200;
+15783   }
+15784 
+15785   /* 数值大标题（统计数字） */
+15786   .num {
+15787     @apply font-bold tabular-nums tracking-tight;
+15788   }
+15789 }
+15790 </pre>
+</section>
+</body>
+</html>

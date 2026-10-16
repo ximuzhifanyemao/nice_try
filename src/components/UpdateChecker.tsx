@@ -1,6 +1,7 @@
 import { useAppUpdate } from '../hooks/useAppUpdate'
 import { Capacitor } from '@capacitor/core'
 import { isTauri } from '@tauri-apps/api/core'
+import { Icon } from './Icon'
 import { useState } from 'react'
 
 export default function UpdateChecker() {
@@ -30,9 +31,9 @@ export default function UpdateChecker() {
 
   const statusText = {
     available: '发现新版本',
-    downloading: isDesktop ? '正在打开下载页…' : '正在打开下载...',
-    installing: '正在打开下载页…',
-    downloaded: isDesktop ? '已打开下载页，请下载后手动运行安装' : 'APK 下载已开始，请在浏览器中完成下载后安装',
+    downloading: isDesktop ? '正在打开安装包下载页…' : '正在打开下载...',
+    installing: '正在打开安装包下载页…',
+    downloaded: isDesktop ? '已用默认浏览器打开安装包下载页，下载后运行安装包即可完成更新' : 'APK 下载已开始，请在浏览器中完成下载后安装',
     error: '更新失败',
   }[status]
 
@@ -41,16 +42,17 @@ export default function UpdateChecker() {
       {/* 头部 */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
-          <span className="text-lg">🔄</span>
+          <Icon name="refresh" size={16} className="text-blue-700 dark:text-blue-300" />
           <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
             {statusText}
           </span>
         </div>
         <button
           onClick={() => setShowBanner(false)}
+          aria-label="关闭"
           className="text-blue-400 dark:text-blue-500 hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer"
         >
-          ✕
+          <Icon name="x" size={14} />
         </button>
       </div>
 
@@ -76,7 +78,7 @@ export default function UpdateChecker() {
             onClick={handleDownload}
             className="flex-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-2 cursor-pointer transition-colors"
           >
-            {isDesktop ? '打开下载页' : Capacitor.isNativePlatform() ? '下载 APK' : '查看更新'}
+            {isDesktop ? '下载新版本安装包' : Capacitor.isNativePlatform() ? '下载 APK' : '查看更新'}
           </button>
         )}
 

@@ -1,3 +1,4 @@
+import { isTauri } from '@tauri-apps/api/core'
 import { supabase } from './supabase'
 
 /**
@@ -82,8 +83,22 @@ export async function exportAllData(userId: string): Promise<string> {
   return JSON.stringify(payload, null, 2)
 }
 
-/** 触发浏览器下载一个文本文件 */
-export function downloadTextFile(filename: string, content: string, mime = 'application/json') {
+/**
+ * 保存文本文件。
+ * - 电脑程序（Tauri）：弹系统「另存为」对话框，用户自选路径后直接落盘
+ * - 网页 / 安卓：沿用浏览器下载（<a download>，文件落到浏览器下载目录）
+ * 返回 false 表示用户在对话框里取消了保存。
+ */
+export async function downloadTextFile(
+  filename: string,
+  content: string,
+  mime = 'application/json',
+): Promise<boolean> {
+  if (isTauri()) {
+    const result = await saveTextViaDialog(filename, content, mime)
+    // null = 拿不到插件（例如安装包还是旧版本）→ 回退浏览器下载
+    if (result !== null) return result
+  }
   const blob = new Blob([content], { type: `${mime};charset=utf-8` })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -93,6 +108,32 @@ export function downloadTextFile(filename: string, content: string, mime = 'appl
   a.click()
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
+  return true
+}
+
+/** 桌面端：系统「另存为」对话框 + 写文件；插件不可用时返回 null（交给调用方回退） */
+async function saveTextViaDialog(
+  filename: string,
+  content: string,
+  mime: string,
+): Promise<boolean | null> {
+  try {
+    const [{ save }, { writeTextFile }] = await Promise.all([
+      import('@tauri-apps/plugin-dialog'),
+      import('@tauri-apps/plugin-fs'),
+    ])
+    const isCsv = mime.includes('csv')
+    const ext = isCsv ? 'csv' : 'json'
+    const path = await save({
+      defaultPath: filename,
+      filters: [{ name: isCsv ? 'CSV' : 'JSON', extensions: [ext] }],
+    })
+    if (!path) return false
+    await writeTextFile(path, content)
+    return true
+  } catch {
+    return null
+  }
 }
 
 export interface ImportResult {

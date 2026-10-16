@@ -3,10 +3,20 @@ import { getAvailableSubjects, getActivitiesForSubject, getSubjectById, getCateg
 import { getDotColor } from '../lib/colors'
 import { useAuth } from '../contexts/AuthContext'
 import { useWeekGoal } from '../hooks/useWeekGoal'
+import {
+  loadPomoFocusMin,
+  loadPomoRestMin,
+  loadPomoState,
+  loadTimerMode,
+  savePomoFocusMin,
+  savePomoRestMin,
+  saveTimerMode,
+  type TimerMode,
+} from '../lib/pomodoro'
 
 interface SubjectPickerProps {
-  /** 选中科目（含学习内容）后开始计时 */
-  onPick: (subjectId: string, activity: string) => void
+  /** 选中科目（含学习内容）后按当前模式开始计时：正计时 / 番茄钟 */
+  onPick: (subjectId: string, activity: string, mode: TimerMode) => void
   /** 关闭下拉并收起胶囊条 */
   onClose: () => void
 }
@@ -14,6 +24,8 @@ interface SubjectPickerProps {
 /**
  * 胶囊条上的快速科目下拉：点「选择科目开始」直接挑选科目开跑，
  * 有学习内容的科目先选活动再开始。Esc 逐级返回。
+ * 顶部可切换「正计时 / 番茄钟」并设置番茄钟的专注/休息时长（与全功能计时页同一偏好），
+ * 番茄钟模式下选科目即开始一轮专注倒计时。
  * 顶部展示本周目标剩余时长，方便随时把握进度。
  *
  * 视觉：窗口只有 300px 高起步，因此刻意压低装饰——
@@ -38,6 +50,11 @@ const SubjectPicker = forwardRef<HTMLDivElement, SubjectPickerProps>(function Su
   const [leaving, setLeaving] = useState(false)
   // 本周目标进度：缓存秒出 + 后台刷新（与胶囊条共用同一份缓存）
   const { goal: weekGoal } = useWeekGoal(user?.id)
+  /* 计时模式与番茄钟时长：与全功能计时页共用同一偏好（进行中的番茄钟优先显示为番茄钟） */
+  const [mode, setMode] = useState<TimerMode>(() => (loadPomoState() ? 'pomodoro' : loadTimerMode()))
+  const [focusMin, setFocusMin] = useState<number>(loadPomoFocusMin)
+  const [restMin, setRestMin] = useState<number>(loadPomoRestMin)
+  const [customFocus, setCustomFocus] = useState<number>(loadPomoFocusMin)
 
   // 跟随用户加载自定义科目（与精简面板一致）：
   // 先等云端加载完成再刷新列表，否则全功能模式新增的科目在简洁下拉里看不到
@@ -78,7 +95,7 @@ const SubjectPicker = forwardRef<HTMLDivElement, SubjectPickerProps>(function Su
     return (
       <button
         key={subj.id}
-        onClick={() => (activities.length > 0 ? setPendingSubject(subj.id) : onPick(subj.id, ''))}
+        onClick={() => (activities.length > 0 ? setPendingSubject(subj.id) : onPick(subj.id, '', mode))}
         className="group flex w-full cursor-pointer items-center gap-2 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1 text-left text-[12px] font-medium text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700/60 dark:bg-slate-800/40 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-800"
       >
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${getDotColor(getSubjectById(subj.id)?.category)}`} aria-hidden="true" />
@@ -132,6 +149,101 @@ const SubjectPicker = forwardRef<HTMLDivElement, SubjectPickerProps>(function Su
           >
             收起
           </button>
+        </div>
+
+        {/* 计时模式 + 番茄钟时长：同一行、固定行高，切换模式不改变面板高度（窗口不跳动） */}
+        <div className="mx-3.5 mt-2 flex h-7 shrink-0 flex-nowrap items-center gap-1.5 overflow-hidden text-[11px] text-slate-500 dark:text-slate-400">
+          <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/60">
+            {(['stopwatch', 'pomodoro'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => {
+                  setMode(m)
+                  saveTimerMode(m)
+                }}
+                aria-pressed={mode === m}
+                className={`cursor-pointer rounded-md px-1.5 py-0.5 text-[11px] transition-colors ${
+                  mode === m
+                    ? 'bg-indigo-50 font-semibold text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300'
+                    : 'font-medium text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+                }`}
+              >
+                {m === 'stopwatch' ? '正计时' : '番茄钟'}
+              </button>
+            ))}
+          </div>
+          {mode === 'pomodoro' && (
+            <>
+              <span className="shrink-0">专注</span>
+              {[25, 45].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    setFocusMin(m)
+                    setCustomFocus(m)
+                    savePomoFocusMin(m)
+                  }}
+                  className={`shrink-0 cursor-pointer rounded-full border px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    focusMin === m
+                      ? 'border-indigo-400 bg-indigo-50 text-indigo-600 dark:border-indigo-500/60 dark:bg-indigo-500/15 dark:text-indigo-300'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/40 dark:text-slate-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  {m}分
+                </button>
+              ))}
+              <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 dark:border-slate-700 dark:bg-slate-800/40">
+                <input
+                  type="number"
+                  min={1}
+                  max={240}
+                  value={customFocus}
+                  aria-label="自定义专注时长（分钟）"
+                  onChange={(e) => {
+                    const v = Number(e.target.value)
+                    if (Number.isFinite(v) && v > 0) {
+                      const m = Math.round(Math.min(240, Math.max(1, v)))
+                      setCustomFocus(m)
+                      setFocusMin(m)
+                      savePomoFocusMin(m)
+                    }
+                  }}
+                  className="w-8 bg-transparent text-center text-[11px] font-medium tabular-nums text-slate-700 outline-none dark:text-slate-200"
+                />
+                <span>分</span>
+              </span>
+              <span className="mx-0.5 h-3 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+              <span className="shrink-0">休息</span>
+              <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-slate-200 bg-white px-1.5 py-0.5 dark:border-slate-700 dark:bg-slate-800/40">
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  value={restMin}
+                  aria-label="休息时长（分钟）"
+                  onChange={(e) => {
+                    const v = Number(e.target.value)
+                    if (Number.isFinite(v) && v >= 0) {
+                      const m = Math.round(Math.min(120, Math.max(0, v)))
+                      setRestMin(m)
+                      savePomoRestMin(m)
+                    }
+                  }}
+                  className="w-8 bg-transparent text-center text-[11px] font-medium tabular-nums text-slate-700 outline-none dark:text-slate-200"
+                />
+                <span>分</span>
+              </span>
+              <button
+                onClick={() => {
+                  setRestMin(0)
+                  savePomoRestMin(0)
+                }}
+                className="shrink-0 cursor-pointer rounded-md px-1 py-0.5 text-[11px] text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:text-slate-500 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+              >
+                跳过
+              </button>
+            </>
+          )}
         </div>
 
         {/* 本周目标剩余时长：一条紧凑的进度摘要，不抢科目列表的注意力 */}
@@ -235,7 +347,7 @@ const SubjectPicker = forwardRef<HTMLDivElement, SubjectPickerProps>(function Su
                   onClick={() => {
                     setLeaving(true)
                     // 飞回动画结束后再真正开始计时并收回窗口，避免卡片没飞完窗口就缩回去了
-                    window.setTimeout(() => onPick(pendingSubject, act), 200)
+                    window.setTimeout(() => onPick(pendingSubject, act, mode), 200)
                   }}
                   className="cursor-pointer rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/15 dark:hover:text-indigo-300"
                 >

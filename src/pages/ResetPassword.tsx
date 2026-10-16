@@ -1,6 +1,8 @@
 import { useState, useEffect, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useWideLayout } from '../App'
+import AuthDialogShell from '../components/AuthDialogShell'
 
 type Status = 'checking' | 'invalid' | 'ready'
 
@@ -9,6 +11,7 @@ type Status = 'checking' | 'invalid' | 'ready'
  * 建立恢复会话后允许用户设置新密码（updateUser），完成后登出并引导重新登录。
  */
 export default function ResetPassword() {
+  const wide = useWideLayout()
   const [status, setStatus] = useState<Status>('checking')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -76,6 +79,106 @@ export default function ResetPassword() {
     await supabase.auth.signOut()
   }
 
+  /* ── 各状态的内容块（标题由两种布局各自渲染，避免和外壳标题重复） ── */
+  const successIcon = (
+    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20">
+      <span className="text-2xl text-emerald-500 dark:text-emerald-400">✓</span>
+    </div>
+  )
+  const successActions = (
+    <div className="text-center">
+      {successIcon}
+      <Link to="/login" className="mt-5 inline-block px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer">
+        去登录
+      </Link>
+    </div>
+  )
+
+  const invalidIcon = (
+    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/10">
+      <span className="text-2xl text-red-500 dark:text-red-400">✕</span>
+    </div>
+  )
+  const invalidActions = (
+    <div className="text-center">
+      {invalidIcon}
+      <Link to="/forgot-password" className="mt-5 inline-block px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer">
+        重新申请
+      </Link>
+      <p className="mt-3">
+        <Link to="/login" className="text-sm text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+          返回登录
+        </Link>
+      </p>
+    </div>
+  )
+
+  const checkingBody = (
+    <div className="flex flex-col items-center gap-3 py-8">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 dark:border-slate-700 border-t-indigo-500" />
+      <p className="text-xs text-gray-500 dark:text-slate-400">正在验证重置链接…</p>
+    </div>
+  )
+
+  const readyForm = (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="password" className="label">
+          新密码
+        </label>
+        <input
+          id="password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="至少6位"
+          className="input"
+          required
+        />
+      </div>
+
+      <div>
+        <label htmlFor="confirm" className="label">
+          确认新密码
+        </label>
+        <input
+          id="confirm"
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          placeholder="再次输入新密码"
+          className="input"
+          required
+        />
+      </div>
+
+      {error && (
+        <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 dark:text-red-400 px-3 py-2 rounded-lg">{error}</p>
+      )}
+
+      <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
+        {loading ? '提交中...' : '确认重置'}
+      </button>
+    </form>
+  )
+
+  /** 桌面端：左品牌 + 右表单的双栏 */
+  if (wide) {
+    const shell =
+      success
+        ? { title: '密码已重置', desc: '请使用新密码重新登录', body: successActions }
+        : status === 'checking'
+          ? { title: '重置密码', desc: undefined, body: checkingBody }
+          : status === 'invalid'
+            ? { title: '链接无效或已过期', desc: '请重新申请密码重置链接', body: invalidActions }
+            : { title: '设置新密码', desc: '新密码至少 6 位，重置后请用新密码登录', body: readyForm }
+    return (
+      <AuthDialogShell title={shell.title} desc={shell.desc}>
+        {shell.body}
+      </AuthDialogShell>
+    )
+  }
+
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4 py-6">
       <div className="w-full max-w-sm">
@@ -94,9 +197,7 @@ export default function ResetPassword() {
         <div className="card p-6 sm:p-7">
           {success ? (
             <div className="text-center py-2">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-500/20">
-                <span className="text-2xl text-emerald-500 dark:text-emerald-400">✓</span>
-              </div>
+              {successIcon}
               <h2 className="mb-2 text-lg font-semibold text-gray-800 dark:text-slate-100">密码已重置</h2>
               <p className="text-sm text-gray-500 dark:text-slate-400">请使用新密码重新登录。</p>
               <Link to="/login" className="mt-5 inline-block px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer">
@@ -104,15 +205,10 @@ export default function ResetPassword() {
               </Link>
             </div>
           ) : status === 'checking' ? (
-            <div className="flex flex-col items-center gap-3 py-8">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-200 dark:border-slate-700 border-t-indigo-500" />
-              <p className="text-xs text-gray-500 dark:text-slate-400">正在验证重置链接…</p>
-            </div>
+            checkingBody
           ) : status === 'invalid' ? (
             <div className="text-center py-2">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-500/10">
-                <span className="text-2xl text-red-500 dark:text-red-400">✕</span>
-              </div>
+              {invalidIcon}
               <h2 className="mb-2 text-lg font-semibold text-gray-800 dark:text-slate-100">链接无效或已过期</h2>
               <p className="text-sm text-gray-500 dark:text-slate-400">
                 请重新申请密码重置链接。
@@ -129,45 +225,7 @@ export default function ResetPassword() {
           ) : (
             <>
               <h2 className="mb-4 text-center text-lg font-semibold text-gray-800 dark:text-slate-100">设置新密码</h2>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="password" className="label">
-                    新密码
-                  </label>
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="至少6位"
-                    className="input"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="confirm" className="label">
-                    确认新密码
-                  </label>
-                  <input
-                    id="confirm"
-                    type="password"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    placeholder="再次输入新密码"
-                    className="input"
-                    required
-                  />
-                </div>
-
-                {error && (
-                  <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 dark:text-red-400 px-3 py-2 rounded-lg">{error}</p>
-                )}
-
-                <button type="submit" disabled={loading} className="btn-primary w-full py-2.5">
-                  {loading ? '提交中...' : '确认重置'}
-                </button>
-              </form>
+              {readyForm}
             </>
           )}
         </div>

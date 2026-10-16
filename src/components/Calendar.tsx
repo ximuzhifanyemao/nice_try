@@ -13,12 +13,12 @@ import {
   isSameDay,
 } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
-import type { DailyLog } from '../lib/dailyLogs'
-import { sortSubjectsByStartTime } from '../lib/dailyLogs'
+import type { DailyLog, DailyLogPause } from '../lib/dailyLogs'
+import { sortSubjectsByStartTime, totalPauseMs } from '../lib/dailyLogs'
 import type { CalendarEvent } from '../lib/calendarEvents'
 import { fetchMyEvents, createEvent, deleteEvent } from '../lib/calendarEvents'
 import { getSubjectById } from '../lib/subjects'
-import { getChipColor } from '../lib/colors'
+import { getDotColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
 import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
@@ -34,6 +34,22 @@ const EVENT_EMOJIS = ['🎂', '🎉', '📝', '📖', '⭐', '❤️', '🎯', '
 function fmtHours(h: number): string {
   const v = Math.round(h * 10) / 10
   return Number.isInteger(v) ? `${v}` : `${v}`
+}
+
+/** 暂停时长格式化：40s → '不到 1 分钟'，12min → '12 分钟'，75min → '1 小时 15 分钟' */
+function formatPauseMs(ms: number): string {
+  const totalMin = Math.round(ms / 60000)
+  if (totalMin < 1) return '不到 1 分钟'
+  if (totalMin < 60) return `${totalMin} 分钟`
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return m > 0 ? `${h} 小时 ${m} 分钟` : `${h} 小时`
+}
+
+/** 暂停明细悬浮提示：逐条列出「几点暂停了多久」 */
+function pauseTitle(pauses?: DailyLogPause[]): string | undefined {
+  if (!pauses?.length) return undefined
+  return pauses.map((p) => `${p.at} 暂停 ${formatPauseMs(p.ms)}`).join('\n')
 }
 
 interface CalendarProps {
@@ -224,7 +240,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
   // 日历下方还压着两张小卡）时仍能靠 flex 收缩到可用高度，避免底部被裁切。
   const bodyWrap = (content: React.ReactNode) =>
     expanded ? (
-      <div className="w-full flex flex-col" style={{ minHeight: 300 }}>
+      <div className="flex h-full w-full flex-col" style={{ minHeight: 300 }}>
         {content}
       </div>
     ) : (
@@ -234,7 +250,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
   return (
     <div
       className={`relative card overflow-hidden ${
-        expanded ? 'w-full' : ''
+        expanded ? 'h-full w-full min-h-0' : ''
       }`}
     >
       {bodyWrap(
@@ -412,11 +428,14 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
             })}
           </div>
 
-          {/* 详情区：完全展开（学习记录 + 重要日 + 添加表单直接可见，无需滚动）；没选中就不占空间 */}
+          {/* 详情区：学习记录 + 重要日 + 添加表单直接可见；全功能模式下整体限高，超出部分在框内滚动 */}
           {selectedDate && (
             <div
               className={`border-t border-gray-100 dark:border-slate-800/80 px-3 py-2 bg-gradient-to-b from-gray-50/60 to-white dark:from-slate-900/40 dark:to-slate-900 ${
-                expanded ? 'shrink-0' : ''
+                // 全功能模式：详情区限高并内部滚动，避免记录多时把上方日历压扁
+                expanded
+                  ? 'shrink-0 max-h-[42%] overflow-y-auto overscroll-contain [scrollbar-width:thin]'
+                  : ''
               }`}
             >
               {/* 学习记录块：有记录时照常展示；无记录且无重要日时才展示空态占位，避免与事件块文案重复 */}
@@ -452,23 +471,58 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                           )}
                         </div>
                         {log.subjects && log.subjects.length > 0 && (
-                          <div className="flex flex-wrap gap-1">
+                          <div>
                             {sortSubjectsByStartTime(
                               log.subjects.filter((s) => s.hours > 0),
-                            ).map((s, index) => {
+                            ).map((s, index, list) => {
                               const subject = getSubjectById(s.id)
-                              const colorClass = subject
-                                ? getChipColor(subject.category)
-                                : getChipColor()
+                              const dotClass = getDotColor(subject?.category)
+                              const pauseMs = totalPauseMs(s.pauses)
+                              const isLast = index === list.length - 1
                               return (
-                                <span
-                                  key={`${s.id}-${s.activity ?? ''}-${index}`}
-                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[11px] font-medium ${colorClass}`}
-                                >
-                                  {subject?.name ?? '已删除科目'}
-                                  {s.activity ? `·${s.activity}` : ''}
-                                  <span className="opacity-70">{fmtHours(s.hours)}h</span>
-                                </span>
+                                <div key={`${s.id}-${s.activity ?? ''}-${index}`} className="flex gap-2">
+                                  {/* 时间列：开始时间在上、结束时间在下 */}
+                                  <div className="w-[34px] shrink-0 pt-[1px] text-right">
+                                    <p className="text-[10px] leading-4 tabular-nums text-gray-500 dark:text-slate-400">
+                                      {s.startTime ?? '--:--'}
+                                    </p>
+                                    {s.endTime && (
+                                      <p className="text-[9px] leading-3 tabular-nums text-gray-300 dark:text-slate-600">
+                                        {s.endTime}
+                                      </p>
+                                    )}
+                                  </div>
+                                  {/* 时间轴：色点 + 连接线（最后一条不再延伸） */}
+                                  <div className="relative flex w-[9px] shrink-0 justify-center">
+                                    {!isLast && (
+                                      <span className="absolute top-[7px] bottom-0 w-px bg-gray-200 dark:bg-slate-700/80" />
+                                    )}
+                                    <span
+                                      className={`relative z-10 mt-[4px] h-[6px] w-[6px] shrink-0 rounded-full ring-2 ring-white dark:ring-slate-900 ${dotClass}`}
+                                    />
+                                  </div>
+                                  {/* 内容 */}
+                                  <div className={`min-w-0 flex-1 ${isLast ? '' : 'pb-2'}`}>
+                                    <div className="flex items-baseline gap-1.5">
+                                      <span className="truncate text-[11px] font-medium text-gray-700 dark:text-slate-200">
+                                        {subject?.name ?? '已删除科目'}
+                                        {s.activity ? `·${s.activity}` : ''}
+                                      </span>
+                                      <span className="ml-auto shrink-0 text-[10px] font-semibold tabular-nums text-gray-500 dark:text-slate-400">
+                                        {fmtHours(s.hours)}h
+                                      </span>
+                                    </div>
+                                    {pauseMs > 0 && (
+                                      <span
+                                        className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400"
+                                        title={pauseTitle(s.pauses)}
+                                      >
+                                        <Icon name="pause" size={9} strokeWidth={2.5} />
+                                        暂停 {s.pauses?.length} 次 · {formatPauseMs(pauseMs)}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
                               )
                             })}
                           </div>

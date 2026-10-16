@@ -190,9 +190,9 @@ export default function VocabularyBook() {
   }
 
   return (
-    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-5xl'} px-4 py-4 space-y-4`}>
-      {/* 顶部统计 */}
-      <div className="rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-5xl'} px-4 py-4`}>
+      {/* 顶部统计（宽屏通栏） */}
+      <div className="mb-4 rounded-xl bg-white dark:bg-slate-800 p-4 shadow-sm border border-gray-100 dark:border-slate-700">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-base font-bold">生词本</h1>
@@ -215,10 +215,11 @@ export default function VocabularyBook() {
       </div>
 
       {lookupError && (
-        <div className="rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">AI 查词失败：{lookupError}</div>
+        <div className="mb-4 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">AI 查词失败：{lookupError}</div>
       )}
 
-      {/* 按天分组展示 */}
+      {/* 按天分组展示：宽屏时两栏铺开，避免一整条竖排 */}
+      <div className={wide ? 'grid grid-cols-2 items-start gap-4' : 'space-y-4'}>
       {vocab.map((dayEntry) => {
         const isExpanded = expandedDays.has(dayEntry.day)
         const dayTranslation = getDayTranslation(dayEntry.day)
@@ -294,6 +295,7 @@ export default function VocabularyBook() {
           </div>
         )
       })}
+      </div>
     </div>
   )
 }

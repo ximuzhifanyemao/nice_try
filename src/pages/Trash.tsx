@@ -110,8 +110,8 @@ export default function Trash() {
   }
 
   return (
-    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-3xl'} px-4 py-6 space-y-6`}>
-      <div className="flex items-center justify-between">
+    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-3xl'} px-4 py-6`}>
+      <div className="mb-6 flex items-center justify-between">
         <h1 className="flex items-center gap-2 text-xl font-bold text-gray-800 dark:text-slate-100">
           <Icon name="trash" size={20} className="text-gray-400" /> 回收站
         </h1>
@@ -123,6 +123,9 @@ export default function Trash() {
         </Link>
       </div>
 
+      {/* 宽屏左右两栏：左「说明 + 学习记录」、右「待办事项」；窄屏保持原上下顺序 */}
+      <div className={wide ? 'grid grid-cols-2 items-start gap-6' : 'space-y-6'}>
+        <div className={wide ? 'min-w-0 space-y-6' : 'space-y-6'}>
       <p className="text-xs text-gray-400 dark:text-slate-500">
         删除的学习记录和待办会保留在这里，可随时恢复；彻底删除后无法找回。
       </p>
@@ -179,7 +182,9 @@ export default function Trash() {
           </div>
         )}
       </section>
+        </div>
 
+        <div className={wide ? 'min-w-0' : ''}>
       {/* 待办回收站 */}
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-slate-300">待办事项</h2>
@@ -239,6 +244,8 @@ export default function Trash() {
           </div>
         )}
       </section>
+        </div>
+      </div>
 
       <ConfirmDialog
         open={!!purgeTarget}

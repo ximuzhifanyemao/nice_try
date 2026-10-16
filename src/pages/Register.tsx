@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useWideLayout } from '../App'
 import DesktopLogo from '../components/DesktopLogo'
+import AuthDialogShell from '../components/AuthDialogShell'
 
 export default function Register() {
   const { signUp } = useAuth()
   const navigate = useNavigate()
+  const wide = useWideLayout()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -43,6 +46,79 @@ export default function Register() {
     navigate('/')
   }
 
+  /** 注册表单主体：手机端与桌面端共用同一份 */
+  const authBody = (
+    <>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label htmlFor="email" className="label">
+            邮箱
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="your@email.com"
+            className="input"
+            required
+          />
+        </div>
+
+        <div>
+          <label htmlFor="password" className="label">
+            密码
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="至少6位"
+            className="input"
+            required
+          />
+        </div>
+
+        {error && (
+          <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 dark:text-red-400 px-3 py-2 rounded-lg">{error}</p>
+        )}
+
+        {success && (
+          <div className="text-sm text-green-700 bg-green-50 dark:bg-green-900/30 dark:text-green-400 border border-green-200 px-3 py-2 rounded-lg">
+            {success}
+          </div>
+        )}
+
+        {!success && (
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary w-full py-2.5"
+          >
+            {loading ? '注册中...' : '注册'}
+          </button>
+        )}
+      </form>
+
+      <p className="mt-4 text-center text-sm text-gray-500 dark:text-slate-400">
+        已有账号？{' '}
+        <Link to="/login" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
+          去登录
+        </Link>
+      </p>
+    </>
+  )
+
+  /* 桌面端：左品牌 + 右表单的双栏 */
+  if (wide) {
+    return (
+      <AuthDialogShell title="创建账号" desc="注册一个账号，开始记录你的学习">
+        {authBody}
+      </AuthDialogShell>
+    )
+  }
+
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4 py-6">
       <div className="w-full max-w-sm">
@@ -57,65 +133,7 @@ export default function Register() {
 
         <div className="card p-6 sm:p-7">
           <h2 className="mb-4 text-center text-lg font-semibold text-gray-800 dark:text-slate-100">创建账号</h2>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="label">
-                邮箱
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="input"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="label">
-                密码
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="至少6位"
-                className="input"
-                required
-              />
-            </div>
-
-            {error && (
-              <p className="text-sm text-red-500 bg-red-50 dark:bg-red-500/10 dark:text-red-400 px-3 py-2 rounded-lg">{error}</p>
-            )}
-
-            {success && (
-              <div className="text-sm text-green-700 bg-green-50 dark:bg-green-900/30 dark:text-green-400 border border-green-200 px-3 py-2 rounded-lg">
-                {success}
-              </div>
-            )}
-
-            {!success && (
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-primary w-full py-2.5"
-              >
-                {loading ? '注册中...' : '注册'}
-              </button>
-            )}
-          </form>
-
-          <p className="mt-4 text-center text-sm text-gray-500 dark:text-slate-400">
-            已有账号？{' '}
-            <Link to="/login" className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">
-              去登录
-            </Link>
-          </p>
+          {authBody}
         </div>
       </div>
     </div>

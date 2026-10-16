@@ -10,9 +10,11 @@
  *   npm run dev
  *   http://localhost:5173/?preview=1&view=compact     450×56 精简胶囊条（空闲）
  *   http://localhost:5173/?preview=1&view=idle        精简胶囊条（计时中）
- *   http://localhost:5173/?preview=1&view=dropdown    科目下拉面板
+ *   http://localhost:5173/?preview=1&view=pomo        精简胶囊条（番茄钟专注倒计时；
+ *                                                     可叠 &phase=rest / &paused=1）
+ *   http://localhost:5173/?preview=1&view=dropdown    科目下拉面板（叠 &pomo=1 看番茄钟模式）
  *   http://localhost:5173/?preview=1&view=full        全部功能窗口
- * 可叠加 &theme=dark|light|dawn|dusk|starry 切换主题。
+ * 可叠加 &theme=dark|light|dawn|dusk|starry 切换主题、&running=1 摆出「计时中」态。
  *
  * 该文件不参与生产打包（入口在 main.tsx 里按 import.meta.env.DEV 动态引入）。
  */
@@ -23,11 +25,15 @@ import {
   TIMER_RUNNING_KEY,
   type SharedTimerState,
 } from '../lib/timerSync'
+import { POMO_STATE_KEY, type PomoState } from '../lib/pomodoro'
 import { getWeekStartStr } from '../lib/commitments'
+import { todayStr } from '../lib/dailyLogs'
 
 /** 本周目标缓存 key（与 useWeekGoal 内部保持一致，用于预览进度条） */
 const WEEK_GOAL_CACHE_KEY = 'kaoyan_week_goal_cache'
 const MODE_KEY = 'kaoyan_widget_mode'
+/** 计时模式 key（正计时/番茄钟，与 lib/pomodoro 内部保持一致） */
+const TIMER_MODE_KEY = 'kaoyan_timer_mode'
 const THEME_KEY = 'app_theme'
 
 const VALID_THEMES: ThemeMode[] = ['light', 'dark', 'dawn', 'dusk', 'starry']
@@ -76,24 +82,29 @@ const FAKE_MONITOR = {
   name: 'preview-monitor',
   size: { width: 1920, height: 1080 },
   position: { x: 0, y: 0 },
+  // workArea 是 @tauri-apps/api mapMonitor 的必填项（缺了会抛 "Cannot read properties of undefined"），
+  // 这里按 48px 任务栏给出可用区域，与真实 Windows 桌面一致
+  workArea: { position: { x: 0, y: 0 }, size: { width: 1920, height: 1032 } },
   scaleFactor: 1,
 }
 
 /**
  * 从 Tauri 的命令参数里取逻辑尺寸。
- * 注意真实的参数形状是 `{ label, value: { Logical: { width, height } } }`（见
- * @tauri-apps/api 的 `setSize` → `new Size(logicalSize)`），不是扁平的 width/height。
+ * 注意真实参数并不是扁平的 width/height：`setSize` 会把尺寸包在 `Size` 实例里
+ * （`{ label, value: { size: LogicalSize } }`），所以这里要拆几层再取宽高。
  */
 function logicalSizeOf(args: InvokeArgs): { width: number; height: number } | null {
-  const value = (args as { value?: { Logical?: { width?: number; height?: number } } })?.value
-  const logical = value?.Logical
-  if (logical && typeof logical.width === 'number' && typeof logical.height === 'number') {
-    return { width: logical.width, height: logical.height }
-  }
-  // 兜底：兼容扁平的 { width, height } 写法
-  const flat = args as { width?: number; height?: number }
-  if (typeof flat.width === 'number' && typeof flat.height === 'number') {
-    return { width: flat.width, height: flat.height }
+  type Size = { width?: number; height?: number }
+  const value = (args as { value?: { Logical?: Size; Physical?: Size; size?: Size } })?.value
+  /* Tauri 的 setSize 会把尺寸包成 `Size` 实例后传进来：`{ value: { size: LogicalSize } }`，
+     而 LogicalSize 的形状是 `{ type: 'Logical', width, height }`。
+     这里把几种可能形状都兜住（含历史写法与扁平写法），避免预览台悄悄收不到尺寸。 */
+  const candidates: unknown[] = [value?.size, value?.Logical, value?.Physical, args]
+  for (const cand of candidates) {
+    const size = cand as Size | undefined
+    if (size && typeof size.width === 'number' && typeof size.height === 'number') {
+      return { width: size.width, height: size.height }
+    }
   }
   return null
 }
@@ -186,6 +197,10 @@ function installTauriStubs() {
     writable: true,
   })
   Object.defineProperty(window, '__TAURI__', { value: {}, configurable: true, writable: true })
+  // @tauri-apps/api 的 isTauri() 查的是 globalThis.isTauri（由 Tauri 初始化脚本注入），
+  // 不是 __TAURI_INTERNALS__。漏了它，预览台里所有 isTauri() 分支都会走网页版，
+  // 桌面专属分支（原生另存为、桌面更新文案等）就完全没法审阅了。
+  Object.defineProperty(window, 'isTauri', { value: true, configurable: true, writable: true })
 }
 
 /* ────────────── 假后端 ──────────────
@@ -217,6 +232,21 @@ function installFakeBackend() {
     if (/\/rest\/v1\/user_subjects/.test(url)) {
       // 科目表返回预览用的假数据（否则空数组会把本地快照里的科目清掉）
       return new Response(JSON.stringify(previewSubjects), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }
+    if (previewLogsEnabled && /\/rest\/v1\/daily_logs/.test(url)) {
+      // 今日学习记录（?logs=1）：用于查看日历当天的时间轴详情与进度条填充。
+      // 写入请求（保存/补交）存进内存副本，让「计时→保存→日历查看」整条链路在预览里可跑通。
+      const method = (init?.method ?? 'GET').toUpperCase()
+      if (method !== 'GET' && typeof init?.body === 'string') {
+        const base = previewSavedLog ?? buildPreviewTodayLog()
+        previewSavedLog = { ...base, ...(JSON.parse(init.body) as Record<string, unknown>) }
+      }
+      const row = previewSavedLog ?? buildPreviewTodayLog()
+      const acceptsObject = /pgrst\.object/.test(JSON.stringify(init?.headers ?? {}))
+      return new Response(JSON.stringify(acceptsObject ? row : [row]), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -284,6 +314,61 @@ const PREVIEW_USER_ID = '00000000-0000-4000-8000-000000000001'
 /** 自定义科目本地快照 key（与 lib/subjects.ts 的 SUBJECTS_STORAGE_KEY 保持一致） */
 const SUBJECTS_KEY = `kaoyan_user_subjects_${PREVIEW_USER_ID}`
 
+/** 是否返回「今日学习记录」假数据（?logs=N，N=科目条数；N=1 视为默认 4 条） */
+let previewLogsEnabled = false
+/** 预览记录里的科目条数（用于验证「记录多时详情区限高滚动」） */
+let previewLogCount = 4
+/** 预览期间「云端记录」的内存副本：保存/合并写回后仍能被日历读到 */
+let previewSavedLog: Record<string, unknown> | null = null
+
+/**
+ * 预览用的今日学习记录：含时间段与暂停明细，
+ * 便于核对日历当天详情的时间轴样式（无时间段 / 有暂停 两种情况都要能看到）。
+ * ?logs=N 可生成 N 条，用来验证记录很多时详情区是否限高滚动、日历不被压扁。
+ */
+function buildPreviewTodayLog() {
+  const date = todayStr()
+  const extra = Array.from({ length: Math.max(0, previewLogCount - 4) }, (_, i) => {
+    const start = 8 * 60 + i * 40
+    const fmt = (m: number) => `${String(Math.floor((m % 1440) / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
+    const tpl = [
+      { id: 'math', activity: '刷题', hours: 0.6 },
+      { id: 'english', activity: '阅读', hours: 0.7 },
+      { id: 's-408-1', activity: '练习', hours: 0.5 },
+      { id: 'politics', activity: '刷题', hours: 0.4 },
+    ][i % 4]
+    return {
+      ...tpl,
+      startTime: fmt(start),
+      endTime: fmt(start + 36),
+      ...(i % 2 === 0 ? { pauses: [{ at: fmt(start + 15), ms: 300000 }] } : {}),
+    }
+  })
+  return {
+    id: 'preview-log-today',
+    user_id: PREVIEW_USER_ID,
+    date,
+    summary: '上午数学提速，下午英语收尾。',
+    created_at: `${date}T21:20:00.000Z`,
+    updated_at: `${date}T21:20:00.000Z`,
+    deleted_at: null,
+    subjects: [
+      { id: 'math', activity: '练习', hours: 0.4, startTime: '09:12', endTime: '09:36', pauses: [{ at: '09:20', ms: 240000 }] },
+      {
+        id: 's-math-2',
+        activity: '听课',
+        hours: 1.2,
+        startTime: '10:05',
+        endTime: '11:15',
+        pauses: [{ at: '10:40', ms: 480000 }, { at: '11:02', ms: 180000 }],
+      },
+      { id: 'english', activity: '单词', hours: 0.6, startTime: '14:20', endTime: '14:56' },
+      { id: 'politics', activity: '背诵', hours: 0.8, startTime: '20:30', endTime: '21:18', pauses: [{ at: '21:00', ms: 720000 }] },
+      ...extra,
+    ],
+  }
+}
+
 /**
  * 假科目数据：真实用户在登录后会从本地快照恢复自定义科目，
  * 随后云端会返回同一份数据。预览台需要两处都提供，
@@ -330,7 +415,27 @@ function mockRunningTimer(): SharedTimerState {
   }
 }
 
-function seedData(view: string, theme: ThemeMode) {
+/** 构造一个进行中的番茄钟（?view=pomo 预览倒计时/暂停/休息态；overdue=1 摆出「刚到点」以验证结算） */
+function mockPomo(phase: 'focus' | 'rest', paused: boolean, overdue = false): PomoState {
+  const focusMin = 25
+  const restMin = 5
+  const elapsedMin = overdue ? focusMin : phase === 'focus' ? 12 : 2
+  const start = Date.now() - elapsedMin * 60000
+  return {
+    phase,
+    subjectId: 'math',
+    activity: '高数强化',
+    round: phase === 'focus' ? 2 : 3,
+    focusMin,
+    restMin,
+    phaseStartAt: start,
+    endAt: overdue ? Date.now() - 1000 : start + (phase === 'focus' ? focusMin : restMin) * 60000,
+    paused,
+    pauseAt: paused ? Date.now() : null,
+  }
+}
+
+function seedData(view: string, theme: ThemeMode, running: boolean, params: URLSearchParams) {
   localStorage.setItem(THEME_KEY, theme)
   localStorage.setItem(MODE_KEY, view === 'full' ? 'full' : 'compact')
   // 今日已学 5.4h / 本周目标 40h（已达成 18.6h）→ 进度条与目标线都有内容可看
@@ -338,7 +443,21 @@ function seedData(view: string, theme: ThemeMode) {
     WEEK_GOAL_CACHE_KEY,
     JSON.stringify({ weekStart: getWeekStartStr(), target: 40, actual: 18.6 }),
   )
-  if (view === 'idle' || view === 'dropdown') {
+  /* 番茄钟：?view=pomo（可叠 &phase=rest|&paused=1）摆出专注/休息倒计时；
+     ?pomo=run 在任意视图（如 view=full#/timer）摆出进行中的番茄钟；
+     ?pomo=1 只切「番茄钟」模式偏好（用于预览下拉里的番茄钟时长设置行） */
+  localStorage.removeItem(POMO_STATE_KEY)
+  localStorage.setItem(TIMER_MODE_KEY, 'stopwatch')
+  if (view === 'pomo' || params.get('pomo') === 'run') {
+    const phase = params.get('phase') === 'rest' ? 'rest' : 'focus'
+    const overdue = params.get('overdue') === '1'
+    localStorage.setItem(POMO_STATE_KEY, JSON.stringify(mockPomo(phase, params.get('paused') === '1', overdue)))
+    localStorage.setItem(TIMER_MODE_KEY, 'pomodoro')
+  } else if (params.get('pomo') === '1') {
+    localStorage.setItem(TIMER_MODE_KEY, 'pomodoro')
+  }
+  // ?running=1：强制摆出「计时中」态（全功能计时页 Hero 的渐变数字/控制钮也要能截到）
+  if (running || view === 'idle' || (view === 'dropdown' && !params.has('pomo'))) {
     localStorage.setItem(TIMER_RUNNING_KEY, JSON.stringify(mockRunningTimer()))
   } else {
     localStorage.removeItem(TIMER_RUNNING_KEY)
@@ -371,11 +490,15 @@ export async function startPreview() {
   const theme: ThemeMode = themeParam && VALID_THEMES.includes(themeParam) ? themeParam : 'dark'
   // ?subjects=N 控制假科目数量：验证下拉「够则 300 / 不够则长高 / 到顶则滚动」
   const subjectCount = Number(params.get('subjects') ?? 7)
+  // ?logs=N：让假后端返回一条今日学习记录（N=科目条数，N=1 视为默认 4 条）
+  const logParam = params.get('logs')
+  previewLogsEnabled = logParam !== null && logParam !== '0'
+  previewLogCount = Math.max(4, Number(logParam) || 4)
 
   seedMockSession()
   seedSubjects(Number.isFinite(subjectCount) ? Math.max(0, subjectCount) : 7)
   installFakeBackend()
-  seedData(view, theme)
+  seedData(view, theme, params.get('running') === '1', params)
   applyTheme(theme)
   document.documentElement.classList.add('preview-host')
   mark('seeded')

@@ -50,7 +50,8 @@ const MIN_FIT_SCALE = 0.4
  * 桌面「全部功能」模式下，让页面内容按内容高度自适应缩放填满窗口。
  * 首页本身已用 forceTwoCol 双栏单屏，无需缩放，故跳过首页。
  *
- * 当内容高度超过视口 1.2 倍时，允许纵向滚动而非继续缩小，保证长页面可读性。
+ * 当内容高度超过视口 1.05 倍时按原始尺寸渲染并允许纵向滚动，不再继续缩小，
+ * 保证桌面端读起来是「原尺寸的桌面页面」而不是被塞小的手机页面。
  *
  * 关键约束：内容层必须始终保持固定布局宽度（100%），绝不能用 `width: 100% / scale`
  * 反向补偿缩放后的视觉宽度。否则会形成正反馈——
@@ -85,8 +86,10 @@ function ScaleToFit({ enabled, children }: { enabled: boolean; children: ReactNo
         const ih = inner.scrollHeight
         const iw = inner.scrollWidth
         if (ow <= 0 || oh <= 0 || ih <= 0 || iw <= 0) return
-        // 内容超高（超过视口 1.2 倍）时允许滚动，不再继续缩小
-        if (ih > oh * 1.2) {
+        // 只对「刚刚超出一点」的高度做轻微缩放（避免为几像素高度差拉出滚动条）；
+        // 明显超高（超过视口 5%）时按原始尺寸渲染并交给内容列滚动 ——
+        // 桌面软件的常态是「原尺寸 + 滚动」，把页面整体缩小会读起来像被塞小的手机页面
+        if (ih > oh * 1.05) {
           setScale(1)
           return
         }
@@ -218,6 +221,7 @@ export default function App({
   hideBottomTab = false,
   hideNavbar = false,
   sidebar = null,
+  topBar = null,
   fillHeight = false,
   forceTwoCol = false,
 }: {
@@ -225,7 +229,9 @@ export default function App({
   hideNavbar?: boolean
   /** 需要侧边栏导航时传入（如桌面端展开模式）；必须在 Router 内部渲染，故由 App 接收）
    */ sidebar?: ReactNode | null
-  /** 桌面展开模式下用 100% 高度替代 100vh，配合滚动容器避免页面底部被裁切 */
+  /** 右侧内容列顶部的固定条（如桌面端窗口标题栏），不参与内容滚动，需与 fillHeight 搭配 */
+  topBar?: ReactNode | null
+  /** 桌面展开模式下用 100% 高度替代 100vh，让高度链条成立、内容列内部滚动 */
   fillHeight?: boolean
   /** 桌面「全部功能」全功能模式下强制首页双栏布局（无视视口宽度） */
   forceTwoCol?: boolean
@@ -233,6 +239,49 @@ export default function App({
   // 桌面展开模式（fillHeight）：用确定高度 h-full 替代 min-h，让百分比高度链条成立，
   // 侧边栏才能撑满整列高度并把底部按钮钉在可见区最底部；移动端保持 min-h-screen 原逻辑
   const pageHeight = fillHeight ? 'h-full' : 'min-h-screen'
+  // 右侧主内容（全局横幅 + 路由页面）：侧边栏模式下整体放进内容滚动区
+  const main = (
+    <>
+      <ConfigBanner />
+      <UpdateChecker />
+      <AchievementNotifier />
+      <CheckinReminder />
+      {!hideNavbar && <Navbar />}
+      <Suspense fallback={<PageLoading />}>
+        <HomeLayoutContext.Provider value={{ twoCol: forceTwoCol, wide: forceTwoCol }}>
+        <ScaleToFit enabled={forceTwoCol}>
+        <PageFade fillHeight={fillHeight}>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/qr-login" element={<QrLogin />} />
+          <Route element={<ProtectedRoute />}>
+            <Route path="/my-records" element={<MyRecords />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/summary" element={<Summary />} />
+            <Route path="/weekly-summary" element={<WeeklySummary />} />
+            <Route path="/my-records/new" element={<NewRecord />} />
+            <Route path="/my-records/:id/edit" element={<EditRecord />} />
+            <Route path="/timer" element={<TimerPage />} />
+            <Route path="/trash" element={<Trash />} />
+            <Route path="/achievements" element={<Achievements />} />
+            <Route path="/goal" element={<GoalPage />} />
+            <Route path="/english-checkin" element={<EnglishCheckin />} />
+            <Route path="/vocabulary" element={<VocabularyBook />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/scan-qr" element={<ScanQr />} />
+          </Route>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+        </PageFade>
+        </ScaleToFit>
+        </HomeLayoutContext.Provider>
+      </Suspense>
+    </>
+  )
   return (
     <HashRouter>
       <ToastProvider>
@@ -240,57 +289,34 @@ export default function App({
         <UpdateProvider>
           <AuthProvider>
           <LogsProvider>
-          <div className={`relative isolate overflow-x-clip ${pageHeight} theme-surface bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 ${hideBottomTab ? '' : 'pb-16 sm:pb-0'}`}>
+          {/* w-full：App 现在是桌面外壳里的 flex 行子项，不加宽度就会按内容收缩（右侧留出一条空白带） */}
+          <div className={`relative isolate w-full overflow-x-clip ${pageHeight} theme-surface bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-slate-100 transition-colors duration-200 ${hideBottomTab ? '' : 'pb-16 sm:pb-0'}`}>
           {/* 顶部环境光：页面顶部分层淡出，增加呼吸感 */}
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 top-0 h-80 bg-gradient-to-b from-indigo-100/70 via-indigo-50/40 to-transparent dark:from-indigo-500/10 dark:via-indigo-900/5 dark:to-transparent"
           />
-          <div className={`relative flex ${pageHeight}`}>
-            {/* 侧边栏：stretch 撑满整列高度，配合 sticky 让底部的主题/登出始终固定在可见区最底部 */}
-            {sidebar && <div className="sticky top-0 shrink-0 self-stretch">{sidebar}</div>}
-            <div className="flex-1 min-w-0">
-              <ConfigBanner />
-              <UpdateChecker />
-              <AchievementNotifier />
-              <CheckinReminder />
-              {!hideNavbar && <Navbar />}
-              <Suspense fallback={<PageLoading />}>
-                <HomeLayoutContext.Provider value={{ twoCol: forceTwoCol, wide: forceTwoCol }}>
-                <ScaleToFit enabled={forceTwoCol}>
-                <PageFade fillHeight={fillHeight}>
-                <Routes>
-                  <Route path="/" element={<Home />} />
-                  <Route path="/login" element={<Login />} />
-                  <Route path="/register" element={<Register />} />
-                  <Route path="/forgot-password" element={<ForgotPassword />} />
-                  <Route path="/reset-password" element={<ResetPassword />} />
-                  <Route path="/qr-login" element={<QrLogin />} />
-                  <Route element={<ProtectedRoute />}>
-                    <Route path="/my-records" element={<MyRecords />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/summary" element={<Summary />} />
-                    <Route path="/weekly-summary" element={<WeeklySummary />} />
-                    <Route path="/my-records/new" element={<NewRecord />} />
-                    <Route path="/my-records/:id/edit" element={<EditRecord />} />
-                    <Route path="/timer" element={<TimerPage />} />
-                    <Route path="/trash" element={<Trash />} />
-                    <Route path="/achievements" element={<Achievements />} />
-                    <Route path="/goal" element={<GoalPage />} />
-                    <Route path="/english-checkin" element={<EnglishCheckin />} />
-                    <Route path="/vocabulary" element={<VocabularyBook />} />
-                    <Route path="/settings" element={<Settings />} />
-                    <Route path="/scan-qr" element={<ScanQr />} />
-                  </Route>
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-                </PageFade>
-                </ScaleToFit>
-                </HomeLayoutContext.Provider>
-              </Suspense>
-              {!hideBottomTab && <BottomTab />}
+          {sidebar ? (
+            /* 桌面端：左侧边栏是与内容并列的独立整列，高度固定在窗口高度上且永不滚动；
+               滚动职责全部交给右侧内容列内部的滚动区（滚轮上划下滑侧边栏都不动） */
+            <div className={`relative flex ${pageHeight}`}>
+              <div className={`${pageHeight} shrink-0`}>{sidebar}</div>
+              <div className={`flex ${pageHeight} min-h-0 min-w-0 flex-1 flex-col`}>
+                {topBar}
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  {main}
+                </div>
+                {!hideBottomTab && <BottomTab />}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className={`relative flex ${pageHeight}`}>
+              <div className="flex-1 min-w-0">
+                {main}
+                {!hideBottomTab && <BottomTab />}
+              </div>
+            </div>
+          )}
           </div>
           </LogsProvider>
       </AuthProvider>

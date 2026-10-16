@@ -29,6 +29,14 @@ export function formatDuration(totalSeconds: number): string {
   return `${pad(h)}:${pad(m)}:${pad(s)}`
 }
 
+/** 毫秒格式化为 MM:SS（番茄钟倒计时显示） */
+export function formatMmSs(ms: number): string {
+  const total = Math.max(0, Math.ceil(ms / 1000))
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${pad(m)}:${pad(s)}`
+}
+
 /** 秒数格式化为简写（如 2h 30min / 45min） */
 export function formatDurationShort(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600)

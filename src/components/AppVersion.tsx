@@ -1,21 +1,27 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Capacitor } from '@capacitor/core'
+import { isTauri } from '@tauri-apps/api/core'
 import { apkDownloadUrl } from '../lib/supabase'
+import { Icon } from './Icon'
 
-export default function AppVersion() {
+/**
+ * 版本信息卡片：版本号 + 更新日志 + 下载链接。
+ * footer：可选，渲染在卡片底部（桌面端把「检查更新」放进同一张卡，
+ * 避免版本号在页面里出现两次）。
+ *
+ * 电脑程序（Tauri）不给「下载 APK」入口：那只是手机端的安装包，
+ * 桌面端的更新由卡片底部的「检查更新 / 下载新版本安装包」承担。
+ */
+export default function AppVersion({ footer }: { footer?: ReactNode }) {
   const [expanded, setExpanded] = useState(false)
   const version = __APP_VERSION__
   const hash = __APP_GIT_HASH__
   const changelog = __APP_GIT_CHANGELOG__ ?? []
+  const isDesktop = isTauri()
 
   const handleVersionClick = () => {
-    if (Capacitor.isNativePlatform()) {
-      // 原生 App 内用浏览器打开下载链接
-      window.open(apkDownloadUrl, '_blank')
-    } else {
-      // Web 端直接触发下载
-      window.open(apkDownloadUrl, '_blank')
-    }
+    // 手机 App 与网页端都用系统浏览器打开 APK 下载地址
+    window.open(apkDownloadUrl, Capacitor.isNativePlatform() ? '_system' : '_blank')
   }
 
   return (
@@ -30,16 +36,22 @@ export default function AppVersion() {
             ▾
           </span>
         </button>
-        <button
-          onClick={handleVersionClick}
-          className="flex items-center gap-1 cursor-pointer hover:opacity-75 transition-opacity"
-          title="点击下载最新版本"
-        >
-          <span className="font-mono text-xs text-blue-500 dark:text-blue-400 underline decoration-dotted">
+        {isDesktop ? (
+          <span className="font-mono text-xs text-gray-400 dark:text-slate-500">
             v{version}{hash && ` (${hash})`}
           </span>
-          <span className="text-xs">📥</span>
-        </button>
+        ) : (
+          <button
+            onClick={handleVersionClick}
+            className="flex items-center gap-1 cursor-pointer hover:opacity-75 transition-opacity"
+            title="点击下载最新版本"
+          >
+            <span className="font-mono text-xs text-blue-500 dark:text-blue-400 underline decoration-dotted">
+              v{version}{hash && ` (${hash})`}
+            </span>
+            <Icon name="download" size={13} className="text-blue-500 dark:text-blue-400" />
+          </button>
+        )}
       </div>
 
       {expanded && changelog.length > 0 && (
@@ -58,6 +70,10 @@ export default function AppVersion() {
             </li>
           ))}
         </ul>
+      )}
+
+      {footer && (
+        <div className="mt-3 border-t border-gray-100 pt-3 dark:border-slate-700">{footer}</div>
       )}
     </div>
   )

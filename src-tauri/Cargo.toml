@@ -22,6 +22,12 @@ serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.3", features = [] }
+# 带前端 JS 侧配对的插件一律用精确版本（=x.y.z）：
+# cargo 的 "2.7.2" 是 ^ 语义，会解析到 2.8.x，而 npm 侧按精确版本安装，
+# 两边一旦错位就会出现「JS 调用 Rust 侧不存在的命令」。
+tauri-plugin-dialog = "=2.8.3"
+tauri-plugin-fs = "=2.7.1"
 tauri-plugin-log = "2"
+tauri-plugin-notification = "=2.4.0"
 tauri-plugin-single-instance = "2"
 

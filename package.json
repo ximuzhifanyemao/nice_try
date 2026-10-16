@@ -1,7 +1,7 @@
 {
   "name": "kaoyan-tracker",
   "private": true,
-  "version": "1.14.10",
+  "version": "1.15.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -30,6 +30,9 @@
     "@capacitor/preferences": "^8.0.1",
     "@supabase/supabase-js": "^2.112.0",
     "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "2.8.3",
+    "@tauri-apps/plugin-fs": "2.7.1",
+    "@tauri-apps/plugin-notification": "2.4.0",
     "@types/qrcode": "^1.5.6",
     "date-fns": "^4.4.0",
     "html2canvas": "^1.4.1",
