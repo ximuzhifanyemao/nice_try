@@ -57,6 +57,8 @@ export const POMO_STATE_KEY = 'kaoyan_pomo_running'
 const MODE_KEY = 'kaoyan_timer_mode'
 const POMO_FOCUS_KEY = 'kaoyan_pomo_focus_min'
 const POMO_REST_KEY = 'kaoyan_pomo_rest_min'
+/** 专注时长预设（简洁模式下拉里的几个格子）key */
+const POMO_PRESETS_KEY = 'kaoyan_pomo_focus_presets'
 
 /* ── 状态读写 ── */
 
@@ -131,6 +133,45 @@ export function loadPomoFocusMin(): number {
 export function savePomoFocusMin(min: number): void {
   try {
     localStorage.setItem(POMO_FOCUS_KEY, String(Math.round(Math.min(240, Math.max(1, min)))))
+  } catch {
+    /* 忽略 */
+  }
+}
+
+/* ── 专注时长预设：简洁模式下拉里的固定几格，用户直接改数字即为自设 ── */
+
+/** 预设格数（固定，不随增删变化，保证下拉面板高度稳定） */
+const POMO_PRESET_SLOTS = 4
+/** 预设默认值（分钟） */
+const POMO_PRESET_DEFAULTS = [15, 25, 45, 60]
+
+/**
+ * 读取专注时长预设，始终返回固定格数的数组：
+ * 缺失/越界/坏数据一律回退默认值，短的用默认值补齐，长的截断，
+ * 免得一处脏数据让面板少一格或长出一格。
+ */
+export function loadPomoFocusPresets(): number[] {
+  const list: number[] = []
+  try {
+    const raw = localStorage.getItem(POMO_PRESETS_KEY)
+    const parsed: unknown = raw ? JSON.parse(raw) : null
+    if (Array.isArray(parsed)) {
+      for (const v of parsed) {
+        const n = Math.round(Number(v))
+        if (Number.isFinite(n) && n >= 1 && n <= 240) list.push(n)
+        if (list.length === POMO_PRESET_SLOTS) break
+      }
+    }
+  } catch {
+    /* 解析失败按默认值 */
+  }
+  while (list.length < POMO_PRESET_SLOTS) list.push(POMO_PRESET_DEFAULTS[list.length] ?? 30)
+  return list
+}
+
+export function savePomoFocusPresets(list: number[]): void {
+  try {
+    localStorage.setItem(POMO_PRESETS_KEY, JSON.stringify(list.slice(0, POMO_PRESET_SLOTS)))
   } catch {
     /* 忽略 */
   }

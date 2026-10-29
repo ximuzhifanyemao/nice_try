@@ -10,7 +10,7 @@ import {
   addMonths,
 } from 'date-fns'
 import type { DailyLog, DailyLogSubject } from './dailyLogs'
-import { getSubjectById } from './subjects'
+import { getSubjectById, splitActivityPath } from './subjects'
 
 export interface SummaryRange {
   mode: 'week' | 'month' | 'custom'
@@ -323,5 +323,123 @@ export function computeSubjectComparison(
   items.sort((a, b) => b.currentHours - a.currentHours)
 
   return { items, hasPrevData: prevLogs.length > 0 }
+}
+
+/* ── 科目 → 中层级 → 学习内容占比 ──
+   把 daily_logs.subjects[].activity 的路径拆成两级：
+   - '高数/做题' → 高数（中层级）→ 做题（学习内容）
+   - '复盘'       → 科目下的顶层学习内容
+   占比口径：科目占总时长、中层级占科目、学习内容占所属中层级。 */
+
+export interface ActivityShare {
+  name: string
+  hours: number
+  /** 在父级中的占比（组内活动按组总时长，未分组按科目总时长） */
+  percentageOfParent: number
+}
+
+export interface ActivityGroupShare {
+  name: string
+  hours: number
+  /** 在所属科目中的占比 */
+  percentageOfSubject: number
+  activities: ActivityShare[]
+}
+
+export interface SubjectDetailBreakdown {
+  subjectId: string
+  name: string
+  hours: number
+  /** 在所选周期总时长中的占比 */
+  percentageOfTotal: number
+  groups: ActivityGroupShare[]
+  leaves: ActivityShare[]
+}
+
+interface SubjectAccumulator {
+  hours: number
+  groups: Map<string, { hours: number; activities: Map<string, number> }>
+  leaves: Map<string, number>
+}
+
+function roundPercent(value: number): number {
+  return Math.round(value * 10) / 10
+}
+
+export function computeSubjectDetailBreakdown(logs: DailyLog[]): SubjectDetailBreakdown[] {
+  const map = new Map<string, SubjectAccumulator>()
+  let totalHours = 0
+
+  for (const log of logs) {
+    for (const subj of log.subjects) {
+      const hours = Number(subj.hours) || 0
+      if (hours <= 0) continue
+      totalHours += hours
+
+      let acc = map.get(subj.id)
+      if (!acc) {
+        acc = { hours: 0, groups: new Map(), leaves: new Map() }
+        map.set(subj.id, acc)
+      }
+      acc.hours += hours
+
+      const activity = (subj.activity ?? '').trim()
+      if (!activity) {
+        acc.leaves.set('未分类', (acc.leaves.get('未分类') ?? 0) + hours)
+        continue
+      }
+      const { group, label } = splitActivityPath(activity)
+      if (group && label) {
+        let g = acc.groups.get(group)
+        if (!g) {
+          g = { hours: 0, activities: new Map() }
+          acc.groups.set(group, g)
+        }
+        g.hours += hours
+        g.activities.set(label, (g.activities.get(label) ?? 0) + hours)
+      } else {
+        acc.leaves.set(label || group, (acc.leaves.get(label || group) ?? 0) + hours)
+      }
+    }
+  }
+
+  const result: SubjectDetailBreakdown[] = []
+  for (const [subjectId, acc] of map) {
+    const subject = getSubjectById(subjectId)
+    const groups: ActivityGroupShare[] = [...acc.groups.entries()]
+      .map(([groupName, g]) => ({
+        name: groupName,
+        hours: g.hours,
+        percentageOfSubject: acc.hours > 0 ? roundPercent((g.hours / acc.hours) * 100) : 0,
+        activities: [...g.activities.entries()]
+          .map(([name, hours]) => ({
+            name,
+            hours,
+            percentageOfParent: g.hours > 0 ? roundPercent((hours / g.hours) * 100) : 0,
+          }))
+          .sort((a, b) => b.hours - a.hours),
+      }))
+      .sort((a, b) => b.hours - a.hours)
+
+    const leaves: ActivityShare[] = [...acc.leaves.entries()]
+      .map(([name, hours]) => ({
+        name,
+        hours,
+        percentageOfParent: acc.hours > 0 ? roundPercent((hours / acc.hours) * 100) : 0,
+      }))
+      .sort((a, b) => b.hours - a.hours)
+
+    result.push({
+      subjectId,
+      name: subject?.name ?? subjectId,
+      hours: acc.hours,
+      percentageOfTotal: totalHours > 0 ? roundPercent((acc.hours / totalHours) * 100) : 0,
+      groups,
+      leaves,
+    })
+  }
+
+  result.sort((a, b) => b.hours - a.hours)
+  return result
 }
 

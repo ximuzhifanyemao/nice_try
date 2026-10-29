@@ -1,15 +1,14 @@
 import type { DailyLogPause } from './dailyLogs'
-import { todayStr } from './dailyLogs'
-import { toTimeStr } from './format'
+import type { OutboxItem } from './timerOutbox'
 
 /**
- * 「今日累计」（未保存的计时时长）本地存储。
+ * 「今日累计」的数据形状与投影。
  *
- * 全功能计时页用它暂存正计时/番茄钟的时长，等用户点「保存到今日记录」再入库；
- * 简洁模式胶囊条在番茄钟专注段无法直接入库时（未登录/跨天/网络失败）也并入这里，
- * 保证时长不丢、稍后能在全功能计时页补交。
+ * 说明：累计不再单独落盘——它的唯一数据来源是 lib/timerOutbox 的待入库队列
+ * （accumFromOutbox 把队列按 科目::学习内容 聚合出来）。这样：
+ * - 队列里没被抹掉，累计就不会凭空消失；
+ * - 补传成功后条目出队，累计自动跟着变小，不会出现两套状态对不上。
  */
-
 export interface TimeRange {
   start: string
   end: string
@@ -30,101 +29,43 @@ export interface TimerSession {
   subjectId: string
   activity: string
   seconds: number
-  startAt: number // 开始时间戳，跨天时按「开始那天」归属
+  startAt: number // 开始时间戳（跨零点时会按自然日拆成多段，各段各归各天）
   endAt: number // 结束时间戳
 }
-
-const ACCUM_KEY = 'kaoyan_timer_accum'
-/** 累计归属日期 key（全功能计时页直接读写，跨天补交依据） */
-export const ACCUM_DATE_KEY = 'kaoyan_timer_accum_date'
 
 /** 累计键：科目::学习内容 */
 export function accumKey(subjectId: string, activity: string): string {
   return `${subjectId}::${activity}`
 }
 
-export function loadAccum(): AccumMap {
-  // 跨午夜不清空：保留累计数据，保存时归入开始学习的那天（补交）
-  try {
-    const raw: unknown = JSON.parse(localStorage.getItem(ACCUM_KEY) || '{}')
-    if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return {}
-    const migrated: AccumMap = {}
-    for (const [key, value] of Object.entries(raw)) {
-      // 旧格式：直接是数字秒数 → 迁移为 { seconds, ranges: [] }
-      if (typeof value === 'number') {
-        migrated[key] = { seconds: value, ranges: [] }
-      } else if (
-        typeof value === 'object' &&
-        value !== null &&
-        typeof (value as AccumEntry).seconds === 'number'
-      ) {
-        // 已是新格式
-        migrated[key] = value as AccumEntry
-      }
-      // 其他非法值跳过
+/** 待入库队列 → 「今日累计」视图（按 科目::学习内容 聚合） */
+export function accumFromOutbox(items: OutboxItem[]): AccumMap {
+  const map: AccumMap = {}
+  for (const item of items) {
+    if (item.seconds <= 0) continue
+    const key = accumKey(item.subjectId, item.activity)
+    const prev = map[key]
+    const ranges = prev?.ranges ?? []
+    map[key] = {
+      seconds: (prev?.seconds ?? 0) + item.seconds,
+      ranges:
+        item.start && item.end
+          ? [...ranges, { start: item.start, end: item.end, ...(item.pauses ? { pauses: item.pauses } : {}) }]
+          : ranges,
     }
-    return migrated
-  } catch {
-    return {}
   }
-}
-
-export function saveAccum(accum: AccumMap): void {
-  try {
-    localStorage.setItem(ACCUM_KEY, JSON.stringify(accum))
-  } catch {
-    /* 忽略写入失败 */
-  }
-}
-
-/** 读取累计归属日期（这批学习时长属于哪一天），无累计时为 null */
-export function loadAccumDate(): string | null {
-  return localStorage.getItem(ACCUM_DATE_KEY)
-}
-
-/** 记录累计归属日期（跨天补交依据） */
-export function saveAccumDate(date: string): void {
-  try {
-    localStorage.setItem(ACCUM_DATE_KEY, date)
-  } catch {
-    /* 忽略写入失败 */
-  }
-}
-
-export function clearAccumDate(): void {
-  try {
-    localStorage.removeItem(ACCUM_DATE_KEY)
-  } catch {
-    /* 忽略失败 */
-  }
-}
-
-/** 时间戳 → yyyy-MM-dd（本地时区） */
-function dateOf(ts: number): string {
-  const d = new Date(ts)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return map
 }
 
 /**
- * 追加一段会话（秒数 + 时间段）到累计，返回新的累计对象（已写盘）。
- * 累计原本为空时，把归属日期设为该会话开始那天（跨午夜完成的会话归入开始当天）。
+ * 待入库队列的归属日期：取最早那段的日期（与旧版「第一段计时落盘时记下日期」的语义一致）。
+ * 队列为空时返回 null（界面回落到今天）。
  */
-export function appendAccumSession(accum: AccumMap, session: TimerSession): AccumMap {
-  const key = accumKey(session.subjectId, session.activity)
-  const prev = accum[key]
-  const next: AccumMap = { ...accum }
-  next[key] = {
-    seconds: (prev?.seconds ?? 0) + session.seconds,
-    ranges: [
-      ...(prev?.ranges ?? []),
-      { start: toTimeStr(new Date(session.startAt)), end: toTimeStr(new Date(session.endAt)) },
-    ],
+export function accumDateFromOutbox(items: OutboxItem[]): string | null {
+  let earliest: string | null = null
+  for (const item of items) {
+    if (!item.date) continue
+    if (earliest === null || item.date < earliest) earliest = item.date
   }
-  if (Object.keys(accum).length === 0) {
-    // 无累计数据：归属日期取会话开始那天（今日/跨天都正确）
-    saveAccumDate(dateOf(session.startAt) || todayStr())
-  }
-  saveAccum(next)
-  return next
+  return earliest
 }

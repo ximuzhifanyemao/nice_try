@@ -50,6 +50,41 @@ export function getCategoryLabel(category: string | undefined | null): string | 
   return CATEGORY_LABELS[category] ?? category
 }
 
+/** 内置 category 编码 → 短展示名（用于科目胶囊前缀，408 不显示完整长名） */
+const CATEGORY_SHORT_LABELS: Record<string, string> = {
+  math: '数学',
+  english: '英语',
+  politics: '政治',
+  '408': '408',
+}
+
+/** 科目胶囊上的分类前缀；自定义/无分类返回 undefined */
+export function getCategoryShortLabel(category: string | undefined | null): string | undefined {
+  if (!category || category === 'custom' || category === 'other') return undefined
+  return CATEGORY_SHORT_LABELS[category] ?? category
+}
+
+/**
+ * 科目展示名：分类 + 科目名（如「408 · 套卷」）。
+ * 分类与科目名重复时只显示科目名，避免「数学 · 数学」这类冗余。
+ * 记录胶囊用此名称，避免「套卷」等同名科目/分组产生歧义。
+ */
+export function formatCategorySubjectName(
+  name: string,
+  category: string | undefined | null,
+): string {
+  const label = getCategoryShortLabel(category)
+  return label && label !== name ? `${label} · ${name}` : name
+}
+
+export function formatSubjectLabel(
+  subject: Subject | undefined | null,
+  fallback = '已删除科目',
+): string {
+  if (!subject) return fallback
+  return formatCategorySubjectName(subject.name, subject.category)
+}
+
 export interface SubjectWithActivities extends Subject {
   activities: string[]
   /** 迁移前的旧内置科目 id（如 'math'），让历史记录 id 仍能映射到本科目 */
@@ -340,6 +375,90 @@ export function getActivitiesForSubject(subjectId: string): string[] {
   const subject = getSubjectById(subjectId)
   if (!subject) return []
   return SUBJECT_ACTIVITIES[subject.category] ?? []
+}
+
+/* ── 学习内容分层（科目 → 中层级 → 学习内容） ──
+   学习内容沿用同一份存储（user_subjects.activities 数组、打卡记录里的 activity 字段），
+   只是路径里用 '/' 分段：'高数/听课' 表示「高数 → 听课」，'复盘' 表示不分层的顶层内容。
+   这样无需改动云端表结构，历史数据（纯顶层内容）照旧可用。 */
+
+/** 学习内容层级分隔符 */
+export const ACTIVITY_SEP = '/'
+
+/** 把「中层级 + 学习内容」拼成路径；中层级为空时退化为顶层内容 */
+export function buildActivityPath(group: string, activity: string): string {
+  const g = group.trim()
+  const a = activity.trim()
+  if (!g || !a) return a || g
+  return `${g}${ACTIVITY_SEP}${a}`
+}
+
+/** 拆一条学习内容路径：group=中层级（可为空），label=末级内容名；支持任意层级 */
+export function splitActivityPath(path: string): { group: string; label: string } {
+  const parts = path
+    .split(ACTIVITY_SEP)
+    .map((p) => p.trim())
+    .filter(Boolean)
+  if (parts.length <= 1) return { group: '', label: parts[0] ?? '' }
+  return { group: parts.slice(0, -1).join(ACTIVITY_SEP), label: parts[parts.length - 1] }
+}
+
+/** 展示用：把路径换成分层分隔符，如 '高数/听课' → '高数 · 听课' */
+export function formatActivityLabel(path: string | undefined | null): string {
+  if (!path) return ''
+  return path
+    .split(ACTIVITY_SEP)
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(' · ')
+}
+
+export interface ActivityGroup {
+  /** 中层级名称，如「高数」 */
+  name: string
+  /** 该层级下的学习内容（末级名称） */
+  activities: string[]
+}
+
+export interface ActivityTree {
+  /** 有分层的学习内容，按出现顺序 */
+  groups: ActivityGroup[]
+  /** 不分层的顶层学习内容 */
+  leaves: string[]
+}
+
+/**
+ * 把扁平的学习内容列表整理成两层结构（保序、去重）。
+ * 兼容旧数据：不含 '/' 的条目一律作为顶层内容。
+ */
+export function groupActivities(activities: string[]): ActivityTree {
+  const groups: ActivityGroup[] = []
+  const byName = new Map<string, ActivityGroup>()
+  const leaves: string[] = []
+  const seen = new Set<string>()
+  for (const raw of activities) {
+    const path = (raw ?? '').trim()
+    if (!path || seen.has(path)) continue
+    seen.add(path)
+    const { group, label } = splitActivityPath(path)
+    if (!group || !label) {
+      leaves.push(path)
+      continue
+    }
+    let g = byName.get(group)
+    if (!g) {
+      g = { name: group, activities: [] }
+      byName.set(group, g)
+      groups.push(g)
+    }
+    if (!g.activities.includes(label)) g.activities.push(label)
+  }
+  return { groups, leaves }
+}
+
+/** 某科目的学习内容层级树（用户配置优先，无配置回退内置默认） */
+export function getActivityTreeForSubject(subjectId: string): ActivityTree {
+  return groupActivities(getActivitiesForSubject(subjectId))
 }
 
 /* ── 云端自定义科目增删改 ── */

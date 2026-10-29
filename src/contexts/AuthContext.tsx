@@ -1,10 +1,11 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { loadUserSubjects, resetSubjectCache, hydrateUserSubjects, ensureBuiltinMigration } from '../lib/subjects'
 // 登录后自动结算过期承诺（不再依赖打开「目标与承诺金」页）。
 // commitments.ts 仅依赖 supabase/dailyLogs，与 AuthContext 无循环依赖，故直接在此触发。
 import { settleExpiredCommitments } from '../lib/commitments'
-import { clearTimerLocalState } from '../lib/timerSync'
+import { bankRunningTimers, clearTimerLocalState } from '../lib/timerSync'
+import { runAutoFlush } from '../lib/timerOutbox'
 import type { Session, User } from '@supabase/supabase-js'
 
 interface AuthContextValue {
@@ -24,6 +25,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * 是否由用户主动点了「登出」。
+   * session 变 null 除了主动登出，还可能来自 token 刷新失败/网络抖动（隐式掉线），
+   * 后者必须保留正在进行的计时与待入库队列，否则「在计时长」会被静默清掉。
+   */
+  const explicitSignOutRef = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -55,6 +62,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ensureBuiltinMigration(session.user.id)
         // 登录/恢复会话后自动结算过期承诺（fire-and-forget，吞错绝不阻塞登录；RPC 幂等）
         void settleExpiredCommitments(session.user.id).catch(() => {})
+        // 本机还有未入库的计时时长：恢复会话后立刻尝试补传
+        void runAutoFlush()
       }
     }).catch((err) => {
       if (cancelled) return
@@ -80,10 +89,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ensureBuiltinMigration(session.user.id)
         // 登录后自动结算过期承诺（fire-and-forget，吞错；onAuthStateChange 覆盖 SIGNED_IN 等事件）
         void settleExpiredCommitments(session.user.id).catch(() => {})
+        // 登录后立刻尝试补传本机未入库的计时（含掉线期间暂存的那些）
+        void runAutoFlush()
       } else {
         resetSubjectCache()
-        // 登出：清空计时/累计本地状态，防止与下一登录用户的数据串用
-        clearTimerLocalState()
+        /* 主动登出才清「进行中的计时」（防止与下一登录用户串用）；
+           隐式掉线（token 刷新失败等）保留：待入库队列里的时长还在，
+           同号重新登录后会自动补传。
+           待入库队列本身任何时候都不清，条目自带归属用户，不会串号。 */
+        if (explicitSignOutRef.current) {
+          explicitSignOutRef.current = false
+          clearTimerLocalState()
+        }
       }
     })
 
@@ -106,7 +123,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    explicitSignOutRef.current = true
+    // 登出前先把正在计时/专注的时长封存进待入库队列，别让「退出登录」把这段时间吞掉
+    bankRunningTimers(user?.id ?? null)
+    try {
+      await supabase.auth.signOut()
+    } finally {
+      // 事件回调没及时到达时兜底复位，避免标志长期为真
+      window.setTimeout(() => {
+        explicitSignOutRef.current = false
+      }, 3000)
+    }
   }
 
   return (

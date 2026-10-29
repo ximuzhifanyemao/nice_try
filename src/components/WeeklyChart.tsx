@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { format, startOfWeek, endOfWeek, eachDayOfInterval, isToday } from 'date-fns'
 import { zhCN } from 'date-fns/locale'
 import type { DailyLog } from '../lib/dailyLogs'
-import { getSubjectById } from '../lib/subjects'
+import { formatActivityLabel, formatCategorySubjectName, getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
 
@@ -290,8 +290,8 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
                     key={`${s.subjectId}-${s.activity ?? ''}`}
                     className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getChipColor(cat.category)}`}
                   >
-                    {s.name}
-                    {s.activity ? `·${s.activity}` : ''}
+                    {formatCategorySubjectName(s.name, cat.category)}
+                    {s.activity ? ` · ${formatActivityLabel(s.activity)}` : ''}
                     <span className="opacity-65">{s.hours.toFixed(1)}h</span>
                   </span>
                 )

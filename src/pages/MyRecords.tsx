@@ -10,8 +10,44 @@ import { Icon } from '../components/Icon'
 import SettingsSection, { SettingRow, TINT } from '../components/ui/Section'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchLogsInRange, deleteLog, todayStr } from '../lib/dailyLogs'
+import { formatCategorySubjectName, getSubjectById } from '../lib/subjects'
+import { getSubjectHex } from '../lib/colors'
 import { getWeekStartStr } from '../lib/commitments'
+import { getRecordsChartStyle, setRecordsChartStyle, type RecordsChartStyle } from '../lib/recordsChart'
 import { useWideLayout } from '../App'
+
+/** 图表类型切换：柱状 / 折线（左栏设置项与窄屏页头共用同一个控件） */
+function ChartStyleSwitch({
+  value,
+  onChange,
+}: {
+  value: RecordsChartStyle
+  onChange: (style: RecordsChartStyle) => void
+}) {
+  const options: { key: RecordsChartStyle; label: string }[] = [
+    { key: 'bar', label: '柱状' },
+    { key: 'line', label: '折线' },
+  ]
+  return (
+    <div className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-slate-700 dark:bg-slate-800/60">
+      {options.map((o) => (
+        <button
+          key={o.key}
+          type="button"
+          onClick={() => onChange(o.key)}
+          aria-pressed={value === o.key}
+          className={`cursor-pointer rounded-md px-2 py-1 text-[11px] transition-colors ${
+            value === o.key
+              ? 'bg-white font-semibold text-indigo-600 shadow-sm dark:bg-slate-900 dark:text-indigo-300'
+              : 'font-medium text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 /**
  * 记录页：只展示「一天一天」的打卡记录，范围限定在一周内。
@@ -31,6 +67,9 @@ export default function MyRecords() {
   const [error, setError] = useState<string | null>(null)
   /** 当前查看的周起点（周一，yyyy-MM-dd）；初始为本周 */
   const [weekStart, setWeekStart] = useState<string>(() => getWeekStartStr())
+  /* 学习时长可视化图的类型（柱状 / 折线）：左栏设置一次，右栏各日卡片的图同步变化 */
+  const [chartStyle, setChartStyle] = useState<RecordsChartStyle>(() => getRecordsChartStyle())
+  const changeChartStyle = (style: RecordsChartStyle) => setChartStyle(setRecordsChartStyle(style))
 
   const weekEnd = format(addDays(parseISO(weekStart), 6), 'yyyy-MM-dd')
   const currentWeekStart = getWeekStartStr()
@@ -152,6 +191,42 @@ export default function MyRecords() {
     const stepWeek = (days: number) => setWeekStart(format(addDays(parseISO(weekStart), days), 'yyyy-MM-dd'))
     const rangeText = `${format(parseISO(weekStart), 'M月d日')} – ${format(parseISO(weekEnd), 'M月d日')}`
 
+    /* 本栏顶部的「每日学习时长」柱状图数据（周一~周日，今天高亮） */
+    const weekBars = Array.from({ length: 7 }, (_, i) => {
+      const day = addDays(parseISO(weekStart), i)
+      const date = format(day, 'yyyy-MM-dd')
+      const hours = logs
+        .filter((l) => l.date === date)
+        .reduce((sum, l) => sum + (l.subjects ?? []).reduce((a, s) => a + (s.hours ?? 0), 0), 0)
+      return { date, hours, isToday: date === today, weekday: ['日', '一', '二', '三', '四', '五', '六'][day.getDay()] }
+    })
+    const maxDayHours = Math.max(0.5, ...weekBars.map((d) => d.hours))
+    // 日均按「已过去的天数」算：本周还没走完时不至于被空着的未来几天拉低
+    const elapsedDays = isCurrentWeek ? Number(format(new Date(), 'i')) : 7
+
+    /* 本周各科目占比：按科目汇总（同一科目的不同学习内容合并），用于「科目占比」分类条 */
+    const subjectTotals = (() => {
+      const map = new Map<string, { id: string; name: string; category?: string; hours: number }>()
+      for (const log of logs) {
+        for (const s of log.subjects ?? []) {
+          if (!(s.hours > 0)) continue
+          const entry = map.get(s.id)
+          if (entry) {
+            entry.hours += s.hours
+            continue
+          }
+          const subject = getSubjectById(s.id)
+          map.set(s.id, {
+            id: s.id,
+            name: subject ? subject.name : '已删除科目',
+            category: subject?.category,
+            hours: s.hours,
+          })
+        }
+      }
+      return [...map.values()].sort((a, b) => b.hours - a.hours)
+    })()
+
     return (
       <div className="mx-auto max-w-[1280px] px-5 py-4 pb-6">
         {/* 工具栏：标题 + 当前周次 + 翻周 + 新建 */}
@@ -208,6 +283,105 @@ export default function MyRecords() {
           {/* 左栏：本周汇总 + 今日总结状态 */}
           <div className="space-y-3">
             <SettingsSection title="本周概览" desc={rangeText}>
+              {/* 图表类型：左栏设置，右栏每日「每小时学习时长」图的画法 */}
+              <SettingRow
+                icon={<Icon name="chart" size={17} />}
+                tint={TINT.indigo}
+                label="图表类型"
+                desc="每日每小时学习时长图"
+                control={<ChartStyleSwitch value={chartStyle} onChange={changeChartStyle} />}
+              />
+              {/* 每日学习时长：7 根柱，今天高亮 —— 像手机「健康使用」的周视图 */}
+              <div className="border-b border-gray-100 px-4 pb-3.5 pt-3.5 dark:border-slate-800">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <span className="text-[11px] text-gray-400 dark:text-slate-500">每日学习时长</span>
+                  <span className="text-[11px] text-gray-400 dark:text-slate-500">
+                    日均 <span className="font-semibold text-gray-600 dark:text-slate-300">{(totalHours / elapsedDays).toFixed(1)}h</span>
+                  </span>
+                </div>
+                <div className="flex items-end gap-1.5" style={{ height: 76 }}>
+                  {weekBars.map((d) => (
+                    <div
+                      key={d.date}
+                      className="flex h-full flex-1 flex-col justify-end"
+                      title={`周${d.weekday} ${d.hours.toFixed(1)}h`}
+                    >
+                      <span
+                        className={`w-full rounded-md transition-[height] duration-500 ease-out ${
+                          d.isToday ? 'bg-indigo-500 dark:bg-indigo-400' : 'bg-indigo-200 dark:bg-indigo-500/35'
+                        }`}
+                        style={{ height: d.hours > 0 ? `${(d.hours / maxDayHours) * 100}%` : '2px' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-1.5 flex gap-1.5">
+                  {weekBars.map((d) => (
+                    <span
+                      key={d.date}
+                      className={`flex-1 text-center text-[10px] leading-none ${
+                        d.isToday
+                          ? 'font-semibold text-indigo-600 dark:text-indigo-300'
+                          : 'text-gray-400 dark:text-slate-500'
+                      }`}
+                    >
+                      {d.weekday}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* 科目占比：横向堆叠条 + 图例（像屏幕使用时间的「分类」） */}
+              {subjectTotals.length > 0 && (
+                <div className="border-b border-gray-100 px-4 pb-3.5 pt-3 dark:border-slate-800">
+                  <div className="mb-2 flex items-baseline justify-between">
+                    <span className="text-[11px] text-gray-400 dark:text-slate-500">科目占比</span>
+                    <span className="text-[11px] text-gray-400 dark:text-slate-500">
+                      {subjectTotals.length} 个科目
+                    </span>
+                  </div>
+                  <div className="flex h-2.5 overflow-hidden rounded-full bg-gray-100 dark:bg-slate-700/60">
+                    {subjectTotals.map((s) => (
+                      <span
+                        key={s.id}
+                        className="h-full"
+                        style={{
+                          width: `${(s.hours / totalHours) * 100}%`,
+                          backgroundColor: getSubjectHex(s.id, s.category),
+                        }}
+                        title={`${s.name} ${s.hours.toFixed(1)}h`}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-2.5 space-y-1.5">
+                    {subjectTotals.slice(0, 5).map((s) => (
+                      <div key={s.id} className="flex items-center gap-2 text-[11px]">
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{ backgroundColor: getSubjectHex(s.id, s.category) }}
+                        />
+                        <span className="min-w-0 flex-1 truncate text-gray-600 dark:text-slate-300">
+                          {formatCategorySubjectName(s.name, s.category)}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-gray-400 dark:text-slate-500">
+                          {s.hours.toFixed(1)}h · {Math.round((s.hours / totalHours) * 100)}%
+                        </span>
+                      </div>
+                    ))}
+                    {subjectTotals.length > 5 && (
+                      <p className="text-[11px] text-gray-400 dark:text-slate-500">
+                        其余 {subjectTotals.length - 5} 个科目合计{' '}
+                        {subjectTotals
+                          .slice(5)
+                          .reduce((sum, s) => sum + s.hours, 0)
+                          .toFixed(1)}
+                        h
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <SettingRow icon={<Icon name="pencil" size={17} />} tint={TINT.slate} label="记录条数" meta={`${logs.length} 条`} />
               <SettingRow icon={<Icon name="clock" size={17} />} tint={TINT.indigo} label="学习时长" meta={`${totalHours.toFixed(1)} h`} />
               <SettingRow icon={<Icon name="calendar" size={17} />} tint={TINT.emerald} label="打卡天数" meta={`${checkedDays} 天`} last />
@@ -239,18 +413,22 @@ export default function MyRecords() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">记录</h1>
-        <Link
-          to={hasTodayLog ? `/my-records/${todayLog?.id}/edit` : '/my-records/new'}
-          className={`btn-primary px-4 py-2 text-xs ${
-            hasTodayLog
-              ? 'bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400'
-              : ''
-          }`}
-        >
-          {hasTodayLog ? '今日已提交 · 编辑' : '+ 新建今日记录'}
-        </Link>
+        <div className="flex shrink-0 items-center gap-2">
+          {/* 窄屏没有左栏概览列，图表类型切换收到页头（与左栏同一份偏好） */}
+          <ChartStyleSwitch value={chartStyle} onChange={changeChartStyle} />
+          <Link
+            to={hasTodayLog ? `/my-records/${todayLog?.id}/edit` : '/my-records/new'}
+            className={`btn-primary px-4 py-2 text-xs ${
+              hasTodayLog
+                ? 'bg-amber-500 hover:bg-amber-400 dark:bg-amber-500 dark:hover:bg-amber-400'
+                : ''
+            }`}
+          >
+            {hasTodayLog ? '今日已提交 · 编辑' : '+ 新建今日记录'}
+          </Link>
+        </div>
       </div>
 
       <div className="space-y-4">

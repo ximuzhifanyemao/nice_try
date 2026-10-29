@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import type { DailyLogInput, DailyLogSubject } from '../lib/dailyLogs'
 import { todayStr, yesterdayStr } from '../lib/dailyLogs'
 import type { Subject } from '../lib/subjects'
-import { getActivitiesForSubject } from '../lib/subjects'
+import { buildActivityPath, getActivityTreeForSubject } from '../lib/subjects'
 import { getCardColor } from '../lib/colors'
 
 /** 表单中一行记录：一个科目 × 一个或多个学习内容（同一行内可勾选多个，时长相同） */
@@ -104,6 +104,28 @@ export default function LogForm({
     setRows((prev) => prev.filter((r) => r.key !== key))
   }
 
+  /** 学习内容勾选胶囊：path 为存储值（如 '高数/听课'），label 为末级展示名 */
+  const activityChip = (row: SubjectRow, path: string, label: string) => (
+    <button
+      key={path}
+      type="button"
+      onClick={() =>
+        updateRow(row.key, {
+          activities: row.activities.includes(path)
+            ? row.activities.filter((a) => a !== path)
+            : [...row.activities, path],
+        })
+      }
+      className={`px-2.5 py-0.5 text-xs rounded-full border transition-colors cursor-pointer ${
+        row.activities.includes(path)
+          ? 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500'
+          : 'bg-white dark:bg-slate-700 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-600 hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-300'
+      }`}
+    >
+      {label}
+    </button>
+  )
+
   const handleHoursChange = (row: SubjectRow, value: string) => {
     // 只保留数字与第一个小数点：保留原文以便输入 "0." → "0.2" 这类中间态（不能被 0 值清空）
     const digits = value.replace(/[^\d.]/g, '')
@@ -196,7 +218,7 @@ export default function LogForm({
           availableSubjects.map((subject) => {
             const colorClass = getCardColor(subject.category)
             const subjectRows = rows.filter((r) => r.subjectId === subject.id)
-            const activities = getActivitiesForSubject(subject.id)
+            const actTree = getActivityTreeForSubject(subject.id)
 
             return (
               <div
@@ -220,28 +242,23 @@ export default function LogForm({
                     className="space-y-2 rounded-lg bg-white/70 dark:bg-slate-800/40 border border-gray-100 dark:border-slate-700 p-2"
                   >
                     <div className="flex flex-wrap items-center gap-2">
-                      {activities.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {activities.map((act) => (
-                            <button
-                              key={act}
-                              type="button"
-                              onClick={() =>
-                                updateRow(row.key, {
-                                  activities: row.activities.includes(act)
-                                    ? row.activities.filter((a) => a !== act)
-                                    : [...row.activities, act],
-                                })
-                              }
-                              className={`px-2.5 py-0.5 text-xs rounded-full border transition-colors cursor-pointer ${
-                                row.activities.includes(act)
-                                  ? 'bg-blue-600 text-white border-blue-600 dark:bg-blue-500 dark:border-blue-500'
-                                  : 'bg-white dark:bg-slate-700 text-gray-600 dark:text-slate-300 border-gray-200 dark:border-slate-600 hover:border-blue-400 hover:text-blue-600 dark:hover:border-blue-500 dark:hover:text-blue-300'
-                              }`}
-                            >
-                              {act}
-                            </button>
+                      {(actTree.groups.length > 0 || actTree.leaves.length > 0) && (
+                        <div className="flex min-w-0 flex-col gap-1">
+                          {/* 学习内容按中层级分组（科目 → 高数/线代 → 听课/练习）；无分组时单行平铺 */}
+                          {actTree.groups.map((g) => (
+                            <div key={g.name} className="flex flex-wrap items-center gap-1">
+                              <span className="shrink-0 text-[11px] text-gray-400 dark:text-slate-500">{g.name}</span>
+                              {g.activities.map((a) => activityChip(row, buildActivityPath(g.name, a), a))}
+                            </div>
                           ))}
+                          {actTree.leaves.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-1">
+                              {actTree.groups.length > 0 && (
+                                <span className="shrink-0 text-[11px] text-gray-400 dark:text-slate-500">通用</span>
+                              )}
+                              {actTree.leaves.map((a) => activityChip(row, a, a))}
+                            </div>
+                          )}
                         </div>
                       )}
 

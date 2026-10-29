@@ -62,3 +62,38 @@ export function getCardColor(category?: string): string {
 export function getDotColor(category?: string): string {
   return (category && DOT_COLORS[category]) || DOT_FALLBACK
 }
+
+/* ── 科目主色（hex） ──
+   用于需要纯色值的可视化（如「科目占比」堆叠条、图例圆点、分享卡）。
+   有类别的科目沿用该类别色；**自定义科目没有类别**，按科目 id 稳定散列到调色板，
+   保证同一科目在任何页面/任何一天都是同一个颜色，不会因为缺类别而一律变灰。 */
+
+const CATEGORY_HEX: Record<string, string> = {
+  math: '#3b82f6',
+  english: '#22c55e',
+  '408': '#a855f7',
+  politics: '#ef4444',
+}
+
+/** 无类别科目的取色调色板（色相拉开，避免相邻科目撞色） */
+const SUBJECT_PALETTE = [
+  '#6366f1',
+  '#0ea5e9',
+  '#14b8a6',
+  '#f59e0b',
+  '#ec4899',
+  '#8b5cf6',
+  '#84cc16',
+  '#f97316',
+]
+
+const SUBJECT_HEX_FALLBACK = '#94a3b8'
+
+/** 科目主色：优先类别色，无类别时按 id 稳定取色 */
+export function getSubjectHex(id: string, category?: string): string {
+  if (category && CATEGORY_HEX[category]) return CATEGORY_HEX[category]
+  if (!id) return SUBJECT_HEX_FALLBACK
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  return SUBJECT_PALETTE[hash % SUBJECT_PALETTE.length]
+}

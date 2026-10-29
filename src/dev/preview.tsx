@@ -8,10 +8,13 @@
  *
  * 用法：
  *   npm run dev
- *   http://localhost:5173/?preview=1&view=compact     450×56 精简胶囊条（空闲）
+ *   http://localhost:5173/?preview=1&view=compact     500×52 精简胶囊条（空闲）
  *   http://localhost:5173/?preview=1&view=idle        精简胶囊条（计时中）
  *   http://localhost:5173/?preview=1&view=pomo        精简胶囊条（番茄钟专注倒计时；
  *                                                     可叠 &phase=rest / &paused=1）
+ *   http://localhost:5173/?preview=1&view=vertical    竖向窄条（叠 &host=48x420 锁定尺寸）
+ *   http://localhost:5173/?preview=1&view=widget      整窗挂载真实 WidgetApp（叠 &orientation=vertical
+ *                                                     验证竖向窗口尺寸，不自动展开下拉）
  *   http://localhost:5173/?preview=1&view=dropdown    科目下拉面板（叠 &pomo=1 看番茄钟模式）
  *   http://localhost:5173/?preview=1&view=full        全部功能窗口
  * 可叠加 &theme=dark|light|dawn|dusk|starry 切换主题、&running=1 摆出「计时中」态。
@@ -56,7 +59,7 @@ const noopResult = () => Promise.resolve(undefined)
 
 /** 预览窗口的假状态：位置/尺寸/置顶只记在内存里，供交互逻辑自洽运转 */
 const fakeWindowState = {
-  size: { width: 460, height: 52 },
+  size: { width: 500, height: 52 },
   position: { x: 240, y: 520 },
   alwaysOnTop: true,
   resizable: false,
@@ -251,6 +254,25 @@ function installFakeBackend() {
         headers: { 'Content-Type': 'application/json' },
       })
     }
+    if (/\/rest\/v1\/desktop_versions/.test(url)) {
+      // 桌面端更新源：返回一条「0.0.0」的低版本记录，让预览里判定为已是最新。
+      // 否则空数组会让 useAppUpdate 走 GitHub 兜底、在预览里留下一块红色的更新失败横幅。
+      return new Response(
+        JSON.stringify([
+          {
+            id: 'preview-desktop-version',
+            version: '0.0.0',
+            bundle_url: '',
+            file_name: 'DiveDeep-setup.exe',
+            file_size: 0,
+            release_notes: '',
+            is_active: true,
+            created_at: '2026-01-01T00:00:00.000Z',
+          },
+        ]),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
     if (/\/rest\/v1\//.test(url)) {
       // 其余列表查询返回空数组；带 Accept: application/vnd.pgrst.object 的单条查询返回 null
       const wantsObject = (init?.headers && JSON.stringify(init.headers).includes('pgrst.object')) ?? false
@@ -377,6 +399,25 @@ function buildPreviewTodayLog() {
 const PREVIEW_SUBJECTS = [
   { id: 'math', name: '数学', category: 'math', activities: ['听课', '刷题'], legacy_id: 'math' },
   { id: 's-math-2', name: '高数强化', category: 'math', activities: ['听课', '刷题', '错题整理'], legacy_id: null },
+  // 分层学习内容：验证「科目 → 高数/线代/套卷 → 听课/练习/套卷/复盘」的逐级展开
+  {
+    id: 's-math-branch',
+    name: '数学(分层)',
+    category: 'math',
+    activities: [
+      '高数/听课',
+      '高数/练习',
+      '高数/套卷',
+      '高数/复盘',
+      '线代/听课',
+      '线代/练习',
+      '线代/套卷',
+      '线代/复盘',
+      // 顶层内容（不在任何分支里）：首层与分支并排，点击直接开始计时
+      '套卷',
+    ],
+    legacy_id: null,
+  },
   { id: 'english', name: '英语', category: 'english', activities: ['单词', '阅读', '长难句'], legacy_id: 'english' },
   { id: 's-408-1', name: '数据结构', category: '408', activities: ['听课', '练习'], legacy_id: null },
   { id: 's-408-2', name: '操作系统', category: '408', activities: ['听课', '练习'], legacy_id: null },
@@ -438,6 +479,11 @@ function mockPomo(phase: 'focus' | 'rest', paused: boolean, overdue = false): Po
 function seedData(view: string, theme: ThemeMode, running: boolean, params: URLSearchParams) {
   localStorage.setItem(THEME_KEY, theme)
   localStorage.setItem(MODE_KEY, view === 'full' ? 'full' : 'compact')
+  // 方向偏好：预览竖向窗口尺寸时先把它写进 localStorage，WidgetApp 启动即按竖向取尺寸
+  const orientation = params.get('orientation')
+  if (orientation === 'vertical' || orientation === 'horizontal') {
+    localStorage.setItem('kaoyan_widget_orientation', orientation)
+  }
   // 今日已学 5.4h / 本周目标 40h（已达成 18.6h）→ 进度条与目标线都有内容可看
   localStorage.setItem(
     WEEK_GOAL_CACHE_KEY,
@@ -469,7 +515,17 @@ function seedData(view: string, theme: ThemeMode, running: boolean, params: URLS
 /** 诊断标记（默认空操作；?diag=1 时改写为写入 DOM 的实现） */
 let mark: (s: string) => void = () => {}
 
+/**
+ * 幂等启动：index.html 的 ?preview=1 会由 main.tsx 动态 import 并调用本函数，
+ * 而 preview.html 直接以本文件为模块入口，文件末尾也会自调用一次。
+ * 两条路径不能同时挂载两个 root——否则会留下只存在于 body 的「孤儿」portal
+ *（例如英语精读页固定在底部的翻页条会重复一份，且会挡住真实按钮的点击）。
+ */
+let previewStarted = false
+
 export async function startPreview() {
+  if (previewStarted) return
+  previewStarted = true
   const params = new URLSearchParams(location.search)
   // 诊断标记（?diag=1）：把启动流程的每一步写进 DOM，便于用 --dump-dom 定位中断点
   if (params.get('diag') === '1') {
@@ -527,12 +583,13 @@ export async function startPreview() {
    */
   function DesktopPreview() {
     if (view === 'full') return <FullModeShell onToggleMode={() => {}} />
-    if (view === 'widget-dropdown') return <WidgetApp />
+    if (view === 'widget' || view === 'widget-dropdown') return <WidgetApp />
     return (
       <CompactShell
         // 下拉面板的高度由 Tauri 窗口负责，预览台直接按目标尺寸给出
         dropdownOpen={view === 'dropdown'}
         dropdownClosing={false}
+        vertical={view === 'vertical'}
         onToggleMode={() => {}}
         onOpenDropdown={() => {}}
         onCloseDropdown={() => {}}

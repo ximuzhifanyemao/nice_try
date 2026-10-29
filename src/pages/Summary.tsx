@@ -7,6 +7,7 @@ import {
   computeSummary,
   computeAvgDailyStats,
   computeSubjectComparison,
+  computeSubjectDetailBreakdown,
   getPreviousRange,
   type SummaryRange,
   type SummaryResult,
@@ -14,7 +15,7 @@ import {
 import { differenceInCalendarDays, parseISO } from 'date-fns'
 import RangePicker from '../components/RangePicker'
 import WeeklyChart from '../components/WeeklyChart'
-import { getSubjectById } from '../lib/subjects'
+import { formatCategorySubjectName, getSubjectById } from '../lib/subjects'
 import { getChipColor, getBarColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
 import WeeklyReport from '../components/WeeklyReport'
@@ -64,6 +65,11 @@ const Summary: React.FC = () => {
   const subjectComparison = useMemo(
     () => computeSubjectComparison(filteredLogs, previousLogs),
     [filteredLogs, previousLogs]
+  )
+
+  const subjectDetails = useMemo(
+    () => computeSubjectDetailBreakdown(filteredLogs),
+    [filteredLogs]
   )
 
   const maxDailyHours = useMemo(() => {
@@ -198,7 +204,7 @@ const Summary: React.FC = () => {
                               <span
                                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium ${categoryColor}`}
                               >
-                                {subject.name}
+                                {formatCategorySubjectName(subject.name, category)}
                               </span>
                               <span className="text-sm text-gray-700 dark:text-slate-200">
                                 <span className="font-semibold">{subject.hours.toFixed(1)}h</span>
@@ -217,6 +223,99 @@ const Summary: React.FC = () => {
                         )
                       })}
                     </div>
+                  </div>
+
+                  <div className="card p-5 space-y-4">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">分科占比明细</h2>
+                      <span className="text-[11px] text-gray-400 dark:text-slate-500">
+                        科目 → 中层级 → 学习内容（占比均相对上一级）
+                      </span>
+                    </div>
+                    {subjectDetails.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-slate-400">本周期暂无科目记录</p>
+                    ) : (
+                      <div className="space-y-5">
+                        {subjectDetails.map((subject) => {
+                          const category = getSubjectById(subject.subjectId)?.category ?? ''
+                          const categoryColor = getChipColor(category)
+                          const progressBg = getBarColor(category)
+                          const hasDetail = subject.groups.length > 0 || subject.leaves.length > 0
+                          return (
+                            <div key={subject.subjectId} className="space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium ${categoryColor}`}
+                                >
+                                  {formatCategorySubjectName(subject.name, category)}
+                                </span>
+                                <span className="text-sm text-gray-700 dark:text-slate-200">
+                                  <span className="font-semibold">{subject.hours.toFixed(1)}h</span>
+                                  <span className="ml-2 text-gray-500 dark:text-slate-400">
+                                    占总 {subject.percentageOfTotal.toFixed(1)}%
+                                  </span>
+                                </span>
+                              </div>
+                              <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all ${progressBg}`}
+                                  style={{ width: `${Math.max(0, Math.min(100, subject.percentageOfTotal))}%` }}
+                                />
+                              </div>
+
+                              {!hasDetail ? (
+                                <p className="text-xs text-gray-400 dark:text-slate-500">暂无学习内容细分</p>
+                              ) : (
+                                <div className="space-y-3 border-l border-gray-100 pl-3 dark:border-slate-700">
+                                  {subject.groups.map((group) => (
+                                    <div key={group.name} className="space-y-1.5">
+                                      <div className="flex items-center justify-between gap-2 text-xs">
+                                        <span className="font-medium text-gray-700 dark:text-slate-200">{group.name}</span>
+                                        <span className="text-gray-500 dark:text-slate-400">
+                                          {group.hours.toFixed(1)}h · 占科目 {group.percentageOfSubject.toFixed(1)}%
+                                        </span>
+                                      </div>
+                                      <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-1 overflow-hidden">
+                                        <div
+                                          className={`h-full rounded-full transition-all ${progressBg}`}
+                                          style={{ width: `${Math.max(0, Math.min(100, group.percentageOfSubject))}%` }}
+                                        />
+                                      </div>
+                                      {group.activities.length > 0 && (
+                                        <div className="space-y-1 pl-3">
+                                          {group.activities.map((activity) => (
+                                            <div
+                                              key={activity.name}
+                                              className="flex items-center justify-between gap-2 text-[11px] text-gray-500 dark:text-slate-400"
+                                            >
+                                              <span className="min-w-0 truncate">{activity.name}</span>
+                                              <span className="shrink-0 tabular-nums">
+                                                {activity.hours.toFixed(1)}h · 占{group.name} {activity.percentageOfParent.toFixed(1)}%
+                                              </span>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {subject.leaves.map((leaf) => (
+                                    <div
+                                      key={leaf.name}
+                                      className="flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-slate-400"
+                                    >
+                                      <span className="min-w-0 truncate">{leaf.name}</span>
+                                      <span className="shrink-0 tabular-nums">
+                                        {leaf.hours.toFixed(1)}h · 占科目 {leaf.percentageOfParent.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
 
                   <div className="card p-5 space-y-4">

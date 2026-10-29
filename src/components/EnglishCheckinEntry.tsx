@@ -34,7 +34,7 @@ export default function EnglishCheckinEntry({ size = 'normal', checkinCount }: P
             <p className="text-[11px] text-gray-500 dark:text-slate-500">
               {compact
                 ? `${ENGLISH_TOTAL_DAYS} 天`
-                : `柴荣老师 ${ENGLISH_TOTAL_DAYS} 天 · 逐句翻译打分`}
+                : `柴荣老师 ${ENGLISH_TOTAL_DAYS} 天 · 单句精读`}
             </p>
           </div>
         </div>

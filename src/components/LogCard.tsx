@@ -1,7 +1,7 @@
 import { memo, useRef, useState } from 'react'
 import type { DailyLog } from '../lib/dailyLogs'
 import { sortSubjectsByStartTime, updateLog, updateLogVersioned, isVersionConflict } from '../lib/dailyLogs'
-import { getSubjectById } from '../lib/subjects'
+import { formatActivityLabel, formatSubjectLabel, getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 import { formatDateShort, formatTimeRange } from '../lib/format'
 import { useToast } from '../lib/Toast'
@@ -102,29 +102,34 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
       </div>
 
       {log.subjects && log.subjects.length > 0 ? (
-        <div className="space-y-2">
+        /* 宽屏（≥1024px）两栏排布：条目多时把卡片横向铺满（原来单列会在右侧留一大片空白）；
+           窄一些的窗口保持单栏，让「科目胶囊 + 右对齐时长/时间段」撑满整行 */
+        <div className="grid gap-x-5 gap-y-1 lg:grid-cols-2">
           {sortSubjectsByStartTime(log.subjects.filter((s) => s.hours > 0))
             .map((s, index) => {
               const subject = getSubjectById(s.id)
               const colorClass = subject
                 ? getChipColor(subject.category)
                 : getChipColor()
+              const range = s.startTime && s.endTime ? formatTimeRange(s.startTime, s.endTime) : null
 
               return (
-                <div key={`${s.id}-${s.activity ?? ''}-${index}`}>
+                <div
+                  key={`${s.id}-${s.activity ?? ''}-${index}`}
+                  className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5"
+                >
                   <span
-                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium ${colorClass}`}
+                    className={`inline-flex shrink-0 items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium ${colorClass}`}
                     title={subject ? undefined : `已删除科目 ID：${s.id}`}
                   >
-                    {subject ? subject.name : '已删除科目'}
-                    {s.activity ? `·${s.activity}` : ''}
-                    <span className="opacity-65 text-xs">
-                      {s.hours.toFixed(2)}h
-                      {s.startTime && s.endTime ? ` · ${formatTimeRange(s.startTime, s.endTime)}` : ''}
-                    </span>
+                    {formatSubjectLabel(subject)}
+                    {s.activity ? ` · ${formatActivityLabel(s.activity)}` : ''}
+                  </span>
+                  <span className="ml-auto shrink-0 text-xs tabular-nums text-gray-500 dark:text-slate-400">
+                    {s.hours.toFixed(2)}h{range ? ` · ${range}` : ''}
                   </span>
                   {s.summary && (
-                    <p className="mt-1 ml-1 text-xs text-gray-500 dark:text-slate-400">{s.summary}</p>
+                    <p className="w-full text-xs text-gray-500 dark:text-slate-400">{s.summary}</p>
                   )}
                 </div>
               )
@@ -134,7 +139,7 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
         <p className="text-sm text-gray-400 dark:text-slate-500">暂无科目记录</p>
       )}
 
-      {/* 当日节奏时间轴：把有起止时间的时段画在一条 24 小时轴上，并对比各时段时长 */}
+      {/* 每小时学习时长：按真实时间段画的整点柱状图（手机「屏幕使用时间」那种） */}
       <DayTimeline subjects={log.subjects ?? []} />
 
       {log.summary && (

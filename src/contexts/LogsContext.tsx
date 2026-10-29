@@ -69,11 +69,15 @@ export function LogsProvider({ children }: { children: ReactNode }) {
       if (document.visibilityState === 'visible') refetch()
     }
     const onFocus = () => refetch()
+    /* 后台自动补传成功后重新拉一次：刚入账的计时要立刻出现在记录列表里 */
+    const onFlushed = () => refetch()
     document.addEventListener('visibilitychange', onVisibilityChange)
     window.addEventListener('focus', onFocus)
+    window.addEventListener('kaoyan-timer-flushed', onFlushed)
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange)
       window.removeEventListener('focus', onFocus)
+      window.removeEventListener('kaoyan-timer-flushed', onFlushed)
     }
   }, [user, refetch])
 

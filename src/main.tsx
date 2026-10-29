@@ -9,9 +9,13 @@ import DesktopLogo from './components/DesktopLogo'
 import { AuthProvider } from './contexts/AuthContext'
 import { ToastProvider } from './lib/Toast'
 import { applyTheme, getInitialTheme } from './lib/theme'
+import { startTimerOutboxAutoFlush } from './lib/timerOutbox'
 
 // 在首帧渲染前应用主题，避免闪烁（HTML <head> 内联脚本会在 index.html 兜底）
 applyTheme(getInitialTheme())
+
+// 计时「待入库队列」的自动补传：联网/回到前台/每 60 秒把未入账的计时补进当天记录
+startTimerOutboxAutoFlush()
 
 // 清理 PWA 时代残留的 Service Worker 与缓存，避免旧版页面被缓存拦截导致更新后仍显示旧内容
 if ('serviceWorker' in navigator) {

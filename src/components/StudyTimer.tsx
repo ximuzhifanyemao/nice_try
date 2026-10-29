@@ -1,14 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { Capacitor } from '@capacitor/core'
 import {
   batchDeleteUserSubjects,
   createUserSubject,
   deleteUserSubject,
   fetchUserSubjects,
+  formatActivityLabel,
   getActivitiesForSubject,
+  getActivityTreeForSubject,
   getAvailableSubjects,
   getCategoryLabel,
   getSubjectById,
+  buildActivityPath,
   hydrateUserSubjects,
   loadUserSubjects,
   recoverDeletedSubjects,
@@ -16,20 +19,23 @@ import {
   type Subject,
   type UserSubject,
 } from '../lib/subjects'
-import { fetchLogByDate, isDuplicateDateError, sortSubjectsByStartTime, todayStr, upsertLogSafely, type DailyLogSubject } from '../lib/dailyLogs'
-import { formatDateCn, formatDuration, formatDurationShort, formatMmSs, timeRangeHours, toTimeStr } from '../lib/format'
+import { fetchLogByDate, todayStr } from '../lib/dailyLogs'
+import { formatDateCn, formatDuration, formatDurationShort, formatMmSs } from '../lib/format'
 import {
-  ACCUM_DATE_KEY,
-  accumKey,
-  appendAccumSession,
-  loadAccum,
-  loadAccumDate,
-  saveAccum,
+  accumDateFromOutbox,
+  accumFromOutbox,
   type AccumEntry,
-  type AccumMap,
-  type TimeRange,
   type TimerSession,
 } from '../lib/timerAccum'
+import {
+  clearOutboxEntries,
+  flushTimerOutbox,
+  loadOutbox,
+  stashTimerSession,
+  subscribeOutbox,
+  type OutboxItem,
+  type TimerStashInput,
+} from '../lib/timerOutbox'
 import {
   abandonPomo,
   advancePomo,
@@ -51,6 +57,7 @@ import {
   type TimerMode,
 } from '../lib/pomodoro'
 import { getDotColor, getChipColor } from '../lib/colors'
+import ActivityTreeEditor from './ActivityTreeEditor'
 import { Icon } from './Icon'
 import TimerScale from './TimerScale'
 import { useTodayProgress } from '../hooks/useTodayProgress'
@@ -71,8 +78,6 @@ import { useToast } from '../lib/Toast'
 import {
   loadSharedTimer,
   saveSharedTimer,
-  loadPendingTimer,
-  clearPendingTimer,
   pauseTimerState,
   resumeTimerState,
   toLogPauses,
@@ -166,14 +171,15 @@ export default function StudyTimer() {
   /* 新增科目表单 */
   const [showAddModal, setShowAddModal] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newActivities, setNewActivities] = useState('')
+  /** 学习内容路径列表（'高数/听课' 表示「高数 → 听课」两层，见 ActivityTreeEditor） */
+  const [newActivities, setNewActivities] = useState<string[]>([])
   const [creating, setCreating] = useState(false)
   /* 新增科目的分组（category）选择：''=无分组、'408'=408 折叠组、'__custom__'=自定义输入 */
   const [newCatSel, setNewCatSel] = useState('')
   const [newCatCustom, setNewCatCustom] = useState('')
   /* 正在编辑的科目 */
   const [editing, setEditing] = useState<UserSubject | null>(null)
-  const [editActivities, setEditActivities] = useState('')
+  const [editActivities, setEditActivities] = useState<string[]>([])
   /* 编辑中的分组选择（逻辑同上） */
   const [editCatSel, setEditCatSel] = useState('')
   const [editCatCustom, setEditCatCustom] = useState('')
@@ -192,15 +198,29 @@ export default function StudyTimer() {
   const [running, setRunning] = useState<TimerState | null>(loadRunningTimer)
   /* 待选学习内容的科目 */
   const [pendingSubject, setPendingSubject] = useState<string | null>(null)
-  /* 今日累计 */
-  const [accum, setAccum] = useState<AccumMap>(loadAccum)
+  /** 已展开的学习内容分支（如「高数」）；null = 还停在首层的分支列表 */
+  const [pendingGroup, setPendingGroup] = useState<string | null>(null)
+  /* 待入库队列（未入库时长的唯一落盘处，也是下面「今日累计」的数据来源） */
+  const [outboxItems, setOutboxItems] = useState<OutboxItem[]>(() => loadOutbox())
+  /* 本用户可见的待入库条目（自己的 + 未登录时暂存的；别人的条目不会显示，避免串号） */
+  const pendingItems = useMemo(
+    () => outboxItems.filter((i) => i.userId === user?.id || i.userId === null),
+    [outboxItems, user?.id],
+  )
+  /* 今日累计 = 待入库队列的投影（不再单独落盘，因此不会被整份覆盖或静默清掉） */
+  const accum = useMemo(() => accumFromOutbox(pendingItems), [pendingItems])
+  /* 累计归属日期（队列里最早那天；跨零点拆分后队列可能同时含昨天与今天），队列为空时为今天 */
+  const accumDate = useMemo(() => accumDateFromOutbox(pendingItems) ?? todayStr(), [pendingItems])
+  /* 待入库条目涉及的日期（跨零点拆分后为多天） */
+  const pendingDates = useMemo(
+    () => Array.from(new Set(pendingItems.map((i) => i.date))).sort(),
+    [pendingItems],
+  )
   /* 当前计时器已流逝的秒数（用于实时显示） */
   const [elapsed, setElapsed] = useState(0)
   /* 保存状态 */
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  /* 累计归属日期（补交：计时开始那天），无累计时为今天 */
-  const [accumDate, setAccumDate] = useState<string>(() => loadAccumDate() ?? todayStr())
 
   /* ── 番茄钟模式（与正计时并存，通过模式切换） ──
      计时状态存在 lib/pomodoro 的共享存储里（与简洁模式胶囊条同一份）：
@@ -319,7 +339,7 @@ export default function StudyTimer() {
       if (Capacitor.isNativePlatform()) {
         const subjectName = running.subjectId
           ? (getSubjectById(running.subjectId)?.name ?? running.subjectId) +
-            (running.activity ? ` · ${running.activity}` : '')
+            (running.activity ? ` · ${formatActivityLabel(running.activity)}` : '')
           : '学习中'
         TimerForeground.updateTimer({ subject: subjectName, elapsedSec: e })
       }
@@ -336,20 +356,52 @@ export default function StudyTimer() {
     const state: TimerState = { subjectId, activity, startTime: Date.now() }
     setRunning(state)
     saveRunningTimer(state)
-    // 若当前没有累计数据，将归属日期设为今天
-    if (Object.keys(accum).length === 0) {
-      localStorage.setItem(ACCUM_DATE_KEY, todayStr())
-      setAccumDate(todayStr())
-    }
     setPendingSubject(null)
     setSaved(false)
     // 原生端启动前台服务
     if (Capacitor.isNativePlatform()) {
       const subjectName = (getSubjectById(subjectId)?.name ?? subjectId) +
-        (activity ? ` · ${activity}` : '')
+        (activity ? ` · ${formatActivityLabel(activity)}` : '')
       TimerForeground.startTimer({ subject: subjectName, startTimeMs: state.startTime })
     }
   }
+
+  /* ── 待入库队列订阅：队列一变就刷新「今日累计」与待入库角标 ── */
+  useEffect(() => subscribeOutbox(setOutboxItems), [])
+
+  /* 换科目 / 收起面板 / 开始计时后，学习内容面板回到首层的分支列表 */
+  useEffect(() => {
+    setPendingGroup(null)
+  }, [pendingSubject, pomoPendingSubject])
+
+  /**
+   * 结束一段计时的统一出口：先落进待入库队列（「今日累计」就是这条队列的投影），
+   * 再尝试立即补传入账。跨零点时队列里会按自然日拆成多段，昨天/今天各记各的；
+   * 补传失败不做补救——条目留在队列里，
+   * 由联网/回前台/每 60 秒的自动补传接手，时长不会再丢。
+   */
+  const persistSession = useCallback(
+    (label: string, input: TimerStashInput) => {
+      const items = stashTimerSession(user?.id ?? null, input)
+      if (!user) {
+        toast.show(`${label} ${formatDurationShort(input.seconds)} 已暂存本地，登录后可保存`, { icon: '⏱️' })
+        return
+      }
+      void (async () => {
+        await flushTimerOutbox({ id: user.id }, { onlyRecent: true })
+        const pending = items.filter((i) => loadOutbox().some((x) => x.id === i.id))
+        if (pending.length === 0) {
+          refetch()
+          refreshTodayProgress()
+          const scope = items.length > 1 ? '已按日期拆分记入各天记录' : '已记入今日记录'
+          toast.show(`${label} ${formatDurationShort(input.seconds)} ${scope}`, { icon: '✅' })
+        } else {
+          toast.show(`${label} ${formatDurationShort(input.seconds)} 已暂存本地，将自动补传`, { icon: '⏱️' })
+        }
+      })()
+    },
+    [user, toast, refetch, refreshTodayProgress],
+  )
 
   /* ── 结束计时 ── */
   const handleStop = useCallback(() => {
@@ -358,27 +410,6 @@ export default function StudyTimer() {
     const pausedMs = running.pausedMs ?? 0
     const endNow = running.paused ? (running.pausedAt ?? Date.now()) : Date.now()
     const seconds = Math.floor((endNow - running.startTime - pausedMs) / 1000)
-    if (seconds < 1) {
-      // 小于 1 秒不记录，直接取消
-      setRunning(null)
-      saveRunningTimer(null)
-      return
-    }
-    const key = accumKey(running.subjectId!, running.activity ?? '')
-    const pauses = toLogPauses(running.pauses, endNow)
-    const range: TimeRange = {
-      start: toTimeStr(new Date(running.startTime)),
-      end: toTimeStr(new Date(endNow)),
-      ...(pauses ? { pauses } : {}),
-    }
-    const prev = accum[key]
-    const newAccum = { ...accum }
-    newAccum[key] = {
-      seconds: (prev?.seconds ?? 0) + seconds,
-      ranges: [...(prev?.ranges ?? []), range],
-    }
-    setAccum(newAccum)
-    saveAccum(newAccum)
     setRunning(null)
     saveRunningTimer(null)
     setSaved(false)
@@ -386,17 +417,25 @@ export default function StudyTimer() {
     if (Capacitor.isNativePlatform()) {
       TimerForeground.stopTimer()
     }
-  }, [running, accum])
+    if (seconds < 1 || !running.subjectId) return
+    persistSession('结束计时', {
+      subjectId: running.subjectId,
+      activity: running.activity ?? '',
+      seconds,
+      startAt: running.startTime,
+      endAt: endNow,
+      pauses: toLogPauses(running.pauses, endNow),
+    })
+  }, [running, persistSession])
 
   /* 每次渲染都把最新 handleStop 写入 ref，供 BLE/通知栏回调使用 */
   handleStopRef.current = handleStop
 
-  /* ── 番茄钟：把一段专注时长计入「今日累计」 ──
-     与正计时共用同一份 accum(/保存到今日记录)，复用现有持久化路径，不新开第二套。 */
-  const addSessionToAccum = useCallback((session: TimerSession) => {
-    setAccum(appendAccumSession(accum, session))
-    setAccumDate(loadAccumDate() ?? todayStr())
-  }, [accum])
+  /* ── 番茄钟：一段专注结束时同样走「先落队列再补传」 ── */
+  const stashPomoSession = useCallback(
+    (label: string, session: TimerSession) => persistSession(label, session),
+    [persistSession],
+  )
 
   /** 启动一轮专注（选择科目后调用） */
   const startPomodoro = useCallback((subjectId: string, activity: string) => {
@@ -429,9 +468,9 @@ export default function StudyTimer() {
   const abandonPomodoro = useCallback(() => {
     if (!pomo) return
     const session = abandonPomo(pomo, Date.now())
-    if (session) addSessionToAccum(session)
+    if (session) stashPomoSession('结束专注', session)
     applyPomo(null)
-  }, [pomo, addSessionToAccum, applyPomo])
+  }, [pomo, stashPomoSession, applyPomo])
 
   /** 阶段结束：专注完成→记录+通知→进休息；休息结束→通知→回空闲 */
   const finishPomoPhase = useCallback(() => {
@@ -439,9 +478,9 @@ export default function StudyTimer() {
     const t = advancePomo(pomo, Date.now())
     // 先落盘：简洁模式胶囊条与本页的定时器不会对同一阶段重复结算
     applyPomo(t.next)
-    if (t.session) addSessionToAccum(t.session)
+    if (t.session) stashPomoSession('专注完成', t.session)
     if (t.notify) void pomodoroNotify(t.notify)
-  }, [pomo, addSessionToAccum, applyPomo])
+  }, [pomo, stashPomoSession, applyPomo])
 
   /* 每次渲染把最新 finishPomoPhase 写入 ref，倒计时中断回调始终拿到最新 */
   pomoFinishRef.current = finishPomoPhase
@@ -507,98 +546,42 @@ export default function StudyTimer() {
     onDisconnect: () => setBleConnected(false),
   }
 
-  /* ── 保存到数据库 ── */
+  /* ── 保存到数据库：把待入库队列（＝今日累计）里的条目合并写进云端 ── */
   const handleSaveToDB = async () => {
-    if (!user || Object.keys(accum).length === 0) return
+    if (!user || pendingItems.length === 0) return
     setSaving(true)
     try {
-      // 归入日期：优先使用计时开始那天（跨午夜/补交），否则今天
-      const targetDate = loadAccumDate() || todayStr()
-
-      // 将秒数转为小时（保留 2 位小数）
-      // 过滤掉未知科目 id（localStorage 可被篡改，防止注入脏数据）
-      const subjectEntries: DailyLogSubject[] = []
-      for (const [key, entry] of Object.entries(accum)) {
-        if (entry.seconds <= 0) continue
-        const [id, activity] = key.split('::')
-        if (!getSubjectById(id)) continue
-        if (entry.ranges.length > 0) {
-          // 每次计时会话单独生成一条记录（保留各自时间段），
-          // 避免把 1-2 听课、5-6 听课合并成 1-6 听课
-          for (const range of entry.ranges) {
-            const hours = timeRangeHours(range.start, range.end)
-            if (hours <= 0) continue
-            const sessionEntry: DailyLogSubject = {
-              id,
-              hours,
-              ...(activity ? { activity } : {}),
-              startTime: range.start,
-              endTime: range.end,
-              ...(range.pauses ? { pauses: range.pauses } : {}),
-            }
-            subjectEntries.push(sessionEntry)
-          }
-        } else {
-          const hours = Math.round((entry.seconds / 3600) * 100) / 100
-          subjectEntries.push(activity ? { id, hours, activity } : { id, hours })
-        }
-      }
-      // 动态按开始时间排序（无时间段的条目排后面）
-      sortSubjectsByStartTime(subjectEntries)
-      if (subjectEntries.length === 0) {
-        setAccum({})
-        saveAccum({})
-        localStorage.removeItem(ACCUM_DATE_KEY)
-        setAccumDate(todayStr())
-        setSaved(true)
-        return
-      }
-
-      // 跨天补交到已有记录时，先提示用户时长将合并计入该日（确认后再写入）
-      if (targetDate !== todayStr()) {
-        const targetLog = await fetchLogByDate(user.id, targetDate)
+      // 归属日期：计时开始那天（跨午夜/补交），否则今天；跨天补交到已有记录前先确认
+      if (accumDate !== todayStr()) {
+        const targetLog = await fetchLogByDate(user.id, accumDate)
         if (targetLog) {
           const ok = window.confirm(
-            `${formatDateCn(targetDate)} 已有记录，本次学习时长将合并计入该日记录，是否继续？`
+            `${formatDateCn(accumDate)} 已有记录，本次学习时长将合并计入该日记录，是否继续？`,
           )
           if (!ok) return
         }
       }
-      // 安全合并写入云端：内部自动读最新→合并→带版本校验写入，并发冲突自动重试一次
-      await upsertLogSafely({
-        userId: user.id,
-        date: targetDate,
-        subjects: subjectEntries,
-        summary: '',
-      })
-
-      refetch()
-      // 今日进度尺与目标线跟着已打卡时长走
-      refreshTodayProgress()
-
-      // 清空累计
-      setAccum({})
-      saveAccum({})
-      localStorage.removeItem(ACCUM_DATE_KEY)
-      setAccumDate(todayStr())
-      setSaved(true)
-    } catch (err) {
-      if (isDuplicateDateError(err)) {
-        toast.show('该日期已有记录，请刷新后重试', { icon: '⚠️' })
-      } else {
-        toast.show('保存失败：' + (err instanceof Error ? err.message : '未知错误'), { icon: '❌' })
+      // 按归属日期分组补传（云端已有的条目直接出队，避免重复入账）；
+      // adoptOrphans：未登录时暂存的条目此时归入当前用户
+      const res = await flushTimerOutbox({ id: user.id }, { adoptOrphans: true })
+      if (res.flushed > 0) {
+        refetch()
+        // 今日进度尺与目标线跟着已打卡时长走
+        refreshTodayProgress()
+        setSaved(true)
+      }
+      if (res.failed > 0) {
+        toast.show(`${res.failed} 段计时未能入库，已留在本地等自动补传`, { icon: '⚠️' })
       }
     } finally {
       setSaving(false)
     }
   }
 
-  /* ── 清空累计 ── */
+  /* ── 清空待入库条目（丢弃这批未入账时长） ── */
   const handleClearAccum = () => {
-    setAccum({})
-    saveAccum({})
-    localStorage.removeItem(ACCUM_DATE_KEY)
-    setAccumDate(todayStr())
+    clearOutboxEntries(user?.id ?? null)
+    setSaved(false)
   }
 
   /* 重新扫描/连接硬件计时器（硬件到位后手动重试） */
@@ -652,64 +635,6 @@ export default function StudyTimer() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id])
 
-  /* ── 恢复精简挂件来不及保存的计时 ──
-     精简挂件结束计时时会把本次会话先落一份 localStorage 备份（云端冲突/未登录/跨天时不直接写库），
-     这里在进入计时页且已登录时合并进「今日累计」：先查云端确认未写入该条（避免重复入账），
-     再并入本地累计，用户可在下方「保存到今日记录」/补交落库。 */
-  useEffect(() => {
-    if (!user?.id) return
-    const pending = loadPendingTimer()
-    if (!pending) return
-    ;(async () => {
-      try {
-        const log = await fetchLogByDate(user.id, pending.date)
-        const alreadyInDb = log?.subjects?.some(
-          (s) =>
-            s.id === pending.subjectId &&
-            (s.activity ?? '') === pending.activity &&
-            s.startTime === pending.start &&
-            s.endTime === pending.end,
-        )
-        if (alreadyInDb) {
-          // 云端已有同一条（上次保存成功但备份没清掉）：只清备份，不重复入账
-          clearPendingTimer()
-          return
-        }
-        const cur = loadAccum()
-        const key = `${pending.subjectId}::${pending.activity}`
-        const existsInAccum = cur[key]?.ranges?.some(
-          (r) => r.start === pending.start && r.end === pending.end,
-        )
-        if (!existsInAccum) {
-          const next = { ...cur }
-          next[key] = {
-            seconds: (cur[key]?.seconds ?? 0) + pending.seconds,
-            ranges: [
-              ...(cur[key]?.ranges ?? []),
-              {
-                start: pending.start,
-                end: pending.end,
-                ...(pending.pauses ? { pauses: pending.pauses } : {}),
-              },
-            ],
-          }
-          saveAccum(next)
-          setAccum(next)
-          if (!loadAccumDate()) {
-            // 累计原本为空：把归属日期设为计时开始那天（跨天按补交处理）
-            localStorage.setItem(ACCUM_DATE_KEY, pending.date)
-            setAccumDate(pending.date)
-          }
-          toast.show(`已恢复精简挂件未保存的计时（${formatDurationShort(pending.seconds)}）`, { icon: '⏱️' })
-        }
-        clearPendingTimer()
-      } catch {
-        // 云端查询失败时保守处理：不并入也不清备份，下次进入再试
-      }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id])
-
   const handleCreateSubject = async () => {
     if (!user || !newName.trim()) return
     // 客户端重名预检（即时提示，无需等云端 round-trip）
@@ -721,17 +646,13 @@ export default function StudyTimer() {
     }
     setCreating(true)
     try {
-      const activities = newActivities
-        .split(/[，,、\n]/)
-        .map((a) => a.trim())
-        .filter(Boolean)
       await createUserSubject(user.id, {
         name: newName,
-        activities,
+        activities: newActivities,
         category: newCatSel === '__custom__' ? newCatCustom : newCatSel,
       })
       setNewName('')
-      setNewActivities('')
+      setNewActivities([])
       setNewCatSel('')
       setNewCatCustom('')
       setShowAddModal(false)
@@ -758,13 +679,9 @@ export default function StudyTimer() {
       return
     }
     try {
-      const activities = editActivities
-        .split(/[，,、\n]/)
-        .map((a) => a.trim())
-        .filter(Boolean)
       await updateUserSubject(editing.id, {
         name: editing.name,
-        activities,
+        activities: editActivities,
         category: editCatSel === '__custom__' ? editCatCustom : editCatSel,
       })
       setEditing(null)
@@ -884,11 +801,11 @@ export default function StudyTimer() {
   const isStaleAccum = isBackfill && accumAgeDays >= 2
   const currentSubject = running?.subjectId
     ? (getSubjectById(running.subjectId)?.name ?? running.subjectId) +
-      (running.activity ? ` · ${running.activity}` : '')
+      (running.activity ? ` · ${formatActivityLabel(running.activity)}` : '')
     : null
   /** 番茄钟已选目标科目展示名 */
   const pomoSubjectLabel = pomoSubjectId
-    ? (getSubjectById(pomoSubjectId)?.name ?? pomoSubjectId) + (pomoActivity ? ` · ${pomoActivity}` : '')
+    ? (getSubjectById(pomoSubjectId)?.name ?? pomoSubjectId) + (pomoActivity ? ` · ${formatActivityLabel(pomoActivity)}` : '')
     : null
   /** 本轮阶段进度（0-1）：专注 / 休息各自的倒计时完成度 */
   const pomoPhaseProgress = (() => {
@@ -927,7 +844,7 @@ export default function StudyTimer() {
   const renderEntry = ([key, entry]: [string, AccumEntry]) => {
     const [id, activity] = key.split('::')
     const subj = getSubjectById(id)
-    const label = (subj?.name ?? id) + (activity ? `·${activity}` : '')
+    const label = (subj?.name ?? id) + (activity ? `·${formatActivityLabel(activity)}` : '')
     return (
       <div key={key} className="flex items-center justify-between gap-2 text-[13px]">
         <span className="flex min-w-0 items-center gap-1.5 text-slate-600 dark:text-slate-300">
@@ -996,7 +913,7 @@ export default function StudyTimer() {
         )}
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${getDotColor(getSubjectById(subj.id)?.category)}`} aria-hidden="true" />
         <span className="truncate text-[13px] font-medium">{subj.name}</span>
-        {isActive && activeActivity && <span className="shrink-0 text-[11px] opacity-75">· {activeActivity}</span>}
+        {isActive && activeActivity && <span className="shrink-0 text-[11px] opacity-75">· {formatActivityLabel(activeActivity)}</span>}
         {subjectTotal(subj.id) > 0 && (
           <span className="ml-auto shrink-0 text-[11px] font-medium tabular-nums opacity-70">
             {formatDurationShort(subjectTotal(subj.id))}
@@ -1125,41 +1042,104 @@ export default function StudyTimer() {
         </div>
         )}
 
-      {/* 选择学习内容（正计时/番茄钟 共用） */}
+      {/* 选择学习内容（正计时/番茄钟 共用）：逐级展开 科目 → 分支 → 内容 */}
         {(() => {
           const actSubjectId = mode === 'pomodoro' ? pomoPendingSubject : pendingSubject
           const showPanel = mode === 'pomodoro'
             ? !!actSubjectId && pomoPhase === 'idle'
             : !!actSubjectId && !running
           if (!showPanel) return null
+          const actTree = getActivityTreeForSubject(actSubjectId!)
+          const actSubject = getSubjectById(actSubjectId!)
+          /** 已展开的分支；分支被删掉时自动落回首层 */
+          const openGroup = actTree.groups.find((g) => g.name === pendingGroup) ?? null
+          const startActivity = (path: string) =>
+            mode === 'pomodoro' ? startPomodoro(actSubjectId!, path) : handleStart(actSubjectId!, path)
+          const actChip = (path: string, label: string) => (
+            <button
+              key={path}
+              type="button"
+              onClick={() => startActivity(path)}
+              className="cursor-pointer rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-600 transition-colors hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/15 dark:hover:text-indigo-300"
+            >
+              {label}
+            </button>
+          )
           return (
             <div className="mt-3 rounded-xl border border-indigo-200/70 bg-indigo-50/70 px-3 py-2.5 dark:border-indigo-500/25 dark:bg-indigo-500/10">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-medium text-indigo-700 dark:text-indigo-200">
-                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${getDotColor(getSubjectById(actSubjectId!)?.category)}`} aria-hidden="true" />
-                  <span className="truncate font-semibold">{getSubjectById(actSubjectId!)?.name}</span>
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${getDotColor(actSubject?.category)}`} aria-hidden="true" />
+                  <span className="truncate font-semibold">{actSubject?.name}</span>
+                  {openGroup && (
+                    <>
+                      <span className="shrink-0 opacity-50">·</span>
+                      <span className="truncate font-semibold">{openGroup.name}</span>
+                    </>
+                  )}
                   <span className="shrink-0 opacity-80">· 选择学习内容</span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => (mode === 'pomodoro' ? setPomoPendingSubject(null) : setPendingSubject(null))}
-                  className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 text-[11px] text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
-                >
-                  取消
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {getActivitiesForSubject(actSubjectId!).map((act) => (
+                {openGroup ? (
                   <button
-                    key={act}
                     type="button"
-                    onClick={() => (mode === 'pomodoro' ? startPomodoro(actSubjectId!, act) : handleStart(actSubjectId!, act))}
-                    className="cursor-pointer rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[12px] font-medium text-slate-600 transition-colors hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300 dark:hover:border-indigo-500 dark:hover:bg-indigo-500/15 dark:hover:text-indigo-300"
+                    onClick={() => setPendingGroup(null)}
+                    className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 text-[11px] text-slate-500 transition-colors hover:bg-white/70 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200"
                   >
-                    {act}
+                    返回
                   </button>
-                ))}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => (mode === 'pomodoro' ? setPomoPendingSubject(null) : setPendingSubject(null))}
+                    className="shrink-0 cursor-pointer rounded-md px-1.5 py-0.5 text-[11px] text-slate-400 transition-colors hover:bg-white/70 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300"
+                  >
+                    取消
+                  </button>
+                )}
               </div>
+              {/* 第二层：只显示该分支的学习内容 */}
+              {openGroup ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {openGroup.activities.map((a) => actChip(buildActivityPath(openGroup.name, a), a))}
+                </div>
+              ) : actTree.groups.length === 0 ? (
+                /* 没有分支的科目（如英语）：沿用平铺内容，点击即开始 */
+                <div className="flex flex-wrap gap-1.5">{actTree.leaves.map((a) => actChip(a, a))}</div>
+              ) : (
+                /* 第一层：只看分支名 + 未分层的顶层内容，点分支才展开它的内容 */
+                <div className="grid grid-cols-2 gap-1.5">
+                  {actTree.groups.map((g) => (
+                    <button
+                      key={g.name}
+                      type="button"
+                      onClick={() => setPendingGroup(g.name)}
+                      className="group flex w-full cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200/80 bg-white px-2.5 py-1.5 text-left text-[12px] font-medium text-slate-700 transition-colors hover:border-indigo-300 hover:bg-white dark:border-slate-700/60 dark:bg-slate-800/40 dark:text-slate-200 dark:hover:border-indigo-500/50"
+                    >
+                      <span className="truncate">{g.name}</span>
+                      <span className="ml-auto shrink-0 text-[10px] font-normal tabular-nums opacity-50">
+                        {g.activities.length} 项
+                      </span>
+                      <Icon
+                        name="chevronRight"
+                        size={11}
+                        className="shrink-0 text-slate-300 transition-colors group-hover:text-indigo-400 dark:text-slate-600 dark:group-hover:text-indigo-400"
+                      />
+                    </button>
+                  ))}
+                  {actTree.leaves.map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => startActivity(a)}
+                      title="不分层的学习内容：点击直接开始计时"
+                      className="flex w-full cursor-pointer items-center gap-1.5 rounded-lg border border-dashed border-slate-200 bg-white/60 px-2.5 py-1.5 text-left text-[12px] font-medium text-slate-600 transition-colors hover:border-indigo-300 hover:bg-white hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800/20 dark:text-slate-300 dark:hover:border-indigo-500/50 dark:hover:text-indigo-300"
+                    >
+                      <span className="truncate">{a}</span>
+                      <span className="ml-auto shrink-0 text-[10px] font-normal opacity-50">直接开始</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )
         })()}
@@ -1437,11 +1417,17 @@ export default function StudyTimer() {
           <div className="flex items-center justify-between gap-2">
             <div className="min-w-0">
               <h3 className="text-[13px] font-semibold text-slate-700 dark:text-slate-200">
-                {isBackfill ? `${formatDateCn(accumDate)}（补交）` : '今日累计'}
+                {isBackfill
+                  ? pendingDates.length > 1
+                    ? '跨天累计（补交）'
+                    : `${formatDateCn(accumDate)}（补交）`
+                  : '今日累计'}
               </h3>
               {isBackfill && !isStaleAccum && (
                 <p className="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
-                  跨过了零点，本次时长将归入 {formatDateCn(accumDate)}（计时开始的那天）
+                  {pendingDates.length > 1
+                    ? `跨过了零点，这批时长将按日期分别计入：${pendingDates.map(formatDateCn).join('、')}`
+                    : `跨过了零点，本次时长将归入 ${formatDateCn(accumDate)}（计时开始的那天）`}
                 </p>
               )}
             </div>
@@ -1459,6 +1445,24 @@ export default function StudyTimer() {
               </span>
             </div>
           </div>
+          {/* 待入库角标：这批时长尚未进当天记录，联网会自动补传，也可手动保存。
+              与说明文字同处一个可换行的行内，窄屏不会把卡片标题挤掉 */}
+          {pendingItems.length > 0 && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+              <span
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-indigo-200/70 bg-indigo-50 px-2 py-0.5 font-medium text-indigo-600 dark:border-indigo-500/25 dark:bg-indigo-500/10 dark:text-indigo-300"
+                title={user ? '联网时自动补传，也可点「保存到今日记录」立即入库' : '登录后可保存或等自动补传'}
+              >
+                <Icon name="cloud" size={11} className="shrink-0" />
+                {pendingItems.length} 段待入库
+              </span>
+              <span>
+                {user
+                  ? '联网、回到页面或每 60 秒会自动补传；也可点「保存到今日记录」立即入库。'
+                  : '登录后点「保存到今日记录」归入当天记录（登录后也会自动补传）。'}
+              </span>
+            </div>
+          )}
           {isStaleAccum && (
             <div className="flex items-start gap-2 rounded-xl border border-amber-200/70 bg-amber-50 px-3 py-2 dark:border-amber-500/25 dark:bg-amber-500/10">
               <Icon name="alert" size={13} className="mt-0.5 shrink-0 text-amber-500 dark:text-amber-400" />
@@ -1509,7 +1513,15 @@ export default function StudyTimer() {
             </button>
             <div className="flex-1" />
             <button onClick={handleSaveToDB} disabled={saving || !user} className={TIMER_PRIMARY_BTN}>
-              {saving ? '保存中...' : saved ? '✓ 已保存' : isBackfill ? `保存到${formatDateCn(accumDate)}` : '保存到今日记录'}
+              {saving
+                ? '保存中...'
+                : saved
+                  ? '✓ 已保存'
+                  : isBackfill
+                    ? pendingDates.length > 1
+                      ? '保存到各日记录'
+                      : `保存到${formatDateCn(accumDate)}`
+                    : '保存到今日记录'}
             </button>
           </div>
         </div>
@@ -1627,12 +1639,7 @@ export default function StudyTimer() {
                         onChange={(e) => setEditing({ ...editing, name: e.target.value })}
                         className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
                       />
-                      <input
-                        value={editActivities}
-                        onChange={(e) => setEditActivities(e.target.value)}
-                        placeholder="学习内容（逗号分隔）"
-                        className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-                      />
+                      <ActivityTreeEditor value={editActivities} onChange={setEditActivities} />
                       {/* 编辑分组 */}
                       <GroupPicker
                         sel={editCatSel}
@@ -1687,7 +1694,7 @@ export default function StudyTimer() {
                           </p>
                           {s.activities.length > 0 ? (
                             <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                              内容：{s.activities.join('、')}
+                              内容：{s.activities.map(formatActivityLabel).join('、')}
                             </p>
                           ) : (
                             <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">无学习内容</p>
@@ -1699,7 +1706,7 @@ export default function StudyTimer() {
                           <button
                             onClick={() => {
                               setEditing(s)
-                              setEditActivities(s.activities.join('、'))
+                              setEditActivities(s.activities.map((a) => a.trim()).filter(Boolean))
                               // 编辑时把现有分组带回选择器：custom=无分组；408=内置选项；其他归入自定义输入
                               const cat = s.category && s.category !== 'custom' ? s.category : ''
                               setEditCatSel(cat === '408' ? '408' : cat ? '__custom__' : '')
@@ -1758,7 +1765,7 @@ export default function StudyTimer() {
           onClick={() => setShowAddModal(false)}
         >
           <div
-            className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 p-5 space-y-4"
+            className="max-h-[85vh] w-full max-w-md overflow-y-auto bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-gray-100 dark:border-slate-700 p-5 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">
@@ -1774,16 +1781,12 @@ export default function StudyTimer() {
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="科目名称，如：专业课、工作、健身"
+              placeholder="科目名称，如：数学、工作、健身"
               autoFocus
               className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
             />
-            <input
-              value={newActivities}
-              onChange={(e) => setNewActivities(e.target.value)}
-              placeholder="学习内容（用逗号分隔），如：阅读，练习，复盘"
-              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100"
-            />
+            {/* 学习内容：可建中层级（如 数学 → 高数/线代 → 听课/练习） */}
+            <ActivityTreeEditor value={newActivities} onChange={setNewActivities} />
             {/* 分组选择 */}
             <GroupPicker
               sel={newCatSel}

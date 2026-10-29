@@ -4,6 +4,7 @@ import { loadVocabulary, removeWordFromVocabulary, clearVocabulary, syncVocabula
 import { useAuth } from '../contexts/AuthContext'
 import { loadEnglishDaily } from '../data/englishDaily'
 import { lookupWord, getCachedLookup, type WordLookup } from '../lib/wordLookup'
+import LookupPromptFallback from '../components/LookupPromptFallback'
 import { useWideLayout } from '../App'
 
 // AI 查词结果卡片
@@ -72,6 +73,7 @@ export default function VocabularyBook() {
   const [lookupResults, setLookupResults] = useState<Map<string, WordLookup>>(new Map())
   const [lookupLoading, setLookupLoading] = useState<Set<string>>(new Set())
   const [lookupError, setLookupError] = useState<string | null>(null)
+  const [lookupErrorWord, setLookupErrorWord] = useState('')
 
   const refresh = () => setVocab(loadVocabulary())
   const userId = user?.id
@@ -138,11 +140,13 @@ export default function VocabularyBook() {
     }
     setLookupLoading(prev => new Set(prev).add(key))
     setLookupError(null)
+    setLookupErrorWord('')
     try {
       const result = await lookupWord(word)
       setLookupResults(prev => { const next = new Map(prev); next.set(key, result); return next })
     } catch (e) {
       const aborted = e instanceof Error && e.name === 'AbortError'
+      setLookupErrorWord(word)
       setLookupError(
         aborted
           ? 'AI 查词超时，请检查网络后重试'
@@ -176,7 +180,7 @@ export default function VocabularyBook() {
           <p className="text-4xl mb-3">📖</p>
           <p className="text-gray-600 dark:text-slate-300 font-medium">生词本为空</p>
           <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
-            在「英语长难句打卡」中点击不认识的单词标记为红色，打卡后自动存入生词本
+            在「英语长难句打卡」里点开句中划线词或任意生词，会自动收进生词本
           </p>
           <button
             onClick={() => navigate('/english-checkin')}
@@ -215,7 +219,10 @@ export default function VocabularyBook() {
       </div>
 
       {lookupError && (
-        <div className="mb-4 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">AI 查词失败：{lookupError}</div>
+        <div className="mb-4 rounded-xl bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700/50 px-3 py-2 text-sm text-amber-700 dark:text-amber-300">
+          AI 查词失败：{lookupError}
+          {lookupErrorWord && <LookupPromptFallback word={lookupErrorWord} />}
+        </div>
       )}
 
       {/* 按天分组展示：宽屏时两栏铺开，避免一整条竖排 */}

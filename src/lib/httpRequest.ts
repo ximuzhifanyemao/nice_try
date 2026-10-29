@@ -18,13 +18,19 @@ function timeoutError(): Error {
   return e
 }
 
-export async function postJson(url: string, body: unknown, timeoutMs = 30000): Promise<JsonPostResult> {
+export async function postJson(
+  url: string,
+  body: unknown,
+  timeoutMs = 30000,
+  headers: Record<string, string> = {},
+): Promise<JsonPostResult> {
+  const finalHeaders = { 'Content-Type': 'application/json', ...headers }
   if (Capacitor.isNativePlatform() && typeof CapacitorHttp?.post === 'function') {
     // 原生网络栈：走 CapacitorHttp，用 Promise.race 兜底超时
     return await Promise.race([
       CapacitorHttp.post({
         url,
-        headers: { 'Content-Type': 'application/json' },
+        headers: finalHeaders,
         data: body,
       }).then(
         (res) => ({
@@ -43,7 +49,7 @@ export async function postJson(url: string, body: unknown, timeoutMs = 30000): P
   try {
     const resp = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: finalHeaders,
       body: JSON.stringify(body),
       signal: controller.signal,
     })

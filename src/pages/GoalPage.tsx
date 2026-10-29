@@ -45,6 +45,8 @@ export default function GoalPage() {
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [rechargeOpen, setRechargeOpen] = useState(false)
+  const [showAllHistory, setShowAllHistory] = useState(false)
+  const [showAllTransactions, setShowAllTransactions] = useState(false)
 
   // 表单状态
   const [editing, setEditing] = useState(false)
@@ -113,6 +115,25 @@ export default function GoalPage() {
     () => commitments.filter((c) => c.week_start !== weekStart),
     [commitments, weekStart]
   )
+
+  /** 历史承诺补充“当周实际学了多久”，用于回顾目标达成情况 */
+  const historyRows = useMemo(
+    () =>
+      historyCommitments.map((c) => {
+        const weekEnd = getWeekEndStr(new Date(c.week_start))
+        const actualHours = sumHoursInRange(logs, c.week_start, weekEnd)
+        return {
+          ...c,
+          weekEnd,
+          actualHours,
+          percent:
+            c.target_hours > 0 ? Math.min(100, (actualHours / c.target_hours) * 100) : 0,
+        }
+      }),
+    [historyCommitments, logs]
+  )
+  const visibleHistory = showAllHistory ? historyRows : historyRows.slice(0, 3)
+  const visibleTransactions = showAllTransactions ? transactions : transactions.slice(0, 5)
   const progressPercent = useMemo(() => {
     if (!currentCommitment || currentCommitment.target_hours <= 0) return 0
     return Math.min(100, (actualHours / currentCommitment.target_hours) * 100)
@@ -460,22 +481,45 @@ export default function GoalPage() {
                   />
                 ) : (
                   <div className="space-y-2">
-                    {historyCommitments.map((c) => {
+                    {visibleHistory.map((c) => {
                       const meta = statusMeta(c.status)
+                      const barClass =
+                        c.status === 'won'
+                          ? 'bg-green-500 dark:bg-green-400'
+                          : c.status === 'lost'
+                            ? 'bg-red-400 dark:bg-red-400'
+                            : 'bg-blue-500 dark:bg-blue-400'
                       return (
-                        <div key={c.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
-                          <div className="min-w-0">
-                            <p className="text-gray-700 dark:text-slate-200">
-                              {formatDateShort(c.week_start)} ~ {formatDateShort(getWeekEndStr(new Date(c.week_start)))}
-                            </p>
-                            <p className="text-xs text-gray-400 dark:text-slate-500">
-                              目标 {c.target_hours}h · 押金 ¥{fmtMoney(c.deposit_amount)}
-                            </p>
+                        <div key={c.id} className="space-y-1.5 py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
+                          <div className="flex items-center justify-between text-sm">
+                            <div className="min-w-0">
+                              <p className="text-gray-700 dark:text-slate-200">
+                                {formatDateShort(c.week_start)} ~ {formatDateShort(c.weekEnd)}
+                              </p>
+                              <p className="text-xs text-gray-400 dark:text-slate-500">
+                                目标 {c.target_hours}h · 实际 {c.actualHours.toFixed(1)}h · 押金 ¥{fmtMoney(c.deposit_amount)}
+                              </p>
+                            </div>
+                            <span className={`flex-shrink-0 text-sm ${meta.cls}`}>{meta.label}</span>
                           </div>
-                          <span className={`flex-shrink-0 text-sm ${meta.cls}`}>{meta.label}</span>
+                          <div className="w-full bg-gray-100 dark:bg-slate-700 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${barClass}`}
+                              style={{ width: `${c.percent}%` }}
+                            />
+                          </div>
                         </div>
                       )
                     })}
+                    {historyRows.length > 3 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllHistory((v) => !v)}
+                        className="w-full pt-1 text-center text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                      >
+                        {showAllHistory ? '收起' : `查看全部 ${historyRows.length} 周`}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -495,7 +539,7 @@ export default function GoalPage() {
                   />
                 ) : (
                   <div className="space-y-2">
-                    {transactions.map((tx) => {
+                    {visibleTransactions.map((tx) => {
                       const meta = TX_TYPE_META[tx.type]
                       return (
                         <div key={tx.id} className="flex items-center justify-between text-sm py-2 border-b border-gray-50 dark:border-slate-700 last:border-0">
@@ -509,6 +553,15 @@ export default function GoalPage() {
                         </div>
                       )
                     })}
+                    {transactions.length > 5 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowAllTransactions((v) => !v)}
+                        className="w-full pt-1 text-center text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                      >
+                        {showAllTransactions ? '收起' : `查看全部 ${transactions.length} 条`}
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

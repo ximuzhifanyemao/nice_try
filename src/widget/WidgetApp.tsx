@@ -7,6 +7,15 @@ import Sidebar, { desktopPageTitle } from '../components/Sidebar'
 import App from '../App'
 import { saveSharedTimer } from '../lib/timerSync'
 import { loadPomoFocusMin, savePomoState, startPomo, type TimerMode } from '../lib/pomodoro'
+import {
+  getWidgetOrientation,
+  subscribeWidgetOrientation,
+  taskbarThickness,
+  taskbarThicknessFromScreen,
+  VERTICAL_H,
+  VERTICAL_W_FALLBACK,
+  type WidgetOrientation,
+} from '../lib/widgetOrientation'
 
 declare global {
   interface Window {
@@ -39,8 +48,11 @@ const FULL_H = 900
  * 避免全功能窗口居中后底边被任务栏盖住。
  */
 const TASKBAR_MARGIN = 48
-/** 胶囊条宽度：保证「选择科目开始」等文案完整显示 */
-const WIDGET_W = 460
+/**
+ * 胶囊条宽度：保证「选择科目开始」等文案完整显示。
+ * 500（原 460）：右侧多了「今日时长」小按钮，加宽 40px 才能让中间计时数字不被挤掉。
+ */
+const WIDGET_W = 500
 /** 胶囊条常态高度（尽量紧凑） */
 const WIDGET_H = 52
 /** 科目下拉常态高度（内容放得下时就用它，避免窗口无谓变大） */
@@ -96,6 +108,47 @@ async function sanitizePosition(
     return visibleX && visibleY ? pos : null
   } catch {
     return pos
+  }
+}
+
+/**
+ * 简洁模式窗口的基础尺寸。
+ * 横向是固定的 500×52 胶囊条；竖向宽度取「显示器工作区相对整屏的内缩量」，
+ * 也就是用户左侧任务栏的实际厚度（拿不到时先退回屏幕 API，再退回 48）。
+ */
+async function compactBaseSize(orientation: WidgetOrientation): Promise<{ width: number; height: number }> {
+  if (orientation !== 'vertical') return { width: WIDGET_W, height: WIDGET_H }
+  let thickness: number | null = null
+  try {
+    thickness = taskbarThickness(await currentMonitor())
+  } catch {
+    /* 取显示器失败时走后面的兜底 */
+  }
+  if (thickness === null) thickness = taskbarThicknessFromScreen()
+  return { width: thickness ?? VERTICAL_W_FALLBACK, height: VERTICAL_H }
+}
+
+/** 把窗口整体收进显示器工作区：换方向后尺寸变了，原位置可能有一部分落在屏幕外 */
+async function clampIntoWorkArea(win: Window, width: number, height: number): Promise<void> {
+  try {
+    const [monitor, pos] = await Promise.all([currentMonitor().catch(() => null), win.outerPosition().catch(() => null)])
+    if (!monitor?.workArea || !pos) return
+    const scale = monitor.scaleFactor || 1
+    const w = Math.round(width * scale)
+    const h = Math.round(height * scale)
+    const left = monitor.workArea.position.x
+    const top = monitor.workArea.position.y
+    const right = left + monitor.workArea.size.width
+    const bottom = top + monitor.workArea.size.height
+    let x = pos.x
+    let y = pos.y
+    if (x + w > right) x = right - w
+    if (x < left) x = left
+    if (y + h > bottom) y = bottom - h
+    if (y < top) y = top
+    if (x !== pos.x || y !== pos.y) await win.setPosition(new PhysicalPosition(x, y))
+  } catch {
+    /* 位置校正失败不阻塞使用 */
   }
 }
 
@@ -217,6 +270,7 @@ export function FullModeShell({ onToggleMode }: { onToggleMode: () => void }) {
 export function CompactShell({
   dropdownOpen,
   dropdownClosing,
+  vertical,
   onToggleMode,
   onOpenDropdown,
   onCloseDropdown,
@@ -225,6 +279,8 @@ export function CompactShell({
 }: {
   dropdownOpen: boolean
   dropdownClosing: boolean
+  /** 竖向窄条（设置页可切换）；打开科目下拉时临时切回横向 500 宽的标准面板 */
+  vertical?: boolean
   onToggleMode: () => void
   onOpenDropdown: () => void
   onCloseDropdown: () => void
@@ -233,6 +289,56 @@ export function CompactShell({
   dropdownContentRef?: (node: HTMLDivElement | null) => void
 }) {
   const window = getCurrentWindow()
+
+  /* 竖向窄条：宽度由窗口尺寸决定（= 任务栏厚度），这里只排内容。
+     科目下拉是横向面板，展开时切换回胶囊条 + 下拉的横向外壳，选完科目再收回竖向。 */
+  if (vertical && !dropdownOpen) {
+    return (
+      <div
+        data-tauri-drag-region="deep"
+        className="theme-surface relative isolate flex h-full w-full flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white text-slate-900 shadow-[0_16px_48px_-20px_rgba(15,23,42,0.35)] dark:border-slate-800 dark:bg-slate-950 dark:text-slate-100 dark:shadow-[0_16px_48px_-12px_rgba(0,0,0,0.7)]"
+      >
+        {/* 竖向环境光：左上品牌靛、右下紫，弱到不干扰计时数字 */}
+        <div aria-hidden className="pointer-events-none absolute -left-10 top-10 h-32 w-32 rounded-full bg-indigo-500/10 blur-2xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-8 -right-10 h-28 w-28 rounded-full bg-violet-500/10 blur-2xl" />
+
+        <div
+          data-tauri-drag-region="deep"
+          className="relative z-10 flex min-h-0 w-full flex-1 flex-col items-center px-1 pb-1 pt-2"
+        >
+          <CapsuleStrip vertical expanded={false} onOpenDropdown={onOpenDropdown} />
+        </div>
+
+        {/* 窗口控制在底部竖排：全部功能 / 关闭（窄条用 24px 小按钮，给计时区多留高度） */}
+        <div className="relative z-10 flex shrink-0 flex-col items-center gap-1 pb-2">
+          <button
+            onClick={onToggleMode}
+            title="全部功能"
+            aria-label="全部功能"
+            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-gray-200 hover:text-slate-900 focus-visible:outline-none dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 3h6v6" />
+              <path d="M9 21H3v-6" />
+              <path d="M21 3l-7 7" />
+              <path d="M3 21l7-7" />
+            </svg>
+          </button>
+          <button
+            onClick={() => window.close()}
+            title="关闭"
+            aria-label="关闭"
+            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-red-50 hover:text-red-500 focus-visible:outline-none dark:text-slate-400 dark:hover:bg-red-500/15 dark:hover:text-red-400"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
       data-tauri-drag-region={dropdownOpen ? undefined : 'deep'}
@@ -320,6 +426,8 @@ export default function WidgetApp() {
   const appWindow: Window = getCurrentWindow()
   // 记忆模式：初始状态读取上次退出时保存的模式
   const [fullMode, setFullMode] = useState(() => localStorage.getItem(MODE_KEY) === 'full')
+  /* 简洁模式方向（横向胶囊 / 竖向窄条）：设置页改完立即生效 */
+  const [orientation, setOrientation] = useState<WidgetOrientation>(() => getWidgetOrientation())
   // 胶囊条科目下拉是否打开
   const [dropdownOpen, setDropdownOpen] = useState(false)
   // 面板出场动画播放中：先淡出下滑，动画结束后再真正收起窗口，避免内容瞬间消失
@@ -327,9 +435,16 @@ export default function WidgetApp() {
   const closeTimerRef = useRef<number | null>(null)
   // 标记当前是否正在切换模式：切换过程中由 setSize/setPosition 等触发的 onMoved 应跳过落盘，避免覆盖正确位置
   const switchingRef = useRef(false)
+  // 当前简洁模式的基础尺寸（竖向宽度依赖任务栏厚度，收起下拉时要还原到它）
+  const compactBaseRef = useRef({ width: WIDGET_W, height: WIDGET_H })
   // 展开下拉前记录胶囊条位置；仅当展开时窗口被上移（贴底场景）时，收起才恢复，避免无谓跳位
   const preExpandPosRef = useRef<{ x: number; y: number } | null>(null)
   const layerMovedRef = useRef(false)
+
+  // 方向偏好变化（设置页 / 其他窗口写入）：同步状态，紧凑窗口会按新方向变形
+  useEffect(() => {
+    return subscribeWidgetOrientation(setOrientation)
+  }, [])
 
   /* ── 科目下拉按内容自适应高度 ──
      窗口常态高度是 DROPDOWN_H_BASE；科目多到放不下时按需加高，
@@ -511,14 +626,18 @@ export default function WidgetApp() {
         await appWindow.show().catch(() => {})
       } else {
         await appWindow.setAlwaysOnTop(true)
+        // 横向是 500×52；竖向宽度按左侧任务栏厚度取值（约 48×420）
+        const size = await compactBaseSize(getWidgetOrientation())
+        compactBaseRef.current = size
         await appWindow.setResizable(true)
-        await appWindow.setSize(new LogicalSize(WIDGET_W, WIDGET_H))
+        await appWindow.setSize(new LogicalSize(size.width, size.height))
         await appWindow.setResizable(false)
         // 恢复保存的精简窗口位置（若跑到屏幕外则居中）
         const pos = loadSavedPosition(WIDGET_POS_KEY)
-        if (pos && (await sanitizePosition(pos, WIDGET_W, WIDGET_H))) {
+        if (pos && (await sanitizePosition(pos, size.width, size.height))) {
           // onMoved 提供的是物理坐标，恢复时也必须用物理单位，避免高 DPI 下窗口跑到屏外
           await appWindow.setPosition(new PhysicalPosition(pos.x, pos.y))
+          await clampIntoWorkArea(appWindow, size.width, size.height)
         } else {
           await appWindow.center()
         }
@@ -542,7 +661,9 @@ export default function WidgetApp() {
    * 把精简窗口调整到目标高度（展开面板 / 科目下拉加高）：以胶囊条顶部为锚「向下展开」——
    * 胶囊条（时间）保持原位，面板从下方弹出；仅当面板底部会越出屏幕可用区域（贴底、
    * 或科目变多后继续加高）时，才整窗上移（底部锚定），保证整块面板都能看到、不压在任务栏下。
-   * record=true（展开时）记录当前窗口位置为「展开前位置」，收起时若发生过上移则恢复。
+   * 宽度始终是 WIDGET_W：展开只是「胶囊条下方多出一个同宽的下拉框」，
+   * 绝不横向加宽（否则就不像下拉框了）；横向越界时同样收进屏幕。
+   * record=true（展开时）记录当前窗口位置为「展开前位置」，收起时若发生过移动则恢复。
    */
   const fitLayer = useCallback(
     async (height: number, record: boolean) => {
@@ -569,14 +690,12 @@ export default function WidgetApp() {
           if (nx < left) nx = left
           if (nx + physW > right) nx = right - physW
           // 底部越界（贴底 / 加高后超出）：退回「底部锚定」——顶边上移，收起时需恢复原位
-          if (ny + physH > bottom) {
-            ny = bottom - physH
-            layerMovedRef.current = true
-          }
+          if (ny + physH > bottom) ny = bottom - physH
           if (ny < top) ny = top
         }
-        // 只有发生位移（贴底上移）时才移动窗口；否则直接变高，胶囊不动
+        // 只有发生位移（贴边收进屏幕）时才移动窗口；否则只变高变矮，胶囊不动
         if (cur && (nx !== cur.x || ny !== cur.y)) {
+          layerMovedRef.current = true
           await appWindow.setPosition(new PhysicalPosition(nx, ny))
         }
         await appWindow.setSize(new LogicalSize(WIDGET_W, height))
@@ -600,7 +719,9 @@ export default function WidgetApp() {
   /** 收回胶囊条高度：顶部锚定向上收起，时间保持原位；仅贴底展开导致位移时恢复原位置 */
   const closeLayer = useCallback(async () => {
     try {
-      await appWindow.setSize(new LogicalSize(WIDGET_W, WIDGET_H))
+      // 竖向模式下展开下拉时窗口临时是 500 宽的横向面板，收起要还原成任务栏宽的竖条
+      const base = compactBaseRef.current
+      await appWindow.setSize(new LogicalSize(base.width, base.height))
       if (layerMovedRef.current && preExpandPosRef.current) {
         await appWindow.setPosition(new PhysicalPosition(preExpandPosRef.current.x, preExpandPosRef.current.y))
       }
@@ -658,12 +779,21 @@ export default function WidgetApp() {
   )
 
   // 启动时始终让精简窗口居中显示（满足「默认应用启动窗口在屏幕中间」）
+  // 竖向挂件还要先把窗口改成「任务栏宽 × 420」，否则会先闪一下横向胶囊条的尺寸
   useEffect(() => {
     if (fullMode) return
     let cancelled = false
-    ;(async () => {
-      if (!cancelled) {
-        appWindow.center().catch(() => {})
+    void (async () => {
+      const size = await compactBaseSize(getWidgetOrientation())
+      if (cancelled) return
+      compactBaseRef.current = size
+      try {
+        await appWindow.setResizable(true)
+        await appWindow.setSize(new LogicalSize(size.width, size.height))
+        await appWindow.setResizable(false)
+        if (!cancelled) await appWindow.center()
+      } catch {
+        // 尺寸调整失败时仍按配置尺寸显示
       }
     })()
     return () => {
@@ -671,6 +801,39 @@ export default function WidgetApp() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /* 在设置页切换横/竖后立即变形：保持左上角位置，把窗口收进显示器工作区；
+     首帧不执行（启动尺寸由上面的 effect 负责）；从全部功能切回时不执行
+     （applyMode 已经按最新方向设置过尺寸与位置，避免两处同时改窗口）。 */
+  const orientationMountedRef = useRef(false)
+  const prevFullModeRef = useRef(fullMode)
+  useEffect(() => {
+    const first = !orientationMountedRef.current
+    orientationMountedRef.current = true
+    const wasFull = prevFullModeRef.current
+    prevFullModeRef.current = fullMode
+    let cancelled = false
+    void (async () => {
+      const size = await compactBaseSize(orientation)
+      if (cancelled) return
+      compactBaseRef.current = size
+      if (first || fullMode || wasFull || dropdownOpen) return
+      switchingRef.current = true
+      try {
+        await appWindow.setResizable(true)
+        await appWindow.setSize(new LogicalSize(size.width, size.height))
+        await appWindow.setResizable(false)
+        if (!cancelled) await clampIntoWorkArea(appWindow, size.width, size.height)
+      } catch {
+        // 变形失败不阻塞使用，下次切换模式时会重新按偏好取尺寸
+      } finally {
+        switchingRef.current = false
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [orientation, fullMode, dropdownOpen, appWindow])
 
   // 记忆模式：若上次退出时处于「全部功能」，启动即恢复展开的窗口尺寸/置顶并居中
   useEffect(() => {
@@ -710,6 +873,7 @@ export default function WidgetApp() {
     <CompactShell
       dropdownOpen={dropdownOpen}
       dropdownClosing={dropdownClosing}
+      vertical={orientation === 'vertical'}
       onToggleMode={toggleMode}
       onOpenDropdown={openDropdown}
       onCloseDropdown={closeDropdown}

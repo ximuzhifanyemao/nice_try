@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import {
   startOfMonth,
   endOfMonth,
@@ -17,7 +17,7 @@ import type { DailyLog, DailyLogPause } from '../lib/dailyLogs'
 import { sortSubjectsByStartTime, totalPauseMs } from '../lib/dailyLogs'
 import type { CalendarEvent } from '../lib/calendarEvents'
 import { fetchMyEvents, createEvent, deleteEvent } from '../lib/calendarEvents'
-import { getSubjectById } from '../lib/subjects'
+import { formatActivityLabel, formatSubjectLabel, getSubjectById } from '../lib/subjects'
 import { getDotColor } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
 import { useAuth } from '../contexts/AuthContext'
@@ -129,6 +129,24 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
     const key = format(selectedDate, 'yyyy-MM-dd')
     return logsByDate.get(key) ?? []
   }, [selectedDate, logsByDate])
+
+  /** 当天详情区里实际展示的学习条目数（不是记录行数） */
+  const selectedItemCount = useMemo(
+    () =>
+      selectedLogs.reduce(
+        (sum, log) => sum + (log.subjects?.filter((s) => s.hours > 0).length ?? 0),
+        0,
+      ),
+    [selectedLogs],
+  )
+
+  /** 展开模式的详情区：限高 + 内部滚动，默认滚到最底部，让最新补交的记录直接可见 */
+  const detailRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (!expanded || !selectedDate) return
+    const el = detailRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [expanded, selectedDate, selectedItemCount])
 
   /** 每天总学习时长（小时），仅在 >0 时记录 */
   const durationByDate = useMemo(() => {
@@ -431,6 +449,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
           {/* 详情区：学习记录 + 重要日 + 添加表单直接可见；全功能模式下整体限高，超出部分在框内滚动 */}
           {selectedDate && (
             <div
+              ref={detailRef}
               className={`border-t border-gray-100 dark:border-slate-800/80 px-3 py-2 bg-gradient-to-b from-gray-50/60 to-white dark:from-slate-900/40 dark:to-slate-900 ${
                 // 全功能模式：详情区限高并内部滚动，避免记录多时把上方日历压扁
                 expanded
@@ -446,7 +465,7 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                       {formatDateShort(format(selectedDate, 'yyyy-MM-dd'))} 的学习记录
                     </p>
                     <span className="text-[10px] text-gray-400 dark:text-slate-500">
-                      {selectedLogs.length} 条
+                      {selectedItemCount} 项
                     </span>
                   </div>
                   {selectedLogs.map((log) => {
@@ -505,8 +524,8 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                                   <div className={`min-w-0 flex-1 ${isLast ? '' : 'pb-2'}`}>
                                     <div className="flex items-baseline gap-1.5">
                                       <span className="truncate text-[11px] font-medium text-gray-700 dark:text-slate-200">
-                                        {subject?.name ?? '已删除科目'}
-                                        {s.activity ? `·${s.activity}` : ''}
+                                        {formatSubjectLabel(subject)}
+                                        {s.activity ? ` · ${formatActivityLabel(s.activity)}` : ''}
                                       </span>
                                       <span className="ml-auto shrink-0 text-[10px] font-semibold tabular-nums text-gray-500 dark:text-slate-400">
                                         {fmtHours(s.hours)}h

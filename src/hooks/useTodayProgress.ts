@@ -92,6 +92,12 @@ export function useTodayProgress(userId?: string): TodayProgress {
     refreshWeekGoal()
   }, [load, refreshWeekGoal])
 
+  /* 后台自动补传成功后重新拉一次：静默入账的时长也要立刻体现在进度尺与目标线上 */
+  useEffect(() => {
+    window.addEventListener('kaoyan-timer-flushed', refresh)
+    return () => window.removeEventListener('kaoyan-timer-flushed', refresh)
+  }, [refresh])
+
   return {
     hours,
     line: line ? { ...line, pct: Math.min(line.target / HOUR_MARKS, 1) * 100 } : null,

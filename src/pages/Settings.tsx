@@ -5,10 +5,24 @@ import { useLogs } from '../contexts/LogsContext'
 import { useToast } from '../lib/Toast'
 import { getCurrentTheme, setTheme as persistTheme, THEMES, type ThemeMode } from '../lib/theme'
 import { getProgressStyle, setProgressStyle, PROGRESS_STYLES } from '../lib/progressStyle'
+import {
+  getWidgetOrientation,
+  setWidgetOrientation,
+  subscribeWidgetOrientation,
+  type WidgetOrientation,
+} from '../lib/widgetOrientation'
 import TimerScale from '../components/TimerScale'
 import { Icon } from '../components/Icon'
 import { BlueIcons } from '../components/BlueCircleIcon'
 import { fetchUserSettings, saveUserSettings } from '../lib/settings'
+import {
+  clearAiConfig,
+  isAiConfigured,
+  loadAiConfig,
+  saveAiConfig,
+  testAiConfig,
+  type AiConfig,
+} from '../lib/aiModel'
 import {
   loadReminderConfig,
   saveReminderConfig,
@@ -24,7 +38,7 @@ import {
 } from '../lib/reminder'
 import { useWideLayout } from '../App'
 
-type SettingsCategory = 'appearance' | 'progress' | 'reminder' | 'countdown'
+type SettingsCategory = 'appearance' | 'progress' | 'reminder' | 'countdown' | 'ai'
 
 /**
  * 桌面端偏好窗口的左侧分类。
@@ -36,7 +50,31 @@ const CATEGORIES: { key: SettingsCategory; label: string; icon: ReactNode }[] = 
   { key: 'progress', label: '进度条', icon: <Icon name="chart" size={16} /> },
   { key: 'reminder', label: '提醒', icon: <Icon name="bell" size={16} /> },
   { key: 'countdown', label: '倒计时', icon: <Icon name="clock" size={16} /> },
+  { key: 'ai', label: 'AI 模型', icon: <Icon name="sparkles" size={16} /> },
 ]
+
+/** 横向胶囊条缩略图（设置页「简洁模式方向」预览） */
+function HorizontalCapsulePreview() {
+  return (
+    <span className="flex h-3.5 w-[88px] items-center gap-1 rounded-full border border-slate-300 bg-slate-50 px-1.5 dark:border-slate-600 dark:bg-slate-800">
+      <span className="h-1.5 w-1.5 rounded-full bg-indigo-500" />
+      <span className="h-1 w-7 rounded-full bg-slate-300 dark:bg-slate-600" />
+      <span className="ml-auto h-2.5 w-2.5 rounded-full bg-indigo-500" />
+    </span>
+  )
+}
+
+/** 竖向窄条缩略图：细长竖条 + 底部按钮，示意「贴着任务栏那一列」 */
+function VerticalCapsulePreview() {
+  return (
+    <span className="flex h-12 w-4 flex-col items-center gap-1 rounded-full border border-slate-300 bg-slate-50 py-1 dark:border-slate-600 dark:bg-slate-800">
+      <span className="h-1 w-1 rounded-full bg-indigo-500" />
+      <span className="w-[2px] flex-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+      <span className="h-1 w-1 rounded-full bg-slate-300 dark:bg-slate-600" />
+      <span className="h-2 w-2 rounded-full bg-indigo-500" />
+    </span>
+  )
+}
 
 export default function Settings() {
   const wide = useWideLayout()
@@ -57,11 +95,23 @@ export default function Settings() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
 
+  /* ── AI 模型设置（仅保存在本机） ── */
+  const [aiConfig, setAiConfig] = useState<AiConfig>(() => loadAiConfig())
+  const [aiTesting, setAiTesting] = useState(false)
+  const [aiTestError, setAiTestError] = useState<string | null>(null)
+  const [aiTestReply, setAiTestReply] = useState<string | null>(null)
+  const [aiSaved, setAiSaved] = useState(false)
+
   /* ── 主题状态 ── */
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => getCurrentTheme())
 
   /* ── 进度条样式 ── */
   const [progressStyle, setProgressStyleState] = useState(() => getProgressStyle())
+
+  /* ── 简洁模式方向（横向胶囊 / 竖向窄条） ── */
+  const [orientation, setOrientationState] = useState<WidgetOrientation>(() => getWidgetOrientation())
+
+  useEffect(() => subscribeWidgetOrientation(setOrientationState), [])
 
   /* ── 打卡提醒设置 ── */
   const [reminder, setReminder] = useState<ReminderConfig>(() => loadReminderConfig())
@@ -110,6 +160,38 @@ export default function Settings() {
     } finally {
       setSettingsSaving(false)
     }
+  }
+
+  const handleSaveAi = () => {
+    const saved = saveAiConfig(aiConfig)
+    setAiConfig(saved)
+    setAiSaved(true)
+    setAiTestError(null)
+    toast.show('AI 模型设置已保存', { icon: '✅' })
+    setTimeout(() => setAiSaved(false), 1800)
+  }
+
+  const handleTestAi = async () => {
+    setAiTesting(true)
+    setAiTestError(null)
+    setAiTestReply(null)
+    try {
+      const reply = await testAiConfig(aiConfig)
+      setAiTestReply(reply.trim().slice(0, 80))
+    } catch (err) {
+      setAiTestError(err instanceof Error ? err.message : '连接失败')
+    } finally {
+      setAiTesting(false)
+    }
+  }
+
+  const handleClearAi = () => {
+    clearAiConfig()
+    setAiConfig({ baseUrl: '', apiKey: '', model: '' })
+    setAiTestError(null)
+    setAiTestReply(null)
+    setAiSaved(false)
+    toast.show('已清除本机 AI 模型设置', { icon: '🧹' })
   }
 
   const handleToggleReminder = async (nextEnabled: boolean) => {
@@ -174,7 +256,7 @@ export default function Settings() {
       <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
         <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">设置</h1>
         {wide && (
-          <p className="text-xs text-gray-400 dark:text-slate-500">外观 · 进度条 · 提醒 · 倒计时</p>
+          <p className="text-xs text-gray-400 dark:text-slate-500">外观 · 进度条 · 提醒 · 倒计时 · AI 模型</p>
         )}
       </div>
 
@@ -214,6 +296,7 @@ export default function Settings() {
         <div className={wide ? 'min-w-0 max-w-[900px] space-y-4' : 'space-y-4'}>
           {/* 显示偏好 */}
           {(!wide || cat === 'appearance') && (
+          <>
           <div className="card p-4">
             <p className="text-sm font-medium text-gray-800 dark:text-slate-100">显示模式</p>
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
@@ -245,6 +328,49 @@ export default function Settings() {
               ))}
             </div>
           </div>
+
+          {/* 简洁模式方向：横向胶囊条 / 竖向窄条（宽度自动匹配左侧任务栏） */}
+          <div className="card p-4">
+            <p className="text-sm font-medium text-gray-800 dark:text-slate-100">简洁模式方向</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+              横向是细长胶囊条；竖向是贴在屏幕左侧的窄条，宽度自动取任务栏厚度
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {(
+                [
+                  { key: 'horizontal', name: '横向胶囊', desc: '细长条，适合放在屏幕上方 / 下方' },
+                  { key: 'vertical', name: '竖向窄条', desc: '宽度与左侧任务栏一致，竖着贴边' },
+                ] as const
+              ).map((o) => {
+                const active = orientation === o.key
+                return (
+                  <button
+                    key={o.key}
+                    onClick={() => setOrientationState(setWidgetOrientation(o.key))}
+                    aria-pressed={active}
+                    className={`flex cursor-pointer flex-col rounded-xl border p-2.5 text-left transition-colors ${
+                      active
+                        ? 'border-indigo-500 bg-indigo-50 dark:border-indigo-400 dark:bg-indigo-500/10'
+                        : 'border-gray-200 hover:border-indigo-300 dark:border-slate-700 dark:hover:border-indigo-500/40'
+                    }`}
+                  >
+                    <span className="flex h-14 items-center justify-center rounded-lg bg-white/60 dark:bg-slate-900/40">
+                      {o.key === 'horizontal' ? <HorizontalCapsulePreview /> : <VerticalCapsulePreview />}
+                    </span>
+                    <span className="mt-2 flex items-center gap-1.5">
+                      <span className="text-sm font-medium text-gray-800 dark:text-slate-100">{o.name}</span>
+                      {active && <span className="text-xs text-indigo-500 dark:text-indigo-300">✓</span>}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] text-gray-400 dark:text-slate-500">{o.desc}</span>
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-2 text-[11px] text-gray-400 dark:text-slate-500">
+              切换后回到简洁模式即按新方向显示；竖向宽度会按当前显示器左侧任务栏的厚度自动取值。
+            </p>
+          </div>
+          </>
           )}
 
           {/* 今日进度条样式 */}
@@ -403,6 +529,96 @@ export default function Settings() {
             >
               {settingsSaving ? '保存中...' : settingsSaved ? '✓ 已保存' : '保存设置'}
             </button>
+          </div>
+          )}
+
+          {/* AI 模型（查词 / 翻译批改） */}
+          {(!wide || cat === 'ai') && (
+          <div className="card p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-100">AI 模型（查词 / 翻译批改）</h3>
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
+                  兼容 OpenAI Chat Completions 接口；密钥只保存在本机，不会上传云端
+                </p>
+              </div>
+              <span
+                className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                  isAiConfigured(aiConfig)
+                    ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
+                    : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400'
+                }`}
+              >
+                {isAiConfigured(aiConfig) ? '已配置' : '未配置'}
+              </span>
+            </div>
+
+            <div className="mt-3 space-y-3">
+              <div>
+                <label className="label text-xs">接口地址（Base URL 或完整 URL）</label>
+                <input
+                  value={aiConfig.baseUrl}
+                  onChange={(e) => setAiConfig((prev) => ({ ...prev, baseUrl: e.target.value }))}
+                  placeholder="https://api.deepseek.com"
+                  className="input"
+                />
+              </div>
+              <div className={wide ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
+                <div>
+                  <label className="label text-xs">API Key（仅存本机，可留空）</label>
+                  <input
+                    type="password"
+                    value={aiConfig.apiKey}
+                    onChange={(e) => setAiConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
+                    placeholder="sk-..."
+                    className="input"
+                  />
+                </div>
+                <div>
+                  <label className="label text-xs">模型名称</label>
+                  <input
+                    value={aiConfig.model}
+                    onChange={(e) => setAiConfig((prev) => ({ ...prev, model: e.target.value }))}
+                    placeholder="deepseek-chat"
+                    className="input"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] leading-relaxed text-gray-400 dark:text-slate-500">
+                填 DeepSeek 可写 https://api.deepseek.com，模型 deepseek-chat；Ollama 可写
+                http://localhost:11434/v1，Key 留空。Web 端可能受目标服务 CORS 限制，桌面端 / 安卓端走原生网络更稳。
+              </p>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={handleSaveAi} className="btn-primary px-4 py-2">
+                  {aiSaved ? '✓ 已保存' : '保存设置'}
+                </button>
+                <button
+                  onClick={handleTestAi}
+                  disabled={aiTesting || !isAiConfigured(aiConfig)}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  {aiTesting ? '连接中…' : '测试连接'}
+                </button>
+                <button
+                  onClick={handleClearAi}
+                  className="px-3 py-2 text-sm font-medium text-red-500 transition-colors hover:text-red-600 dark:text-red-400"
+                >
+                  清除本机配置
+                </button>
+              </div>
+
+              {aiTestError && (
+                <p className="rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-600 dark:bg-red-500/10 dark:text-red-300">
+                  连接失败：{aiTestError}
+                </p>
+              )}
+              {aiTestReply && (
+                <p className="rounded-lg bg-green-50 px-3 py-2 text-xs leading-relaxed text-green-700 dark:bg-green-500/10 dark:text-green-300">
+                  连接成功，模型回复：{aiTestReply}
+                </p>
+              )}
+            </div>
           </div>
           )}
         </div>
