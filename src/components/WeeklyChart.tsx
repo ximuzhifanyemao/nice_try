@@ -27,13 +27,15 @@ interface DayAgg {
 
 interface WeeklyChartProps {
   logs: DailyLog[]
+  /** 手机端精简：顶部三个统计块与「本周报告」重复，隐藏它们，只保留趋势图与当天明细 */
+  compact?: boolean
 }
 
 /** 按 getDay() 索引（0=周日）的星期名称 */
 const WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六']
 
 /** 本周学习时长可视化：折线图（周一~周日），点击数据点查看当天学了什么 */
-export default function WeeklyChart({ logs }: WeeklyChartProps) {
+export default function WeeklyChart({ logs, compact = false }: WeeklyChartProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(() => new Date())
 
   // 本周（周一 ~ 周日）的 7 天
@@ -125,17 +127,17 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
   const selectedKey = format(selectedDate, 'yyyy-MM-dd')
 
   return (
-    <div className="card p-5 space-y-4">
+    <div className={`card space-y-4 ${compact ? 'p-4' : 'p-5'}`}>
       {/* 标题行 */}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">本周学习时长</h2>
+        <h2 className={`font-semibold text-gray-800 dark:text-slate-100 ${compact ? 'text-base' : 'text-lg'}`}>本周学习时长</h2>
         <span className="text-sm text-gray-500 dark:text-slate-400 font-mono">
           {format(weekDays[0], 'M月d日')} - {format(weekDays[6], 'M月d日')}
         </span>
       </div>
 
-      {/* 本周概览 */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* 本周概览（手机端已由「本周报告」展示，不再重复） */}
+      {!compact && <div className="grid grid-cols-3 gap-3">
         <div className="bg-gray-50 dark:bg-slate-700/50 rounded-lg p-3 text-center">
           <p className="text-xs text-gray-500 dark:text-slate-400">本周累计</p>
           <p className="text-lg font-bold text-gray-900 dark:text-slate-100">
@@ -159,7 +161,7 @@ export default function WeeklyChart({ logs }: WeeklyChartProps) {
             )}
           </p>
         </div>
-      </div>
+      </div>}
 
       <div>
         <div className="flex gap-2">

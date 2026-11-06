@@ -1,9 +1,11 @@
 // ============================================================
 // 桌面端构建脚本（避开终端宿主导入的 CI 环境变量）
 // 用法：npm run build:desktop
+//       npm run build:desktop -- --bundles nsis   （只打 NSIS，跳过 MSI）
 // 背景：Trae 终端会注入 CI=true/CI=1，而 tauri CLI 的 --ci
 //       只接受布尔值 true/false，CI=1 会导致构建报错。
 //       这里在启动 tauri build 前先把 CI 强制置为 false。
+//       npm 传来的额外参数会原样透传给 tauri build。
 // 后处理：在受限沙箱内构建时，产物会带 Windows「低完整性级别」标签，
 //       NSIS 安装包（.exe 本体）被双击运行时进程会继承该级别，
 //       无法写入 %TEMP% 而报「Error writing temporary file.
@@ -19,8 +21,11 @@ import { fileURLToPath } from 'url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
 
+// npm run 传入的额外参数（如 --bundles nsis）透传给 tauri build
+const extraArgs = process.argv.slice(2).join(' ')
+
 // Windows 上 spawnSync 不能直接执行 .cmd/.bat，需经 shell 启动.
-const res = spawnSync('npx tauri build', {
+const res = spawnSync(extraArgs ? `npx tauri build ${extraArgs}` : 'npx tauri build', {
   shell: true,
   stdio: 'inherit',
   env: { ...process.env, CI: 'false' },

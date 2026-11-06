@@ -1,7 +1,5 @@
 import { supabase } from './supabase'
-
-/** 扫码登录网站地址（手机扫码打开的页面） */
-const QR_LOGIN_SITE = 'https://notoday-code-app-d3ggyfrxu0f39d17f.webapps.tcloudbase.com'
+import { APP_SITE_URL } from './appLinks'
 
 /** 轮询间隔 */
 const POLL_INTERVAL = 2000
@@ -33,7 +31,7 @@ export async function createQrSession(): Promise<{ token: string; qrUrl: string 
   if (error) throw new Error('创建扫码会话失败：' + error.message)
   return {
     token,
-    qrUrl: `${QR_LOGIN_SITE}/#/qr-login?token=${token}`,
+    qrUrl: `${APP_SITE_URL}/#/qr-login?token=${token}`,
   }
 }
 

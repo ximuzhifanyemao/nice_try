@@ -315,8 +315,18 @@ export default function CapsuleStrip({ expanded, vertical = false, onOpenDropdow
 
   /* ── 今日时长小按钮（原位切换，不占额外窗口尺寸） ── */
   /** 今日总时长 = 云端已打卡 + 待入库段（正在计时的那一段不计，与「今日累计」口径一致） */
-  const todayValue = `${(todayHours + pendingSeconds / 3600).toFixed(1)}h`
-  const todayDetail = `今日已学 ${todayValue}${pendingSeconds > 0 ? '（含待入库时长）' : ''}`
+  const todayTotalHours = todayHours + pendingSeconds / 3600
+  const todayValue = `${todayTotalHours.toFixed(1)}h`
+  /** 还得学多久 = 今日目标份额 − 今日总时长（含待入库，未设周目标时为 null） */
+  const todayRemain = todayLine ? Math.max(0, todayLine.target - todayTotalHours) : null
+  const todayDone = todayRemain !== null && todayRemain <= 0
+  const todayDetail = `今日已学 ${todayValue}${pendingSeconds > 0 ? '（含待入库时长）' : ''}${
+    todayRemain !== null
+      ? todayDone
+        ? `，已达成今日目标 ${todayLine!.target.toFixed(1)}h`
+        : `，还得学 ${todayRemain.toFixed(1)}h 达成今日目标 ${todayLine!.target.toFixed(1)}h`
+      : ''
+  }`
   const todayScaleTitle = todayLine
     ? `今日已打卡 ${todayHours.toFixed(1)}h，今天还差约 ${todayLine.need.toFixed(1)}h 达成周目标日均`
     : `今日已打卡 ${todayHours.toFixed(1)}h`
@@ -483,6 +493,17 @@ export default function CapsuleStrip({ expanded, vertical = false, onOpenDropdow
               <span className="text-[15px] font-semibold leading-none tabular-nums text-indigo-600 dark:text-indigo-300">
                 {todayValue}
               </span>
+              {todayRemain !== null && (
+                <span
+                  className={`whitespace-nowrap text-[9px] font-medium leading-none tabular-nums ${
+                    todayDone
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}
+                >
+                  {todayDone ? '已达标' : `还差${todayRemain.toFixed(1)}h`}
+                </span>
+              )}
               <div className="mt-0.5 flex h-[88px] w-full items-center justify-center">
                 <div className="-rotate-90 scale-50">
                   <TimerScale hours={todayHours} linePct={todayLine?.pct ?? null} title={todayScaleTitle} />
@@ -610,11 +631,21 @@ export default function CapsuleStrip({ expanded, vertical = false, onOpenDropdow
         ) : todayOpen ? (
           /* 今日时长原位切换：不额外加高窗口，再点时钟按钮回到计时显示 */
           <>
-            <span
-              className="block max-w-full truncate text-[15px] font-semibold leading-none tabular-nums text-indigo-600 dark:text-indigo-300"
-              title={todayDetail}
-            >
-              今日 {todayValue}
+            <span className="flex min-w-0 max-w-full items-baseline justify-center gap-1.5" title={todayDetail}>
+              <span className="truncate text-[15px] font-semibold leading-none tabular-nums text-indigo-600 dark:text-indigo-300">
+                今日 {todayValue}
+              </span>
+              {todayRemain !== null && (
+                <span
+                  className={`shrink-0 text-[11px] font-medium leading-none tabular-nums ${
+                    todayDone
+                      ? 'text-emerald-600 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400'
+                  }`}
+                >
+                  {todayDone ? '已达标' : `还得学 ${todayRemain.toFixed(1)}h`}
+                </span>
+              )}
             </span>
             <TimerScale hours={todayHours} linePct={todayLine?.pct ?? null} title={todayScaleTitle} />
           </>

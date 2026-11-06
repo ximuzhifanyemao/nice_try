@@ -45,6 +45,7 @@ export type IconName =
   | 'list' // 精读：本篇句子列表
   | 'hand' // 精读：读懂这句话
   | 'sparkles' // 精读：领会意思 / 显示答案
+  | 'share' // 分享
 
 const PATHS: Record<IconName, ReactNode> = {
   home: (
@@ -289,6 +290,15 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M11 2.8l1.8 4.9 4.9 1.8-4.9 1.8L11 16.2l-1.8-4.9L4.3 9.5l4.9-1.8L11 2.8z" />
       <path d="M18.6 14.6l.95 2.25 2.25.95-2.25.95-.95 2.25-.95-2.25-2.25-.95 2.25-.95.95-2.25z" />
+    </>
+  ),
+  share: (
+    <>
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <path d="m8.6 13.6 6.8 3.8" />
+      <path d="m15.4 6.6-6.8 3.8" />
     </>
   ),
 }

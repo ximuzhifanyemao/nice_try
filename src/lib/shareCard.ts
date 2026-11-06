@@ -1,5 +1,7 @@
 import html2canvas from 'html2canvas'
+import QRCode from 'qrcode'
 import { isTauri } from '@tauri-apps/api/core'
+import { APP_DOWNLOAD_PAGE_URL } from './appLinks'
 
 /**
  * 分享图（周报生成分享卡）相关类型与导出逻辑。
@@ -11,7 +13,7 @@ import { isTauri } from '@tauri-apps/api/core'
 /** 分享卡一条科目的数据 */
 export interface ShareCardSubject {
   name: string
-  /** 本周该科目小时数 */
+  /** 该科目小时数 */
   hours: number
   /** 进度条/标签用的十六进制颜色 */
   color: string
@@ -19,16 +21,26 @@ export interface ShareCardSubject {
 
 /** 分享卡全部渲染数据 */
 export interface ShareCardData {
-  /** 标题，默认「本周学习总结」 */
+  /** 标题，如「本周学习总结」「今日学习记录」 */
   title: string
-  /** 日期区间展现，如「9月14日 ~ 9月20日」 */
+  /** 日期区间展现，如「9月14日 ~ 9月20日」或「2026.11.6 周四」 */
   dateLabel: string
   totalHours: number
   checkedDays: number
-  /** 按本周时长降序 */
+  /** 按时长降序 */
   subjects: ShareCardSubject[]
   /** 一句鼓励格言 */
   motto: string
+  /** 主指标标签，默认「本周总时长（h）」；日报传「当日总时长（h）」 */
+  totalLabel?: string
+  /** 副指标数值，默认用 checkedDays；日报可传科目数 */
+  secondaryValue?: number
+  /** 副指标标签，默认「打卡天数（天）」；日报传「学习科目（个）」 */
+  secondaryLabel?: string
+  /** 科目分布小标题，默认「本周投入分布」 */
+  distributionLabel?: string
+  /** 「扫码下载」二维码 dataURL；生成失败时不展示二维码 */
+  qrDataUrl?: string
 }
 
 /** 各科目类别 → 十六进制强调色（纯 hex，避免 html2canvas 不支持的 oklch/color-mix） */
@@ -48,6 +60,24 @@ export function subjectCategoryColor(category: string | undefined | null): strin
   return CATEGORY_HEX[category] ?? HEX_FALLBACK
 }
 
+/** 分享卡最多展示的科目行数：再多会和底部二维码/格言区重叠 */
+export const MAX_SHARE_SUBJECT_ROWS = 4
+
+/**
+ * 科目行超出上限时，把多出的部分合并成「其他 N 科」，
+ * 避免最后一科压到卡片底部的格言 / 二维码区域。
+ */
+export function mergeShareSubjects(
+  sorted: ShareCardSubject[],
+  max = MAX_SHARE_SUBJECT_ROWS,
+): ShareCardSubject[] {
+  if (sorted.length <= max) return sorted
+  const head = sorted.slice(0, max - 1)
+  const rest = sorted.slice(max - 1)
+  const restHours = Math.round(rest.reduce((sum, s) => sum + s.hours, 0) * 10) / 10
+  return [...head, { name: `其他 ${rest.length} 科`, hours: restHours, color: HEX_FALLBACK }]
+}
+
 /** 鼓励格言文案池（按周起点哈希取一条，保证同一周不变） */
 const MOTTO_POOL = [
   '积跬步，至千里；每一次打卡都算数。',
@@ -63,6 +93,26 @@ export function pickMotto(weekStart: string): string {
   let h = 0
   for (let i = 0; i < weekStart.length; i++) h = (h * 31 + weekStart.charCodeAt(i)) >>> 0
   return MOTTO_POOL[h % MOTTO_POOL.length]
+}
+
+/**
+ * 生成「扫码下载」二维码（指向公开下载落地页）。
+ * 返回 dataURL 供分享卡 <img> 直接渲染；失败返回 null，分享图仍可正常生成。
+ */
+export async function generateShareQrDataUrl(): Promise<string | null> {
+  try {
+    return await QRCode.toDataURL(APP_DOWNLOAD_PAGE_URL, {
+      // 输出 360px 足够清晰；卡片里展示约 176px，缩放后扫码仍可识别
+      width: 360,
+      // 2 个模块的静默区，保证白底卡片内外都有足够留白
+      margin: 2,
+      errorCorrectionLevel: 'M',
+      color: { dark: '#111827', light: '#ffffff' },
+    })
+  } catch (e) {
+    console.error('[ShareCard] 生成下载二维码失败', e)
+    return null
+  }
 }
 
 /** 把分享卡 DOM 节点截成 PNG 的 dataURL；失败返回 null */

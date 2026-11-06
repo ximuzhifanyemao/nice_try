@@ -12,16 +12,22 @@ import {
   type WidgetOrientation,
 } from '../lib/widgetOrientation'
 import TimerScale from '../components/TimerScale'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { Icon } from '../components/Icon'
 import { BlueIcons } from '../components/BlueCircleIcon'
 import { fetchUserSettings, saveUserSettings } from '../lib/settings'
 import {
   clearAiConfig,
   isAiConfigured,
-  loadAiConfig,
-  saveAiConfig,
+  loadAiProfiles,
+  newAiProfileId,
+  profileDisplayName,
+  saveAiProfiles,
   testAiConfig,
+  EMPTY_AI_CONFIG,
   type AiConfig,
+  type AiProfile,
+  type AiProfilesState,
 } from '../lib/aiModel'
 import {
   loadReminderConfig,
@@ -95,12 +101,16 @@ export default function Settings() {
   const [settingsSaving, setSettingsSaving] = useState(false)
   const [settingsSaved, setSettingsSaved] = useState(false)
 
-  /* ── AI 模型设置（仅保存在本机） ── */
-  const [aiConfig, setAiConfig] = useState<AiConfig>(() => loadAiConfig())
+  /* ── AI 模型设置（仅保存在本机，可添加多个并切换） ── */
+  const [aiState, setAiState] = useState<AiProfilesState>(() => loadAiProfiles())
+  /** 表单内容：name 为展示名，其余与 AiConfig 一致 */
+  const [aiForm, setAiForm] = useState<AiConfig & { name: string }>(() => ({ ...EMPTY_AI_CONFIG, name: '' }))
+  const [aiEditingId, setAiEditingId] = useState<string | null>(null)
+  const [aiFormOpen, setAiFormOpen] = useState(() => aiState.profiles.length === 0)
   const [aiTesting, setAiTesting] = useState(false)
   const [aiTestError, setAiTestError] = useState<string | null>(null)
   const [aiTestReply, setAiTestReply] = useState<string | null>(null)
-  const [aiSaved, setAiSaved] = useState(false)
+  const [aiClearConfirmOpen, setAiClearConfirmOpen] = useState(false)
 
   /* ── 主题状态 ── */
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => getCurrentTheme())
@@ -162,13 +172,75 @@ export default function Settings() {
     }
   }
 
-  const handleSaveAi = () => {
-    const saved = saveAiConfig(aiConfig)
-    setAiConfig(saved)
-    setAiSaved(true)
+  /** 当前使用中的模型（没有配置时为 null） */
+  const activeAiProfile = aiState.profiles.find((p) => p.id === aiState.activeId) ?? null
+
+  const resetAiForm = () => {
+    setAiForm({ ...EMPTY_AI_CONFIG, name: '' })
+    setAiEditingId(null)
     setAiTestError(null)
-    toast.show('AI 模型设置已保存', { icon: '✅' })
-    setTimeout(() => setAiSaved(false), 1800)
+    setAiTestReply(null)
+  }
+
+  const openAddAi = () => {
+    resetAiForm()
+    setAiFormOpen(true)
+  }
+
+  const handleEditAi = (profile: AiProfile) => {
+    setAiForm({
+      name: profile.name,
+      baseUrl: profile.baseUrl,
+      apiKey: profile.apiKey,
+      model: profile.model,
+    })
+    setAiEditingId(profile.id)
+    setAiFormOpen(true)
+    setAiTestError(null)
+    setAiTestReply(null)
+  }
+
+  const handleCancelAiForm = () => {
+    setAiFormOpen(false)
+    resetAiForm()
+  }
+
+  const handleSelectAi = (profile: AiProfile) => {
+    if (profile.id === aiState.activeId) return
+    setAiState(saveAiProfiles({ ...aiState, activeId: profile.id }))
+    toast.show(`已切换到「${profileDisplayName(profile)}」`, { icon: '🔀' })
+  }
+
+  const handleSaveAi = () => {
+    if (!isAiConfigured(aiForm)) return
+    const newId = aiEditingId ? null : newAiProfileId()
+    const saved = aiEditingId
+      ? saveAiProfiles({
+          ...aiState,
+          profiles: aiState.profiles.map((p) => (p.id === aiEditingId ? { ...p, ...aiForm } : p)),
+        })
+      : saveAiProfiles({
+          activeId: newId,
+          profiles: [...aiState.profiles, { id: newId!, ...aiForm }],
+        })
+    setAiState(saved)
+    const editing = Boolean(aiEditingId)
+    setAiFormOpen(false)
+    resetAiForm()
+    toast.show(editing ? '模型配置已更新' : '模型已添加并启用', { icon: '✅' })
+  }
+
+  const handleDeleteAi = (profile: AiProfile) => {
+    const next = saveAiProfiles({
+      ...aiState,
+      profiles: aiState.profiles.filter((p) => p.id !== profile.id),
+    })
+    setAiState(next)
+    if (aiEditingId === profile.id) {
+      setAiFormOpen(false)
+      resetAiForm()
+    }
+    toast.show(`已删除「${profileDisplayName(profile)}」`, { icon: '🗑️' })
   }
 
   const handleTestAi = async () => {
@@ -176,7 +248,7 @@ export default function Settings() {
     setAiTestError(null)
     setAiTestReply(null)
     try {
-      const reply = await testAiConfig(aiConfig)
+      const reply = await testAiConfig(aiForm)
       setAiTestReply(reply.trim().slice(0, 80))
     } catch (err) {
       setAiTestError(err instanceof Error ? err.message : '连接失败')
@@ -187,11 +259,11 @@ export default function Settings() {
 
   const handleClearAi = () => {
     clearAiConfig()
-    setAiConfig({ baseUrl: '', apiKey: '', model: '' })
-    setAiTestError(null)
-    setAiTestReply(null)
-    setAiSaved(false)
-    toast.show('已清除本机 AI 模型设置', { icon: '🧹' })
+    setAiState({ activeId: null, profiles: [] })
+    setAiClearConfirmOpen(false)
+    setAiFormOpen(true)
+    resetAiForm()
+    toast.show('已清除本机全部 AI 模型', { icon: '🧹' })
   }
 
   const handleToggleReminder = async (nextEnabled: boolean) => {
@@ -539,90 +611,235 @@ export default function Settings() {
               <div>
                 <h3 className="text-sm font-semibold text-gray-800 dark:text-slate-100">AI 模型（查词 / 翻译批改）</h3>
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
-                  兼容 OpenAI Chat Completions 接口；密钥只保存在本机，不会上传云端
+                  兼容 OpenAI Chat Completions 接口；可添加多个模型，点选即可切换当前使用
                 </p>
               </div>
               <span
                 className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                  isAiConfigured(aiConfig)
+                  activeAiProfile && isAiConfigured(activeAiProfile)
                     ? 'bg-green-100 text-green-700 dark:bg-green-500/15 dark:text-green-300'
                     : 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400'
                 }`}
               >
-                {isAiConfigured(aiConfig) ? '已配置' : '未配置'}
+                {activeAiProfile && isAiConfigured(activeAiProfile) ? '已配置' : '未配置'}
               </span>
             </div>
 
-            <div className="mt-3 space-y-3">
-              <div>
-                <label className="label text-xs">接口地址（Base URL 或完整 URL）</label>
-                <input
-                  value={aiConfig.baseUrl}
-                  onChange={(e) => setAiConfig((prev) => ({ ...prev, baseUrl: e.target.value }))}
-                  placeholder="https://api.deepseek.com"
-                  className="input"
-                />
+            {/* 已保存的模型列表：点选一行即切换为当前使用 */}
+            <div className="mt-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-gray-700 dark:text-slate-300">
+                  我的模型
+                  {aiState.profiles.length > 0 && (
+                    <span className="ml-1.5 text-[10px] font-normal text-gray-400 dark:text-slate-500">
+                      共 {aiState.profiles.length} 个
+                    </span>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  onClick={openAddAi}
+                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-500/10 cursor-pointer"
+                >
+                  <Icon name="plus" size={11} />
+                  添加模型
+                </button>
               </div>
-              <div className={wide ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
+
+              {aiState.profiles.length === 0 ? (
+                <div className="mt-2 rounded-xl border border-dashed border-gray-200 bg-gray-50/50 px-3 py-4 text-center dark:border-slate-700 dark:bg-slate-900/40">
+                  <p className="text-xs font-medium text-gray-600 dark:text-slate-300">还没有添加模型</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-gray-400 dark:text-slate-500">
+                    添加后，查词与翻译批改会使用当前选中的模型
+                  </p>
+                </div>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {aiState.profiles.map((profile) => {
+                    const active = profile.id === aiState.activeId
+                    return (
+                      <li
+                        key={profile.id}
+                        className={`flex items-center gap-2 rounded-xl border px-2.5 py-2 transition-colors ${
+                          active
+                            ? 'border-indigo-300 bg-indigo-50/70 dark:border-indigo-500/40 dark:bg-indigo-500/10'
+                            : 'border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-900/40'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAi(profile)}
+                          aria-pressed={active}
+                          title={active ? '当前使用的模型' : '设为当前使用'}
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left cursor-pointer"
+                        >
+                          <span
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                              active
+                                ? 'border-indigo-600 bg-indigo-600 text-white dark:border-indigo-400 dark:bg-indigo-500'
+                                : 'border-gray-300 text-transparent dark:border-slate-600'
+                            }`}
+                          >
+                            <Icon name="check" size={10} strokeWidth={2.5} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="flex items-center gap-1.5">
+                              <span className="truncate text-xs font-semibold text-gray-800 dark:text-slate-100">
+                                {profileDisplayName(profile)}
+                              </span>
+                              {active && (
+                                <span className="shrink-0 rounded-full bg-indigo-600/10 px-1.5 py-0.5 text-[9px] font-semibold text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+                                  使用中
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-0.5 block truncate text-[10px] text-gray-400 dark:text-slate-500">
+                              {profile.model} · {profile.baseUrl}
+                            </span>
+                          </span>
+                        </button>
+                        <div className="flex shrink-0 items-center">
+                          <button
+                            type="button"
+                            onClick={() => handleEditAi(profile)}
+                            className="rounded-md px-2 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:bg-white hover:text-gray-800 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200 cursor-pointer"
+                          >
+                            编辑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAi(profile)}
+                            aria-label={`删除 ${profileDisplayName(profile)}`}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-rose-50 hover:text-rose-500 dark:text-slate-500 dark:hover:bg-rose-500/10 dark:hover:text-rose-400 cursor-pointer"
+                          >
+                            <Icon name="trash" size={12} />
+                          </button>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+            </div>
+
+            {/* 新增 / 编辑表单 */}
+            {aiFormOpen && (
+              <div className="mt-3 space-y-3 rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-slate-700 dark:bg-slate-900/40">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-gray-700 dark:text-slate-300">
+                    {aiEditingId ? '编辑模型' : '添加模型'}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCancelAiForm}
+                    className="text-[11px] font-medium text-gray-400 transition-colors hover:text-gray-700 dark:text-slate-500 dark:hover:text-slate-300 cursor-pointer"
+                  >
+                    取消
+                  </button>
+                </div>
+
+                <div className={wide ? 'grid grid-cols-2 gap-3' : 'space-y-3'}>
+                  <div>
+                    <label className="label text-xs">名称（可选）</label>
+                    <input
+                      value={aiForm.name}
+                      onChange={(e) => setAiForm((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="如：DeepSeek 主力"
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="label text-xs">模型名称</label>
+                    <input
+                      value={aiForm.model}
+                      onChange={(e) => setAiForm((prev) => ({ ...prev, model: e.target.value }))}
+                      placeholder="deepseek-chat"
+                      className="input"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="label text-xs">接口地址（Base URL 或完整 URL）</label>
+                  <input
+                    value={aiForm.baseUrl}
+                    onChange={(e) => setAiForm((prev) => ({ ...prev, baseUrl: e.target.value }))}
+                    placeholder="https://api.deepseek.com"
+                    className="input"
+                  />
+                </div>
+
                 <div>
                   <label className="label text-xs">API Key（仅存本机，可留空）</label>
                   <input
                     type="password"
-                    value={aiConfig.apiKey}
-                    onChange={(e) => setAiConfig((prev) => ({ ...prev, apiKey: e.target.value }))}
+                    value={aiForm.apiKey}
+                    onChange={(e) => setAiForm((prev) => ({ ...prev, apiKey: e.target.value }))}
                     placeholder="sk-..."
                     className="input"
                   />
                 </div>
-                <div>
-                  <label className="label text-xs">模型名称</label>
-                  <input
-                    value={aiConfig.model}
-                    onChange={(e) => setAiConfig((prev) => ({ ...prev, model: e.target.value }))}
-                    placeholder="deepseek-chat"
-                    className="input"
-                  />
+
+                <p className="text-[11px] leading-relaxed text-gray-400 dark:text-slate-500">
+                  DeepSeek 可写 https://api.deepseek.com + deepseek-chat；Ollama 可写
+                  http://localhost:11434/v1，Key 留空。Web 端可能受目标服务 CORS 限制，桌面端 / 安卓端走原生网络更稳。
+                </p>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveAi}
+                    disabled={!isAiConfigured(aiForm)}
+                    className="btn-primary px-4 py-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {aiEditingId ? '保存修改' : '添加并启用'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTestAi}
+                    disabled={aiTesting || !isAiConfigured(aiForm)}
+                    className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800 cursor-pointer"
+                  >
+                    {aiTesting ? '连接中…' : '测试连接'}
+                  </button>
                 </div>
-              </div>
-              <p className="text-[11px] leading-relaxed text-gray-400 dark:text-slate-500">
-                填 DeepSeek 可写 https://api.deepseek.com，模型 deepseek-chat；Ollama 可写
-                http://localhost:11434/v1，Key 留空。Web 端可能受目标服务 CORS 限制，桌面端 / 安卓端走原生网络更稳。
-              </p>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <button onClick={handleSaveAi} className="btn-primary px-4 py-2">
-                  {aiSaved ? '✓ 已保存' : '保存设置'}
-                </button>
-                <button
-                  onClick={handleTestAi}
-                  disabled={aiTesting || !isAiConfigured(aiConfig)}
-                  className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
-                >
-                  {aiTesting ? '连接中…' : '测试连接'}
-                </button>
-                <button
-                  onClick={handleClearAi}
-                  className="px-3 py-2 text-sm font-medium text-red-500 transition-colors hover:text-red-600 dark:text-red-400"
-                >
-                  清除本机配置
-                </button>
+                {aiTestError && (
+                  <p className="rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-600 dark:bg-red-500/10 dark:text-red-300">
+                    连接失败：{aiTestError}
+                  </p>
+                )}
+                {aiTestReply && (
+                  <p className="rounded-lg bg-green-50 px-3 py-2 text-xs leading-relaxed text-green-700 dark:bg-green-500/10 dark:text-green-300">
+                    连接成功，模型回复：{aiTestReply}
+                  </p>
+                )}
               </div>
+            )}
 
-              {aiTestError && (
-                <p className="rounded-lg bg-red-50 px-3 py-2 text-xs leading-relaxed text-red-600 dark:bg-red-500/10 dark:text-red-300">
-                  连接失败：{aiTestError}
-                </p>
-              )}
-              {aiTestReply && (
-                <p className="rounded-lg bg-green-50 px-3 py-2 text-xs leading-relaxed text-green-700 dark:bg-green-500/10 dark:text-green-300">
-                  连接成功，模型回复：{aiTestReply}
-                </p>
-              )}
-            </div>
+            {aiState.profiles.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setAiClearConfirmOpen(true)}
+                className="mt-3 text-[11px] font-medium text-gray-400 transition-colors hover:text-rose-500 dark:text-slate-500 dark:hover:text-rose-400 cursor-pointer"
+              >
+                清空全部模型
+              </button>
+            )}
           </div>
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={aiClearConfirmOpen}
+        title="清空全部 AI 模型？"
+        message={`将删除本机保存的 ${aiState.profiles.length} 个模型配置，API Key 也会一并清除，此操作不可恢复。`}
+        confirmText="清空全部"
+        danger
+        onConfirm={handleClearAi}
+        onCancel={() => setAiClearConfirmOpen(false)}
+      />
     </div>
   )
 }

@@ -1,4 +1,5 @@
 // 用户自定义大模型（OpenAI 兼容接口）：
+// - 可保存多个模型配置，随时切换当前使用的一个
 // - 配置只保存在本机 localStorage，不上传云端
 // - 原生端通过 CapacitorHttp 走系统网络栈，Web 端走 fetch（可能受目标服务 CORS 限制）
 import { postJson } from './httpRequest'
@@ -12,6 +13,19 @@ export interface AiConfig {
   model: string
 }
 
+export interface AiProfile extends AiConfig {
+  /** 本机唯一 id */
+  id: string
+  /** 展示名称；为空时回退到模型名 / 域名 */
+  name: string
+}
+
+export interface AiProfilesState {
+  /** 当前正在使用的模型 id；没有配置时为 null */
+  activeId: string | null
+  profiles: AiProfile[]
+}
+
 export interface AiChatMessage {
   role: 'system' | 'user' | 'assistant'
   content: string
@@ -23,46 +37,121 @@ export interface ChatCompletionOptions {
   timeoutMs?: number
 }
 
-const AI_CONFIG_KEY = 'kaoyan_ai_config'
+const AI_PROFILES_KEY = 'kaoyan_ai_profiles'
+/** 旧版单模型配置 key，首次读取时自动迁移成列表中的第一项 */
+const LEGACY_AI_CONFIG_KEY = 'kaoyan_ai_config'
 
 export const EMPTY_AI_CONFIG: AiConfig = { baseUrl: '', apiKey: '', model: '' }
 
-/** 读取本机 AI 配置（非法内容返回空配置） */
-export function loadAiConfig(): AiConfig {
-  try {
-    const raw = localStorage.getItem(AI_CONFIG_KEY)
-    if (!raw) return { ...EMPTY_AI_CONFIG }
-    const parsed = JSON.parse(raw) as Partial<AiConfig> | null
-    if (!parsed || typeof parsed !== 'object') return { ...EMPTY_AI_CONFIG }
-    return {
-      baseUrl: typeof parsed.baseUrl === 'string' ? parsed.baseUrl.trim() : '',
-      apiKey: typeof parsed.apiKey === 'string' ? parsed.apiKey.trim() : '',
-      model: typeof parsed.model === 'string' ? parsed.model.trim() : '',
-    }
-  } catch {
-    return { ...EMPTY_AI_CONFIG }
+/** 生成一个本机模型配置 id（不依赖 crypto.randomUUID 的 secure context 限制） */
+export function newAiProfileId(): string {
+  return `ai-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+/** 模型在列表里的展示名：自定义名称 → 模型名 → 域名 */
+export function profileDisplayName(profile: AiProfile): string {
+  if (profile.name.trim()) return profile.name.trim()
+  if (profile.model.trim()) return profile.model.trim()
+  const host = profile.baseUrl.trim().replace(/^https?:\/\//i, '').split('/')[0]
+  return host || '未命名模型'
+}
+
+function readString(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function readConfig(raw: Record<string, unknown>): AiConfig {
+  return {
+    baseUrl: readString(raw.baseUrl),
+    apiKey: readString(raw.apiKey),
+    model: readString(raw.model),
   }
 }
 
-/** 保存本机 AI 配置 */
-export function saveAiConfig(config: AiConfig): AiConfig {
-  const next: AiConfig = {
-    baseUrl: config.baseUrl.trim(),
-    apiKey: config.apiKey.trim(),
-    model: config.model.trim(),
+function readProfile(raw: unknown): AiProfile | null {
+  if (!raw || typeof raw !== 'object') return null
+  const obj = raw as Record<string, unknown>
+  return {
+    id: readString(obj.id) || newAiProfileId(),
+    name: readString(obj.name),
+    ...readConfig(obj),
   }
+}
+
+/** 旧版单模型配置迁移：转成列表中的唯一一项并设为当前使用 */
+function migrateLegacyAiConfig(): AiProfilesState {
   try {
-    localStorage.setItem(AI_CONFIG_KEY, JSON.stringify(next))
+    const raw = localStorage.getItem(LEGACY_AI_CONFIG_KEY)
+    if (!raw) return { activeId: null, profiles: [] }
+    const parsed = JSON.parse(raw) as Record<string, unknown> | null
+    if (!parsed || typeof parsed !== 'object') return { activeId: null, profiles: [] }
+    const config = readConfig(parsed)
+    if (!config.baseUrl && !config.apiKey && !config.model) return { activeId: null, profiles: [] }
+    const profile: AiProfile = { id: newAiProfileId(), name: '', ...config }
+    const state: AiProfilesState = { activeId: profile.id, profiles: [profile] }
+    try {
+      localStorage.setItem(AI_PROFILES_KEY, JSON.stringify(state))
+      localStorage.removeItem(LEGACY_AI_CONFIG_KEY)
+    } catch {
+      /* 存储不可用时仍返回迁移结果，本次会话可用 */
+    }
+    return state
   } catch {
-    /* 存储不可用时忽略，调用方仍能拿到本次配置 */
+    return { activeId: null, profiles: [] }
+  }
+}
+
+/** 读取本机保存的模型列表（含当前使用项），无数据时自动迁移旧版单模型配置 */
+export function loadAiProfiles(): AiProfilesState {
+  try {
+    const raw = localStorage.getItem(AI_PROFILES_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Partial<AiProfilesState> | null
+      if (parsed && typeof parsed === 'object' && Array.isArray(parsed.profiles)) {
+        const profiles = parsed.profiles
+          .map(readProfile)
+          .filter((p): p is AiProfile => p !== null)
+        const active = typeof parsed.activeId === 'string' ? parsed.activeId : null
+        const activeId = profiles.some((p) => p.id === active) ? active : profiles[0]?.id ?? null
+        return { activeId, profiles }
+      }
+    }
+  } catch {
+    /* 列表损坏时退回旧配置迁移 */
+  }
+  return migrateLegacyAiConfig()
+}
+
+/** 保存模型列表（自动清洗字段并校正 activeId） */
+export function saveAiProfiles(state: AiProfilesState): AiProfilesState {
+  const profiles = state.profiles
+    .map(readProfile)
+    .filter((p): p is AiProfile => p !== null)
+    .map(({ id, name, baseUrl, apiKey, model }) => ({ id, name, baseUrl, apiKey, model }))
+  const active = profiles.some((p) => p.id === state.activeId) ? state.activeId : null
+  const next: AiProfilesState = { activeId: active ?? profiles[0]?.id ?? null, profiles }
+  try {
+    localStorage.setItem(AI_PROFILES_KEY, JSON.stringify(next))
+  } catch {
+    /* 存储不可用时忽略，调用方仍能拿到本次结果 */
   }
   return next
 }
 
-/** 清除本机 AI 配置 */
+/** 读取当前使用中的模型配置（没有配置时返回空配置） */
+export function loadAiConfig(): AiConfig {
+  const state = loadAiProfiles()
+  const active = state.profiles.find((p) => p.id === state.activeId)
+  return active
+    ? { baseUrl: active.baseUrl, apiKey: active.apiKey, model: active.model }
+    : { ...EMPTY_AI_CONFIG }
+}
+
+/** 清除本机全部 AI 模型配置（含旧版单模型配置） */
 export function clearAiConfig(): void {
   try {
-    localStorage.removeItem(AI_CONFIG_KEY)
+    localStorage.removeItem(AI_PROFILES_KEY)
+    localStorage.removeItem(LEGACY_AI_CONFIG_KEY)
   } catch {
     /* 忽略 */
   }
@@ -94,17 +183,34 @@ export async function chatCompletion(
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
   if (config.apiKey.trim()) headers.Authorization = `Bearer ${config.apiKey.trim()}`
 
-  const { ok, status, body } = await postJson(
-    url,
-    {
-      model: config.model.trim(),
-      messages,
-      temperature: options.temperature ?? 0.3,
-      max_tokens: options.maxTokens ?? 2000,
-    },
-    options.timeoutMs ?? 45000,
-    headers,
-  )
+  let result: { ok: boolean; status: number; body: any }
+  try {
+    result = await postJson(
+      url,
+      {
+        model: config.model.trim(),
+        messages,
+        temperature: options.temperature ?? 0.3,
+        max_tokens: options.maxTokens ?? 2000,
+      },
+      options.timeoutMs ?? 45000,
+      headers,
+    )
+  } catch (err) {
+    // 请求层异常（CSP 拦截 / 跨域 / DNS / 超时）统一转成可读提示，避免直接抛 "Failed to fetch"
+    if (err instanceof Error && err.name === 'AbortError') {
+      throw new Error('请求超时，请检查网络或接口地址是否可用')
+    }
+    const msg = err instanceof Error ? err.message : String(err)
+    if (/failed to fetch|load failed|networkerror|network request failed/i.test(msg)) {
+      throw new Error(
+        '网络请求未能发出（Failed to fetch）：请确认接口地址以 https:// 开头、当前网络可访问该服务；浏览器端还可能是目标服务未允许跨域（CORS）',
+      )
+    }
+    throw err
+  }
+
+  const { ok, status, body } = result
 
   if (!ok) {
     const errorText =

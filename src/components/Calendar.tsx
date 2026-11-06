@@ -163,6 +163,30 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
     return map
   }, [logsByDate])
 
+  /** 当前展示月份的总学习时长（小时） */
+  const monthTotalHours = useMemo(() => {
+    const monthKey = format(currentMonth, 'yyyy-MM')
+    let total = 0
+    for (const log of logs) {
+      if (!log.date.startsWith(monthKey)) continue
+      for (const sub of log.subjects ?? []) total += sub.hours || 0
+    }
+    return Math.round(total * 10) / 10
+  }, [logs, currentMonth])
+
+  /** 月份累计时长徽标：display 由调用方决定（>=360px 与月份同排，更窄的手机换行到下方），保证始终可见 */
+  const monthChip = (displayClass: string) => (
+    <span
+      title={`${format(currentMonth, 'M')}月累计学习 ${fmtHours(monthTotalHours)} 小时`}
+      className={`${displayClass} items-center gap-1 rounded-full bg-indigo-50/80 px-2 py-[3px] text-[10px] leading-none text-gray-500 dark:bg-indigo-500/10 dark:text-slate-400`}
+    >
+      {isSameMonth(currentMonth, new Date()) ? '本月' : `${format(currentMonth, 'M')}月`}
+      <span className="font-semibold tabular-nums text-indigo-600 dark:text-indigo-300">
+        {fmtHours(monthTotalHours)}h
+      </span>
+    </span>
+  )
+
   const weekDays = ['一', '二', '三', '四', '五', '六', '日']
 
   const monthLabel = format(currentMonth, 'yyyy年M月', { locale: zhCN })
@@ -276,8 +300,9 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
           {/* 顶部月份条 */}
           <div className="relative shrink-0 px-3 pt-2.5 pb-1.5">
             <div className="pointer-events-none absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-indigo-50/70 to-transparent dark:from-indigo-500/10 dark:to-transparent" />
-            <div className="relative flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
+            <div className="relative flex items-center justify-between gap-2">
+              {/* 左：翻月 */}
+              <div className="flex shrink-0 items-center gap-0.5">
                 <button
                   type="button"
                   onClick={handlePrevMonth}
@@ -299,14 +324,24 @@ export default function Calendar({ logs, loading, expanded = false }: CalendarPr
                   </svg>
                 </button>
               </div>
-              <div className="flex items-baseline gap-2.5">
-                <h3
-                  className={`font-semibold tracking-tight text-gray-900 dark:text-slate-100 ${
-                    expanded ? 'text-[14px]' : 'text-sm'
-                  }`}
-                >
-                  {monthLabel}
-                </h3>
+
+              {/* 中：月份 + 本月累计。窄屏下时长徽标换行到月份下方，始终可见且不挤压翻月/操作按钮 */}
+              <div className="flex min-w-0 flex-col items-center gap-1">
+                <div className="flex items-center gap-2">
+                  <h3
+                    className={`font-semibold tracking-tight text-gray-900 dark:text-slate-100 ${
+                      expanded ? 'text-[14px]' : 'text-sm'
+                    }`}
+                  >
+                    {monthLabel}
+                  </h3>
+                  {monthChip(expanded ? 'inline-flex' : 'hidden min-[360px]:inline-flex')}
+                </div>
+                {!expanded && monthChip('inline-flex min-[360px]:hidden')}
+              </div>
+
+              {/* 右：时长显示开关 + 回到今天 */}
+              <div className="flex shrink-0 items-center gap-0.5">
                 <button
                   type="button"
                   onClick={handleToggleDuration}

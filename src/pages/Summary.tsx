@@ -11,16 +11,304 @@ import {
   getPreviousRange,
   type SummaryRange,
   type SummaryResult,
+  type SubjectBreakdown,
+  type SubjectComparisonResult,
+  type SubjectDetailBreakdown,
 } from '../lib/summary'
-import { differenceInCalendarDays, parseISO } from 'date-fns'
+import { differenceInCalendarDays, eachDayOfInterval, format, parseISO } from 'date-fns'
 import RangePicker from '../components/RangePicker'
 import WeeklyChart from '../components/WeeklyChart'
 import { formatCategorySubjectName, getSubjectById } from '../lib/subjects'
-import { getChipColor, getBarColor } from '../lib/colors'
+import { getChipColor, getBarColor, getSubjectHex } from '../lib/colors'
 import { formatDateShort } from '../lib/format'
+import { todayStr } from '../lib/dailyLogs'
 import WeeklyReport from '../components/WeeklyReport'
 import { Icon } from '../components/Icon'
 import { useWideLayout } from '../App'
+
+/* ────────────── 手机端统计的四个轻量模块 ──────────────
+   手机屏幕窄、滚动成本高，这里把原来「一张卡只放一个数字」的堆叠式布局
+   收敛成「概览 → 趋势 → 科目分布 → 环比」四段，每段只回答一个问题。 */
+
+/** 每日时长柱状图：周期内所有自然日都保留位置，长周期自动按桶聚合，最多 31 根柱 */
+function DailyBars({ days }: { days: { date: string; hours: number }[] }) {
+  const today = todayStr()
+  const bucketSize = Math.max(1, Math.ceil(days.length / 31))
+  const buckets: { label: string; hours: number; isToday: boolean; isFuture: boolean }[] = []
+  for (let i = 0; i < days.length; i += bucketSize) {
+    const chunk = days.slice(i, i + bucketSize)
+    buckets.push({
+      label: format(parseISO(chunk[0].date), 'M/d'),
+      hours: chunk.reduce((sum, d) => sum + d.hours, 0),
+      isToday: today >= chunk[0].date && today <= chunk[chunk.length - 1].date,
+      isFuture: chunk[0].date > today,
+    })
+  }
+  if (buckets.length === 0) return null
+  const max = Math.max(1, ...buckets.map((b) => b.hours))
+  const fixedBars = buckets.length <= 7
+  const showAllLabels = buckets.length <= 10
+  return (
+    <div>
+      <div
+        className={`flex h-24 items-end ${
+          fixedBars ? 'justify-center gap-2' : 'gap-[2px]'
+        }`}
+      >
+        {buckets.map((b, i) => (
+          <div
+            key={`${b.label}-${i}`}
+            className={`flex h-full flex-col items-center justify-end ${
+              fixedBars ? 'w-9 shrink-0' : 'min-w-0 flex-1'
+            }`}
+            title={`${b.label} ${b.hours.toFixed(1)}h`}
+          >
+            {showAllLabels && b.hours > 0 && (
+              <span className="mb-0.5 text-[9px] leading-none tabular-nums text-gray-400 dark:text-slate-500">
+                {b.hours.toFixed(1)}
+              </span>
+            )}
+            <span
+              className={`w-full rounded-t-[3px] transition-[height] duration-500 ${
+                b.hours > 0
+                  ? b.isToday
+                    ? 'bg-gradient-to-t from-indigo-500 to-violet-400'
+                    : 'bg-indigo-300/80 dark:bg-indigo-500/40'
+                  : b.isFuture
+                    ? 'bg-gray-200/70 dark:bg-slate-700/40'
+                    : 'bg-indigo-200/40 dark:bg-indigo-500/15'
+              }`}
+              style={{ height: b.hours > 0 ? `${Math.max(8, (b.hours / max) * 100)}%` : '3px' }}
+            />
+          </div>
+        ))}
+      </div>
+      <div
+        className={`mt-1.5 flex items-center text-[9px] leading-none text-gray-400 dark:text-slate-500 ${
+          fixedBars ? 'justify-center gap-2' : showAllLabels ? 'gap-2' : 'justify-between'
+        }`}
+      >
+        {showAllLabels ? (
+          buckets.map((b, i) => (
+            <span
+              key={`${b.label}-${i}`}
+              className={`${fixedBars ? 'w-9 text-center' : 'flex-1 text-center'} ${
+                b.isToday ? 'font-semibold text-indigo-500 dark:text-indigo-400' : ''
+              }`}
+            >
+              {b.isToday ? '今天' : b.label}
+            </span>
+          ))
+        ) : (
+          <>
+            <span>{buckets[0].label}</span>
+            <span>{buckets[Math.floor(buckets.length / 2)].label}</span>
+            <span>{buckets[buckets.length - 1].label}</span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** 科目分布：一条堆叠占比条 + 科目行；学习内容明细默认折叠，避免首屏被长列表淹没 */
+function SubjectShareCard({
+  breakdown,
+  details,
+  totalHours,
+}: {
+  breakdown: SubjectBreakdown[]
+  details: SubjectDetailBreakdown[]
+  totalHours: number
+}) {
+  const [open, setOpen] = useState(false)
+  if (breakdown.length === 0) return null
+  const detailRows = details.filter((d) => d.groups.length > 0 || d.leaves.length > 0)
+  return (
+    <div className="card p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-slate-100">科目分布</h2>
+        <span className="text-[11px] text-gray-400 dark:text-slate-500">
+          {breakdown.length} 个科目
+        </span>
+      </div>
+
+      <div className="mt-3 flex h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-slate-700/60">
+        {breakdown.map((s) => (
+          <span
+            key={s.subjectId}
+            className="h-full"
+            style={{
+              width: `${totalHours > 0 ? (s.hours / totalHours) * 100 : 0}%`,
+              backgroundColor: getSubjectHex(s.subjectId, getSubjectById(s.subjectId)?.category),
+            }}
+            title={`${s.name} ${s.hours.toFixed(1)}h`}
+          />
+        ))}
+      </div>
+
+      <div className="mt-3 space-y-2">
+        {breakdown.map((s) => {
+          const category = getSubjectById(s.subjectId)?.category
+          return (
+            <div key={s.subjectId} className="flex items-center gap-2 text-xs">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: getSubjectHex(s.subjectId, category) }}
+              />
+              <span className="min-w-0 flex-1 truncate font-medium text-gray-700 dark:text-slate-200">
+                {formatCategorySubjectName(s.name, category)}
+              </span>
+              <span className="shrink-0 tabular-nums text-gray-600 dark:text-slate-300">
+                {s.hours.toFixed(1)}h
+              </span>
+              <span className="w-9 shrink-0 text-right tabular-nums text-gray-400 dark:text-slate-500">
+                {Math.round(s.percentage)}%
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {detailRows.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="mt-3 flex w-full cursor-pointer items-center justify-between rounded-xl bg-gray-50 px-3 py-2 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:bg-slate-800/50 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <Icon name="list" size={13} />
+              学习内容明细
+            </span>
+            <Icon
+              name="chevronDown"
+              size={14}
+              className={`transition-transform ${open ? 'rotate-180' : ''}`}
+            />
+          </button>
+          {open && (
+            <div className="mt-3 space-y-3 border-t border-gray-100 pt-3 dark:border-slate-800">
+              {detailRows.map((subject) => (
+                <div key={subject.subjectId} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between gap-2 text-[11px]">
+                    <span className="font-semibold text-gray-700 dark:text-slate-200">
+                      {formatCategorySubjectName(
+                        subject.name,
+                        getSubjectById(subject.subjectId)?.category,
+                      )}
+                    </span>
+                    <span className="shrink-0 tabular-nums text-gray-400 dark:text-slate-500">
+                      {subject.hours.toFixed(1)}h · 占 {subject.percentageOfTotal.toFixed(0)}%
+                    </span>
+                  </div>
+                  {subject.groups.map((group) => (
+                    <div
+                      key={group.name}
+                      className="space-y-1 border-l border-gray-100 pl-2.5 dark:border-slate-800"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="font-medium text-gray-600 dark:text-slate-300">
+                          {group.name}
+                        </span>
+                        <span className="shrink-0 tabular-nums text-gray-400 dark:text-slate-500">
+                          {group.hours.toFixed(1)}h · 占科目 {group.percentageOfSubject.toFixed(0)}%
+                        </span>
+                      </div>
+                      {group.activities.map((activity) => (
+                        <div
+                          key={activity.name}
+                          className="flex items-center justify-between gap-2 pl-2 text-[10px] text-gray-400 dark:text-slate-500"
+                        >
+                          <span className="min-w-0 truncate">{activity.name}</span>
+                          <span className="shrink-0 tabular-nums">
+                            {activity.hours.toFixed(1)}h · {activity.percentageOfParent.toFixed(0)}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {subject.leaves.map((leaf) => (
+                    <div
+                      key={leaf.name}
+                      className="flex items-center justify-between gap-2 pl-2.5 text-[11px] text-gray-500 dark:text-slate-400"
+                    >
+                      <span className="min-w-0 truncate">{leaf.name}</span>
+                      <span className="shrink-0 tabular-nums">
+                        {leaf.hours.toFixed(1)}h · 占科目 {leaf.percentageOfParent.toFixed(0)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** 科目环比：默认只列前 5，避免长尾科目把页面拉长 */
+function ComparisonCard({
+  comparison,
+  previousLabel,
+}: {
+  comparison: SubjectComparisonResult
+  previousLabel: string
+}) {
+  const [expanded, setExpanded] = useState(false)
+  if (!comparison.hasPrevData || comparison.items.length === 0) return null
+  const visible = expanded ? comparison.items : comparison.items.slice(0, 5)
+  return (
+    <div className="card p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold text-gray-800 dark:text-slate-100">科目环比</h2>
+        <span className="text-[11px] text-gray-400 dark:text-slate-500">对比 {previousLabel}</span>
+      </div>
+      <div className="mt-3 space-y-2.5">
+        {visible.map((item) => {
+          const category = getSubjectById(item.subjectId)?.category
+          const isUp = item.diff > 0
+          const isDown = item.diff < 0
+          const tone = isUp
+            ? 'text-emerald-600 dark:text-emerald-400'
+            : isDown
+              ? 'text-rose-500 dark:text-rose-400'
+              : 'text-gray-400 dark:text-slate-500'
+          return (
+            <div key={item.subjectId} className="flex items-center gap-2 text-xs">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ backgroundColor: getSubjectHex(item.subjectId, category) }}
+              />
+              <span className="min-w-0 flex-1 truncate text-gray-700 dark:text-slate-200">
+                {formatCategorySubjectName(item.name, category)}
+              </span>
+              <span className="shrink-0 tabular-nums text-gray-600 dark:text-slate-300">
+                {item.currentHours.toFixed(1)}h
+              </span>
+              <span className={`w-[70px] shrink-0 text-right font-medium tabular-nums ${tone}`}>
+                {isUp ? '↑' : isDown ? '↓' : '—'}
+                {item.diff !== 0 ? ` ${Math.abs(item.diff).toFixed(1)}h` : ''}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+      {comparison.items.length > 5 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-2.5 w-full cursor-pointer pt-1 text-center text-[11px] font-medium text-indigo-500 dark:text-indigo-400"
+        >
+          {expanded ? '收起' : `展开其余 ${comparison.items.length - 5} 个科目`}
+        </button>
+      )}
+    </div>
+  )
+}
 
 const Summary: React.FC = () => {
   const wide = useWideLayout()
@@ -78,12 +366,73 @@ const Summary: React.FC = () => {
     return max > 0 ? max : 1
   }, [summary.dailyTrend])
 
-  return (
-    <div className={`mx-auto ${wide ? 'max-w-[1280px]' : 'max-w-4xl'} px-4 py-4 space-y-4`}>
-      <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">统计</h1>
+  /* ── 手机端派生数据 ── */
 
-      <div className={wide ? 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-start gap-4' : 'space-y-4'}>
-        {/* 左列：本周视角（总结入口 + 本周报告 + 本周时长图 + 范围选择） */}
+  /** 上一周期总时长：用于「较上期」涨跌，避免只给科目环比却不给整体变化 */
+  const previousTotalHours = useMemo(
+    () =>
+      previousLogs.reduce(
+        (sum, log) => sum + (log.subjects ?? []).reduce((s, sub) => s + (sub.hours ?? 0), 0),
+        0,
+      ),
+    [previousLogs],
+  )
+
+  /** 本周期单日最高（含具体日期，给概览卡一个可感知的锚点） */
+  const bestDay = useMemo(
+    () =>
+      summary.dailyTrend.reduce<{ date: string; hours: number } | null>(
+        (best, d) => (!best || d.totalHours > best.hours ? { date: d.date, hours: d.totalHours } : best),
+        null,
+      ),
+    [summary.dailyTrend],
+  )
+
+  const rangeText = `${format(parseISO(range.startDate), 'M月d日')} – ${format(
+    parseISO(range.endDate),
+    'M月d日',
+  )}`
+
+  /** 环比标题里的上期日期，让「较上期」有明确参照 */
+  const previousLabel = `${format(parseISO(previousRange.startDate), 'M.d')} – ${format(
+    parseISO(previousRange.endDate),
+    'M.d',
+  )}`
+
+  /** 手机端每日趋势：补齐周期内所有自然日，未来日期保留空柱，避免「本月才过两天」时两根柱子撑满整张卡 */
+  const chartDays = useMemo(() => {
+    const hoursMap = new Map(summary.dailyTrend.map((d) => [d.date, d.totalHours]))
+    return eachDayOfInterval({
+      start: parseISO(range.startDate),
+      end: parseISO(range.endDate),
+    }).map((d) => {
+      const date = format(d, 'yyyy-MM-dd')
+      return { date, hours: hoursMap.get(date) ?? 0 }
+    })
+  }, [range.startDate, range.endDate, summary.dailyTrend])
+
+  /** 日均只看已经过去的日子：本月才过两天时，用 30 天做分母会把日均压得毫无参考价值 */
+  const elapsedDays = useMemo(() => {
+    const today = todayStr()
+    const end = range.endDate > today ? today : range.endDate
+    return Math.max(1, differenceInCalendarDays(parseISO(end), parseISO(range.startDate)) + 1)
+  }, [range.startDate, range.endDate])
+  const mobileAvgDaily = summary.totalHours / elapsedDays
+
+  /** 整体较上期的涨跌幅；上期没有记录时不显示，避免「+100%」误导 */
+  const deltaPct =
+    previousTotalHours > 0 ? ((summary.totalHours - previousTotalHours) / previousTotalHours) * 100 : null
+  const deltaPeriodLabel =
+    range.mode === 'week' ? '上周' : range.mode === 'month' ? '上月' : '上期'
+
+  /* ── 桌面「全部功能」模式：保留原有左右两栏（周视角 + 分项明细） ── */
+  if (wide) {
+    return (
+      <div className="mx-auto max-w-[1280px] px-4 py-4 space-y-4">
+        <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">统计</h1>
+
+        <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] items-start gap-4">
+          {/* 左列：本周视角（总结入口 + 本周报告 + 本周时长图 + 范围选择） */}
         <div className={wide ? 'min-w-0 space-y-4' : 'space-y-4'}>
           {/* 每周总结入口：本周 vs 上周对比 + 反思笔记 */}
           {!loading && !error && (
@@ -398,8 +747,183 @@ const Summary: React.FC = () => {
               )}
             </>
           )}
+          </div>
         </div>
       </div>
+    )
+  }
+
+  /* ── 手机端：范围切换在页头，随后按「概览 → 趋势 → 科目分布 → 环比」组织 ──
+     旧版把「每周总结入口 + 本周报告 + 本周图表 + 两个大数字卡 + 每门课统计 +
+     分科明细 + 每日趋势」依次堆叠，首屏要滚过三四张重复的周汇总才能切「本月」。
+     这里先去重、再收拢：每段只回答一个问题，长列表改为折叠。 */
+  return (
+    <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
+      <header className="space-y-2.5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">统计</h1>
+            <p className="mt-0.5 text-[11px] text-gray-400 dark:text-slate-500">
+              {rangeText} · {periodDays} 天
+            </p>
+          </div>
+          <Link
+            to="/weekly-summary"
+            title="本周 vs 上周 · 反思笔记"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50/80 px-2.5 py-1.5 text-[11px] font-medium text-indigo-600 transition-colors hover:bg-indigo-100 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
+          >
+            <Icon name="target" size={13} />
+            周总结
+            <Icon name="chevronRight" size={12} />
+          </Link>
+        </div>
+        <RangePicker compact value={range} onChange={setRange} />
+      </header>
+
+      {loading && (
+        <div className="flex justify-center py-12">
+          <svg
+            className="h-8 w-8 animate-spin text-blue-600"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+        </div>
+      )}
+
+      {error && !loading && (
+        <div className="card p-8 text-center">
+          <p className="text-red-500 dark:text-red-400">{error}</p>
+          <button
+            type="button"
+            onClick={handleRetry}
+            className="mt-3 cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-white transition-colors hover:bg-blue-700"
+          >
+            重试
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && summary.totalHours === 0 && (
+        <div className="card flex flex-col items-center px-6 py-10 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400">
+            <Icon name="chart" size={22} />
+          </span>
+          <p className="mt-3 text-sm font-medium text-gray-700 dark:text-slate-200">
+            这段时间还没有学习记录
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-gray-400 dark:text-slate-500">
+            去记下今天的学习，时长、科目分布和趋势会自动汇总到这里
+          </p>
+          <Link to="/my-records/new" className="btn-primary mt-4 h-9 px-4 py-0 text-xs">
+            + 新建学习记录
+          </Link>
+        </div>
+      )}
+
+      {!loading && !error && summary.totalHours > 0 && (
+        <>
+          {range.mode === 'week' ? (
+            <>
+              <WeeklyReport logs={logs} compact />
+              <WeeklyChart logs={logs} compact />
+            </>
+          ) : (
+            <>
+              {/* 概览：总时长 + 较上期 + 三个关键数字，替代原来两张占满屏的大卡 */}
+              <div className="card p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] text-gray-400 dark:text-slate-500">总学习时长</p>
+                    <p className="mt-1 text-[34px] font-bold leading-none tabular-nums text-gray-900 dark:text-slate-100">
+                      {summary.totalHours.toFixed(1)}
+                      <span className="ml-1 text-sm font-medium text-gray-400 dark:text-slate-500">
+                        小时
+                      </span>
+                    </p>
+                  </div>
+                  {deltaPct !== null && (
+                    <span
+                      className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-2 py-1 text-[11px] font-semibold tabular-nums ${
+                        deltaPct >= 0
+                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400'
+                          : 'bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-400'
+                      }`}
+                    >
+                      {deltaPct >= 0 ? '↑' : '↓'} {Math.abs(deltaPct).toFixed(0)}%
+                      <span className="font-normal opacity-70">较{deltaPeriodLabel}</span>
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {[
+                    { label: '打卡天数', value: summary.checkedDays, unit: '天' },
+                    { label: '日均', value: mobileAvgDaily.toFixed(1), unit: 'h' },
+                    { label: '单日最高', value: bestDay ? bestDay.hours.toFixed(1) : '0', unit: 'h' },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-xl bg-gray-50 px-2 py-2.5 text-center dark:bg-slate-800/50"
+                    >
+                      <p className="text-[10px] text-gray-400 dark:text-slate-500">{item.label}</p>
+                      <p className="mt-1 text-base font-semibold leading-none tabular-nums text-gray-800 dark:text-slate-100">
+                        {item.value}
+                        <span className="ml-0.5 text-[10px] font-normal text-gray-400 dark:text-slate-500">
+                          {item.unit}
+                        </span>
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                {range.endDate > todayStr() && (
+                  <p className="mt-2 text-[10px] text-gray-400 dark:text-slate-500">
+                    日均按已过的 {elapsedDays} 天计算，不含未来日期
+                  </p>
+                )}
+              </div>
+
+              {/* 每日趋势：一根柱代表一天（长周期自动按桶聚合），比逐日长列表省一半以上高度 */}
+              <div className="card space-y-3 p-4">
+                <div className="flex items-baseline justify-between gap-2">
+                  <h2 className="text-base font-semibold text-gray-800 dark:text-slate-100">
+                    每日学习
+                  </h2>
+                  <span className="text-[11px] text-gray-400 dark:text-slate-500">
+                    {summary.checkedDays} 天有记录 · 日均 {mobileAvgDaily.toFixed(1)}h
+                  </span>
+                </div>
+                <DailyBars days={chartDays} />
+                {bestDay && (
+                  <p className="text-[11px] text-gray-400 dark:text-slate-500">
+                    最高 {bestDay.hours.toFixed(1)}h · {format(parseISO(bestDay.date), 'M月d日')}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+
+          <SubjectShareCard
+            breakdown={summary.subjectBreakdown}
+            details={subjectDetails}
+            totalHours={summary.totalHours}
+          />
+          <ComparisonCard comparison={subjectComparison} previousLabel={previousLabel} />
+        </>
+      )}
     </div>
   )
 }

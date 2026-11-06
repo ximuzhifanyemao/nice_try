@@ -13,9 +13,11 @@ import {
 import {
   addDayToVocabulary,
   loadMarkedWords,
+  loadVocabulary,
   pushVocabularyToCloud,
   removeWordFromCloud,
   removeWordFromVocabulary,
+  type VocabWord,
 } from '../lib/vocabulary'
 import { getCachedLookup, lookupOffline, lookupWord, type WordLookup } from '../lib/wordLookup'
 import { supabase } from '../lib/supabase'
@@ -50,6 +52,18 @@ import {
   type SentenceReading,
 } from '../lib/englishReading'
 import { buildSentenceChunks } from '../lib/englishBreakdown'
+import {
+  ASSESSMENT_META,
+  buildReviewMix,
+  loadDayAssessments,
+  loadReviewItems,
+  pushAssessmentToCloud,
+  saveSentenceAssessment,
+  syncAssessmentsFromCloud,
+  type AssessmentLevel,
+  type ReviewItem,
+  type ReviewSessionStep,
+} from '../lib/englishReview'
 import './english-checkin.css'
 
 const TOTAL = ENGLISH_TOTAL_DAYS
@@ -255,7 +269,7 @@ interface ActiveTerm extends OpenedTermRecord {
   sentence: string
 }
 
-type SheetKind = 'list' | 'plan' | 'words' | 'word' | null
+type SheetKind = 'list' | 'plan' | 'words' | 'word' | 'review' | null
 
 function toRecord(t: ActiveTerm): OpenedTermRecord {
   return {
@@ -345,6 +359,24 @@ export default function EnglishCheckin() {
   const [error, setError] = useState<string | null>(null)
   const [activeChunk, setActiveChunk] = useState<number | null>(null)
 
+  /** 本篇逐句自评：句子下标 -> 掌握程度 */
+  const [assessments, setAssessments] = useState<Map<number, AssessmentLevel>>(new Map())
+  /** 跨篇待复习清单（由自评派生） */
+  const [reviewItems, setReviewItems] = useState<ReviewItem[]>([])
+  /** 综合复习队列；null 表示不在复习会话中 */
+  const [reviewSession, setReviewSession] = useState<{
+    steps: ReviewSessionStep[]
+    pos: number
+  } | null>(null)
+  /** 复习完成统计；非 null 时展示完成页 */
+  const [reviewResult, setReviewResult] = useState<{ sentences: number; words: number } | null>(null)
+  /** 生词卡是否已翻开释义 */
+  const [reviewWordRevealed, setReviewWordRevealed] = useState(false)
+  const [reviewMeaning, setReviewMeaning] = useState('')
+  const [reviewMeaningLoading, setReviewMeaningLoading] = useState(false)
+  /** 生词本单词快照，用于生成综合复习队列与 CTA 文案 */
+  const [vocabWords, setVocabWords] = useState<VocabWord[]>([])
+
   const [translations, setTranslations] = useState<Map<string, string>>(
     () => loadRecordMap<string>(TRANSLATION_KEY),
   )
@@ -363,9 +395,16 @@ export default function EnglishCheckin() {
 
   const pageRef = useRef<HTMLDivElement>(null)
   const pickedDayRef = useRef(false)
+  /** 当前篇目镜像：云端同步完成回调需要刷新「当时」展示的篇目，而不是闭包里的旧值 */
+  const selectedDayRef = useRef(selectedDay)
+  selectedDayRef.current = selectedDay
+  /** 跨篇复习跳转：切天后强制停在该句，而不是第一句未读 */
+  const jumpTargetRef = useRef<number | null>(null)
   const activeTermRef = useRef<ActiveTerm | null>(null)
   activeTermRef.current = activeTerm
   const practiceKeyRef = useRef('')
+  /** 生词卡查词的请求标识：切换到下一张卡后丢弃旧结果 */
+  const reviewWordKeyRef = useRef('')
 
   // ---------- 打卡记录 ----------
 
@@ -425,6 +464,42 @@ export default function EnglishCheckin() {
     }
   }, [user])
 
+  // 待复习清单：换用户时重载；自评写入时也会同步更新
+  useEffect(() => {
+    setReviewItems(loadReviewItems(userKey))
+  }, [userKey])
+
+  // 生词本快照：换用户时重载；进入待复习抽屉时也会刷新
+  useEffect(() => {
+    setVocabWords(loadVocabulary().flatMap((day) => day.words))
+  }, [userKey])
+
+  // 自评云端同步：本地数据先渲染，登录后后台拉取云端合并（同句新者胜），
+  // 合并完成再刷新当前篇目与待复习清单；失败静默降级，界面保持本地数据
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    syncAssessmentsFromCloud(user.id)
+      .then((synced) => {
+        if (cancelled || !synced) return
+        setReviewItems(loadReviewItems(user.id))
+        setAssessments(
+          new Map(
+            loadDayAssessments(user.id, selectedDayRef.current).map((item) => [
+              item.sentIdx,
+              item.level,
+            ]),
+          ),
+        )
+      })
+      .catch(() => {
+        /* sync 内部已降级，这里兜底防未处理的拒绝 */
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user])
+
   // 语料懒加载
   useEffect(() => {
     let cancelled = false
@@ -440,20 +515,25 @@ export default function EnglishCheckin() {
     }
   }, [])
 
-  // 切换篇目：优先停在第一句未读
+  // 切换篇目：优先停在第一句未读（跨篇复习跳转时停在指定句）
   useEffect(() => {
     const data = daily.find((d) => d.day === selectedDay)
     if (!data) return
     const progress = loadReadingProgress(userKey, selectedDay)
     setReadSet(progress)
     setOpenedTerms(loadOpenedTerms(userKey, selectedDay))
+    setAssessments(
+      new Map(loadDayAssessments(userKey, selectedDay).map((item) => [item.sentIdx, item.level])),
+    )
     setRevealed(false)
     setAiError(null)
     setShowSummary(false)
     setActiveSheet(null)
     setActiveTerm(null)
     const firstUnread = data.sentences.findIndex((_, i) => !progress.has(i))
-    setIdx(firstUnread === -1 ? 0 : firstUnread)
+    const target = jumpTargetRef.current ?? (firstUnread === -1 ? 0 : firstUnread)
+    jumpTargetRef.current = null
+    setIdx(target)
   }, [selectedDay, daily, userKey])
 
   // 切换句子：收起答案、清掉上一句的 AI 错误与已选意群
@@ -564,6 +644,65 @@ export default function EnglishCheckin() {
     return set
   }, [userKey, selectedDay, readSet, checkins])
 
+  // 逐句自评 / 待复习派生
+  const currentLevel = assessments.get(currentIdx) ?? null
+  const dayPendingIdxs = useMemo(
+    () =>
+      [...assessments.entries()]
+        .filter(([, level]) => level !== 'full')
+        .map(([sentIdx]) => sentIdx)
+        .sort((a, b) => a - b),
+    [assessments],
+  )
+  const levelCounts = useMemo(() => {
+    const counts: Record<AssessmentLevel, number> = { full: 0, minor: 0, many: 0 }
+    for (const level of assessments.values()) counts[level] += 1
+    return counts
+  }, [assessments])
+  const pendingByDay = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const item of reviewItems) map.set(item.day, (map.get(item.day) ?? 0) + 1)
+    return map
+  }, [reviewItems])
+  const reviewGroups = useMemo(() => {
+    const groups = new Map<number, ReviewItem[]>()
+    for (const item of reviewItems) {
+      const list = groups.get(item.day) ?? []
+      list.push(item)
+      groups.set(item.day, list)
+    }
+    return [...groups.entries()]
+  }, [reviewItems])
+
+  // 综合复习：句子 + 生词本穿插
+  const reviewMix = useMemo(
+    () => buildReviewMix(reviewItems, vocabWords),
+    [reviewItems, vocabWords],
+  )
+  const reviewMixWords = reviewMix.filter((step) => step.kind === 'word').length
+  const reviewStep = reviewSession ? reviewSession.steps[reviewSession.pos] ?? null : null
+  const inReview = !!reviewStep
+  const reviewDay =
+    reviewStep?.kind === 'sentence'
+      ? reviewStep.day
+      : reviewStep?.kind === 'word'
+        ? reviewStep.word.day
+        : selectedDay
+  const reviewProgress = reviewSession
+    ? Math.min(reviewSession.pos + 1, reviewSession.steps.length)
+    : 0
+  const reviewStepsTotal = reviewSession?.steps.length ?? 0
+  const headTrackWidth =
+    inReview && reviewStepsTotal > 0
+      ? (reviewProgress / reviewStepsTotal) * 100
+      : sentenceCount
+        ? (readCount / sentenceCount) * 100
+        : 0
+
+  function sentenceSnippet(day: number, sentIdx: number): string {
+    return daily.find((d) => d.day === day)?.sentences[sentIdx]?.en ?? `第 ${sentIdx + 1} 句`
+  }
+
   // ---------- 基础操作 ----------
 
   function scrollToPageTop() {
@@ -579,10 +718,111 @@ export default function EnglishCheckin() {
     setReadSet(next)
   }
 
-  function goNext() {
+  // ---------- 综合复习会话 ----------
+
+  function exitReview() {
+    setReviewSession(null)
+    setReviewResult(null)
+    setReviewWordRevealed(false)
+    setReviewMeaning('')
+    setReviewMeaningLoading(false)
+  }
+
+  function goToReviewStep(step: ReviewSessionStep) {
+    if (step.kind === 'sentence') {
+      if (step.day === selectedDay) {
+        jumpToSentence(step.sentIdx, true)
+      } else {
+        jumpTargetRef.current = step.sentIdx
+        pickDay(step.day, false, true)
+      }
+      return
+    }
+    setShowSummary(false)
+    setRevealed(false)
+    setActiveChunk(null)
+    setActiveSheet(null)
+    setActiveTerm(null)
+    setReviewWordRevealed(false)
+    setReviewMeaning('')
+    setReviewMeaningLoading(false)
+  }
+
+  function startReviewSession() {
+    if (reviewMix.length === 0) return
+    setActiveSheet(null)
+    setActiveTerm(null)
+    setShowSummary(false)
+    setReviewResult(null)
+    setReviewSession({ steps: reviewMix, pos: 0 })
+    goToReviewStep(reviewMix[0])
+    scrollToPageTop()
+  }
+
+  function advanceReview() {
+    if (!reviewSession) return
+    const next = reviewSession.pos + 1
+    if (next >= reviewSession.steps.length) {
+      const sentences = reviewSession.steps.filter((step) => step.kind === 'sentence').length
+      setReviewResult({ sentences, words: reviewSession.steps.length - sentences })
+      setReviewSession(null)
+      setReviewWordRevealed(false)
+      setReviewMeaning('')
+      return
+    }
+    setReviewSession({ ...reviewSession, pos: next })
+    goToReviewStep(reviewSession.steps[next])
+  }
+
+  function revealReviewWord() {
+    if (reviewStep?.kind !== 'word') return
+    setReviewWordRevealed(true)
+    const w = reviewStep.word
+    const key = `${w.day}|${w.sentIdx}|${w.wordIdx}|${w.word}`
+    reviewWordKeyRef.current = key
+
+    const opened = loadOpenedTerms(userKey, w.day).find(
+      (term) => term.sentIdx === w.sentIdx && vocabWordIdx(term) === w.wordIdx,
+    )
+    const cached = getCachedLookup(w.word)
+    const immediate = opened?.meaning || (cached ? cached.meanings.join('；') : '')
+    if (immediate) {
+      setReviewMeaning(immediate)
+      setReviewMeaningLoading(false)
+      return
+    }
+
+    setReviewMeaning('')
+    setReviewMeaningLoading(true)
+    lookupOffline(w.word)
+      .then((result) => {
+        if (reviewWordKeyRef.current !== key) return
+        setReviewMeaning(
+          result ? result.meanings.join('；') : '本地词库暂未收录，可到生词本用 AI 查词。',
+        )
+      })
+      .catch(() => {
+        if (reviewWordKeyRef.current === key) {
+          setReviewMeaning('本地词库暂未收录，可到生词本用 AI 查词。')
+        }
+      })
+      .finally(() => {
+        if (reviewWordKeyRef.current === key) setReviewMeaningLoading(false)
+      })
+  }
+
+  /** 逐句自评：记录掌握程度后推进到下一句；最后一句进入完成页 */
+  function handleAssess(level: AssessmentLevel) {
     if (!dayData || !sentence) return
+    const updated = saveSentenceAssessment(userKey, selectedDay, currentIdx, level)
+    setAssessments(new Map(updated.map((item) => [item.sentIdx, item.level])))
+    setReviewItems(loadReviewItems(userKey))
+    // 登录用户异步推云：失败静默降级，不阻塞逐句推进
+    if (user) void pushAssessmentToCloud(user.id, selectedDay, currentIdx, level)
     markCurrentRead()
-    if (isLastSentence) {
+    if (reviewSession) {
+      advanceReview()
+    } else if (isLastSentence) {
       setShowSummary(true)
     } else {
       setIdx(currentIdx + 1)
@@ -592,13 +832,22 @@ export default function EnglishCheckin() {
   }
 
   function goPrev() {
+    if (reviewSession) {
+      if (reviewSession.pos <= 0) return
+      const prev = reviewSession.pos - 1
+      setReviewSession({ ...reviewSession, pos: prev })
+      goToReviewStep(reviewSession.steps[prev])
+      scrollToPageTop()
+      return
+    }
     if (currentIdx <= 0) return
     setIdx(currentIdx - 1)
     setRevealed(false)
     scrollToPageTop()
   }
 
-  function pickDay(day: number, fromStart = false) {
+  function pickDay(day: number, fromStart = false, keepReview = false) {
+    if (!keepReview) exitReview()
     pickedDayRef.current = true
     const data = daily.find((d) => d.day === day)
     const progress = loadReadingProgress(userKey, day)
@@ -620,7 +869,8 @@ export default function EnglishCheckin() {
     scrollToPageTop()
   }
 
-  function jumpToSentence(index: number) {
+  function jumpToSentence(index: number, keepReview = false) {
+    if (!keepReview) exitReview()
     setIdx(index)
     setShowSummary(false)
     setRevealed(false)
@@ -630,9 +880,32 @@ export default function EnglishCheckin() {
     scrollToPageTop()
   }
 
+  /** 从待复习清单跳到某一句 */
+  function openReviewItem(item: ReviewItem) {
+    setActiveSheet(null)
+    setActiveTerm(null)
+    if (item.day === selectedDay) {
+      jumpToSentence(item.sentIdx)
+      return
+    }
+    jumpTargetRef.current = item.sentIdx
+    pickDay(item.day)
+  }
+
+  /** 完成页：先复习本篇没把握的句子 */
+  function reviewDayPending() {
+    const first = dayPendingIdxs[0]
+    if (first == null) return
+    jumpToSentence(first)
+  }
+
   function openSheet(kind: Exclude<SheetKind, null>) {
-    if (kind === 'words' || kind === 'plan') {
+    if (kind === 'words' || kind === 'plan' || kind === 'review') {
       setOpenedTerms(loadOpenedTerms(userKey, selectedDay))
+    }
+    if (kind === 'review') {
+      setReviewItems(loadReviewItems(userKey))
+      setVocabWords(loadVocabulary().flatMap((day) => day.words))
     }
     setActiveSheet(kind)
   }
@@ -975,7 +1248,8 @@ export default function EnglishCheckin() {
       next.add(day)
       setCheckins(next)
       saveCheckinsCache(user.id, [...next])
-      toast.show(`Day ${day} 打卡成功`)
+      const pending = loadDayAssessments(userKey, day).filter((item) => item.level !== 'full').length
+      toast.show(pending > 0 ? `Day ${day} 打卡成功 · ${pending} 句待复习` : `Day ${day} 打卡成功`)
     } catch (e) {
       setError(e instanceof Error ? e.message : '打卡失败，请稍后重试')
     } finally {
@@ -986,6 +1260,7 @@ export default function EnglishCheckin() {
   async function handleUndo() {
     if (!user || lastDoneDay < 1 || busy) return
     if (!window.confirm(`确定撤销 Day ${lastDoneDay} 的打卡？阅读进度与生词本会保留。`)) return
+    exitReview()
     setBusy(true)
     setError(null)
     try {
@@ -1017,6 +1292,7 @@ export default function EnglishCheckin() {
   }
 
   function reviewThisDay() {
+    exitReview()
     setShowSummary(false)
     setIdx(0)
     setRevealed(false)
@@ -1073,6 +1349,31 @@ export default function EnglishCheckin() {
       )
     }
     return items
+  }
+
+  /** 生词复习卡的原句：按生词记录的 wordIdx 精确高亮，找不到时回退到字符串定位 */
+  function renderReviewWordContext(w: VocabWord): ReactNode {
+    const tokens = tokenizeRich(w.sentence)
+    const target =
+      w.wordIdx >= 0 ? tokens.find((token) => token.isWord && token.wordIdx === w.wordIdx) : undefined
+    if (target) {
+      return (
+        <>
+          {w.sentence.slice(0, target.start)}
+          <mark>{w.sentence.slice(target.start, target.end)}</mark>
+          {w.sentence.slice(target.end)}
+        </>
+      )
+    }
+    const idx = w.sentence.toLowerCase().indexOf(w.word.toLowerCase())
+    if (idx < 0) return w.sentence
+    return (
+      <>
+        {w.sentence.slice(0, idx)}
+        <mark>{w.sentence.slice(idx, idx + w.word.length)}</mark>
+        {w.sentence.slice(idx + w.word.length)}
+      </>
+    )
   }
 
   // 语料/打卡记录加载中
@@ -1135,24 +1436,38 @@ export default function EnglishCheckin() {
           ? '本篇生词'
           : activeSheet === 'plan'
             ? '打卡计划'
-            : ''
+            : activeSheet === 'review'
+              ? '待复习'
+              : ''
 
   return (
-    <div ref={pageRef} className={`ec-page${showSummary ? ' is-summary' : ''}`}>
+    <div
+      ref={pageRef}
+      className={`ec-page${showSummary || reviewResult ? ' is-summary' : ''}`}
+    >
       <header className="ec-topbar">
         <button
           type="button"
           className="ec-icon-btn"
-          onClick={() => openSheet('list')}
-          title="本篇句子"
-          aria-label="本篇句子"
+          onClick={() => (inReview ? exitReview() : openSheet('list'))}
+          title={inReview ? '退出综合复习' : '本篇句子'}
+          aria-label={inReview ? '退出综合复习' : '本篇句子'}
         >
-          <Icon name="list" size={20} />
+          <Icon name={inReview ? 'x' : 'list'} size={20} />
         </button>
         <div className="ec-topbar-center">
-          <h1 className="ec-topbar-title">长难句精读</h1>
+          <h1 className="ec-topbar-title">{inReview ? '综合复习' : '长难句精读'}</h1>
           <p className="ec-topbar-sub">
-            Day {selectedDay} · {dayData.type} {dayData.source}
+            {inReview && reviewStep ? (
+              <>
+                第 {reviewProgress} / {reviewStepsTotal} 步 · Day {reviewDay} ·{' '}
+                {reviewStep.kind === 'sentence' ? '待复习句子' : '生词复习'}
+              </>
+            ) : (
+              <>
+                Day {selectedDay} · {dayData.type} {dayData.source}
+              </>
+            )}
           </p>
         </div>
         <div className="ec-topbar-right">
@@ -1177,38 +1492,135 @@ export default function EnglishCheckin() {
         </div>
       </header>
 
-      {!showSummary ? (
+      {reviewResult ? (
+        <section className="ec-summary">
+          <div className="ec-summary-icon">
+            <Icon name="check" size={32} />
+          </div>
+          <p className="ec-summary-eyebrow">综合复习 · Complete</p>
+          <h2 className="ec-summary-title">这一轮，复习完了。</h2>
+          <p className="ec-summary-text">
+            复习了 <b>{reviewResult.sentences}</b> 句
+            {reviewResult.words > 0 ? (
+              <>
+                ，穿插看了 <b>{reviewResult.words}</b> 个生词
+              </>
+            ) : null}
+            。
+          </p>
+          <div className="ec-summary-actions">
+            <button
+              type="button"
+              className="ec-primary"
+              onClick={() => {
+                setReviewResult(null)
+                openSheet('review')
+              }}
+            >
+              回到待复习清单
+            </button>
+            <button
+              type="button"
+              className="ec-ghost"
+              onClick={() => {
+                setReviewResult(null)
+                scrollToPageTop()
+              }}
+            >
+              继续精读
+            </button>
+          </div>
+        </section>
+      ) : !showSummary ? (
         <>
           <section className="ec-head">
             <div className="ec-badge-row">
-              <span className="ec-badge">
-                <Icon name="book" size={14} />
-                Day {selectedDay}
+              <span className={`ec-badge${inReview ? ' is-review' : ''}`}>
+                <Icon name={inReview ? 'refresh' : 'book'} size={14} />
+                {inReview ? '综合复习' : `Day ${selectedDay}`}
               </span>
               <span className="ec-badge-sub">
-                {isDone ? '已打卡 · 随时回看' : isNext ? '按计划精读' : `需先完成 Day ${nextDay}`}
+                {inReview
+                  ? '句子与生词穿插进行'
+                  : isDone
+                    ? '已打卡 · 随时回看'
+                    : isNext
+                      ? '按计划精读'
+                      : `需先完成 Day ${nextDay}`}
               </span>
             </div>
             <div className="ec-meta-row">
               <span className="ec-progress-text">
-                第 <b>{currentIdx + 1}</b> / {sentenceCount} 句
+                {inReview ? (
+                  <>
+                    复习 <b>{reviewProgress}</b> / {reviewStepsTotal} 步
+                  </>
+                ) : (
+                  <>
+                    第 <b>{currentIdx + 1}</b> / {sentenceCount} 句
+                  </>
+                )}
               </span>
-              <button
-                type="button"
-                className="ec-review-chip"
-                onClick={() => openSheet('list')}
-                title="查看本篇全部句子"
-              >
-                已读 <span className="ec-review-chip-num">{readCount}</span> 句
-              </button>
+              <div className="ec-meta-chips">
+                {currentLevel && (!inReview || reviewStep?.kind === 'sentence') && (
+                  <span
+                    className={`ec-level-pill is-${currentLevel}`}
+                    title={ASSESSMENT_META[currentLevel].hint}
+                  >
+                    本句 · {ASSESSMENT_META[currentLevel].label}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="ec-review-chip"
+                  onClick={() => openSheet('list')}
+                  title="查看本篇全部句子"
+                >
+                  已读 <span className="ec-review-chip-num">{readCount}</span> 句
+                </button>
+                {reviewItems.length > 0 && (
+                  <button
+                    type="button"
+                    className="ec-review-chip is-review"
+                    onClick={() => openSheet('review')}
+                    title="查看跨篇待复习清单"
+                  >
+                    待复习 <span className="ec-review-chip-num">{reviewItems.length}</span>
+                  </button>
+                )}
+              </div>
             </div>
             <div className="ec-track">
-              <i style={{ width: `${sentenceCount ? (readCount / sentenceCount) * 100 : 0}%` }} />
+              <i style={{ width: `${headTrackWidth}%` }} />
             </div>
           </section>
 
           {error && <div className="ec-error">{error}</div>}
 
+          {reviewStep?.kind === 'word' ? (
+            <section className="ec-study ec-review-word" key={`review-word-${reviewSession?.pos}`}>
+              <div className="ec-review-word-card">
+                <p className="ec-review-word-eyebrow">
+                  生词复习 · Day {reviewStep.word.day} · 第 {reviewStep.word.sentIdx + 1} 句
+                </p>
+                <h2 className="ec-review-word-title">{reviewStep.word.word}</h2>
+                <p className="ec-review-word-context">{renderReviewWordContext(reviewStep.word)}</p>
+                {!reviewWordRevealed ? (
+                  <div className="ec-reveal-wrap">
+                    <button type="button" className="ec-reveal-btn" onClick={revealReviewWord}>
+                      <Icon name="sparkles" size={19} />
+                      先回忆，点击看释义
+                    </button>
+                  </div>
+                ) : (
+                  <div className="ec-review-word-meaning">
+                    <p className="ec-review-word-label">释义</p>
+                    <p>{reviewMeaningLoading ? '正在查词…' : reviewMeaning}</p>
+                  </div>
+                )}
+              </div>
+            </section>
+          ) : (
           <section className="ec-study" key={`${selectedDay}-${currentIdx}`}>
             <p className="ec-sentence">{renderSentence(reading!)}</p>
 
@@ -1452,6 +1864,7 @@ export default function EnglishCheckin() {
               </div>
             )}
           </section>
+          )}
         </>
       ) : (
         <section className="ec-summary">
@@ -1476,7 +1889,7 @@ export default function EnglishCheckin() {
             {isDone
               ? `Day ${selectedDay} 已打卡`
               : isNext
-                ? '可以完成今日打卡'
+                ? `可以完成今日打卡${assessments.size > 0 ? ` · 已自评 ${assessments.size}/${sentenceCount} 句` : ''}`
                 : `打卡需先完成 Day ${nextDay}`}
           </div>
 
@@ -1493,6 +1906,78 @@ export default function EnglishCheckin() {
               <b>{readCount}</b>
               <span>已读</span>
             </div>
+          </div>
+
+          <div className="ec-mastery">
+            <div className="ec-mastery-head">
+              <p className="ec-mastery-title">逐句自评 · 本篇</p>
+              {assessments.size > 0 &&
+                (dayPendingIdxs.length > 0 ? (
+                  <span className="ec-mastery-pending">待复习 {dayPendingIdxs.length} 句</span>
+                ) : assessments.size >= sentenceCount ? (
+                  <span className="ec-mastery-clear">无待复习</span>
+                ) : (
+                  <span className="ec-mastery-unassessed">
+                    已自评 {assessments.size}/{sentenceCount}
+                  </span>
+                ))}
+            </div>
+            {assessments.size > 0 ? (
+              <>
+                <div className="ec-mastery-chips">
+                  <span className="ec-level-pill is-full">
+                    全对 <b>{levelCounts.full}</b>
+                  </span>
+                  <span className="ec-level-pill is-minor">
+                    1-2 处有误 <b>{levelCounts.minor}</b>
+                  </span>
+                  <span className="ec-level-pill is-many">
+                    多处不懂 <b>{levelCounts.many}</b>
+                  </span>
+                </div>
+                {dayPendingIdxs.length > 0 ? (
+                  <>
+                    <div className="ec-mastery-list">
+                      {dayPendingIdxs.map((sentIdx) => {
+                        const level = assessments.get(sentIdx)
+                        if (!level) return null
+                        return (
+                          <button
+                            type="button"
+                            className="ec-mastery-item"
+                            key={sentIdx}
+                            onClick={() => jumpToSentence(sentIdx)}
+                          >
+                            <span className="ec-mastery-no">{sentIdx + 1}</span>
+                            <span className="ec-mastery-snippet">
+                              {sentenceSnippet(selectedDay, sentIdx)}
+                            </span>
+                            <span className={`ec-level-pill is-${level}`}>
+                              {ASSESSMENT_META[level].label}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {assessments.size < sentenceCount && (
+                      <p className="ec-mastery-note">
+                        还有 {sentenceCount - assessments.size} 句未自评，回看时可以补上。
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <p className="ec-mastery-note">
+                    {assessments.size >= sentenceCount
+                      ? '每一句都标了全对，没有待复习的句子。'
+                      : `已自评的句子都是全对；还有 ${sentenceCount - assessments.size} 句未自评。`}
+                  </p>
+                )}
+              </>
+            ) : (
+              <p className="ec-mastery-note">
+                还没有逐句自评。回看时给每句标一档，没把握的句子会自动进入待复习清单。
+              </p>
+            )}
           </div>
 
           {error && <div className="ec-error">{error}</div>}
@@ -1525,49 +2010,166 @@ export default function EnglishCheckin() {
               </button>
             )}
 
+            {dayPendingIdxs.length > 0 && (
+              <button type="button" className="ec-ghost is-review" onClick={reviewDayPending}>
+                <Icon name="refresh" size={16} />
+                先复习没把握的 {dayPendingIdxs.length} 句
+              </button>
+            )}
+
             <button type="button" className="ec-ghost" onClick={reviewThisDay}>
               回看本篇
             </button>
             <button type="button" className="ec-ghost" onClick={() => openSheet('words')}>
               本篇生词 {dayOpenedCount}
             </button>
+            {reviewItems.length > 0 && (
+              <button
+                type="button"
+                className="ec-ghost is-review"
+                onClick={() => openSheet('review')}
+              >
+                <Icon name="refresh" size={16} />
+                跨篇待复习 {reviewItems.length} 句
+              </button>
+            )}
             <Link to="/vocabulary" className="ec-ghost">
               打开生词本
             </Link>
           </div>
 
           <p className="ec-summary-note">
-            打卡按 Day 1 到 Day {TOTAL} 顺序推进；翻译练习、阅读进度和生词都会自动保存在本机，回到任意一天都能接着读。
+            打卡按 Day 1 到 Day {TOTAL} 顺序推进；逐句自评、翻译练习、阅读进度和生词都保存在本机，没把握的句子随时可以在「待复习」里回看。
           </p>
         </section>
       )}
 
       {!showSummary &&
+        !reviewResult &&
         createPortal(
           <div className="ec-footer">
-            <div className="ec-footer-inner">
-              <button
-                type="button"
-                className="ec-footer-prev"
-                onClick={goPrev}
-                disabled={currentIdx === 0}
-                aria-label="上一句"
-              >
-                <Icon name="arrowLeft" size={20} />
-              </button>
-              <div className="ec-footer-mid">
-                <div className="ec-footer-step">
-                  第 <b>{currentIdx + 1}</b> / {sentenceCount} 句
+            {reviewStep?.kind === 'word' ? (
+              <div className="ec-footer-inner">
+                <button
+                  type="button"
+                  className="ec-footer-prev"
+                  onClick={goPrev}
+                  disabled={reviewSession?.pos === 0}
+                  aria-label="上一格"
+                >
+                  <Icon name="arrowLeft" size={20} />
+                </button>
+                <div className="ec-footer-mid">
+                  <div className="ec-footer-step">
+                    复习 <b>{reviewProgress}</b> / {reviewStepsTotal} 步
+                  </div>
+                  <div className="ec-footer-track">
+                    <i
+                      style={{
+                        width: `${reviewStepsTotal ? (reviewProgress / reviewStepsTotal) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
                 </div>
-                <div className="ec-footer-track">
-                  <i style={{ width: `${sentenceCount ? ((currentIdx + 1) / sentenceCount) * 100 : 0}%` }} />
+                <button
+                  type="button"
+                  className="ec-footer-next"
+                  onClick={() => {
+                    if (reviewWordRevealed) {
+                      advanceReview()
+                      scrollToPageTop()
+                    } else {
+                      revealReviewWord()
+                    }
+                  }}
+                >
+                  <Icon name={reviewWordRevealed ? 'arrowRight' : 'sparkles'} size={17} />
+                  {reviewWordRevealed ? '继续复习' : '显示释义'}
+                </button>
+              </div>
+            ) : revealed ? (
+              <div className="ec-footer-inner is-judge">
+                <button
+                  type="button"
+                  className="ec-footer-prev"
+                  onClick={goPrev}
+                  disabled={inReview ? reviewSession?.pos === 0 : currentIdx === 0}
+                  aria-label="上一句"
+                >
+                  <Icon name="arrowLeft" size={20} />
+                </button>
+                <div className="ec-judge" role="group" aria-label="这一句掌握得怎么样">
+                  <button
+                    type="button"
+                    className={`ec-judge-btn is-full${currentLevel === 'full' ? ' is-selected' : ''}`}
+                    onClick={() => handleAssess('full')}
+                    aria-pressed={currentLevel === 'full'}
+                    title={ASSESSMENT_META.full.hint}
+                  >
+                    {currentLevel === 'full' && <Icon name="check" size={14} />}
+                    全对
+                  </button>
+                  <button
+                    type="button"
+                    className={`ec-judge-btn is-minor${currentLevel === 'minor' ? ' is-selected' : ''}`}
+                    onClick={() => handleAssess('minor')}
+                    aria-pressed={currentLevel === 'minor'}
+                    title={ASSESSMENT_META.minor.hint}
+                  >
+                    {currentLevel === 'minor' && <Icon name="check" size={14} />}
+                    1-2 处有误
+                  </button>
+                  <button
+                    type="button"
+                    className={`ec-judge-btn is-many${currentLevel === 'many' ? ' is-selected' : ''}`}
+                    onClick={() => handleAssess('many')}
+                    aria-pressed={currentLevel === 'many'}
+                    title={ASSESSMENT_META.many.hint}
+                  >
+                    {currentLevel === 'many' && <Icon name="check" size={14} />}
+                    多处不懂
+                  </button>
                 </div>
               </div>
-              <button type="button" className="ec-footer-next" onClick={goNext}>
-                {isLastSentence ? '完成本篇' : '下一句'}
-                <Icon name={isLastSentence ? 'check' : 'arrowRight'} size={18} />
-              </button>
-            </div>
+            ) : (
+              <div className="ec-footer-inner">
+                <button
+                  type="button"
+                  className="ec-footer-prev"
+                  onClick={goPrev}
+                  disabled={inReview ? reviewSession?.pos === 0 : currentIdx === 0}
+                  aria-label="上一句"
+                >
+                  <Icon name="arrowLeft" size={20} />
+                </button>
+                <div className="ec-footer-mid">
+                  <div className="ec-footer-step">
+                    {inReview ? (
+                      <>
+                        复习 <b>{reviewProgress}</b> / {reviewStepsTotal} 步
+                      </>
+                    ) : (
+                      <>
+                        第 <b>{currentIdx + 1}</b> / {sentenceCount} 句
+                      </>
+                    )}
+                  </div>
+                  <div className="ec-footer-track">
+                    <i
+                      style={{
+                        width: inReview
+                          ? `${reviewStepsTotal ? (reviewProgress / reviewStepsTotal) * 100 : 0}%`
+                          : `${sentenceCount ? ((currentIdx + 1) / sentenceCount) * 100 : 0}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <button type="button" className="ec-footer-next" onClick={() => setRevealed(true)}>
+                  <Icon name="sparkles" size={17} />
+                  显示答案
+                </button>
+              </div>
+            )}
           </div>,
           document.body,
         )}
@@ -1630,6 +2232,13 @@ export default function EnglishCheckin() {
                       {sheetSaved ? '再次点击移出' : '点击重新加入'}
                     </span>
                   </button>
+
+                  {sheetSaved && (
+                    <p className="ec-review-note">
+                      <Icon name="refresh" size={13} />
+                      我们稍后会在「本篇生词 / 生词本」里复习这个词
+                    </p>
+                  )}
 
                   {activeTerm.isPhrase && activeTerm.related.length > 0 && (
                     <>
@@ -1734,6 +2343,7 @@ export default function EnglishCheckin() {
                   <div className="ec-list">
                     {dayData.sentences.map((item, i) => {
                       const done = readSet.has(i)
+                      const level = assessments.get(i)
                       const words = openedTerms.filter((t) => t.sentIdx === i).length
                       return (
                         <button
@@ -1750,6 +2360,11 @@ export default function EnglishCheckin() {
                                 className={`ec-status-dot${done ? ' is-done' : ''}${i === currentIdx ? ' is-current' : ''}`}
                               />
                               {done ? '已读' : '未读'} · 第 {i + 1} 句
+                              {level && (
+                                <span className={`ec-level-pill ec-list-level is-${level}`}>
+                                  {ASSESSMENT_META[level].label}
+                                </span>
+                              )}
                             </span>
                           </span>
                           <span className="ec-list-count">{words > 0 ? `${words} 词` : ''}</span>
@@ -1800,6 +2415,77 @@ export default function EnglishCheckin() {
                 </>
               )}
 
+              {activeSheet === 'review' && (
+                <>
+                  <p className="ec-sheet-eyebrow">跨篇复习</p>
+                  <h2 className="ec-sheet-title">待复习</h2>
+                  <p className="ec-sheet-sub">
+                    标为「全对」后自动移除 · 共 {reviewItems.length} 句
+                    {reviewMixWords > 0 ? ` · 穿插 ${reviewMixWords} 个生词` : ''}
+                  </p>
+                  {reviewItems.length === 0 ? (
+                    <p className="ec-about-p">
+                      还没有待复习的句子。精读时把没把握的句子标为「1-2 处有误」或「多处不懂」，它们会收进这里。
+                    </p>
+                  ) : (
+                    <div className="ec-review-groups">
+                      {reviewGroups.map(([day, items]) => (
+                        <div className="ec-review-group" key={day}>
+                          <p className="ec-review-day">
+                            Day {day}
+                            {checkins.has(day) ? ' · 已打卡' : ''}
+                          </p>
+                          {items.map((item) => (
+                            <button
+                              type="button"
+                              className="ec-review-item"
+                              key={`${item.day}-${item.sentIdx}`}
+                              onClick={() => openReviewItem(item)}
+                            >
+                              <span className={`ec-level-pill is-${item.level}`}>
+                                {ASSESSMENT_META[item.level].label}
+                              </span>
+                              <span className="ec-review-snippet">
+                                第 {item.sentIdx + 1} 句 · {sentenceSnippet(item.day, item.sentIdx)}
+                              </span>
+                              <Icon name="chevronRight" size={15} />
+                            </button>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="ec-sheet-actions">
+                    {reviewItems.length > 0 && (
+                      <button
+                        type="button"
+                        className="ec-primary"
+                        onClick={startReviewSession}
+                      >
+                        <Icon name="refresh" size={16} />
+                        {reviewMixWords > 0
+                          ? `开始综合复习（${reviewItems.length} 句 + ${reviewMixWords} 词）`
+                          : '从第 1 句开始复习'}
+                      </button>
+                    )}
+                    <button type="button" className="ec-ghost" onClick={closeSheet}>
+                      继续精读
+                    </button>
+                  </div>
+                  <div className="ec-about">
+                    <p className="ec-about-p">
+                      <b>怎么来的：</b>每句精读后选一档掌握程度，「1-2 处有误」「多处不懂」会自动进入待复习。
+                    </p>
+                    <p className="ec-about-p">
+                      <b>怎么清空：</b>回看时重新标为「全对」，这句就自动移出清单。
+                    </p>
+                    <p className="ec-about-p">
+                      <b>穿插生词：</b>复习时会从生词本抽取单词，和待复习句子交替出现。
+                    </p>
+                  </div>
+                </>
+              )}
+
               {activeSheet === 'plan' && (
                 <>
                   <p className="ec-sheet-eyebrow">{TOTAL} 天计划</p>
@@ -1821,6 +2507,12 @@ export default function EnglishCheckin() {
                       </b>
                       <span>本篇进度</span>
                     </div>
+                    <div className="ec-plan-stat">
+                      <b className={reviewItems.length > 0 ? 'ec-plan-review-num' : ''}>
+                        {reviewItems.length}
+                      </b>
+                      <span>待复习</span>
+                    </div>
                   </div>
 
                   <div className="ec-plan-grid">
@@ -1829,13 +2521,14 @@ export default function EnglishCheckin() {
                       const next = day === nextDay && !done
                       const read = allReadDays.has(day)
                       const selected = day === selectedDay
+                      const pending = pendingByDay.get(day) ?? 0
                       return (
                         <button
                           type="button"
                           key={day}
-                          className={`ec-day${done ? ' is-done' : ''}${next ? ' is-next' : ''}${read ? ' is-read' : ''}${selected ? ' is-selected' : ''}`}
+                          className={`ec-day${done ? ' is-done' : ''}${next ? ' is-next' : ''}${read ? ' is-read' : ''}${selected ? ' is-selected' : ''}${pending > 0 ? ' is-review' : ''}`}
                           onClick={() => pickDay(day)}
-                          title={`Day ${day}`}
+                          title={`Day ${day}${pending > 0 ? ` · ${pending} 句待复习` : ''}`}
                         >
                           {day}
                         </button>
@@ -1892,6 +2585,17 @@ export default function EnglishCheckin() {
                       </button>
                     )}
 
+                    {reviewItems.length > 0 && (
+                      <button
+                        type="button"
+                        className="ec-ghost is-review"
+                        onClick={() => openSheet('review')}
+                      >
+                        <Icon name="refresh" size={16} />
+                        查看待复习清单 · {reviewItems.length} 句
+                      </button>
+                    )}
+
                     <button type="button" className="ec-ghost" onClick={closeSheet}>
                       继续阅读
                     </button>
@@ -1903,6 +2607,9 @@ export default function EnglishCheckin() {
                     </p>
                     <p className="ec-about-p">
                       <b>精读进度：</b>读过的句子保存在本机，回到某一天会从第一句未读开始。
+                    </p>
+                    <p className="ec-about-p">
+                      <b>逐句自评：</b>每句看完答案后选一档掌握程度，没把握的句子会进入待复习，计划格里带橙点。
                     </p>
                     <p className="ec-about-p">
                       <b>即点即收：</b>点击虚线短语或任意单词，词条会自动进入生词本，无需等到打卡。

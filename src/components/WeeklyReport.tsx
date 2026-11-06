@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { differenceInCalendarDays, parseISO } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
 import type { DailyLog } from '../lib/dailyLogs'
 import { computeStreak } from '../lib/achievements'
@@ -21,10 +22,12 @@ const QUOTES = [
 
 interface Props {
   logs: DailyLog[]
+  /** 手机端精简：科目占比交给下方「科目分布」卡，报告只保留目标进度与关键数字 */
+  compact?: boolean
 }
 
 /** 本周学习报告：自动汇总本周表现，生成一段小结与加油话 */
-export default function WeeklyReport({ logs }: Props) {
+export default function WeeklyReport({ logs, compact = false }: Props) {
   const { user } = useAuth()
   const [weekTarget, setWeekTarget] = useState<number | null>(null)
 
@@ -72,7 +75,12 @@ export default function WeeklyReport({ logs }: Props) {
   }, [weekLogs])
 
   const streak = useMemo(() => computeStreak(logs.map((l) => l.date)), [logs])
-  const dailyAvg = stats.checkedDays > 0 ? stats.totalHours / 7 : 0
+  // 本周还没走完时按「已过天数」算日均，否则周一刚学 4 小时也会显示成 0.6h
+  const elapsedDays = useMemo(() => {
+    const passed = differenceInCalendarDays(new Date(), parseISO(weekStart)) + 1
+    return Math.min(7, Math.max(1, passed))
+  }, [weekStart])
+  const dailyAvg = stats.totalHours / elapsedDays
   const progress = weekTarget && weekTarget > 0 ? Math.min(100, (stats.totalHours / weekTarget) * 100) : 0
   const reached = weekTarget ? stats.totalHours >= weekTarget : null
 
@@ -85,7 +93,7 @@ export default function WeeklyReport({ logs }: Props) {
   const started = stats.totalHours > 0
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 p-4 text-white shadow-[0_8px_28px_-10px_rgba(79,70,229,0.5)] dark:shadow-none sm:p-5">
+    <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 via-indigo-600 to-violet-600 text-white shadow-[0_8px_28px_-10px_rgba(79,70,229,0.5)] dark:shadow-none ${compact ? 'p-4' : 'p-4 sm:p-5'}`}>
       <div aria-hidden className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-white/10 blur-xl" />
       <div aria-hidden className="pointer-events-none absolute -bottom-16 right-20 h-36 w-36 rounded-full bg-violet-300/20 blur-lg" />
 
@@ -136,12 +144,16 @@ export default function WeeklyReport({ logs }: Props) {
             {/* 小统计 */}
             <div className="mt-3 grid grid-cols-3 gap-2">
               <Stat label="打卡天数" value={`${stats.checkedDays} 天`} />
-              <Stat label="日均" value={`${dailyAvg.toFixed(1)}h`} />
+              <Stat
+                label="日均"
+                value={`${dailyAvg.toFixed(1)}h`}
+                sub={elapsedDays < 7 ? `已过 ${elapsedDays} 天` : undefined}
+              />
               <Stat label="最佳一天" value={stats.bestDay ? `${formatDateShort(stats.bestDay.date).slice(5)}` : '--'} sub={stats.bestDay ? `${stats.bestDay.hours.toFixed(1)}h` : undefined} />
             </div>
 
-            {/* 科目占比 */}
-            {stats.sortedSubjects.length > 0 && (
+            {/* 科目占比（手机端由下方「科目分布」卡承担，避免同一组数据出现两遍） */}
+            {!compact && stats.sortedSubjects.length > 0 && (
               <div className="mt-3 space-y-1.5">
                 {stats.sortedSubjects.map((s) => {
                   const subject = getSubjectById(s.id)

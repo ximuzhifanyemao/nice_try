@@ -34,6 +34,7 @@ const Settings = lazy(() => import('./pages/Settings'))
 const WeeklySummary = lazy(() => import('./pages/WeeklySummary'))
 const QrLogin = lazy(() => import('./pages/QrLogin'))
 const ScanQr = lazy(() => import('./pages/ScanQr'))
+const Download = lazy(() => import('./pages/Download'))
 
 /** 首页布局上下文：桌面端「全部功能」全功能模式下强制双栏布局 */
 export const HomeLayoutContext = createContext<{ twoCol: boolean; wide: boolean }>({ twoCol: false, wide: false })
@@ -258,6 +259,8 @@ export default function App({
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/qr-login" element={<QrLogin />} />
+          {/* 公开下载落地页：分享图二维码扫码后打开，无需登录 */}
+          <Route path="/download" element={<Download />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/my-records" element={<MyRecords />} />
             <Route path="/profile" element={<Profile />} />

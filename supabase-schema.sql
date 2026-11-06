@@ -1332,3 +1332,43 @@ REVOKE ALL ON FUNCTION public.settle_expired_commitments_all() FROM PUBLIC;
 -- 可选：Supabase 控制台『Database → Extensions』先启用 pg_cron，再执行下行启用周一定时：
 -- CREATE EXTENSION IF NOT EXISTS pg_cron;
 -- SELECT cron.schedule('settle-commitments-monday', '0 5 * * 1', $$SELECT public.settle_expired_commitments_all()$$);
+
+-- ============================================
+-- 二十二、英语长难句逐句自评云端同步
+--  表 english_assessments：每句一行自评（全对/1-2 处有误/多处不懂），按用户隔离。
+--  非 full 的句子即「待复习」；重新标 full 是更新而非删除，故无需 DELETE 策略。
+--  冲突合并按 updated_at 新者胜（前端 upsert 时显式写入客户端时间戳）。
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.english_assessments (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  day INT NOT NULL CHECK (day >= 1 AND day <= 150),
+  sent_idx INT NOT NULL CHECK (sent_idx >= 0),
+  level TEXT NOT NULL CHECK (level IN ('full', 'minor', 'many')),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 同一用户对同一句 (day, sent_idx) 只有一条自评（upsert by onConflict: user_id,day,sent_idx）
+CREATE UNIQUE INDEX IF NOT EXISTS uq_english_assessments_pos
+  ON public.english_assessments(user_id, day, sent_idx);
+
+ALTER TABLE public.english_assessments ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Users can read own english assessments" ON public.english_assessments;
+CREATE POLICY "Users can read own english assessments"
+  ON public.english_assessments FOR SELECT
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can insert own english assessments" ON public.english_assessments;
+CREATE POLICY "Users can insert own english assessments"
+  ON public.english_assessments FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can update own english assessments" ON public.english_assessments;
+CREATE POLICY "Users can update own english assessments"
+  ON public.english_assessments FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, UPDATE ON public.english_assessments TO authenticated;

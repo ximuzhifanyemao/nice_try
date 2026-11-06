@@ -14,7 +14,7 @@ interface BarRowProps {
 
 function BarRow({ name, hours, color, pct }: BarRowProps) {
   return (
-    <div style={{ marginTop: 34 }}>
+    <div style={{ marginTop: 24 }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 30, color: '#e0e7ff', fontWeight: 600 }}>{name}</span>
         <span style={{ fontSize: 30, color: '#ffffff', fontWeight: 700 }}>{hours} h</span>
@@ -120,7 +120,7 @@ export default function ShareCard({ data }: { data: ShareCardData }) {
       >
         <div style={{ flex: 1, textAlign: 'center' }}>
           <div style={{ fontSize: 72, fontWeight: 800, lineHeight: 1 }}>{total}</div>
-          <div style={{ marginTop: 10, fontSize: 24, color: '#c7d2fe' }}>本周总时长（h）</div>
+          <div style={{ marginTop: 10, fontSize: 24, color: '#c7d2fe' }}>{data.totalLabel ?? '本周总时长（h）'}</div>
         </div>
         <div
           style={{
@@ -130,15 +130,15 @@ export default function ShareCard({ data }: { data: ShareCardData }) {
           }}
         />
         <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: 72, fontWeight: 800, lineHeight: 1 }}>{data.checkedDays}</div>
-          <div style={{ marginTop: 10, fontSize: 24, color: '#c7d2fe' }}>打卡天数（天）</div>
+          <div style={{ fontSize: 72, fontWeight: 800, lineHeight: 1 }}>{data.secondaryValue ?? data.checkedDays}</div>
+          <div style={{ marginTop: 10, fontSize: 24, color: '#c7d2fe' }}>{data.secondaryLabel ?? '打卡天数（天）'}</div>
         </div>
       </div>
 
       {/* 科目时长分布 */}
-      <div style={{ position: 'relative', marginTop: 48 }}>
+      <div style={{ position: 'relative', marginTop: 40 }}>
         <div style={{ fontSize: 32, fontWeight: 700, color: '#f5f3ff' }}>各科目学习时长</div>
-        <div style={{ marginTop: 6, fontSize: 22, color: '#a5b4fc' }}>本周投入分布</div>
+        <div style={{ marginTop: 6, fontSize: 22, color: '#a5b4fc' }}>{data.distributionLabel ?? '本周投入分布'}</div>
         {data.subjects.length === 0 ? (
           <div style={{ marginTop: 32, fontSize: 26, color: '#c7d2fe' }}>本周暂无科目记录</div>
         ) : (
@@ -146,45 +146,64 @@ export default function ShareCard({ data }: { data: ShareCardData }) {
         )}
       </div>
 
-      {/* 格言脚注 + 品牌脚标 */}
+      {/* 底部：格言 + 扫码下载 */}
       <div
         style={{
           position: 'absolute',
           left: 64,
           right: 64,
           bottom: 56,
-          paddingTop: 28,
           borderTop: '2px solid rgba(255,255,255,0.18)',
+          paddingTop: 26,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 32,
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            fontSize: 28,
-            color: '#e0e7ff',
-            fontStyle: 'italic',
-            lineHeight: 1.5,
-          }}
-        >
-          <span style={{ fontSize: 34, marginRight: 12, color: '#a5b4fc' }}>“</span>
-          {data.motto}
-          <span style={{ fontSize: 34, marginLeft: 12, color: '#a5b4fc' }}>”</span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              fontSize: 28,
+              color: '#e0e7ff',
+              fontStyle: 'italic',
+              lineHeight: 1.5,
+            }}
+          >
+            <span style={{ fontSize: 34, marginRight: 12, color: '#a5b4fc' }}>“</span>
+            {data.motto}
+            <span style={{ fontSize: 34, marginLeft: 12, color: '#a5b4fc' }}>”</span>
+          </div>
+          <div
+            style={{
+              marginTop: 20,
+              fontSize: 24,
+              fontWeight: 700,
+              letterSpacing: 2,
+              color: '#c7d2fe',
+            }}
+          >
+            DiveDeep · 考研学习打卡
+          </div>
         </div>
-        <div
-          style={{
-            marginTop: 24,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'flex-end',
-            fontSize: 26,
-            fontWeight: 700,
-            letterSpacing: 2,
-            color: '#c7d2fe',
-          }}
-        >
-          DiveDeep
-        </div>
+
+        {/* 扫码下载：白底二维码保证在任意屏幕/打印环境下都能识别 */}
+        {data.qrDataUrl && (
+          <div style={{ width: 196, flexShrink: 0, textAlign: 'center' }}>
+            <div style={{ background: '#ffffff', borderRadius: 18, padding: 10 }}>
+              <img
+                src={data.qrDataUrl}
+                alt=""
+                width={176}
+                height={176}
+                style={{ display: 'block', width: 176, height: 176, borderRadius: 8 }}
+              />
+            </div>
+            <div style={{ marginTop: 10, fontSize: 21, fontWeight: 600, color: '#e0e7ff' }}>扫码下载 App</div>
+            <div style={{ marginTop: 2, fontSize: 18, color: '#a5b4fc' }}>一起打卡上岸</div>
+          </div>
+        )}
       </div>
     </div>
   )
