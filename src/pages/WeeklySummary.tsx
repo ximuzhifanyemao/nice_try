@@ -294,7 +294,7 @@ const WeeklySummary: React.FC = () => {
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const { sharing, share, shareNode } = useShareCard()
+  const { sharing, share } = useShareCard()
 
   const currentWeekStart = getWeekStartStr()
   const isCurrentWeek = weekStart === currentWeekStart
@@ -635,9 +635,6 @@ const WeeklySummary: React.FC = () => {
         </div>
         </>
       )}
-
-      {/* 分享图渲染容器：固定尺寸、移到视口外，截图完成后即卸载 */}
-      {shareNode}
     </div>
   )
 }

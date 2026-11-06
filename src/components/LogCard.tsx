@@ -87,7 +87,7 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
   const totalHours = log.subjects?.reduce((sum, s) => sum + (s.hours || 0), 0) ?? 0
 
   // 单日分享：与周报共用 useShareCard，只是指标换成「当日时长 / 科目数」
-  const { sharing, share, shareNode } = useShareCard()
+  const { sharing, share } = useShareCard()
 
   const handleShare = () => {
     if (sharing) return
@@ -283,9 +283,6 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
         }}
         onCancel={() => setConfirmOverwrite(false)}
       />
-
-      {/* 分享图渲染容器：固定尺寸、移到视口外，截图完成后即卸载 */}
-      {shareNode}
     </div>
   )
 }
