@@ -5,8 +5,6 @@ import { formatActivityLabel, formatSubjectLabel, getSubjectById } from '../lib/
 import { getChipColor } from '../lib/colors'
 import { formatDateShort, formatTimeRange } from '../lib/format'
 import { useToast } from '../lib/Toast'
-import { useShareCard } from '../lib/useShareCard'
-import { mergeShareSubjects, pickMotto, subjectCategoryColor } from '../lib/shareCard'
 import DayTimeline from './DayTimeline'
 import ConfirmDialog from './ConfirmDialog'
 import { Icon } from './Icon'
@@ -18,10 +16,8 @@ interface LogCardProps {
   onDelete: () => void
   /** 总结保存成功后的回调（父组件刷新列表） */
   onSummarySaved?: () => void
-  /** 多选分享模式：卡片显示选择圈，隐藏单条分享按钮 */
-  selectMode?: boolean
-  selected?: boolean
-  onToggleSelect?: () => void
+  /** 打开分享弹窗（日 / 周 / 月 + 总计 / 时间轴） */
+  onShare?: () => void
 }
 
 function LogCard({
@@ -30,9 +26,7 @@ function LogCard({
   onEdit,
   onDelete,
   onSummarySaved,
-  selectMode = false,
-  selected = false,
-  onToggleSelect,
+  onShare,
 }: LogCardProps) {
   const toast = useToast()
   const [editingSummary, setEditingSummary] = useState(false)
@@ -99,77 +93,22 @@ function LogCard({
 
   const totalHours = log.subjects?.reduce((sum, s) => sum + (s.hours || 0), 0) ?? 0
 
-  // 单日分享：与周报共用 useShareCard，只是指标换成「当日时长 / 科目数」
-  const { sharing, share } = useShareCard()
-
-  const handleShare = () => {
-    if (sharing) return
-    if (totalHours <= 0) {
-      toast.show('有学习记录才能生成分享图', { icon: '×' })
-      return
-    }
-    const subjectRows = (log.subjects ?? [])
-      .filter((s) => s.hours > 0)
-      .sort((a, b) => b.hours - a.hours)
-      .map((s) => {
-        const subject = getSubjectById(s.id)
-        return {
-          name: formatSubjectLabel(subject),
-          hours: s.hours,
-          color: subjectCategoryColor(subject?.category),
-        }
-      })
-    void share({
-      title: '今日学习记录',
-      dateLabel: formattedDate,
-      totalHours: Math.round(totalHours * 10) / 10,
-      checkedDays: 0,
-      secondaryValue: subjectRows.length,
-      secondaryLabel: '学习科目（个）',
-      totalLabel: '当日总时长（h）',
-      distributionLabel: '今日投入分布',
-      subjects: mergeShareSubjects(subjectRows),
-      motto: pickMotto(log.date),
-    })
-  }
-
   return (
-    <div
-      className={`card-hover p-5 space-y-3 ${
-        selectMode && selected ? 'ring-2 ring-indigo-500/70 dark:ring-indigo-400/70' : ''
-      }`}
-    >
+    <div className="card-hover p-5 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex min-w-0 items-center gap-2">
-          {selectMode && (
-            <button
-              type="button"
-              onClick={onToggleSelect}
-              aria-pressed={selected}
-              aria-label={selected ? '取消选择该记录' : '选择该记录'}
-              title={selected ? '取消选择' : '选择该记录'}
-              className={`flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors ${
-                selected
-                  ? 'border-indigo-600 bg-indigo-600 text-white dark:border-indigo-400 dark:bg-indigo-400 dark:text-slate-900'
-                  : 'border-gray-300 bg-white text-transparent hover:border-indigo-400 dark:border-slate-600 dark:bg-slate-800'
-              }`}
-            >
-              <Icon name="check" size={14} />
-            </button>
-          )}
           <h3 className="truncate text-lg font-semibold text-gray-900 dark:text-slate-100">{formattedDate}</h3>
         </div>
         <div className="flex items-center gap-2">
-          {isOwner && !selectMode && (
+          {isOwner && onShare && (
             <button
               type="button"
-              onClick={handleShare}
-              disabled={sharing}
-              title="生成分享图（含下载二维码）"
-              className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
+              onClick={onShare}
+              title="生成分享图（可选总计或时间轴）"
+              className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
             >
-              <Icon name={sharing ? 'refresh' : 'share'} size={12} className={sharing ? 'animate-spin' : undefined} />
-              {sharing ? '生成中' : '分享'}
+              <Icon name="share" size={12} />
+              分享
             </button>
           )}
           {totalHours > 0 && (

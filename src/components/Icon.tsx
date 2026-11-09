@@ -46,6 +46,7 @@ export type IconName =
   | 'hand' // 精读：读懂这句话
   | 'sparkles' // 精读：领会意思 / 显示答案
   | 'share' // 分享
+  | 'scan' // 扫码登录电脑
   | 'monitor' // 桌面端（Windows 安装包）
   | 'globe' // 网页版
   | 'github' // 开源仓库
@@ -328,6 +329,15 @@ const PATHS: Record<IconName, ReactNode> = {
       <circle cx="18" cy="19" r="3" />
       <path d="m8.6 13.6 6.8 3.8" />
       <path d="m15.4 6.6-6.8 3.8" />
+    </>
+  ),
+  scan: (
+    <>
+      <path d="M4 8V5a1 1 0 0 1 1-1h3" />
+      <path d="M16 4h3a1 1 0 0 1 1 1v3" />
+      <path d="M20 16v3a1 1 0 0 1-1 1h-3" />
+      <path d="M8 20H5a1 1 0 0 1-1-1v-3" />
+      <path d="M4 12h16" />
     </>
   ),
 }

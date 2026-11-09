@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { useToast } from './Toast'
-import { downloadPng, renderShareCardPng, savePng, sharePngNative, type ShareCardData } from './shareCard'
+import { downloadPng, renderShareCardPng, savePng, sharePngNative, type ShareCardPayload } from './shareCard'
 
 /**
  * 分享图导出流程（周报 / 日报共用）：
@@ -13,7 +13,7 @@ export function useShareCard() {
   const busyRef = useRef(false)
 
   const share = useCallback(
-    async (data: ShareCardData) => {
+    async (data: ShareCardPayload) => {
       if (busyRef.current) return
       busyRef.current = true
       setSharing(true)

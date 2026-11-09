@@ -19,13 +19,7 @@ import {
 import { getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
 import { Icon } from '../components/Icon'
-import { useShareCard } from '../lib/useShareCard'
-import {
-  pickMotto,
-  subjectCategoryColor,
-  mergeShareSubjects,
-  type ShareCardSubject,
-} from '../lib/shareCard'
+import ShareDialog from '../components/ShareDialog'
 
 /** 数值展示：保留 1 位小数，整数省略小数位 */
 function fmtNum(n: number): string {
@@ -294,7 +288,7 @@ const WeeklySummary: React.FC = () => {
   const [draft, setDraft] = useState('')
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
-  const { sharing, share } = useShareCard()
+  const [shareOpen, setShareOpen] = useState(false)
 
   const currentWeekStart = getWeekStartStr()
   const isCurrentWeek = weekStart === currentWeekStart
@@ -373,32 +367,6 @@ const WeeklySummary: React.FC = () => {
     setEditing(false)
   }
 
-  // 点击「分享」：校验数据充足 → 交给 useShareCard 渲染、截图并按平台导出/分享
-  const handleShare = async () => {
-    if (sharing) return
-    if (thisWeek.totalHours <= 0) {
-      toast.show('有学习记录才能生成分享图', { icon: '×' })
-      return
-    }
-    const sorted: ShareCardSubject[] = comparison.subjectDiffs
-      .filter((d) => d.thisWeekHours > 0)
-      .sort((a, b) => b.thisWeekHours - a.thisWeekHours)
-      .map((d) => ({
-        name: d.name,
-        hours: d.thisWeekHours,
-        color: subjectCategoryColor(getSubjectById(d.subjectId)?.category),
-      }))
-    await share({
-      title: '本周学习总结',
-      dateLabel,
-      totalHours: thisWeek.totalHours,
-      checkedDays: thisWeek.checkedDays,
-      // 科目过多时合并成「其他 N 科」，避免超出卡片高度压到底部二维码
-      subjects: mergeShareSubjects(sorted),
-      motto: pickMotto(weekStart),
-    })
-  }
-
   const { thisWeek, lastWeek, totalHoursDiff, checkedDaysDiff, avgDailyDiff } = comparison
   const thisWeekHasNoData = thisWeek.totalHours === 0 && lastWeek.totalHours === 0
   const hasLastWeek = lastWeek.totalHours > 0
@@ -409,13 +377,12 @@ const WeeklySummary: React.FC = () => {
         <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">每周总结</h1>
         <button
           type="button"
-          onClick={handleShare}
-          disabled={sharing}
-          title="生成分享图（含下载二维码）"
-          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-slate-700 cursor-pointer"
+          onClick={() => setShareOpen(true)}
+          title="选择总计或逐日生成分享图"
+          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 cursor-pointer"
         >
-          <Icon name={sharing ? 'refresh' : 'download'} size={16} className={sharing ? 'animate-spin' : ''} />
-          {sharing ? '生成中…' : '分享'}
+          <Icon name="share" size={16} />
+          分享
         </button>
       </div>
 
@@ -635,6 +602,15 @@ const WeeklySummary: React.FC = () => {
         </div>
         </>
       )}
+
+      <ShareDialog
+        open={shareOpen}
+        logs={logs}
+        initialMode="week"
+        initialDate={weekStart}
+        initialView="summary"
+        onClose={() => setShareOpen(false)}
+      />
     </div>
   )
 }

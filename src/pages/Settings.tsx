@@ -401,7 +401,8 @@ export default function Settings() {
             </div>
           </div>
 
-          {/* 简洁模式方向：横向胶囊条 / 竖向窄条（宽度自动匹配左侧任务栏） */}
+          {/* 简洁模式方向：仅桌面挂件需要；手机 App / 手机网页不渲染 */}
+          {isDesktop && (
           <div className="card p-4">
             <p className="text-sm font-medium text-gray-800 dark:text-slate-100">简洁模式方向</p>
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
@@ -442,6 +443,7 @@ export default function Settings() {
               切换后回到简洁模式即按新方向显示；竖向宽度会按当前显示器左侧任务栏的厚度自动取值。
             </p>
           </div>
+          )}
           </>
           )}
 

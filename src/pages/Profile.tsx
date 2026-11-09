@@ -463,6 +463,17 @@ export default function Profile() {
           </div>
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {user && (
+            <button
+              type="button"
+              onClick={() => navigate('/scan-qr')}
+              title="扫码登录电脑"
+              aria-label="扫码登录电脑"
+              className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:border-indigo-300 hover:text-indigo-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:border-indigo-500/40 dark:hover:text-indigo-300"
+            >
+              <Icon name="scan" size={17} />
+            </button>
+          )}
           {createdAt && <Chip icon="calendar">注册于 {createdAt}</Chip>}
           <Chip icon={user ? 'check' : 'alert'} tone={user ? 'emerald' : 'indigo'}>
             {user ? '已登录 · 云端同步可用' : '未登录'}
@@ -473,17 +484,6 @@ export default function Profile() {
       <div className="space-y-4">
         {/* ── 学习目标：手机端「我的」是二级功能索引页，这组入口只在这里出现 ── */}
         <div className="space-y-4">
-          <SettingsSection title="政治" desc="2027 考研政治知识点手册">
-            <SettingRow
-              to="/politics"
-              icon={<Icon name="landmark" size={17} />}
-              tint={TINT.red}
-              label="考研政治一页纸"
-              desc="100 条核心考点 · 检索 / 背诵 / 史纲时轴"
-              last
-            />
-          </SettingsSection>
-
           <SettingsSection title="学习目标" desc="计划、积累与复盘">
             <SettingRow
               to="/goal"
@@ -595,24 +595,6 @@ export default function Profile() {
                   选择文件
                 </button>
               }
-              last
-            />
-          </SettingsSection>
-
-          <SettingsSection title="设备" desc="多端协同">
-            <SettingRow
-              to="/scan-qr"
-              icon={<Icon name="smartphone" size={17} />}
-              tint={TINT.sky}
-              label="扫码登录电脑"
-              desc="手机上扫电脑屏幕的二维码，一键在电脑端登录"
-            />
-            <SettingRow
-              to="/timer"
-              icon={<Icon name="clock" size={17} />}
-              tint={TINT.indigo}
-              label="计时器"
-              desc="正计时 / 番茄钟，桌面端可切换为置顶小挂件"
             />
             <SettingRow
               to="/trash"
