@@ -561,10 +561,16 @@ export async function startPreview() {
 
   installTauriStubs()
   mark('stubbed')
-  const [{ default: WidgetApp, CompactShell, FullModeShell }, { AuthProvider }, { ToastProvider }] = await Promise.all([
+  const [
+    { default: WidgetApp, CompactShell, FullModeShell },
+    { AuthProvider },
+    { ToastProvider },
+    { default: WebApp },
+  ] = await Promise.all([
     import('../widget/WidgetApp'),
     import('../contexts/AuthContext'),
     import('../lib/Toast'),
+    import('../App'),
   ])
   mark('imported')
 
@@ -582,6 +588,7 @@ export async function startPreview() {
    * （外壳组件是被动接收 dropdownOpen 的，跑不到那段逻辑）。
    */
   function DesktopPreview() {
+    if (view === 'web') return <WebApp />
     if (view === 'full') return <FullModeShell onToggleMode={() => {}} />
     if (view === 'widget' || view === 'widget-dropdown') return <WidgetApp />
     return (

@@ -51,6 +51,10 @@ export type IconName =
   | 'globe' // 网页版
   | 'github' // 开源仓库
   | 'landmark' // 政治（殿堂/知识点手册）
+  | 'search' // 搜索
+  | 'shuffle' // 随机抽背
+  | 'cards' // 背诵卡组
+  | 'history' // 史纲时间轴
 
 const PATHS: Record<IconName, ReactNode> = {
   home: (
@@ -76,6 +80,30 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M3 21h18" />
       <path d="M5 21V10M9.5 21V10M14.5 21V10M19 21V10" />
       <path d="m12 3 8.5 5h-17z" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m16 16 4 4" />
+    </>
+  ),
+  shuffle: (
+    <>
+      <path d="M3 7h4l10 10h4M17 7h4M3 17h4l3-3M14 7h7M18 14l3 3-3 3M18 4l3 3-3 3" />
+    </>
+  ),
+  cards: (
+    <>
+      <rect x="3" y="6" width="13" height="15" rx="2" />
+      <path d="M8 3h13v15" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M3 12a9 9 0 1 0 3-6.7" />
+      <path d="M3 4v5h5" />
+      <path d="M12 8v5l3 2" />
     </>
   ),
   globe: (

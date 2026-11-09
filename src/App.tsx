@@ -213,8 +213,15 @@ function BackButtonHandler() {
   useEffect(() => {
     if (!Capacitor.isNativePlatform()) return
     const handler = CapacitorApp.addListener('backButton', () => {
+      const hash = window.location.hash
+      // 政治一页纸：系统返回键与页内「返回」保持一致，直接回首页；
+      // 用 replace 避免首页再按一次返回又被送回政治页
+      if (hash.startsWith('#/politics')) {
+        navigate('/', { replace: true })
+        return
+      }
       // 如果当前页面不是首页，则导航回退；否则最小化应用
-      if (window.location.hash !== '#/') {
+      if (hash !== '#/') {
         navigate(-1)
       } else {
         CapacitorApp.minimizeApp()

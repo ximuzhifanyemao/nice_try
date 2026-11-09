@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-/** 政治一页纸的学习进度（与 iframe 内 onepaper.state.v1 的进度字段一一对应） */
+/** 政治一页纸的学习进度（与本机 onepaper.state.v1 的进度字段一一对应） */
 export interface PoliticsProgress {
   /** 已掌握考点编号 */
   mastered: number[]

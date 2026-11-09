@@ -1,161 +1,501 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { Capacitor } from '@capacitor/core'
-import { isTauri } from '@tauri-apps/api/core'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useToast } from '../lib/Toast'
+import { Icon } from '../components/Icon'
+import OverviewPage from '../components/politics/OverviewPage'
+import LibraryPage from '../components/politics/LibraryPage'
+import RecitePage, { type ReciteRequest } from '../components/politics/RecitePage'
+import HistoryPage from '../components/politics/HistoryPage'
+import MePage from '../components/politics/MePage'
+import ItemDrawer from '../components/politics/ItemDrawer'
+import SearchModal from '../components/politics/SearchModal'
+import {
+  DEFAULT_FILTERS,
+  POLITICS_BY_NO,
+  POLITICS_ITEMS,
+  POLITICS_NAV,
+  POLITICS_PAGE_NAME,
+  POLITICS_STAGES,
+  catLabel,
+  dateKey,
+  filterItems,
+  loadPoliticsState,
+  savePoliticsState,
+  type PoliticsFilters,
+  type PoliticsFontSize,
+  type PoliticsItem,
+  type PoliticsLocalState,
+  type PoliticsPageKey,
+  type PoliticsRecitePrefs,
+} from '../lib/politics'
 import {
   fetchPoliticsProgress,
   mergePoliticsProgress,
-  sanitizePoliticsProgress,
   savePoliticsProgress,
-  type PoliticsProgress,
 } from '../lib/politicsProgress'
+import './politics.css'
 
-/** App 内（桌面程序 / 手机 APK）不走网页端登录门禁，一页纸保持免登录可用 */
-const NATIVE_APP = Capacitor.isNativePlatform() || isTauri()
+/** 阅读字号 → 正文字号缩放（只作用于知识点正文） */
+const FONT_SCALE: Record<PoliticsFontSize, number> = { sm: 0.92, md: 1, lg: 1.12 }
 
-/** 一页纸静态页面地址：放在 public/politics 下，三端（网页 / 桌面 / APK）共用同一份资源 */
-const POLITICS_URL = `${import.meta.env.BASE_URL}politics/index.html?native=${NATIVE_APP ? '1' : '0'}`
-
-/** 进度变化后延迟落库，合并连续勾选，避免每次点击都打一次请求 */
-const SAVE_DEBOUNCE_MS = 800
+/** 进度落库防抖：连续勾选合并成一次请求 */
+const CLOUD_SAVE_DEBOUNCE_MS = 800
 
 /**
  * 考研政治「一页纸」。
  *
- * 内容与交互（知识库检索、背诵卡、收藏标记、史纲时间轴）完全复用原版单文件应用，
- * 这里只负责把它全屏承载，并和页内通过 postMessage 通信：
- * - 返回：页内「返回」按钮通知父页面回退；
- * - 进度同步：登录后把本机进度与云端进度取并集，再回灌给页内；之后页内每次保存都防抖写入数据库。
- * 用 portal + fixed 铺满整屏，避免被应用外壳（侧边栏 / 底部 Tab / 页面缩放容器）裁切。
+ * 原单文件版（public/politics）已完整原生化：
+ * - 100 个考点 / 33 场会议的数据在 src/data/politics.json；
+ * - 概览、知识库、背诵、史纲、我的都是应用内的正常 React 页面，
+ *   使用应用自身的侧边栏 / 底部 Tab，不再是全屏 iframe；
+ * - 页头「返回」永远直接回首页，而不是退回上一页；
+ * - 学习进度沿用本机 localStorage（onepaper.state.v1），登录后与 Supabase 取并集同步。
  */
 export default function Politics() {
   const navigate = useNavigate()
-  const location = useLocation()
   const { user } = useAuth()
+  const { show } = useToast()
   const userId = user?.id ?? null
-  const frameRef = useRef<HTMLIFrameElement>(null)
-  /** 云端进度预取结果（ready 消息早于请求返回时用 Promise 兜底） */
-  const remoteRef = useRef<PoliticsProgress | null>(null)
-  const remotePromiseRef = useRef<Promise<PoliticsProgress | null> | null>(null)
-  /** 尚未落库的最新进度 */
-  const latestRef = useRef<PoliticsProgress | null>(null)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const handshakeDoneRef = useRef(false)
-  /** 保存时取当前登录用户，避免组件卸载后 user 已变化 */
-  const userIdRef = useRef<string | null>(null)
-  userIdRef.current = userId
+  const pageRef = useRef<HTMLDivElement>(null)
 
-  const flushSave = useCallback(() => {
-    if (saveTimerRef.current !== null) {
-      clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = null
-    }
-    const uid = userIdRef.current
-    const progress = latestRef.current
-    if (!uid || !progress) return
-    latestRef.current = null
-    void savePoliticsProgress(uid, progress)
+  const [page, setPage] = useState<PoliticsPageKey>('home')
+  const [state, setState] = useState<PoliticsLocalState>(() => loadPoliticsState())
+  const [filters, setFilters] = useState<PoliticsFilters>(DEFAULT_FILTERS)
+  const [drawerNo, setDrawerNo] = useState<number | null>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [historyTab, setHistoryTab] = useState<'timeline' | 'meetings'>('timeline')
+  const [stage, setStage] = useState<string | null>(null)
+  const [reciteRequest, setReciteRequest] = useState<ReciteRequest | null>(null)
+  /** 云端首轮合并完成前不写云，避免用本机旧数据覆盖另一台设备的进度 */
+  const [cloudReady, setCloudReady] = useState(!userId)
+
+  /* 首次进入记一次访问（连续学习天数） */
+  useEffect(() => {
+    setState((prev) => {
+      const today = dateKey()
+      if (prev.visits.includes(today)) return prev
+      return { ...prev, visits: [...prev.visits, today].slice(-180) }
+    })
   }, [])
 
-  const scheduleSave = useCallback(
-    (progress: PoliticsProgress) => {
-      latestRef.current = progress
-      if (saveTimerRef.current !== null) clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = setTimeout(() => {
-        saveTimerRef.current = null
-        flushSave()
-      }, SAVE_DEBOUNCE_MS)
-    },
-    [flushSave],
-  )
-
-  /** 登录用户变化：预取云端进度并重置握手状态 */
+  /* 本机持久化 */
   useEffect(() => {
-    remoteRef.current = null
-    remotePromiseRef.current = null
-    latestRef.current = null
-    handshakeDoneRef.current = false
-    if (!userId) return
+    savePoliticsState(state)
+  }, [state])
+
+  /* 登录用户：先把云端进度与本机取并集，再回写云端 */
+  useEffect(() => {
+    if (!userId) {
+      setCloudReady(true)
+      return
+    }
     let cancelled = false
-    const promise = fetchPoliticsProgress(userId)
-    remotePromiseRef.current = promise
-    void promise.then((progress) => {
-      if (!cancelled) remoteRef.current = progress
-    })
+    setCloudReady(false)
+    void (async () => {
+      const remote = await fetchPoliticsProgress(userId)
+      if (cancelled) return
+      setState((prev) => {
+        const merged = mergePoliticsProgress(remote, prev)
+        return {
+          ...prev,
+          mastered: merged.mastered.filter((no) => POLITICS_BY_NO.has(no)),
+          saved: merged.saved.filter((no) => POLITICS_BY_NO.has(no)),
+          review: merged.review.filter((no) => POLITICS_BY_NO.has(no)),
+          visits: merged.visits,
+          last: merged.last != null && POLITICS_BY_NO.has(merged.last) ? merged.last : null,
+        }
+      })
+      setCloudReady(true)
+    })()
     return () => {
       cancelled = true
-      remotePromiseRef.current = null
     }
   }, [userId])
 
-  /** 卸载时把还在防抖窗口里的进度补写一次，避免快速退出丢最后一次勾选 */
+  /* 进度变化后防抖落库 */
   useEffect(() => {
-    return () => {
-      flushSave()
-    }
-  }, [flushSave])
+    if (!userId || !cloudReady) return
+    const timer = setTimeout(() => {
+      void savePoliticsProgress(userId, state)
+    }, CLOUD_SAVE_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+  }, [state, userId, cloudReady])
 
+  /* 切页时把内容滚回顶部（兼容桌面端内容列自身的滚动容器） */
   useEffect(() => {
-    const onMessage = async (event: MessageEvent) => {
-      // 用消息来源窗口校验，而不是 origin：Tauri/Capacitor 的自定义协议下
-      // origin 可能是 null，按 origin 比较会让页内「返回」按钮失效
-      const frame = frameRef.current
-      if (!frame || event.source !== frame.contentWindow) return
-      const data = event.data as { type?: string; progress?: unknown } | null
-      const type = data?.type
-      if (!type) return
-
-      if (type === 'kaoyan:politics-back') {
-        // 直接打开 /politics（无来源页）时回首页，否则退回上一页
-        if (location.key === 'default') navigate('/')
-        else navigate(-1)
+    let el: HTMLElement | null = pageRef.current?.parentElement ?? null
+    while (el) {
+      const style = window.getComputedStyle(el)
+      if (/(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight) {
+        el.scrollTo({ top: 0, behavior: 'smooth' })
         return
       }
+      el = el.parentElement
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [page])
 
-      // 未登录（原生 App 可免登录使用）：不接云端，进度只留本机
-      if (!userId) return
+  /* 离开背诵页就清掉一次性的开局请求，避免下次回到背诵页又自动开一轮 */
+  useEffect(() => {
+    if (page !== 'recite' && reciteRequest) setReciteRequest(null)
+  }, [page, reciteRequest])
 
-      if (type === 'kaoyan:politics-ready') {
-        if (handshakeDoneRef.current) return
-        handshakeDoneRef.current = true
-        const local = sanitizePoliticsProgress(data.progress)
-        // 云端可能还在请求中：优先用已返回的结果，否则等这次请求
-        const remote = remoteRef.current ?? (await remotePromiseRef.current)
-        const merged = mergePoliticsProgress(remote, local)
-        latestRef.current = merged
-        frame.contentWindow?.postMessage({ type: 'kaoyan:politics-hydrate', progress: merged }, '*')
-        void savePoliticsProgress(userId, merged)
-        return
+  const toggleMastered = useCallback(
+    (no: number) => {
+      const mastered = state.mastered.includes(no)
+      show(mastered ? '已取消掌握' : '已标记掌握')
+      setState((prev) =>
+        mastered
+          ? { ...prev, mastered: prev.mastered.filter((n) => n !== no) }
+          : {
+              ...prev,
+              mastered: Array.from(new Set([...prev.mastered, no])).sort((a, b) => a - b),
+              review: prev.review.filter((n) => n !== no),
+            },
+      )
+    },
+    [show, state.mastered],
+  )
+
+  const toggleSave = useCallback(
+    (no: number) => {
+      const saved = state.saved.includes(no)
+      show(saved ? '已取消收藏' : '已收藏')
+      setState((prev) =>
+        saved
+          ? { ...prev, saved: prev.saved.filter((n) => n !== no) }
+          : { ...prev, saved: Array.from(new Set([...prev.saved, no])).sort((a, b) => a - b) },
+      )
+    },
+    [show, state.saved],
+  )
+
+  /** 背诵自评：记住 → 掌握并移出待复习；没记住 → 进待复习并取消掌握 */
+  const rateCard = useCallback((no: number, known: boolean) => {
+    setState((prev) => {
+      if (known) {
+        return {
+          ...prev,
+          mastered: Array.from(new Set([...prev.mastered, no])).sort((a, b) => a - b),
+          review: prev.review.filter((n) => n !== no),
+          last: no,
+        }
       }
+      return {
+        ...prev,
+        mastered: prev.mastered.filter((n) => n !== no),
+        review: Array.from(new Set([...prev.review, no])).sort((a, b) => a - b),
+        last: no,
+      }
+    })
+  }, [])
 
-      if (type === 'kaoyan:politics-progress') {
-        scheduleSave(sanitizePoliticsProgress(data.progress))
+  const openItem = useCallback((no: number) => {
+    if (!POLITICS_BY_NO.has(no)) return
+    setDrawerNo(no)
+    setSearchOpen(false)
+    setConfirmReset(false)
+    setState((prev) => (prev.last === no ? prev : { ...prev, last: no }))
+  }, [])
+
+  const closeLayers = useCallback(() => {
+    setDrawerNo(null)
+    setSearchOpen(false)
+    setConfirmReset(false)
+  }, [])
+
+  const goPage = useCallback((target: PoliticsPageKey) => {
+    setPage(target)
+    closeLayers()
+  }, [closeLayers])
+
+  const requestRecite = useCallback((scope: string, shuffle?: boolean) => {
+    setReciteRequest({ scope, nonce: Date.now(), shuffle })
+    setPage('recite')
+    setDrawerNo(null)
+    setSearchOpen(false)
+  }, [])
+
+  const openCategory = useCallback((cat: string) => {
+    setFilters({ cat, group: '全部', status: 'all', q: '' })
+    setPage('library')
+    closeLayers()
+  }, [closeLayers])
+
+  const openGroup = useCallback((cat: string, group: string) => {
+    setFilters({ cat, group, status: 'all', q: '' })
+    setPage('library')
+    closeLayers()
+  }, [closeLayers])
+
+  const openStatus = useCallback((status: PoliticsFilters['status']) => {
+    setFilters({ cat: '全部', group: '全部', status, q: '' })
+    setPage('library')
+    closeLayers()
+  }, [closeLayers])
+
+  const setPrefs = useCallback((patch: Partial<PoliticsRecitePrefs>) => {
+    setState((prev) => ({ ...prev, recite: { ...prev.recite, ...patch } }))
+  }, [])
+
+  const resetLearning = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      mastered: [],
+      saved: [],
+      review: [],
+      last: null,
+      visits: [dateKey()],
+    }))
+    setConfirmReset(false)
+    show('学习数据已清空')
+  }, [show])
+
+  const copyItem = useCallback(
+    async (item: PoliticsItem) => {
+      const text = `${item.title}\n${catLabel(item)}\n\n${item.plain}`
+      try {
+        await navigator.clipboard.writeText(text)
+        show('已复制考点内容')
+      } catch {
+        const ta = document.createElement('textarea')
+        ta.value = text
+        ta.style.position = 'fixed'
+        ta.style.opacity = '0'
+        document.body.appendChild(ta)
+        ta.select()
+        try {
+          document.execCommand('copy')
+          show('已复制考点内容')
+        } catch {
+          show('复制失败，请手动选择')
+        }
+        ta.remove()
+      }
+    },
+    [show],
+  )
+
+  /** 详情抽屉的上一条 / 下一条范围：知识库跟随筛选，史纲跟随阶段，其余按全量 */
+  const drawerOrder = useMemo(() => {
+    if (page === 'library') return filterItems(filters, state)
+    if (page === 'history' && stage) {
+      const stageInfo = POLITICS_STAGES.find((s) => s.id === stage)
+      if (stageInfo) {
+        return stageInfo.items
+          .map((no) => POLITICS_BY_NO.get(no))
+          .filter((v): v is PoliticsItem => !!v)
       }
     }
-    window.addEventListener('message', onMessage)
-    return () => window.removeEventListener('message', onMessage)
-  }, [navigate, location.key, userId, scheduleSave])
+    return POLITICS_ITEMS
+  }, [filters, page, stage, state])
 
-  /** iframe 脚本就绪后再要一次本机进度：避免父页面监听器尚未挂载时消息丢失 */
-  const handleFrameLoad = () => {
-    if (!userId) return
-    handshakeDoneRef.current = false
-    frameRef.current?.contentWindow?.postMessage({ type: 'kaoyan:politics-request-state' }, '*')
-  }
+  /* 键盘：/ 打开搜索，Esc 关闭弹层，左右键在详情里翻页 */
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      const typing =
+        !!target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
 
-  return createPortal(
-    <div className="fixed inset-0 z-[70] bg-[#f4efe6] dark:bg-[#15120f]">
-      <iframe
-        ref={frameRef}
-        src={POLITICS_URL}
-        title="2027 考研政治一页纸"
-        className="h-full w-full border-0"
-        allow="clipboard-write"
-        onLoad={handleFrameLoad}
+      if (e.key === '/' && !typing) {
+        e.preventDefault()
+        setDrawerNo(null)
+        setSearchOpen(true)
+        return
+      }
+      if (e.key === 'Escape') {
+        if (confirmReset) setConfirmReset(false)
+        else if (searchOpen) setSearchOpen(false)
+        else if (drawerNo != null) setDrawerNo(null)
+        return
+      }
+      if (drawerNo != null && !searchOpen && !typing && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        const idx = drawerOrder.findIndex((item) => item.no === drawerNo)
+        if (idx < 0) return
+        const next = e.key === 'ArrowLeft' ? idx - 1 : idx + 1
+        if (next >= 0 && next < drawerOrder.length) openItem(drawerOrder[next].no)
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [confirmReset, drawerNo, drawerOrder, openItem, searchOpen])
+
+  const pageStyle = { '--read-scale': String(FONT_SCALE[state.font]) } as CSSProperties
+
+  return (
+    <div ref={pageRef} className="pp-root pp-page" style={pageStyle}>
+      <header className="pp-head">
+        <div className="pp-head-inner">
+          <button type="button" className="back-app" onClick={() => navigate('/')} aria-label="返回首页">
+            <Icon name="arrowLeft" size={15} />
+            <span>返回</span>
+          </button>
+          <div className="pp-brand">
+            <span className="brand-seal">一页</span>
+            <div className="pp-brand-text">
+              <b>一页纸</b>
+              <small>2027 · 考研政治</small>
+            </div>
+          </div>
+          <div className="pp-head-actions">
+            <button
+              type="button"
+              className="search-trigger"
+              aria-label="搜索知识点"
+              onClick={() => {
+                setDrawerNo(null)
+                setSearchOpen(true)
+              }}
+            >
+              <Icon name="search" size={16} />
+              <span>搜索考点、关键词</span>
+              <kbd>/</kbd>
+            </button>
+            <button
+              type="button"
+              className="icon-btn mobile-search"
+              aria-label="搜索知识点"
+              onClick={() => {
+                setDrawerNo(null)
+                setSearchOpen(true)
+              }}
+            >
+              <Icon name="search" size={17} />
+            </button>
+          </div>
+        </div>
+        <nav className="pp-tabs" aria-label="一页纸分区">
+          {POLITICS_NAV.map((item) => (
+            <button
+              key={item.page}
+              type="button"
+              className={`pp-tab${page === item.page ? ' active' : ''}`}
+              aria-current={page === item.page ? 'page' : undefined}
+              title={POLITICS_PAGE_NAME[item.page]}
+              onClick={() => goPage(item.page)}
+            >
+              <Icon name={item.icon} size={15} />
+              <span>{item.label}</span>
+              {item.page === 'recite' && state.review.length > 0 && (
+                <span className="pp-tab-badge">{state.review.length > 99 ? '99+' : state.review.length}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </header>
+
+      <main className="pp-main">
+        {page === 'home' && (
+          <OverviewPage
+            state={state}
+            onOpenItem={openItem}
+            onNav={goPage}
+            onSelectCategory={openCategory}
+            onOpenSearch={() => setSearchOpen(true)}
+            onRandomRecite={() => requestRecite('all', true)}
+            onHistoryMeetings={() => {
+              setHistoryTab('meetings')
+              goPage('history')
+            }}
+          />
+        )}
+        {page === 'library' && (
+          <LibraryPage
+            state={state}
+            filters={filters}
+            onFiltersChange={(patch) => setFilters((prev) => ({ ...prev, ...patch }))}
+            onOpenItem={openItem}
+            onToggleMastered={toggleMastered}
+            onToggleSave={toggleSave}
+          />
+        )}
+        {page === 'recite' && (
+          <RecitePage
+            state={state}
+            request={reciteRequest}
+            onRate={rateCard}
+            onPrefs={setPrefs}
+            onNav={goPage}
+          />
+        )}
+        {page === 'history' && (
+          <HistoryPage
+            tab={historyTab}
+            onTabChange={setHistoryTab}
+            stage={stage}
+            onStageChange={setStage}
+            onOpenItem={openItem}
+            onOpenCategory={openCategory}
+            onOpenGroup={openGroup}
+          />
+        )}
+        {page === 'me' && (
+          <MePage
+            state={state}
+            onOpenItem={openItem}
+            onOpenStatus={openStatus}
+            onStartReview={() => requestRecite('review')}
+            onSetFont={(font) => setState((prev) => ({ ...prev, font }))}
+            onRequestReset={() => setConfirmReset(true)}
+          />
+        )}
+      </main>
+
+      <ItemDrawer
+        no={drawerNo}
+        state={state}
+        order={drawerOrder}
+        onClose={() => setDrawerNo(null)}
+        onOpenItem={openItem}
+        onToggleMastered={toggleMastered}
+        onToggleSave={toggleSave}
+        onCopy={(item) => void copyItem(item)}
+        onOpenTimeline={() => {
+          setDrawerNo(null)
+          setHistoryTab('timeline')
+          setPage('history')
+        }}
       />
-    </div>,
-    document.body,
+
+      {searchOpen && (
+        <SearchModal
+          last={state.last}
+          onClose={() => setSearchOpen(false)}
+          onOpenItem={(no) => {
+            setSearchOpen(false)
+            openItem(no)
+          }}
+        />
+      )}
+
+      {confirmReset &&
+        createPortal(
+          <div className="pp-root pp-layer">
+            <div className="layer-backdrop" onClick={() => setConfirmReset(false)} />
+            <div className="confirm-modal" role="dialog" aria-modal="true" aria-label="确认清空">
+              <h2>清空学习数据？</h2>
+              <p>
+                会清除已掌握、收藏、待复习、最近浏览和连续学习记录。字号设置会保留。这个操作不能撤销。
+              </p>
+              <div className="confirm-actions">
+                <button type="button" className="btn-ghost" onClick={() => setConfirmReset(false)}>
+                  取消
+                </button>
+                <button type="button" className="btn-primary confirm-danger" onClick={resetLearning}>
+                  确认清空
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
   )
 }
