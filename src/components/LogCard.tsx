@@ -177,11 +177,6 @@ function LogCard({
               今日 {totalHours.toFixed(2)}h
             </span>
           )}
-          {isOwner && !(log.summary ?? '').trim() && (
-            <span className="text-xs bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300 px-2 py-0.5 rounded-full">
-              未写总结
-            </span>
-          )}
         </div>
       </div>
 
@@ -235,7 +230,7 @@ function LogCard({
       {isOwner && !editingSummary && (
         <div className="flex items-center justify-between pt-2 border-t border-gray-50 dark:border-slate-700">
           <span className="text-xs text-gray-400 dark:text-slate-500">
-            {hasSummary ? '学习总结' : '未写总结'}
+            {hasSummary ? '学习总结' : ''}
           </span>
           <button
             type="button"

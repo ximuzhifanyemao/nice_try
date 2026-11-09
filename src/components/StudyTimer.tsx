@@ -901,7 +901,7 @@ export default function StudyTimer() {
         key={subj.id}
         onClick={handleSubjectClick}
         disabled={isDisabled}
-        className={`relative flex w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left transition-colors ${
+        className={`relative flex w-full items-center gap-1.5 rounded-lg border px-2 py-1.5 text-left transition-colors sm:gap-2 sm:px-2.5 ${
           isDisabled ? 'cursor-not-allowed' : 'cursor-pointer'
         } ${subjectRowTone(isDisabled ? 'disabled' : isSelected ? 'active' : 'normal')}`}
       >
@@ -912,10 +912,10 @@ export default function StudyTimer() {
           />
         )}
         <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${getDotColor(getSubjectById(subj.id)?.category)}`} aria-hidden="true" />
-        <span className="truncate text-[13px] font-medium">{subj.name}</span>
+        <span className="truncate text-[12px] font-medium sm:text-[13px]">{subj.name}</span>
         {isActive && activeActivity && <span className="shrink-0 text-[11px] opacity-75">· {formatActivityLabel(activeActivity)}</span>}
         {subjectTotal(subj.id) > 0 && (
-          <span className="ml-auto shrink-0 text-[11px] font-medium tabular-nums opacity-70">
+          <span className="ml-auto hidden shrink-0 text-[11px] font-medium tabular-nums opacity-70 sm:inline">
             {formatDurationShort(subjectTotal(subj.id))}
           </span>
         )}
@@ -1004,7 +1004,7 @@ export default function StudyTimer() {
                       <span className="h-px flex-1 bg-slate-100 dark:bg-slate-800/80" aria-hidden="true" />
                     </p>
                   )}
-                  <div className="grid grid-cols-2 gap-1.5 sm:gap-2">{subs.map(renderSubjectButton)}</div>
+                  <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-2 sm:gap-2">{subs.map(renderSubjectButton)}</div>
                 </div>
               )
             })}
@@ -1033,7 +1033,7 @@ export default function StudyTimer() {
                   )}
                 </button>
                 {show408 && (
-                  <div className="mt-1 grid grid-cols-2 gap-1.5 border-l-2 border-gray-100 pl-3 sm:gap-2 dark:border-slate-700">
+                  <div className="mt-1 grid grid-cols-3 gap-1.5 border-l-0 pl-0 sm:grid-cols-2 sm:gap-2 sm:border-l-2 sm:border-gray-100 sm:pl-3 dark:sm:border-slate-700">
                     {subs.map(renderSubjectButton)}
                   </div>
                 )}

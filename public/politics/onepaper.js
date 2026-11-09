@@ -182,13 +182,71 @@
   let recite = null;
   let toastTimer = null;
 
+  /* =========================================================
+     与 DiveDeep 父页面的进度桥
+     进度仍以本机 localStorage 为准；被嵌入时把学习进度同步给父页面，
+     由父页面（已登录）写入 Supabase，并在打开时把云端并集回灌到这里。
+     ========================================================= */
+  const EMBEDDED = !!window.parent && window.parent !== window;
+  let progressBridgeReady = false;
+
+  /** 只同步学习进度，不同步 theme/font/recite 等设备外观偏好 */
+  function progressSnapshot() {
+    return {
+      mastered: S.mastered.slice(),
+      saved: S.saved.slice(),
+      review: S.review.slice(),
+      visits: S.visits.slice(),
+      last: typeof S.last === "number" ? S.last : null,
+    };
+  }
+
+  function postToParent(type, payload) {
+    if (!EMBEDDED) return;
+    try {
+      window.parent.postMessage({ type: type, ...(payload || {}) }, "*");
+    } catch (e) {
+      /* 父页面不可达时忽略，本机进度不受影响 */
+    }
+  }
+
+  /** 用父页面合并后的进度覆盖本机进度 */
+  function applyProgress(progress) {
+    if (!progress || typeof progress !== "object") return;
+    S.mastered = Array.isArray(progress.mastered) ? progress.mastered.filter((n) => BY_NO.has(n)) : S.mastered;
+    S.saved = Array.isArray(progress.saved) ? progress.saved.filter((n) => BY_NO.has(n)) : S.saved;
+    S.review = Array.isArray(progress.review) ? progress.review.filter((n) => BY_NO.has(n)) : S.review;
+    if (Array.isArray(progress.visits)) {
+      S.visits = progress.visits.filter((d) => typeof d === "string" && d).slice(-180);
+    }
+    if (typeof progress.last === "number" && BY_NO.has(progress.last)) S.last = progress.last;
+    else if (progress.last === null) S.last = null;
+  }
+
   function saveState() {
     try {
       localStorage.setItem(KEY, JSON.stringify(S));
     } catch (e) {
       /* private mode or quota exceeded — keep running in memory */
     }
+    if (progressBridgeReady) postToParent("kaoyan:politics-progress", { progress: progressSnapshot() });
   }
+
+  window.addEventListener("message", (event) => {
+    if (!EMBEDDED || event.source !== window.parent) return;
+    const data = event.data;
+    if (!data || typeof data !== "object") return;
+    if (data.type === "kaoyan:politics-request-state") {
+      postToParent("kaoyan:politics-ready", { progress: progressSnapshot() });
+      return;
+    }
+    if (data.type === "kaoyan:politics-hydrate") {
+      applyProgress(data.progress);
+      progressBridgeReady = true;
+      saveState();
+      render();
+    }
+  });
 
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));

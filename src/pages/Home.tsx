@@ -270,7 +270,7 @@ export default function Home() {
           </div>
         </div>
       ) : (
-        /* ===== 移动/网页模式：按「每天第一眼最想看的」重排 —— 今日状态 → 倒计时 → 待办 → 日历 → 英语/快捷置底 ===== */
+        /* ===== 移动/网页模式：今日状态 → 倒计时 → 日历 → 政治/英语 → 快捷入口 → 待办 ===== */
         <>
           {/* ① 今日状态：打卡提醒 + 连续打卡 / 本周进度（并排紧凑） */}
           {user && <CheckinReminderCard {...reminderProps} />}
@@ -279,18 +279,20 @@ export default function Home() {
           {/* ② 倒计时 + 阶段 + 今日时长 / 打卡天数 / 去打卡 */}
           <CountdownPanel size="normal" {...countdownProps} />
 
-          {/* ③ 待办事项清单（未完成任务） */}
-          <TodoList />
-
-          {/* ④ 政治一页纸（公开资料，未登录也可用；放在日历前保证一屏内可见） */}
-          <PoliticsEntry />
-
-          {/* ⑤ 日历 */}
+          {/* ③ 日历 */}
           <Calendar logs={logs} loading={loading} />
 
-          {/* ⑥ 英语打卡 / 生词本 / 每周总结（次要，置底） */}
+          {/* ④ 政治一页纸（公开资料，未登录也可用） */}
+          <PoliticsEntry />
+
+          {/* ⑤ 英语打卡 */}
           {user && <EnglishCheckinEntry size="normal" checkinCount={checkinCount} />}
+
+          {/* ⑥ 生词本 / 每周总结（次要） */}
           {user && <QuickLinksRow />}
+
+          {/* ⑦ 待办事项清单（放在首页最下方） */}
+          <TodoList />
         </>
       )}
     </div>

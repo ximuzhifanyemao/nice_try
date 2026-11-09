@@ -372,7 +372,7 @@ export default function Settings() {
           <div className="card p-4">
             <p className="text-sm font-medium text-gray-800 dark:text-slate-100">显示模式</p>
             <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-              纸墨 / 墨夜为「一页纸」书页配色（暖纸 + 朱砂），晨光 / 暮色 / 午夜繁星为渐变背景风格；强调色随主题整体联动
+              纸墨为「一页纸」书页配色（暖纸 + 朱砂），晨光 / 暮色 / 午夜繁星为渐变背景风格；强调色随主题整体联动
             </p>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {THEMES.map((t) => (

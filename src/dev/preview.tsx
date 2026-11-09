@@ -17,7 +17,7 @@
  *                                                     验证竖向窗口尺寸，不自动展开下拉）
  *   http://localhost:5173/?preview=1&view=dropdown    科目下拉面板（叠 &pomo=1 看番茄钟模式）
  *   http://localhost:5173/?preview=1&view=full        全部功能窗口
- * 可叠加 &theme=paper|ink|dark|light|dawn|dusk|starry 切换主题、&running=1 摆出「计时中」态。
+ * 可叠加 &theme=paper|dark|light|dawn|dusk|starry 切换主题、&running=1 摆出「计时中」态。
  *
  * 该文件不参与生产打包（入口在 main.tsx 里按 import.meta.env.DEV 动态引入）。
  */
@@ -39,7 +39,7 @@ const MODE_KEY = 'kaoyan_widget_mode'
 const TIMER_MODE_KEY = 'kaoyan_timer_mode'
 const THEME_KEY = 'app_theme'
 
-const VALID_THEMES: ThemeMode[] = ['light', 'paper', 'dark', 'ink', 'dawn', 'dusk', 'starry']
+const VALID_THEMES: ThemeMode[] = ['light', 'paper', 'dark', 'dawn', 'dusk', 'starry']
 
 declare global {
   interface Window {

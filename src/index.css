@@ -79,15 +79,14 @@ html[data-theme='starry'] {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   纸墨 / 墨夜：源自《2027 考研政治一页纸》的书页配色
+   纸墨：源自《2027 考研政治一页纸》的书页配色
    暖纸底 + 朱砂主色 + 金棕点缀。这里直接覆盖 Tailwind 的色阶变量，
    全站既有的 bg-indigo-600 / text-slate-500 等工具类会自动换成纸墨色系，
    不需要逐个组件改类名。
    ═══════════════════════════════════════════════════════════ */
 
-/* 暖中性色：50 最浅、950 最深，与 Tailwind 中性阶方向一致 */
-html[data-theme='paper'],
-html[data-theme='ink'] {
+/* 纸墨：暖纸底 + 朱砂 */
+html[data-theme='paper'] {
   --color-white: #fffcf6;
 
   --color-gray-50: #f4efe6;
@@ -332,119 +331,6 @@ html[data-theme='paper'] {
   --color-text-muted: #8b7d6e;
 }
 
-/* 墨夜：墨底 + 朱砂，深色下把强调色整体提亮 */
-html[data-theme='ink'] {
-  color-scheme: dark;
-  --color-surface: #1e1a16;
-  --color-surface-muted: #241f1a;
-  --color-border: #342c25;
-  --color-brand: #c95745;
-  --color-brand-strong: #e17969;
-  --color-text: #f2eadf;
-  --color-text-muted: #9e8f7d;
-
-  /* 朱砂提亮（深色背景上保持可读） */
-  --color-indigo-50: #2c1916;
-  --color-indigo-100: #3a201b;
-  --color-indigo-200: #522a23;
-  --color-indigo-300: #f0a397;
-  --color-indigo-400: #e17969;
-  --color-indigo-500: #d56858;
-  --color-indigo-600: #c95745;
-  --color-indigo-700: #b84534;
-  --color-indigo-800: #97382a;
-  --color-indigo-900: #762b21;
-  --color-indigo-950: #4a1a14;
-
-  --color-blue-50: #15212e;
-  --color-blue-100: #1a2b3b;
-  --color-blue-200: #22384e;
-  --color-blue-300: #91b7e9;
-  --color-blue-400: #7ba3d4;
-  --color-blue-500: #6592c2;
-  --color-blue-600: #4f7cae;
-  --color-blue-700: #3e6796;
-  --color-blue-800: #315278;
-  --color-blue-900: #243d5b;
-  --color-blue-950: #14253a;
-
-  --color-violet-50: #221a2e;
-  --color-violet-100: #2a203a;
-  --color-violet-200: #392b4e;
-  --color-violet-300: #b99be0;
-  --color-violet-400: #a385c3;
-  --color-violet-500: #8d6cae;
-  --color-violet-600: #765698;
-  --color-violet-700: #61477f;
-  --color-violet-800: #4c3864;
-  --color-violet-900: #372948;
-  --color-violet-950: #21182c;
-
-  --color-emerald-50: #16251c;
-  --color-emerald-100: #1b2c21;
-  --color-emerald-200: #234030;
-  --color-emerald-300: #87c4a4;
-  --color-emerald-400: #6faf8d;
-  --color-emerald-500: #5a9a78;
-  --color-emerald-600: #478560;
-  --color-emerald-700: #3a6e4f;
-  --color-emerald-800: #2e5940;
-  --color-emerald-900: #224331;
-  --color-emerald-950: #12271b;
-
-  --color-amber-50: #2b2115;
-  --color-amber-100: #352818;
-  --color-amber-200: #49371f;
-  --color-amber-300: #d2a26a;
-  --color-amber-400: #c18b45;
-  --color-amber-500: #ad7838;
-  --color-amber-600: #96672f;
-  --color-amber-700: #7c5527;
-  --color-amber-800: #64441f;
-  --color-amber-900: #4d3518;
-  --color-amber-950: #30200e;
-
-  --color-red-50: #2e1715;
-  --color-red-100: #3a1b18;
-  --color-red-200: #4f241f;
-  --color-red-300: #f08d83;
-  --color-red-400: #e17969;
-  --color-red-500: #cf655a;
-  --color-red-600: #b95446;
-  --color-red-700: #9c443a;
-  --color-red-800: #7f372f;
-  --color-red-900: #612a24;
-  --color-red-950: #3a1713;
-
-  --color-rose-50: #2c1816;
-  --color-rose-100: #371d1a;
-  --color-rose-200: #4a2621;
-  --color-rose-300: #e59d94;
-  --color-rose-400: #d4877d;
-  --color-rose-500: #c17368;
-  --color-rose-600: #a95c52;
-  --color-rose-700: #8d4a42;
-  --color-rose-800: #713b34;
-  --color-rose-900: #572e29;
-  --color-rose-950: #341b17;
-
-  --color-orange-50: #2b2015;
-  --color-orange-100: #352718;
-  --color-orange-200: #49351f;
-  --color-orange-300: #e0a46d;
-  --color-orange-400: #cf8d4f;
-  --color-orange-500: #b97432;
-  --color-orange-600: #a26228;
-  --color-orange-700: #865020;
-  --color-orange-800: #6c3f1a;
-  --color-orange-900: #533014;
-  --color-orange-950: #331d0c;
-
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02), 0 8px 24px -14px rgba(0, 0, 0, 0.55);
-  --shadow-card-hover: 0 2px 4px rgba(255, 255, 255, 0.02), 0 12px 32px -16px rgba(225, 121, 105, 0.3);
-  --shadow-glow: 0 4px 18px -6px rgba(225, 121, 105, 0.35);
-}
-
 /* ─── 全局基础 ─── */
 html {
   -webkit-text-size-adjust: 100%;
@@ -481,19 +367,12 @@ html[data-theme='dusk'] .theme-surface {
   background-attachment: fixed;
 }
 
-/* 纸墨 / 墨夜：在语义底色上叠一层极淡的纸面细点，避免大面积纯色的塑料感 */
+/* 纸墨：在语义底色上叠一层极淡的纸面细点，避免大面积纯色的塑料感 */
 html[data-theme='paper'] body {
   background-color: #f4efe6;
 }
-html[data-theme='ink'] body {
-  background-color: #15120f;
-}
 html[data-theme='paper'] .theme-surface {
   background-image: radial-gradient(rgba(116, 92, 59, 0.05) 0.9px, transparent 0.9px);
-  background-size: 9px 9px;
-}
-html[data-theme='ink'] .theme-surface {
-  background-image: radial-gradient(rgba(255, 235, 205, 0.028) 0.9px, transparent 0.9px);
   background-size: 9px 9px;
 }
 
@@ -757,22 +636,15 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   }
 }
 /* ═══════════════════════════════════════════════════════════
-   纸墨 / 墨夜：把写死在样式里的靛蓝/石板灰细节也换成纸墨色
+   纸墨：把写死在样式里的靛蓝/石板灰细节也换成纸墨色
    ═══════════════════════════════════════════════════════════ */
 html[data-theme='paper'] ::selection {
   background: rgba(166, 52, 42, 0.2);
   color: #2b2521;
 }
-html[data-theme='ink'] ::selection {
-  background: rgba(225, 121, 105, 0.3);
-  color: #f2eadf;
-}
 
 html[data-theme='paper'] :focus-visible:not(input):not(textarea):not(select) {
   outline-color: rgba(166, 52, 42, 0.5);
-}
-html[data-theme='ink'] :focus-visible:not(input):not(textarea):not(select) {
-  outline-color: rgba(225, 121, 105, 0.6);
 }
 
 html[data-theme='paper'] ::-webkit-scrollbar-thumb {
@@ -785,21 +657,8 @@ html[data-theme='paper'] ::-webkit-scrollbar-thumb:hover {
   background-clip: content-box;
   border: 2px solid transparent;
 }
-html[data-theme='ink'] ::-webkit-scrollbar-thumb {
-  background: #3b3229;
-  background-clip: content-box;
-  border: 2px solid transparent;
-}
-html[data-theme='ink'] ::-webkit-scrollbar-thumb:hover {
-  background: #55483b;
-  background-clip: content-box;
-  border: 2px solid transparent;
-}
 
 /* 主按钮悬停光晕：靛蓝 → 朱砂 */
 html[data-theme='paper'] .btn-primary:hover:not(:disabled) {
   box-shadow: 0 4px 16px -6px rgba(166, 52, 42, 0.55);
-}
-html[data-theme='ink'] .btn-primary:hover:not(:disabled) {
-  box-shadow: 0 4px 16px -6px rgba(225, 121, 105, 0.4);
 }

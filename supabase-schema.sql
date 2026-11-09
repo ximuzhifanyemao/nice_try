@@ -1372,3 +1372,35 @@ CREATE POLICY "Users can update own english assessments"
   WITH CHECK (auth.uid() = user_id);
 
 GRANT SELECT, INSERT, UPDATE ON public.english_assessments TO authenticated;
+
+-- ============================================
+-- 二十三、政治一页纸学习进度云端同步
+--  表 politics_progress：每个用户一行，state 存 mastered/saved/review/visits/last。
+--  前端打开政治页时把云端进度与本机进度取并集，之后防抖 upsert 回云端。
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS public.politics_progress (
+  user_id    UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  state      JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.politics_progress ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "politics_progress_select_own" ON public.politics_progress;
+CREATE POLICY "politics_progress_select_own"
+  ON public.politics_progress FOR SELECT
+  USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "politics_progress_insert_own" ON public.politics_progress;
+CREATE POLICY "politics_progress_insert_own"
+  ON public.politics_progress FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "politics_progress_update_own" ON public.politics_progress;
+CREATE POLICY "politics_progress_update_own"
+  ON public.politics_progress FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+GRANT SELECT, INSERT, UPDATE ON public.politics_progress TO authenticated;

@@ -5,8 +5,7 @@ import { useToast } from '../lib/Toast'
 import LogForm from '../components/LogForm'
 import { getAvailableSubjects } from '../lib/subjects'
 import type { DailyLogInput } from '../lib/dailyLogs'
-import { createLog, fetchLogBeforeDate, isDuplicateDateError, todayStr } from '../lib/dailyLogs'
-import { formatDateCn } from '../lib/format'
+import { createLog, isDuplicateDateError } from '../lib/dailyLogs'
 import { useWideLayout } from '../App'
 
 export default function NewRecord() {
@@ -19,15 +18,6 @@ export default function NewRecord() {
   const handleSubmit = async (data: DailyLogInput) => {
     if (!user) return
     try {
-      // 打卡门槛：提交今日记录前，最近一个有记录的日子必须已写总结（未写则先去补交）
-      if (data.date === todayStr()) {
-        const prev = await fetchLogBeforeDate(user.id, todayStr())
-        if (prev && !(prev.summary ?? '').trim()) {
-          toast.show(`请先在「记录」页补写 ${formatDateCn(prev.date)} 的学习总结，才能提交今日记录`, { icon: '⚠️' })
-          navigate('/my-records')
-          return
-        }
-      }
       await createLog(user.id, data)
       refetch()
       navigate('/my-records')

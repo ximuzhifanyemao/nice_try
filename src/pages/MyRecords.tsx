@@ -109,7 +109,6 @@ export default function MyRecords() {
   // 「今日」状态只在查看本周时才有意义（往周没有今天这一说）
   const todayLog = isCurrentWeek ? (logs.find((l) => l.date === today) ?? null) : null
   const hasTodayLog = !!todayLog
-  const todayMissing = !!todayLog && !(todayLog.summary ?? '').trim()
 
   const handleDelete = useCallback(async (logId: string) => {
     try {
@@ -529,22 +528,6 @@ export default function MyRecords() {
               <SettingRow icon={<Icon name="clock" size={17} />} tint={TINT.indigo} label="学习时长" meta={`${totalHours.toFixed(1)} h`} />
               <SettingRow icon={<Icon name="calendar" size={17} />} tint={TINT.emerald} label="打卡天数" meta={`${checkedDays} 天`} last />
             </SettingsSection>
-
-            {todayLog && (
-              <SettingsSection title="今日总结" desc={todayMissing ? '未填写' : '已完成'}>
-                <SettingRow
-                  icon={<Icon name={todayMissing ? 'alert' : 'check'} size={17} />}
-                  tint={todayMissing ? TINT.amber : TINT.emerald}
-                  label={todayMissing ? '今日总结未写' : '今日打卡完成'}
-                  desc={
-                    todayMissing
-                      ? '记录已提交，请在今日记录中补写总结'
-                      : '今天的总结已填写'
-                  }
-                  last
-                />
-              </SettingsSection>
-            )}
           </div>
 
           {/* 右栏：本周记录列表 */}
@@ -593,26 +576,6 @@ export default function MyRecords() {
       <div className="space-y-4">
         {/* 周次切换：把列表范围限制在一周内 */}
         <WeekSwitcher weekStart={weekStart} onChange={changeWeek} />
-
-        {/* 今日总结状态（仅本周视图） */}
-        {todayLog && (
-          <div
-            className={`rounded-xl shadow-sm border px-5 py-4 ${
-              todayMissing
-                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
-                : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
-            }`}
-          >
-            <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">
-              {todayMissing ? '今日总结未写' : '今日打卡完成 ✓'}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-              {todayMissing
-                ? '今天的学习记录已提交，请在下方的今日记录中补写总结'
-                : '今天的总结已填写'}
-            </p>
-          </div>
-        )}
 
         {recordsList}
       </div>

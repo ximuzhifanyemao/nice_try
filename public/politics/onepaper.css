@@ -8,6 +8,7 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", sans-serif;
   --font-num: "Georgia", "Times New Roman", "Songti SC", serif;
   --read-scale: 1;
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -336,22 +337,29 @@ body.has-layer .main { overflow: hidden; }
   letter-spacing: .15em;
 }
 .topbar-actions { display: flex; align-items: center; gap: 8px; }
-/* 嵌入 DiveDeep 时的返回入口：与页面内的圆形图标按钮同一套视觉 */
+/* 嵌入 DiveDeep 时的返回入口：朱砂实心胶囊，保证在顶栏里一眼可见 */
 .back-app {
   display: flex;
   align-items: center;
   gap: 5px;
-  height: 34px;
+  height: 36px;
   flex: 0 0 auto;
-  padding: 0 12px;
-  border: 1px solid var(--line);
+  padding: 0 13px 0 11px;
+  border: 1px solid var(--accent);
   border-radius: 999px;
-  background: var(--surface);
-  color: var(--ink-soft);
-  font-size: 12px;
-  transition: background .18s ease, color .18s ease, border-color .18s ease;
+  background: var(--accent);
+  color: #fff8ef;
+  font-size: 12.5px;
+  font-weight: 600;
+  box-shadow: 0 6px 16px -10px rgba(127, 36, 29, .8);
+  transition: background .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
 }
-.back-app:hover { border-color: var(--line-strong); color: var(--ink); background: var(--surface-2); }
+.back-app:hover {
+  background: var(--accent-deep);
+  border-color: var(--accent-deep);
+  color: #fff8ef;
+  box-shadow: 0 8px 20px -10px rgba(127, 36, 29, .9);
+}
 .back-app svg { width: 15px; height: 15px; }
 .search-trigger {
   display: flex;
@@ -2317,15 +2325,24 @@ mark {
 
 @media (max-width: 959px) {
   .sidebar { display: none; }
-  .topbar { height: 58px; flex-basis: 58px; padding: 0 16px; }
-  .topbar-brand-mobile { display: block; }
+  .topbar {
+    height: calc(58px + var(--safe-top));
+    flex-basis: calc(58px + var(--safe-top));
+    padding: var(--safe-top) 16px 0;
+  }
+  .topbar-brand-mobile { display: none; }
   .topbar-sub { display: none; }
   .topbar-title { font-size: 16px; }
   .search-trigger { display: none; }
   .mobile-search { display: grid; }
-  /* 窄屏空间有限：返回按钮收成圆形图标，文字只在桌面显示 */
-  .back-app { width: 36px; height: 36px; padding: 0; justify-content: center; border-radius: 50%; }
-  .back-app span { display: none; }
+  /* 窄屏同样保留文字：返回按钮是离开本页的主要入口，不能弱化成普通图标 */
+  .back-app {
+    width: auto;
+    height: 38px;
+    padding: 0 13px 0 11px;
+    justify-content: center;
+    border-radius: 999px;
+  }
   .main { padding: 22px 16px calc(92px + var(--safe-bottom)); }
   .bottom-nav {
     position: fixed;

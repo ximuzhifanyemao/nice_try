@@ -1,7 +1,7 @@
 const THEME_STORAGE_KEY = 'app_theme'
 
-/** 主题：light/dark 为纯色基础主题；paper（纸墨）/ink（墨夜）为一页纸配色；dawn/dusk/starry 为氛围主题 */
-export type ThemeMode = 'light' | 'dark' | 'paper' | 'ink' | 'dawn' | 'dusk' | 'starry'
+/** 主题：light/dark 为纯色基础主题；paper（纸墨）为一页纸配色；dawn/dusk/starry 为氛围主题 */
+export type ThemeMode = 'light' | 'dark' | 'paper' | 'dawn' | 'dusk' | 'starry'
 
 export interface ThemeMeta {
   key: ThemeMode
@@ -17,14 +17,13 @@ export const THEMES: ThemeMeta[] = [
   { key: 'light', name: '浅色', desc: '纯净白', dark: false, swatch: 'linear-gradient(135deg,#f8fafc,#e2e8f0)' },
   { key: 'paper', name: '纸墨', desc: '暖纸 · 朱印', dark: false, swatch: 'linear-gradient(135deg,#f4efe6,#a6342a)' },
   { key: 'dark', name: '深色', desc: '深夜蓝', dark: true, swatch: 'linear-gradient(135deg,#1e293b,#0f172a)' },
-  { key: 'ink', name: '墨夜', desc: '墨底 · 朱砂', dark: true, swatch: 'linear-gradient(135deg,#241f1a,#e17969)' },
   { key: 'dawn', name: '晨光', desc: '晨曦渐变', dark: false, swatch: 'linear-gradient(135deg,#fdf4ff,#c7d2fe,#a5f3fc)' },
   { key: 'dusk', name: '暮色', desc: '星空渐变', dark: true, swatch: 'linear-gradient(135deg,#312e81,#0f172a,#1e3a8a)' },
   { key: 'starry', name: '午夜繁星', desc: '星际闪烁', dark: true, swatch: 'radial-gradient(circle at 30% 25%, #f8fafc 0 1px, transparent 2px), radial-gradient(circle at 65% 45%, #bae6fd 0 1px, transparent 2px), linear-gradient(135deg,#11173a,#05060f)' },
 ]
 
-const DARK_THEMES = new Set<ThemeMode>(['dark', 'ink', 'dusk', 'starry'])
-const VALID: ThemeMode[] = ['light', 'paper', 'dark', 'ink', 'dawn', 'dusk', 'starry']
+const DARK_THEMES = new Set<ThemeMode>(['dark', 'dusk', 'starry'])
+const VALID: ThemeMode[] = ['light', 'paper', 'dark', 'dawn', 'dusk', 'starry']
 
 function isTheme(v: unknown): v is ThemeMode {
   return typeof v === 'string' && (VALID as string[]).includes(v)
@@ -33,21 +32,20 @@ function isTheme(v: unknown): v is ThemeMode {
 const THEME_MIGRATION_KEY = 'app_theme_paper_v1'
 
 /**
- * 一次性把老用户的 light/dark 偏好迁移到纸墨/墨夜。
+ * 主题迁移：
+ * - 「墨夜」已下线，老用户迁到「深色」，保留暗色观感；
+ * - 一次性把老用户的 light 偏好迁移到纸墨。
  * 晨光 / 暮色 / 午夜繁星属于用户主动选的氛围主题，保持不动；
  * 迁移只做一次，之后用户手动切回浅色/深色也不会再被改。
  */
 function migrateLegacyTheme(saved: ThemeMode | null): ThemeMode | null {
   try {
+    /* 墨夜已下线，旧值在 getInitialTheme 里迁移 */
     if (localStorage.getItem(THEME_MIGRATION_KEY)) return saved
     localStorage.setItem(THEME_MIGRATION_KEY, '1')
     if (saved === 'light') {
       localStorage.setItem(THEME_STORAGE_KEY, 'paper')
       return 'paper'
-    }
-    if (saved === 'dark') {
-      localStorage.setItem(THEME_STORAGE_KEY, 'ink')
-      return 'ink'
     }
   } catch {
     /* ignore */
@@ -55,11 +53,16 @@ function migrateLegacyTheme(saved: ThemeMode | null): ThemeMode | null {
   return saved
 }
 
-/** 读取持久化主题；无记录时默认「纸墨」（系统深色偏好则用「墨夜」） */
+/** 读取持久化主题；无记录时默认「纸墨」（系统深色偏好则用「深色」） */
 export function getInitialTheme(): ThemeMode {
   let saved: ThemeMode | null = null
   try {
     const raw = localStorage.getItem(THEME_STORAGE_KEY)
+    // 「墨夜」已下线：老用户迁到「深色」，保留暗色观感
+    if (raw === 'ink') {
+      localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+      return 'dark'
+    }
     if (isTheme(raw)) saved = raw
   } catch {
     /* ignore */
@@ -67,7 +70,7 @@ export function getInitialTheme(): ThemeMode {
   saved = migrateLegacyTheme(saved)
   if (saved) return saved
   if (typeof window !== 'undefined' && window.matchMedia) {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'ink' : 'paper'
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'paper'
   }
   return 'paper'
 }
@@ -89,7 +92,7 @@ export function applyTheme(mode: ThemeMode) {
   if (meta) {
     meta.setAttribute(
       'content',
-      mode === 'paper' ? '#f4efe6' : mode === 'ink' ? '#15120f' : DARK_THEMES.has(mode) ? '#0f172a' : '#f8fafc',
+      mode === 'paper' ? '#f4efe6' : DARK_THEMES.has(mode) ? '#0f172a' : '#f8fafc',
     )
   }
 }
