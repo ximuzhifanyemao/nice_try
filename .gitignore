@@ -66,3 +66,17 @@ scripts/_ky*.txt
 
 # 桌面端界面截图（开发时用 scripts/dev/shot.mjs 生成，不入库）
 shots/
+
+# 软著申请资料与内部报告（不公开）
+/软著申请资料/
+/DiveDeep功能与界面优化建议报告.md
+/DiveDeep项目优化建议报告.md
+
+# 开发过程文档（AI spec / 计划 / 工具说明，不公开）
+/.trae/
+/.uicraft.md
+
+# 图标设计草稿（成品在 public/icons 与 src-tauri/icons）
+/logo-exports/
+/old-icon-redesign/
+/app-icon-new.jpg
