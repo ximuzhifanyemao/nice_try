@@ -1,9 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
+import { isTauri } from '@tauri-apps/api/core'
+
+/** App 内（桌面程序 / 手机 APK）不走网页端登录门禁，一页纸保持免登录可用 */
+const NATIVE_APP = Capacitor.isNativePlatform() || isTauri()
 
 /** 一页纸静态页面地址：放在 public/politics 下，三端（网页 / 桌面 / APK）共用同一份资源 */
-const POLITICS_URL = `${import.meta.env.BASE_URL}politics/index.html`
+const POLITICS_URL = `${import.meta.env.BASE_URL}politics/index.html?native=${NATIVE_APP ? '1' : '0'}`
 
 /**
  * 考研政治「一页纸」。

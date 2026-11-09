@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, createContext, useContext, useRef, useState, type ReactNode } from 'react'
-import { HashRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom'
+import { HashRouter, Routes, Route, Link, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { UpdateProvider } from './contexts/UpdateContext'
 import { LogsProvider } from './contexts/LogsContext'
@@ -12,6 +12,7 @@ import CheckinReminder from './components/CheckinReminder'
 import { ToastProvider } from './lib/Toast'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
+import { isTauri } from '@tauri-apps/api/core'
 
 // 路由级代码分割：按需加载页面，减少首屏 bundle 体积
 const Home = lazy(() => import('./pages/Home'))
@@ -158,6 +159,28 @@ function PageLoading() {
   )
 }
 
+/** 网页端公开路径：登录 / 注册 / 找回密码 / 扫码确认 / 下载落地页 */
+const WEB_PUBLIC_PATHS = new Set(['/login', '/register', '/forgot-password', '/reset-password', '/qr-login', '/download'])
+
+/**
+ * 网页版登录门禁。
+ *
+ * 浏览器里除公开路径外，所有功能页都必须先登录；未登录访问首页等页面会直接跳到登录页。
+ * 桌面程序（Tauri）与手机 App（Capacitor）不走这道门禁，保留原有的游客首页与本地功能。
+ */
+function WebLoginGate({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+  const isWeb = !isTauri() && !Capacitor.isNativePlatform()
+
+  if (!isWeb) return <>{children}</>
+  if (loading) return <PageLoading />
+  if (!user && !WEB_PUBLIC_PATHS.has(location.pathname)) {
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+  }
+  return <>{children}</>
+}
+
 function NotFound() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-16 text-center">
@@ -251,6 +274,7 @@ export default function App({
       {!hideNavbar && <Navbar />}
       <Suspense fallback={<PageLoading />}>
         <HomeLayoutContext.Provider value={{ twoCol: forceTwoCol, wide: forceTwoCol }}>
+        <WebLoginGate>
         <ScaleToFit enabled={forceTwoCol}>
         <PageFade fillHeight={fillHeight}>
         <Routes>
@@ -262,7 +286,7 @@ export default function App({
           <Route path="/qr-login" element={<QrLogin />} />
           {/* 公开下载落地页：分享图二维码扫码后打开，无需登录 */}
           <Route path="/download" element={<Download />} />
-          {/* 考研政治一页纸：公开学习资料，无需登录 */}
+          {/* 考研政治一页纸：桌面/App 免登录，网页版由 WebLoginGate 统一要求登录 */}
           <Route path="/politics" element={<Politics />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/my-records" element={<MyRecords />} />
@@ -284,6 +308,7 @@ export default function App({
         </Routes>
         </PageFade>
         </ScaleToFit>
+        </WebLoginGate>
         </HomeLayoutContext.Provider>
       </Suspense>
     </>

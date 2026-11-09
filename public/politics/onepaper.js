@@ -2,6 +2,42 @@
   "use strict";
 
   /* =========================================================
+     网页端登录门禁
+     一页纸属于需要登录后才能使用的功能：
+     - App（Tauri / 手机 APK）由外层传入 native=1，保持免登录可用；
+     - 浏览器里直接打开 politics/index.html 时，没有 Supabase 会话就回登录页。
+     ========================================================= */
+  (function gateWebAccess() {
+    try {
+      if (new URLSearchParams(location.search).get("native") === "1") return;
+      var hasSession = false;
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        if (!key || key.indexOf("sb-") !== 0 || key.slice(-11) !== "-auth-token") continue;
+        var raw = localStorage.getItem(key);
+        if (!raw) continue;
+        try {
+          var parsed = JSON.parse(raw);
+          if (parsed && (parsed.access_token || parsed.refresh_token)) {
+            hasSession = true;
+            break;
+          }
+        } catch (e) {
+          /* 非 JSON 会话，继续检查下一个 */
+        }
+      }
+      if (!hasSession) {
+        var suffix = "/politics/index.html";
+        var idx = location.pathname.lastIndexOf(suffix);
+        var base = idx >= 0 ? location.pathname.slice(0, idx) : "";
+        location.replace(location.origin + base + "/#/login");
+      }
+    } catch (e) {
+      /* 隐私模式读不到 localStorage 时不拦截，避免整页白屏 */
+    }
+  })();
+
+  /* =========================================================
      Data
      ========================================================= */
   const DATA = JSON.parse(document.getElementById("app-data").textContent);
