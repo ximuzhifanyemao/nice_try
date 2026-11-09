@@ -18,9 +18,22 @@ interface LogCardProps {
   onDelete: () => void
   /** 总结保存成功后的回调（父组件刷新列表） */
   onSummarySaved?: () => void
+  /** 多选分享模式：卡片显示选择圈，隐藏单条分享按钮 */
+  selectMode?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
 }
 
-function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProps) {
+function LogCard({
+  log,
+  isOwner,
+  onEdit,
+  onDelete,
+  onSummarySaved,
+  selectMode = false,
+  selected = false,
+  onToggleSelect,
+}: LogCardProps) {
   const toast = useToast()
   const [editingSummary, setEditingSummary] = useState(false)
   const [summaryDraft, setSummaryDraft] = useState('')
@@ -121,11 +134,33 @@ function LogCard({ log, isOwner, onEdit, onDelete, onSummarySaved }: LogCardProp
   }
 
   return (
-    <div className="card-hover p-5 space-y-3">
+    <div
+      className={`card-hover p-5 space-y-3 ${
+        selectMode && selected ? 'ring-2 ring-indigo-500/70 dark:ring-indigo-400/70' : ''
+      }`}
+    >
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-slate-100">{formattedDate}</h3>
+        <div className="flex min-w-0 items-center gap-2">
+          {selectMode && (
+            <button
+              type="button"
+              onClick={onToggleSelect}
+              aria-pressed={selected}
+              aria-label={selected ? '取消选择该记录' : '选择该记录'}
+              title={selected ? '取消选择' : '选择该记录'}
+              className={`flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full border transition-colors ${
+                selected
+                  ? 'border-indigo-600 bg-indigo-600 text-white dark:border-indigo-400 dark:bg-indigo-400 dark:text-slate-900'
+                  : 'border-gray-300 bg-white text-transparent hover:border-indigo-400 dark:border-slate-600 dark:bg-slate-800'
+              }`}
+            >
+              <Icon name="check" size={14} />
+            </button>
+          )}
+          <h3 className="truncate text-lg font-semibold text-gray-900 dark:text-slate-100">{formattedDate}</h3>
+        </div>
         <div className="flex items-center gap-2">
-          {isOwner && (
+          {isOwner && !selectMode && (
             <button
               type="button"
               onClick={handleShare}

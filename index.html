@@ -24,14 +24,27 @@
       (function () {
         try {
           var saved = localStorage.getItem('app_theme')
-          var dark =
-            saved === 'dark' || saved === 'dusk' || saved === 'starry' ||
-            (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          // 一次性迁移：老用户的浅色/深色偏好换成纸墨/墨夜（氛围主题保持不动）
+          if (!localStorage.getItem('app_theme_paper_v1')) {
+            localStorage.setItem('app_theme_paper_v1', '1')
+            if (saved === 'light') {
+              saved = 'paper'
+              localStorage.setItem('app_theme', saved)
+            } else if (saved === 'dark') {
+              saved = 'ink'
+              localStorage.setItem('app_theme', saved)
+            }
+          }
+          var known = ['light', 'paper', 'dark', 'ink', 'dawn', 'dusk', 'starry']
+          var prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          var savedDark = saved === 'dark' || saved === 'ink' || saved === 'dusk' || saved === 'starry'
+          var dark = known.indexOf(saved) >= 0 ? savedDark : prefersDark
           var root = document.documentElement
-          if (saved === 'light' || saved === 'dawn' || saved === 'dark' || saved === 'dusk' || saved === 'starry') {
+          if (known.indexOf(saved) >= 0) {
             root.setAttribute('data-theme', saved)
           } else {
-            root.setAttribute('data-theme', dark ? 'dark' : 'light')
+            // 默认主题：纸墨（系统深色偏好时用墨夜）
+            root.setAttribute('data-theme', prefersDark ? 'ink' : 'paper')
           }
           if (dark) root.classList.add('dark')
         } catch (e) {}

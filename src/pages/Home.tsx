@@ -10,6 +10,7 @@ import StreakCard from '../components/StreakCard'
 import WeekProgressCard from '../components/WeekProgressCard'
 import CountdownPanel from '../components/CountdownPanel'
 import EnglishCheckinEntry from '../components/EnglishCheckinEntry'
+import PoliticsEntry from '../components/PoliticsEntry'
 import QuickLinksRow from '../components/QuickLinksRow'
 import { todayStr } from '../lib/dailyLogs'
 import { computeStudyStats, computeStreak } from '../lib/achievements'
@@ -281,10 +282,13 @@ export default function Home() {
           {/* ③ 待办事项清单（未完成任务） */}
           <TodoList />
 
-          {/* ④ 日历 */}
+          {/* ④ 政治一页纸（公开资料，未登录也可用；放在日历前保证一屏内可见） */}
+          <PoliticsEntry />
+
+          {/* ⑤ 日历 */}
           <Calendar logs={logs} loading={loading} />
 
-          {/* ⑤ 英语打卡 / 生词本 / 每周总结（次要，置底） */}
+          {/* ⑥ 英语打卡 / 生词本 / 每周总结（次要，置底） */}
           {user && <EnglishCheckinEntry size="normal" checkinCount={checkinCount} />}
           {user && <QuickLinksRow />}
         </>

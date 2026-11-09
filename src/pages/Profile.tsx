@@ -473,6 +473,17 @@ export default function Profile() {
       <div className="space-y-4">
         {/* ── 学习目标：手机端「我的」是二级功能索引页，这组入口只在这里出现 ── */}
         <div className="space-y-4">
+          <SettingsSection title="政治" desc="2027 考研政治知识点手册">
+            <SettingRow
+              to="/politics"
+              icon={<Icon name="landmark" size={17} />}
+              tint={TINT.red}
+              label="考研政治一页纸"
+              desc="100 条核心考点 · 检索 / 背诵 / 史纲时轴"
+              last
+            />
+          </SettingsSection>
+
           <SettingsSection title="学习目标" desc="计划、积累与复盘">
             <SettingRow
               to="/goal"

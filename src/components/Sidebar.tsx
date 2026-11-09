@@ -22,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'home', label: '首页', iconKey: 'home', path: '/' },
   { key: 'timer', label: '计时', iconKey: 'timer', path: '/timer' },
   { key: 'checkin', label: '打卡', iconKey: 'checkin', path: '/english-checkin' },
+  { key: 'politics', label: '政治', iconKey: 'politics', path: '/politics' },
   { key: 'records', label: '记录', iconKey: 'records', path: '/my-records' },
   { key: 'summary', label: '统计', iconKey: 'summary', path: '/summary' },
   { key: 'weeklySummary', label: '周总结', iconKey: 'goal', path: '/weekly-summary' },
@@ -48,6 +49,7 @@ const PAGE_TITLES: [string, string][] = [
   ['/achievements', '成就'],
   ['/goal', '目标'],
   ['/english-checkin', '打卡'],
+  ['/politics', '政治'],
   ['/vocabulary', '生词'],
   ['/settings', '设置'],
   ['/scan-qr', '扫码登录'],
@@ -93,6 +95,7 @@ export default function Sidebar() {
     if (pathname === '/') return 'home'
     if (pathname === '/timer') return 'timer'
     if (pathname === '/english-checkin') return 'checkin'
+    if (pathname === '/politics') return 'politics'
     if (pathname.startsWith('/my-records')) return 'records'
     if (pathname === '/summary') return 'summary'
     if (pathname === '/weekly-summary') return 'weeklySummary'
@@ -114,7 +117,8 @@ export default function Sidebar() {
     setThemeOpen(false)
   }
 
-  const items = user ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.key === 'home' || i.key === 'profile')
+  // 政治一页纸是公开资料，未登录也保留入口
+  const items = user ? NAV_ITEMS : NAV_ITEMS.filter((i) => i.key === 'home' || i.key === 'politics' || i.key === 'profile')
 
   return (
     <aside className="theme-surface relative isolate flex w-56 flex-col bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 h-full shrink-0">

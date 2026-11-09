@@ -62,6 +62,7 @@ export const TINT = {
   indigo: 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-400',
   emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400',
   violet: 'bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400',
+  red: 'bg-red-50 text-red-600 dark:bg-red-500/15 dark:text-red-400',
   sky: 'bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-400',
   blue: 'bg-blue-50 text-blue-600 dark:bg-blue-500/15 dark:text-blue-400',
   cyan: 'bg-cyan-50 text-cyan-600 dark:bg-cyan-500/15 dark:text-cyan-400',

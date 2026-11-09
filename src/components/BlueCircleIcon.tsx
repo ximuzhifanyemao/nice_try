@@ -57,6 +57,13 @@ export const BlueIcons = {
       <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
     </BlueCircleIcon>
   ),
+  politics: (
+    <BlueCircleIcon>
+      <path d="M3 21h18" />
+      <path d="M5 21V10M9.5 21V10M14.5 21V10M19 21V10" />
+      <path d="m12 3 8.5 5h-17z" />
+    </BlueCircleIcon>
+  ),
   achievements: (
     <BlueCircleIcon>
       <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />

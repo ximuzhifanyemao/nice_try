@@ -29,6 +29,7 @@ const Trash = lazy(() => import('./pages/Trash'))
 const Achievements = lazy(() => import('./pages/Achievements'))
 const GoalPage = lazy(() => import('./pages/GoalPage'))
 const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
+const Politics = lazy(() => import('./pages/Politics'))
 const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
 const Settings = lazy(() => import('./pages/Settings'))
 const WeeklySummary = lazy(() => import('./pages/WeeklySummary'))
@@ -261,6 +262,8 @@ export default function App({
           <Route path="/qr-login" element={<QrLogin />} />
           {/* 公开下载落地页：分享图二维码扫码后打开，无需登录 */}
           <Route path="/download" element={<Download />} />
+          {/* 考研政治一页纸：公开学习资料，无需登录 */}
+          <Route path="/politics" element={<Politics />} />
           <Route element={<ProtectedRoute />}>
             <Route path="/my-records" element={<MyRecords />} />
             <Route path="/profile" element={<Profile />} />

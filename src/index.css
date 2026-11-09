@@ -78,6 +78,373 @@ html[data-theme='starry'] {
   --color-text-muted: #96a0c8;
 }
 
+/* ═══════════════════════════════════════════════════════════
+   纸墨 / 墨夜：源自《2027 考研政治一页纸》的书页配色
+   暖纸底 + 朱砂主色 + 金棕点缀。这里直接覆盖 Tailwind 的色阶变量，
+   全站既有的 bg-indigo-600 / text-slate-500 等工具类会自动换成纸墨色系，
+   不需要逐个组件改类名。
+   ═══════════════════════════════════════════════════════════ */
+
+/* 暖中性色：50 最浅、950 最深，与 Tailwind 中性阶方向一致 */
+html[data-theme='paper'],
+html[data-theme='ink'] {
+  --color-white: #fffcf6;
+
+  --color-gray-50: #f4efe6;
+  --color-gray-100: #f0e8da;
+  --color-gray-200: #e4dac9;
+  --color-gray-300: #d3c3ac;
+  --color-gray-400: #b3a08a;
+  --color-gray-500: #8b7d6e;
+  --color-gray-600: #6f6253;
+  --color-gray-700: #5a4e41;
+  --color-gray-800: #463b30;
+  --color-gray-900: #2b2521;
+  --color-gray-950: #1c1713;
+
+  --color-slate-50: #f4efe6;
+  --color-slate-100: #f0e8da;
+  --color-slate-200: #e4dac9;
+  --color-slate-300: #d3c3ac;
+  --color-slate-400: #b3a08a;
+  --color-slate-500: #8b7d6e;
+  --color-slate-600: #6f6253;
+  --color-slate-700: #5a4e41;
+  --color-slate-800: #463b30;
+  --color-slate-900: #2b2521;
+  --color-slate-950: #1c1713;
+
+  /* 朱砂（原 indigo：主色 / 主按钮 / 强调） */
+  --color-indigo-50: #f8e9e5;
+  --color-indigo-100: #f2d3cd;
+  --color-indigo-200: #e7b1a8;
+  --color-indigo-300: #da8c80;
+  --color-indigo-400: #c96657;
+  --color-indigo-500: #b84534;
+  --color-indigo-600: #a6342a;
+  --color-indigo-700: #8c2a22;
+  --color-indigo-800: #72221c;
+  --color-indigo-900: #5c1c17;
+  --color-indigo-950: #3d120f;
+
+  /* 黛蓝（原 blue：信息 / 链接） */
+  --color-blue-50: #e9eff5;
+  --color-blue-100: #d4e0ec;
+  --color-blue-200: #aec5dc;
+  --color-blue-300: #83a6c7;
+  --color-blue-400: #5685ae;
+  --color-blue-500: #2d5f9d;
+  --color-blue-600: #285592;
+  --color-blue-700: #214a7d;
+  --color-blue-800: #1b3c66;
+  --color-blue-900: #152f50;
+  --color-blue-950: #0d1e34;
+
+  /* 紫檀（原 violet） */
+  --color-violet-50: #f0ebf7;
+  --color-violet-100: #e2d8ef;
+  --color-violet-200: #c8b7df;
+  --color-violet-300: #aa90c9;
+  --color-violet-400: #8a68b1;
+  --color-violet-500: #6c4a9c;
+  --color-violet-600: #5c3f86;
+  --color-violet-700: #4c3470;
+  --color-violet-800: #3d2a59;
+  --color-violet-900: #2e2044;
+  --color-violet-950: #1c142a;
+
+  /* 松绿（原 emerald：成功 / 休息） */
+  --color-emerald-50: #e8f1ec;
+  --color-emerald-100: #d2e4da;
+  --color-emerald-200: #a8cbb8;
+  --color-emerald-300: #79ae93;
+  --color-emerald-400: #4b8f70;
+  --color-emerald-500: #2f7451;
+  --color-emerald-600: #296545;
+  --color-emerald-700: #22533a;
+  --color-emerald-800: #1c432f;
+  --color-emerald-900: #163425;
+  --color-emerald-950: #0d2016;
+
+  /* 金棕（原 amber：提醒 / 暂停） */
+  --color-amber-50: #f8f0e2;
+  --color-amber-100: #f0e0c6;
+  --color-amber-200: #e3c495;
+  --color-amber-300: #d3a561;
+  --color-amber-400: #c18b45;
+  --color-amber-500: #ad7838;
+  --color-amber-600: #96672f;
+  --color-amber-700: #7c5527;
+  --color-amber-800: #64441f;
+  --color-amber-900: #4d3518;
+  --color-amber-950: #30200e;
+
+  /* 朱红（原 red：危险 / 删除） */
+  --color-red-50: #f9e8e6;
+  --color-red-100: #f4d1cd;
+  --color-red-200: #e9aba5;
+  --color-red-300: #db827a;
+  --color-red-400: #c75b51;
+  --color-red-500: #b32b25;
+  --color-red-600: #9e2620;
+  --color-red-700: #841f1a;
+  --color-red-800: #6b1915;
+  --color-red-900: #531310;
+  --color-red-950: #330b09;
+
+  /* 绛红（原 rose） */
+  --color-rose-50: #f8eae7;
+  --color-rose-100: #f2d7d2;
+  --color-rose-200: #e6b6ad;
+  --color-rose-300: #d79085;
+  --color-rose-400: #c36b5f;
+  --color-rose-500: #a94f45;
+  --color-rose-600: #96443b;
+  --color-rose-700: #7e3830;
+  --color-rose-800: #672d27;
+  --color-rose-900: #51231e;
+  --color-rose-950: #31120f;
+
+  /* 赭橙（原 orange） */
+  --color-orange-50: #f8eee4;
+  --color-orange-100: #f0ddc7;
+  --color-orange-200: #e3c096;
+  --color-orange-300: #d39f60;
+  --color-orange-400: #c48236;
+  --color-orange-500: #b4651e;
+  --color-orange-600: #9d581a;
+  --color-orange-700: #834717;
+  --color-orange-800: #6a3a13;
+  --color-orange-900: #522d10;
+  --color-orange-950: #321b09;
+
+  /* 同色系别名：避免零星使用的 sky / cyan / teal / green / purple 跳出纸墨色系 */
+  --color-sky-50: var(--color-blue-50);
+  --color-sky-100: var(--color-blue-100);
+  --color-sky-200: var(--color-blue-200);
+  --color-sky-300: var(--color-blue-300);
+  --color-sky-400: var(--color-blue-400);
+  --color-sky-500: var(--color-blue-500);
+  --color-sky-600: var(--color-blue-600);
+  --color-sky-700: var(--color-blue-700);
+  --color-sky-800: var(--color-blue-800);
+  --color-sky-900: var(--color-blue-900);
+  --color-sky-950: var(--color-blue-950);
+
+  --color-cyan-50: var(--color-blue-50);
+  --color-cyan-100: var(--color-blue-100);
+  --color-cyan-200: var(--color-blue-200);
+  --color-cyan-300: var(--color-blue-300);
+  --color-cyan-400: var(--color-blue-400);
+  --color-cyan-500: var(--color-blue-500);
+  --color-cyan-600: var(--color-blue-600);
+  --color-cyan-700: var(--color-blue-700);
+  --color-cyan-800: var(--color-blue-800);
+  --color-cyan-900: var(--color-blue-900);
+  --color-cyan-950: var(--color-blue-950);
+
+  --color-teal-50: var(--color-emerald-50);
+  --color-teal-100: var(--color-emerald-100);
+  --color-teal-200: var(--color-emerald-200);
+  --color-teal-300: var(--color-emerald-300);
+  --color-teal-400: var(--color-emerald-400);
+  --color-teal-500: var(--color-emerald-500);
+  --color-teal-600: var(--color-emerald-600);
+  --color-teal-700: var(--color-emerald-700);
+  --color-teal-800: var(--color-emerald-800);
+  --color-teal-900: var(--color-emerald-900);
+  --color-teal-950: var(--color-emerald-950);
+
+  --color-green-50: var(--color-emerald-50);
+  --color-green-100: var(--color-emerald-100);
+  --color-green-200: var(--color-emerald-200);
+  --color-green-300: var(--color-emerald-300);
+  --color-green-400: var(--color-emerald-400);
+  --color-green-500: var(--color-emerald-500);
+  --color-green-600: var(--color-emerald-600);
+  --color-green-700: var(--color-emerald-700);
+  --color-green-800: var(--color-emerald-800);
+  --color-green-900: var(--color-emerald-900);
+  --color-green-950: var(--color-emerald-950);
+
+  --color-purple-50: var(--color-violet-50);
+  --color-purple-100: var(--color-violet-100);
+  --color-purple-200: var(--color-violet-200);
+  --color-purple-300: var(--color-violet-300);
+  --color-purple-400: var(--color-violet-400);
+  --color-purple-500: var(--color-violet-500);
+  --color-purple-600: var(--color-violet-600);
+  --color-purple-700: var(--color-violet-700);
+  --color-purple-800: var(--color-violet-800);
+  --color-purple-900: var(--color-violet-900);
+  --color-purple-950: var(--color-violet-950);
+
+  --color-pink-50: var(--color-rose-50);
+  --color-pink-100: var(--color-rose-100);
+  --color-pink-200: var(--color-rose-200);
+  --color-pink-300: var(--color-rose-300);
+  --color-pink-400: var(--color-rose-400);
+  --color-pink-500: var(--color-rose-500);
+  --color-pink-600: var(--color-rose-600);
+  --color-pink-700: var(--color-rose-700);
+  --color-pink-800: var(--color-rose-800);
+  --color-pink-900: var(--color-rose-900);
+  --color-pink-950: var(--color-rose-950);
+
+  --color-fuchsia-50: var(--color-violet-50);
+  --color-fuchsia-100: var(--color-violet-100);
+  --color-fuchsia-200: var(--color-violet-200);
+  --color-fuchsia-300: var(--color-violet-300);
+  --color-fuchsia-400: var(--color-violet-400);
+  --color-fuchsia-500: var(--color-violet-500);
+  --color-fuchsia-600: var(--color-violet-600);
+  --color-fuchsia-700: var(--color-violet-700);
+  --color-fuchsia-800: var(--color-violet-800);
+  --color-fuchsia-900: var(--color-violet-900);
+  --color-fuchsia-950: var(--color-violet-950);
+
+  --color-lime-50: var(--color-emerald-50);
+  --color-lime-100: var(--color-emerald-100);
+  --color-lime-200: var(--color-emerald-200);
+  --color-lime-300: var(--color-emerald-300);
+  --color-lime-400: var(--color-emerald-400);
+  --color-lime-500: var(--color-emerald-500);
+  --color-lime-600: var(--color-emerald-600);
+  --color-lime-700: var(--color-emerald-700);
+  --color-lime-800: var(--color-emerald-800);
+  --color-lime-900: var(--color-emerald-900);
+  --color-lime-950: var(--color-emerald-950);
+
+  --shadow-card: 0 1px 2px rgba(91, 69, 44, 0.04), 0 8px 24px -14px rgba(73, 52, 32, 0.22);
+  --shadow-card-hover: 0 2px 4px rgba(91, 69, 44, 0.06), 0 12px 32px -16px rgba(166, 52, 42, 0.3);
+  --shadow-glow: 0 4px 18px -6px rgba(166, 52, 42, 0.45);
+}
+
+/* 纸墨：暖纸底 + 朱砂 */
+html[data-theme='paper'] {
+  color-scheme: light;
+  --color-surface: #fffcf6;
+  --color-surface-muted: #faf4e9;
+  --color-border: #e4dac9;
+  --color-brand: #a6342a;
+  --color-brand-strong: #b84534;
+  --color-text: #2b2521;
+  --color-text-muted: #8b7d6e;
+}
+
+/* 墨夜：墨底 + 朱砂，深色下把强调色整体提亮 */
+html[data-theme='ink'] {
+  color-scheme: dark;
+  --color-surface: #1e1a16;
+  --color-surface-muted: #241f1a;
+  --color-border: #342c25;
+  --color-brand: #c95745;
+  --color-brand-strong: #e17969;
+  --color-text: #f2eadf;
+  --color-text-muted: #9e8f7d;
+
+  /* 朱砂提亮（深色背景上保持可读） */
+  --color-indigo-50: #2c1916;
+  --color-indigo-100: #3a201b;
+  --color-indigo-200: #522a23;
+  --color-indigo-300: #f0a397;
+  --color-indigo-400: #e17969;
+  --color-indigo-500: #d56858;
+  --color-indigo-600: #c95745;
+  --color-indigo-700: #b84534;
+  --color-indigo-800: #97382a;
+  --color-indigo-900: #762b21;
+  --color-indigo-950: #4a1a14;
+
+  --color-blue-50: #15212e;
+  --color-blue-100: #1a2b3b;
+  --color-blue-200: #22384e;
+  --color-blue-300: #91b7e9;
+  --color-blue-400: #7ba3d4;
+  --color-blue-500: #6592c2;
+  --color-blue-600: #4f7cae;
+  --color-blue-700: #3e6796;
+  --color-blue-800: #315278;
+  --color-blue-900: #243d5b;
+  --color-blue-950: #14253a;
+
+  --color-violet-50: #221a2e;
+  --color-violet-100: #2a203a;
+  --color-violet-200: #392b4e;
+  --color-violet-300: #b99be0;
+  --color-violet-400: #a385c3;
+  --color-violet-500: #8d6cae;
+  --color-violet-600: #765698;
+  --color-violet-700: #61477f;
+  --color-violet-800: #4c3864;
+  --color-violet-900: #372948;
+  --color-violet-950: #21182c;
+
+  --color-emerald-50: #16251c;
+  --color-emerald-100: #1b2c21;
+  --color-emerald-200: #234030;
+  --color-emerald-300: #87c4a4;
+  --color-emerald-400: #6faf8d;
+  --color-emerald-500: #5a9a78;
+  --color-emerald-600: #478560;
+  --color-emerald-700: #3a6e4f;
+  --color-emerald-800: #2e5940;
+  --color-emerald-900: #224331;
+  --color-emerald-950: #12271b;
+
+  --color-amber-50: #2b2115;
+  --color-amber-100: #352818;
+  --color-amber-200: #49371f;
+  --color-amber-300: #d2a26a;
+  --color-amber-400: #c18b45;
+  --color-amber-500: #ad7838;
+  --color-amber-600: #96672f;
+  --color-amber-700: #7c5527;
+  --color-amber-800: #64441f;
+  --color-amber-900: #4d3518;
+  --color-amber-950: #30200e;
+
+  --color-red-50: #2e1715;
+  --color-red-100: #3a1b18;
+  --color-red-200: #4f241f;
+  --color-red-300: #f08d83;
+  --color-red-400: #e17969;
+  --color-red-500: #cf655a;
+  --color-red-600: #b95446;
+  --color-red-700: #9c443a;
+  --color-red-800: #7f372f;
+  --color-red-900: #612a24;
+  --color-red-950: #3a1713;
+
+  --color-rose-50: #2c1816;
+  --color-rose-100: #371d1a;
+  --color-rose-200: #4a2621;
+  --color-rose-300: #e59d94;
+  --color-rose-400: #d4877d;
+  --color-rose-500: #c17368;
+  --color-rose-600: #a95c52;
+  --color-rose-700: #8d4a42;
+  --color-rose-800: #713b34;
+  --color-rose-900: #572e29;
+  --color-rose-950: #341b17;
+
+  --color-orange-50: #2b2015;
+  --color-orange-100: #352718;
+  --color-orange-200: #49351f;
+  --color-orange-300: #e0a46d;
+  --color-orange-400: #cf8d4f;
+  --color-orange-500: #b97432;
+  --color-orange-600: #a26228;
+  --color-orange-700: #865020;
+  --color-orange-800: #6c3f1a;
+  --color-orange-900: #533014;
+  --color-orange-950: #331d0c;
+
+  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.02), 0 8px 24px -14px rgba(0, 0, 0, 0.55);
+  --shadow-card-hover: 0 2px 4px rgba(255, 255, 255, 0.02), 0 12px 32px -16px rgba(225, 121, 105, 0.3);
+  --shadow-glow: 0 4px 18px -6px rgba(225, 121, 105, 0.35);
+}
+
 /* ─── 全局基础 ─── */
 html {
   -webkit-text-size-adjust: 100%;
@@ -112,6 +479,22 @@ html[data-theme='dusk'] .theme-surface {
   background-color: transparent; /* 渐变接管纯色底 */
   background-image: linear-gradient(180deg, #221c4d 0%, #0f172a 55%, #172554 100%);
   background-attachment: fixed;
+}
+
+/* 纸墨 / 墨夜：在语义底色上叠一层极淡的纸面细点，避免大面积纯色的塑料感 */
+html[data-theme='paper'] body {
+  background-color: #f4efe6;
+}
+html[data-theme='ink'] body {
+  background-color: #15120f;
+}
+html[data-theme='paper'] .theme-surface {
+  background-image: radial-gradient(rgba(116, 92, 59, 0.05) 0.9px, transparent 0.9px);
+  background-size: 9px 9px;
+}
+html[data-theme='ink'] .theme-surface {
+  background-image: radial-gradient(rgba(255, 235, 205, 0.028) 0.9px, transparent 0.9px);
+  background-size: 9px 9px;
 }
 
 /* ─── 午夜繁星：深蓝夜空渐变 + 随机星星 + 错峰闪烁 ─── */
@@ -372,4 +755,51 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   .num {
     @apply font-bold tabular-nums tracking-tight;
   }
+}
+/* ═══════════════════════════════════════════════════════════
+   纸墨 / 墨夜：把写死在样式里的靛蓝/石板灰细节也换成纸墨色
+   ═══════════════════════════════════════════════════════════ */
+html[data-theme='paper'] ::selection {
+  background: rgba(166, 52, 42, 0.2);
+  color: #2b2521;
+}
+html[data-theme='ink'] ::selection {
+  background: rgba(225, 121, 105, 0.3);
+  color: #f2eadf;
+}
+
+html[data-theme='paper'] :focus-visible:not(input):not(textarea):not(select) {
+  outline-color: rgba(166, 52, 42, 0.5);
+}
+html[data-theme='ink'] :focus-visible:not(input):not(textarea):not(select) {
+  outline-color: rgba(225, 121, 105, 0.6);
+}
+
+html[data-theme='paper'] ::-webkit-scrollbar-thumb {
+  background: #d3c3ac;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+html[data-theme='paper'] ::-webkit-scrollbar-thumb:hover {
+  background: #b3a08a;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+html[data-theme='ink'] ::-webkit-scrollbar-thumb {
+  background: #3b3229;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+html[data-theme='ink'] ::-webkit-scrollbar-thumb:hover {
+  background: #55483b;
+  background-clip: content-box;
+  border: 2px solid transparent;
+}
+
+/* 主按钮悬停光晕：靛蓝 → 朱砂 */
+html[data-theme='paper'] .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 16px -6px rgba(166, 52, 42, 0.55);
+}
+html[data-theme='ink'] .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 4px 16px -6px rgba(225, 121, 105, 0.4);
 }

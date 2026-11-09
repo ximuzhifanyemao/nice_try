@@ -10,10 +10,13 @@ import { Icon } from '../components/Icon'
 import SettingsSection, { SettingRow, TINT } from '../components/ui/Section'
 import type { DailyLog } from '../lib/dailyLogs'
 import { fetchLogsInRange, deleteLog, todayStr } from '../lib/dailyLogs'
-import { formatCategorySubjectName, getSubjectById } from '../lib/subjects'
+import { formatCategorySubjectName, getSubjectById, formatSubjectLabel } from '../lib/subjects'
 import { getSubjectHex } from '../lib/colors'
 import { getWeekStartStr } from '../lib/commitments'
 import { getRecordsChartStyle, setRecordsChartStyle, type RecordsChartStyle } from '../lib/recordsChart'
+import { formatDateCn } from '../lib/format'
+import { useShareCard } from '../lib/useShareCard'
+import { mergeShareSubjects, pickMotto, subjectCategoryColor } from '../lib/shareCard'
 import { useWideLayout } from '../App'
 
 /** 图表类型切换：柱状 / 折线（左栏设置项与窄屏页头共用同一个控件） */
@@ -70,6 +73,10 @@ export default function MyRecords() {
   /* 学习时长可视化图的类型（柱状 / 折线）：左栏设置一次，右栏各日卡片的图同步变化 */
   const [chartStyle, setChartStyle] = useState<RecordsChartStyle>(() => getRecordsChartStyle())
   const changeChartStyle = (style: RecordsChartStyle) => setChartStyle(setRecordsChartStyle(style))
+  /* 多选分享：最多勾选两条记录，合成一张分享图 */
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const { sharing, share } = useShareCard()
 
   const weekEnd = format(addDays(parseISO(weekStart), 6), 'yyyy-MM-dd')
   const currentWeekStart = getWeekStartStr()
@@ -108,6 +115,7 @@ export default function MyRecords() {
     try {
       await deleteLog(logId)
       setLogs((prev) => prev.filter((l) => l.id !== logId))
+      setSelectedIds((prev) => prev.filter((id) => id !== logId))
       refetch()
     } catch {
       toast.show('删除失败，请重试', { icon: '❌' })
@@ -118,9 +126,127 @@ export default function MyRecords() {
     navigate(`/my-records/${logId}/edit`)
   }, [navigate])
 
+  /** 切换周次时退出多选，避免勾选了不在当前周列表里的记录 */
+  const changeWeek = useCallback((next: string) => {
+    setWeekStart(next)
+    setSelectMode(false)
+    setSelectedIds([])
+  }, [])
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false)
+    setSelectedIds([])
+  }, [])
+
+  const toggleSelectMode = () => {
+    if (selectMode) exitSelectMode()
+    else {
+      setSelectedIds([])
+      setSelectMode(true)
+    }
+  }
+
+  const toggleSelect = (logId: string) => {
+    if (selectedIds.includes(logId)) {
+      setSelectedIds(selectedIds.filter((id) => id !== logId))
+      return
+    }
+    if (selectedIds.length >= 2) {
+      toast.show('最多选择两条记录', { icon: '×' })
+      return
+    }
+    setSelectedIds([...selectedIds, logId])
+  }
+
+  // 勾选的两条记录（按日期升序，分享图日期区间更自然）
+  const selectedLogs = logs
+    .filter((l) => selectedIds.includes(l.id))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  /** 两日分享：合并两条记录的总时长与科目分布，复用日报/周报的分享卡 */
+  const handleShareSelected = async () => {
+    if (sharing || selectedLogs.length !== 2) return
+    const totals = new Map<string, number>()
+    for (const log of selectedLogs) {
+      for (const s of log.subjects ?? []) {
+        if (!(s.hours > 0)) continue
+        totals.set(s.id, (totals.get(s.id) ?? 0) + s.hours)
+      }
+    }
+    const subjectRows = [...totals.entries()]
+      .map(([id, hours]) => {
+        const subject = getSubjectById(id)
+        return {
+          name: formatSubjectLabel(subject),
+          hours: Math.round(hours * 10) / 10,
+          color: subjectCategoryColor(subject?.category),
+        }
+      })
+      .sort((a, b) => b.hours - a.hours)
+    const totalHours = selectedLogs.reduce(
+      (sum, l) => sum + (l.subjects ?? []).reduce((a, s) => a + (s.hours || 0), 0),
+      0,
+    )
+    if (totalHours <= 0) {
+      toast.show('有学习记录才能生成分享图', { icon: '×' })
+      return
+    }
+    const dateLabel = selectedLogs
+      .map((l) => {
+        const hours = (l.subjects ?? []).reduce((sum, s) => sum + (s.hours || 0), 0)
+        return `${formatDateCn(l.date)} ${Math.round(hours * 10) / 10}h`
+      })
+      .join(' · ')
+    await share({
+      title: '两日学习记录',
+      dateLabel,
+      totalHours: Math.round(totalHours * 10) / 10,
+      checkedDays: 2,
+      secondaryValue: subjectRows.length,
+      secondaryLabel: '学习科目（个）',
+      totalLabel: '两日总时长（h）',
+      distributionLabel: '两日投入分布',
+      subjects: mergeShareSubjects(subjectRows),
+      motto: pickMotto(selectedLogs[0].date),
+    })
+    exitSelectMode()
+  }
+
   /** 记录列表（含加载/失败/空态）：桌面与手机两个布局分支共用 */
   const recordsList = (
     <>
+      {/* 多选分享工具条：勾满两条后才能生成分享图 */}
+      {selectMode && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-indigo-200 bg-indigo-50/80 px-4 py-2.5 dark:border-indigo-500/30 dark:bg-indigo-500/10">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20 dark:text-indigo-300">
+            <Icon name="share" size={14} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+              已选 {selectedIds.length} / 2 条记录
+            </p>
+            <p className="mt-0.5 text-[11px] text-indigo-500/80 dark:text-indigo-300/70">
+              勾选两条记录，合成一张分享图
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={exitSelectMode}
+            className="shrink-0 cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleShareSelected()}
+            disabled={selectedIds.length !== 2 || sharing}
+            className="btn-primary h-8 shrink-0 px-3 py-0 text-xs disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-gray-500 dark:disabled:bg-slate-700 dark:disabled:text-slate-400"
+          >
+            {sharing ? '生成中…' : '生成分享图'}
+          </button>
+        </div>
+      )}
+
       {loading && (
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-200 dark:border-slate-700 border-t-blue-600 dark:border-t-blue-500" />
@@ -160,6 +286,9 @@ export default function MyRecords() {
               onEdit={() => handleEdit(log.id)}
               onDelete={() => handleDelete(log.id)}
               onSummarySaved={loadLogs}
+              selectMode={selectMode}
+              selected={selectedIds.includes(log.id)}
+              onToggleSelect={() => toggleSelect(log.id)}
             />
           ))}
 
@@ -188,7 +317,7 @@ export default function MyRecords() {
     )
     const checkedDays = new Set(logs.map((l) => l.date)).size
     const canNext = format(addDays(parseISO(weekStart), 7), 'yyyy-MM-dd') <= currentWeekStart
-    const stepWeek = (days: number) => setWeekStart(format(addDays(parseISO(weekStart), days), 'yyyy-MM-dd'))
+    const stepWeek = (days: number) => changeWeek(format(addDays(parseISO(weekStart), days), 'yyyy-MM-dd'))
     const rangeText = `${format(parseISO(weekStart), 'M月d日')} – ${format(parseISO(weekEnd), 'M月d日')}`
 
     /* 本栏顶部的「每日学习时长」柱状图数据（周一~周日，今天高亮） */
@@ -236,6 +365,20 @@ export default function MyRecords() {
             {rangeText} · {isCurrentWeek ? '本周' : '回顾往周'}
           </span>
           <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleSelectMode}
+              disabled={!selectMode && logs.length < 2}
+              title={!selectMode && logs.length < 2 ? '本周记录不足两条' : '多选两条记录合成分享图'}
+              className={`flex h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                selectMode
+                  ? 'border-indigo-300 bg-indigo-50 text-indigo-600 dark:border-indigo-500/40 dark:bg-indigo-500/15 dark:text-indigo-300'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
+              }`}
+            >
+              <Icon name={selectMode ? 'x' : 'share'} size={14} />
+              {selectMode ? '退出多选' : '多选分享'}
+            </button>
             <div className="flex items-center rounded-xl border border-gray-200 bg-white dark:border-slate-700 dark:bg-slate-800">
               <button
                 type="button"
@@ -249,7 +392,7 @@ export default function MyRecords() {
               <span className="h-4 w-px bg-gray-200 dark:bg-slate-700" aria-hidden="true" />
               <button
                 type="button"
-                onClick={() => setWeekStart(currentWeekStart)}
+                onClick={() => changeWeek(currentWeekStart)}
                 disabled={isCurrentWeek}
                 title="回到本周"
                 className="h-9 cursor-pointer px-3 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-default disabled:text-gray-300 dark:text-slate-300 dark:hover:bg-slate-700 dark:disabled:text-slate-600"
@@ -413,8 +556,24 @@ export default function MyRecords() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-4 space-y-4">
-      <div className="flex items-center justify-between gap-2">
-        <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">记录</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <h1 className="text-xl font-bold text-gray-800 dark:text-slate-100">记录</h1>
+          <button
+            type="button"
+            onClick={toggleSelectMode}
+            disabled={!selectMode && logs.length < 2}
+            title={!selectMode && logs.length < 2 ? '本周记录不足两条' : '多选两条记录合成分享图'}
+            className={`inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-full border px-2 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              selectMode
+                ? 'border-indigo-300 bg-indigo-50 text-indigo-600 dark:border-indigo-500/40 dark:bg-indigo-500/15 dark:text-indigo-300'
+                : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Icon name={selectMode ? 'x' : 'share'} size={12} />
+            {selectMode ? '退出' : '多选'}
+          </button>
+        </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* 窄屏没有左栏概览列，图表类型切换收到页头（与左栏同一份偏好） */}
           <ChartStyleSwitch value={chartStyle} onChange={changeChartStyle} />
@@ -433,7 +592,7 @@ export default function MyRecords() {
 
       <div className="space-y-4">
         {/* 周次切换：把列表范围限制在一周内 */}
-        <WeekSwitcher weekStart={weekStart} onChange={setWeekStart} />
+        <WeekSwitcher weekStart={weekStart} onChange={changeWeek} />
 
         {/* 今日总结状态（仅本周视图） */}
         {todayLog && (

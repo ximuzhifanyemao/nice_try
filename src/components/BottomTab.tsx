@@ -39,6 +39,7 @@ const ROUTE_TAB: [RegExp, string][] = [
   [/^\/timer/, 'timer'],
   [/^\/summary/, 'summary'],
   [/^\/english-checkin/, 'home'], // 由首页入口进入，高亮首页更符合来源直觉
+  [/^\/politics/, 'home'], // 政治一页纸全屏呈现，返回后仍回到首页语境
   [
     /^\/(profile|settings|goal|vocabulary|achievements|weekly-summary|trash|scan-qr|login|register)/,
     'profile',
