@@ -14,7 +14,7 @@ export type IconName =
   | 'user'
   | 'flame' // 连续打卡
   | 'target' // 目标
-  | 'vocab' // 生词本
+  | 'vocab' // 生词（记一记 · 生词）
   | 'medal' // 成就
   | 'cloud' // 同步
   | 'smartphone' // 扫码登录
@@ -23,6 +23,9 @@ export type IconName =
   | 'upload' // 导入
   | 'bell' // 提醒
   | 'refresh' // 检查更新
+  | 'rotateLeft' // 图片编辑：向左旋转
+  | 'rotateRight' // 图片编辑：向右旋转
+  | 'crop' // 图片编辑：裁剪
   | 'trash'
   | 'check' // 成功
   | 'alert' // 警告
@@ -55,7 +58,7 @@ export type IconName =
   | 'shuffle' // 随机抽背
   | 'cards' // 背诵卡组
   | 'history' // 史纲时间轴
-  | 'bulb' // 不熟本 / 知识点
+  | 'bulb' // 记一记 / 知识点
 
 const PATHS: Record<IconName, ReactNode> = {
   home: (
@@ -220,6 +223,24 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M21 12a9 9 0 1 1-2.64-6.36" />
       <path d="M21 3v6h-6" />
+    </>
+  ),
+  rotateLeft: (
+    <>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+    </>
+  ),
+  rotateRight: (
+    <>
+      <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+    </>
+  ),
+  crop: (
+    <>
+      <path d="M6 2v14a2 2 0 0 0 2 2h14" />
+      <path d="M18 22V8a2 2 0 0 0-2-2H2" />
     </>
   ),
   trash: (

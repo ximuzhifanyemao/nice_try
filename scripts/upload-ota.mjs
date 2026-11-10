@@ -1,14 +1,15 @@
 // ============================================================
 // OTA 更新上传脚本（APK 模式）
-// 用法：node scripts/upload-ota.mjs [--skip-build]
+// 用法：node scripts/upload-ota.mjs [--skip-build] [--apk <path>]
 // 前提：设置环境变量 SUPABASE_URL 和 SUPABASE_SERVICE_KEY
 //       APK 自动挑选 apk/ 下最新的版本化 APK（kaoyan-tracker-vX.Y.Z.apk），
 //       没有则回退 apk/DiveDeep.apk；--skip-build 跳过 Web 构建（发版脚本用）
+//       --apk 可显式指定本次要上传的 APK，避免同目录存在更高版本文件时误选
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
-import { join, dirname } from 'path'
+import { join, dirname, resolve } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
 import { createHash } from 'crypto'
@@ -82,6 +83,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 // ========== 主流程 ==========
 async function main() {
   const skipBuild = process.argv.includes('--skip-build') // 一键发版脚本已构建过 Web，跳过避免重复
+  const apkArgIndex = process.argv.indexOf('--apk')
+  const explicitApk = apkArgIndex >= 0 ? resolve(process.argv[apkArgIndex + 1] || '') : null
   console.log(`\n📦 DiveDeep OTA 更新上传（APK 模式） - v${VERSION}\n`)
 
   // 1. 构建项目（用于网站）
@@ -93,7 +96,9 @@ async function main() {
   }
 
   // 2. 读取 APK 文件
-  const { path: APK_PATH, picked } = selectApkSource()
+  const { path: APK_PATH, picked } = explicitApk
+    ? { path: explicitApk, picked: '--apk 显式指定' }
+    : selectApkSource()
   if (!existsSync(APK_PATH)) {
     console.error(`❌ APK 文件不存在: ${APK_PATH}`)
     console.error('   请先构建 APK（npm run release:android 一键发版，或 npm run cap:android 后手动构建）')

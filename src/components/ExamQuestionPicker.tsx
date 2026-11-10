@@ -375,7 +375,7 @@ interface ExamQuestionListProps {
 }
 
 /**
- * 知识点卡片里的关联真题：按年份 + 题号展示，默认隐藏答案。
+ * 知识点卡片里的关联真题：按年份 + 题号展示，默认折叠题目、隐藏答案。
  * 每道题各自维护展开状态，互不影响；题库按 id 只加载涉及的年份。
  */
 export function ExamQuestionList({ ids }: ExamQuestionListProps) {
@@ -383,7 +383,10 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
   const [loading, setLoading] = useState(ids.length > 0)
   const [failed, setFailed] = useState(false)
   const [questions, setQuestions] = useState<ExamQuestion[]>([])
-  const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
+  /** 已展开题干的题目 */
+  const [openQuestionIds, setOpenQuestionIds] = useState<Set<string>>(() => new Set())
+  /** 已展开答案的题目 */
+  const [openAnswerIds, setOpenAnswerIds] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
     const target = idsKey ? idsKey.split(',') : []
@@ -418,8 +421,27 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
     }
   }, [idsKey])
 
+  const toggleQuestion = (id: string) => {
+    const willOpen = !openQuestionIds.has(id)
+    setOpenQuestionIds((prev) => {
+      const next = new Set(prev)
+      if (willOpen) next.add(id)
+      else next.delete(id)
+      return next
+    })
+    // 收起题目时一并收起答案，再次展开从题干重新开始
+    if (!willOpen) {
+      setOpenAnswerIds((prev) => {
+        if (!prev.has(id)) return prev
+        const next = new Set(prev)
+        next.delete(id)
+        return next
+      })
+    }
+  }
+
   const toggleAnswer = (id: string) => {
-    setOpenIds((prev) => {
+    setOpenAnswerIds((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
       else next.add(id)
@@ -455,13 +477,22 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
       )}
 
       {questions.map((q) => {
-        const expanded = openIds.has(q.id)
+        const expanded = openQuestionIds.has(q.id)
+        const answerOpen = openAnswerIds.has(q.id)
         return (
           <article
             key={q.id}
             className="rounded-xl border border-gray-200 bg-gray-50/60 p-3 dark:border-slate-700 dark:bg-slate-800/40"
           >
-            <div className="flex flex-wrap items-center gap-1.5">
+            {/* 题头：默认折叠，点这一行才展开题干与选项 */}
+            <button
+              type="button"
+              onClick={() => toggleQuestion(q.id)}
+              aria-expanded={expanded}
+              aria-controls={`exam-question-${q.id}`}
+              aria-label={`${q.year} 年 408 第 ${q.number} 题，${SECTION_LABELS[q.section]}，${TYPE_LABELS[q.type]}，${expanded ? '收起题目' : '展开题目'}`}
+              className="flex w-full cursor-pointer flex-wrap items-center gap-1.5 rounded-md text-left transition-colors hover:text-indigo-600 dark:hover:text-indigo-300"
+            >
               <span className="text-[11px] font-semibold text-gray-700 dark:text-slate-200">
                 408 · {q.year} · 第 {q.number} 题
               </span>
@@ -471,54 +502,66 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
               <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-slate-700/60 dark:text-slate-300">
                 {TYPE_LABELS[q.type]}
               </span>
-            </div>
-
-            <p className="mt-1.5 whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-gray-700 dark:text-slate-200">
-              {q.stem}
-            </p>
-
-            {q.options.length > 0 && (
-              <div className="mt-1.5 grid grid-cols-1 gap-x-3 gap-y-0.5 sm:grid-cols-2">
-                {q.options.map((o) => (
-                  <p
-                    key={o.key}
-                    title={`${o.key}. ${o.text}`}
-                    className="line-clamp-1 text-[11.5px] leading-relaxed text-gray-500 dark:text-slate-400"
-                  >
-                    {o.key}. {o.text}
-                  </p>
-                ))}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => toggleAnswer(q.id)}
-              aria-expanded={expanded}
-              className="mt-2 inline-flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
-            >
-              <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
-              {expanded ? '收起答案' : '显示答案'}
+              <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
+                {expanded ? '收起' : '展开题目'}
+                <Icon name={expanded ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
+              </span>
             </button>
 
             {expanded && (
-              <div className="mt-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2 dark:border-emerald-500/25 dark:bg-emerald-500/10">
-                {q.type === 'comprehensive' ? (
-                  <>
-                    <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">参考答案要点</p>
-                    <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-gray-700 dark:text-slate-200">
-                      {q.answer}
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">答案：{q.answer}</p>
-                    {q.analysis && (
-                      <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-gray-600 dark:text-slate-300">
-                        解析：{q.analysis}
+              <div id={`exam-question-${q.id}`} className="mt-1.5">
+                <p className="whitespace-pre-wrap break-words text-[12.5px] leading-relaxed text-gray-700 dark:text-slate-200">
+                  {q.stem}
+                </p>
+
+                {q.options.length > 0 && (
+                  <div className="mt-1.5 grid grid-cols-1 gap-x-3 gap-y-0.5 sm:grid-cols-2">
+                    {q.options.map((o) => (
+                      <p
+                        key={o.key}
+                        title={`${o.key}. ${o.text}`}
+                        className="line-clamp-1 text-[11.5px] leading-relaxed text-gray-500 dark:text-slate-400"
+                      >
+                        {o.key}. {o.text}
                       </p>
+                    ))}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => toggleAnswer(q.id)}
+                  aria-expanded={answerOpen}
+                  className="mt-2 inline-flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+                >
+                  <Icon name={answerOpen ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
+                  {answerOpen ? '收起答案' : '显示答案'}
+                </button>
+
+                {answerOpen && (
+                  <div className="mt-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2 dark:border-emerald-500/25 dark:bg-emerald-500/10">
+                    {q.type === 'comprehensive' ? (
+                      <>
+                        <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                          参考答案要点
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-gray-700 dark:text-slate-200">
+                          {q.answer}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                          答案：{q.answer}
+                        </p>
+                        {q.analysis && (
+                          <p className="mt-1 whitespace-pre-wrap break-words text-[12px] leading-relaxed text-gray-600 dark:text-slate-300">
+                            解析：{q.analysis}
+                          </p>
+                        )}
+                      </>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             )}

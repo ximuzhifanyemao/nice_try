@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DiveDeep 发布控制台</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="bg-orb bg-orb-a"></div>
+  <div class="bg-orb bg-orb-b"></div>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">D</div>
+        <div class="brand-copy">
+          <h1>DiveDeep 发布控制台</h1>
+          <p>Web · Android · Windows</p>
+        </div>
+      </div>
+      <div class="top-meta">
+        <div class="meta-item">
+          <span>当前版本</span>
+          <strong id="meta-current-version">—</strong>
+        </div>
+        <div class="meta-item">
+          <span>分支</span>
+          <strong id="meta-git-branch">—</strong>
+        </div>
+        <div class="meta-item">
+          <span>Android</span>
+          <strong id="meta-android">—</strong>
+        </div>
+      </div>
+      <div class="top-actions">
+        <span class="live-pill" id="live-pill" title="实时日志连接状态">
+          <i class="live-dot"></i><span id="live-text">连接中</span>
+        </span>
+        <button class="btn ghost" id="btn-check" type="button">检查环境</button>
+        <button class="btn ghost" id="btn-settings" type="button">设置</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="hero card">
+        <div class="hero-copy">
+          <span class="eyebrow">RELEASE WORKFLOW</span>
+          <h2>输入版本号，选择要发布的目标</h2>
+          <p>
+            发布前自动检查 CloudBase、JDK、Android SDK、Rust、GitHub Token 等条件；
+            所有构建成功后才开始上传，避免线上出现半成品。
+          </p>
+          <div class="hero-points">
+            <span><i class="point point-blue"></i>构建与发布分离</span>
+            <span><i class="point point-green"></i>实时日志</span>
+            <span><i class="point point-amber"></i>可先演练</span>
+          </div>
+          <div class="hero-env" id="hero-env"></div>
+        </div>
+
+        <div class="version-panel">
+          <div class="version-head">
+            <label for="version-input">发布版本号</label>
+            <button class="mini-btn" id="btn-suggest" type="button" title="填入建议的下一个版本号">建议 v<span id="suggest-version">—</span></button>
+          </div>
+          <div class="version-input-wrap">
+            <span class="v-prefix">v</span>
+            <input id="version-input" inputmode="text" autocomplete="off" spellcheck="false" placeholder="1.18.0" />
+          </div>
+          <div class="version-hint" id="version-hint">正在读取当前版本…</div>
+          <div class="version-preview" id="version-preview"></div>
+          <button class="btn primary start-btn" id="btn-start" type="button">开始发布</button>
+          <p class="version-footnote">正式发布会修改版本文件、构建产物并上传；可勾选「演练模式」先看完整计划。</p>
+        </div>
+      </section>
+
+      <section class="section-head">
+        <div>
+          <h3>选择发布目标</h3>
+          <p>可以只发其中一个，也可以组合发布。</p>
+        </div>
+        <div class="section-tools">
+          <span class="selection-summary" id="selection-summary">已选 3 项</span>
+          <button class="mini-btn" id="btn-select-all" type="button">全选</button>
+          <button class="mini-btn" id="btn-select-none" type="button">清空</button>
+        </div>
+      </section>
+
+      <section class="target-grid" id="target-grid" aria-label="发布目标"></section>
+
+      <section class="options-card card" id="options-card">
+        <label class="option">
+          <input type="checkbox" id="opt-github" checked />
+          <span class="option-copy">
+            <strong>创建 GitHub Release</strong>
+            <small>把 APK / 桌面安装包上传到 v&lt;版本号&gt; Release</small>
+          </span>
+        </label>
+        <label class="option">
+          <input type="checkbox" id="opt-dirty" />
+          <span class="option-copy">
+            <strong>允许未提交改动</strong>
+            <small>开启后工作区不干净也可发布；建议先 commit</small>
+          </span>
+        </label>
+        <label class="option option-warn">
+          <input type="checkbox" id="opt-dry" />
+          <span class="option-copy">
+            <strong>演练模式</strong>
+            <small>只检查并打印命令，不写版本、不构建、不上传</small>
+          </span>
+        </label>
+      </section>
+
+      <div class="alert" id="alert" hidden></div>
+
+      <section class="checks card" id="checks-card" hidden>
+        <header class="card-head">
+          <div>
+            <span class="eyebrow">PREFLIGHT</span>
+            <h3>发布环境检查</h3>
+          </div>
+          <div class="checks-head-right">
+            <div class="checks-summary" id="checks-summary"></div>
+            <button class="btn ghost small" id="btn-recheck" type="button">重新检查</button>
+          </div>
+        </header>
+        <div class="checks-body" id="checks-body"></div>
+      </section>
+
+      <section class="run card" id="run-card" hidden>
+        <header class="card-head run-head">
+          <div>
+            <span class="eyebrow">RELEASE RUN</span>
+            <h3 id="run-title">发布</h3>
+            <p class="run-sub" id="run-sub"></p>
+          </div>
+          <div class="run-head-right">
+            <span class="status-pill" id="run-status">等待中</span>
+            <button class="btn danger ghost small" id="btn-cancel" type="button" hidden>中止</button>
+          </div>
+        </header>
+
+        <div class="steps" id="run-steps"></div>
+
+        <div class="terminal">
+          <div class="terminal-head">
+            <span class="terminal-dots"><i></i><i></i><i></i></span>
+            <span class="terminal-title">release log</span>
+            <label class="terminal-auto">
+              <input type="checkbox" id="auto-scroll" checked />
+              <span>自动滚动</span>
+            </label>
+          </div>
+          <pre class="terminal-body" id="run-log" aria-live="polite"></pre>
+        </div>
+      </section>
+
+      <section class="history card" id="history-card">
+        <header class="card-head">
+          <div>
+            <span class="eyebrow">HISTORY</span>
+            <h3>发布历史</h3>
+          </div>
+          <span class="history-count" id="history-count">0 次</span>
+        </header>
+        <div id="history-body"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>本地工具 · 仅监听 127.0.0.1</span>
+      <span id="footer-path"></span>
+    </footer>
+  </div>
+
+  <dialog class="dialog" id="confirm-dialog">
+    <form method="dialog" class="dialog-inner" id="confirm-form">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">CONFIRM</span>
+          <h3 id="confirm-title">确认发布</h3>
+        </div>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
+      </header>
+      <div class="dialog-body">
+        <div class="confirm-banner" id="confirm-banner"></div>
+        <div class="confirm-grid" id="confirm-summary"></div>
+        <div class="confirm-section">
+          <h4>版本文件变更</h4>
+          <div id="confirm-changes"></div>
+        </div>
+        <div class="confirm-section">
+          <h4>执行步骤</h4>
+          <ol class="plan-steps" id="confirm-steps"></ol>
+        </div>
+      </div>
+      <footer class="dialog-foot">
+        <button class="btn ghost" value="cancel" type="submit">取消</button>
+        <button class="btn primary" id="btn-confirm-run" type="button">确认并开始</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="dialog" id="settings-dialog">
+    <form method="dialog" class="dialog-inner" id="settings-form">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">SETTINGS</span>
+          <h3>发布配置</h3>
+        </div>
+        <button class="icon-btn" value="cancel" type="submit" aria-label="关闭">×</button>
+      </header>
+      <div class="dialog-body settings-body">
+        <p class="settings-note">配置保存在 <code id="settings-config-path">release/config.json</code>，本机路径不会提交到 Git。</p>
+
+        <h4>CloudBase（Web 发布）</h4>
+        <div class="field-grid">
+          <label class="field wide">
+            <span>CloudBase CLI 路径</span>
+            <input id="set-cli-path" placeholder="D:\cloudbase-cli\cloudbase.cmd" />
+          </label>
+          <label class="field">
+            <span>环境 ID</span>
+            <input id="set-env-id" placeholder="code-app-..." />
+          </label>
+          <label class="field">
+            <span>网站地址</span>
+            <input id="set-site-url" placeholder="https://...webapps.tcloudbase.com" />
+          </label>
+          <label class="field wide">
+            <span>部署额外参数</span>
+            <input id="set-deploy-args" placeholder="--verify --safe" />
+            <small>空格分隔，例如 --verify --safe；留空则只保留默认参数</small>
+          </label>
+        </div>
+
+        <h4>Android 构建</h4>
+        <div class="field-grid">
+          <label class="field">
+            <span>Java Home</span>
+            <input id="set-java-home" placeholder="E:\code_app\jdk-21.0.12" />
+          </label>
+          <label class="field">
+            <span>Android SDK</span>
+            <input id="set-sdk-dir" placeholder="D:\codeapp\sdk" />
+          </label>
+        </div>
+
+        <h4>Windows 桌面端</h4>
+        <div class="field-grid">
+          <label class="field">
+            <span>Cargo bin 目录</span>
+            <input id="set-cargo-bin" placeholder="C:\Users\...\.cargo\bin" />
+          </label>
+          <label class="field">
+            <span>打包目标</span>
+            <input id="set-bundles" placeholder="nsis,msi（留空使用 tauri 默认）" />
+          </label>
+        </div>
+
+        <h4>GitHub Release</h4>
+        <div class="field-grid">
+          <label class="field">
+            <span>Owner</span>
+            <input id="set-github-owner" placeholder="ximuzhifanyemao" />
+          </label>
+          <label class="field">
+            <span>Repo</span>
+            <input id="set-github-repo" placeholder="nice_try" />
+          </label>
+          <label class="field">
+            <span>Token 环境变量名</span>
+            <input id="set-token-env" placeholder="GITHUB_TOKEN" />
+            <small>Token 可放在 .env.ota 的 GITHUB_TOKEN 中，不要填在这里</small>
+          </label>
+        </div>
+
+        <h4>控制台</h4>
+        <div class="field-grid">
+          <label class="field">
+            <span>端口（重启生效）</span>
+            <input id="set-port" type="number" min="1024" max="65535" />
+          </label>
+          <label class="field">
+            <span>步骤超时（分钟）</span>
+            <input id="set-timeout" type="number" min="5" max="240" />
+          </label>
+          <label class="option compact">
+            <input type="checkbox" id="set-open-browser" />
+            <span class="option-copy"><strong>启动时自动打开浏览器</strong></span>
+          </label>
+          <label class="option compact">
+            <input type="checkbox" id="set-github-enabled" />
+            <span class="option-copy"><strong>默认创建 GitHub Release</strong></span>
+          </label>
+        </div>
+      </div>
+      <footer class="dialog-foot">
+        <span class="settings-path" id="settings-meta"></span>
+        <button class="btn ghost" value="cancel" type="submit">取消</button>
+        <button class="btn primary" id="btn-save-settings" type="button">保存配置</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="dialog dialog-log" id="log-dialog">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">LOG</span>
+          <h3 id="log-title">发布日志</h3>
+        </div>
+        <button class="icon-btn" id="btn-close-log" type="button" aria-label="关闭">×</button>
+      </header>
+      <pre class="log-dialog-body" id="log-body"></pre>
+      <footer class="dialog-foot">
+        <button class="btn ghost" id="btn-download-log" type="button">下载日志</button>
+        <button class="btn primary" id="btn-close-log-2" type="button">关闭</button>
+      </footer>
+    </div>
+  </dialog>
+
+  <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

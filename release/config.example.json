@@ -1,0 +1,36 @@
+{
+  "configVersion": 1,
+  "cloudbase": {
+    "cliPath": "D:\\cloudbase-cli\\cloudbase.cmd",
+    "envId": "your-env-id",
+    "siteUrl": "https://your-env-id.webapps.tcloudbase.com",
+    "deployArgs": [
+      "--verify"
+    ],
+    "region": "ap-shanghai"
+  },
+  "android": {
+    "javaHome": "C:\\Program Files\\Java\\jdk-21",
+    "sdkDir": "C:\\Users\\<you>\\AppData\\Local\\Android\\Sdk",
+    "gradleTask": "assembleRelease"
+  },
+  "desktop": {
+    "cargoBin": "C:\\Users\\<you>\\.cargo\\bin",
+    "bundles": ""
+  },
+  "github": {
+    "enabled": true,
+    "owner": "your-github-owner",
+    "repo": "your-repo",
+    "tokenEnv": "GITHUB_TOKEN"
+  },
+  "server": {
+    "port": 4780,
+    "openBrowser": true
+  },
+  "options": {
+    "allowDirty": false,
+    "stepTimeoutMinutes": 40,
+    "keepHistory": 80
+  }
+}

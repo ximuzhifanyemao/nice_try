@@ -31,7 +31,6 @@ const Achievements = lazy(() => import('./pages/Achievements'))
 const GoalPage = lazy(() => import('./pages/GoalPage'))
 const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
 const Politics = lazy(() => import('./pages/Politics'))
-const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
 const StudyNotes = lazy(() => import('./pages/StudyNotes'))
 const Settings = lazy(() => import('./pages/Settings'))
 const WeeklySummary = lazy(() => import('./pages/WeeklySummary'))
@@ -308,7 +307,8 @@ export default function App({
             <Route path="/achievements" element={<Achievements />} />
             <Route path="/goal" element={<GoalPage />} />
             <Route path="/english-checkin" element={<EnglishCheckin />} />
-            <Route path="/vocabulary" element={<VocabularyBook />} />
+            {/* 生词本已并入「记一记」：旧链接统一跳到生词分区，收藏的历史地址不会失效 */}
+            <Route path="/vocabulary" element={<Navigate to="/study-notes?tab=vocab" replace />} />
             <Route path="/study-notes" element={<StudyNotes />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/scan-qr" element={<ScanQr />} />

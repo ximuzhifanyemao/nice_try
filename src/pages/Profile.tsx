@@ -246,7 +246,7 @@ export default function Profile() {
   )
 
   /* ── 桌面端「我的」：账号面板，而不是功能索引页 ──
-     桌面端左侧边栏常驻，目标 / 周总结 / 生词本 / 成就 / 英语打卡 都已经在侧边栏里，
+     桌面端左侧边栏常驻，目标 / 周总结 / 记一记 / 成就 / 英语打卡 都已经在侧边栏里，
      再在「我的」里列一遍就是同一批入口出现两次（这正是它此前看起来像手机 App 的原因）。
      所以桌面端只保留「只有这里才有」的三类内容：账号身份、数据备份、版本更新。
      窄屏（真正的手机端，底部 Tab 只有 5 个）仍保留「二级功能索引页」形态。 */
@@ -301,7 +301,7 @@ export default function Profile() {
                   icon={<Icon name="cloud" size={17} />}
                   tint={TINT.blue}
                   label={syncing ? '正在同步…' : '同步数据'}
-                  desc="把生词本与学习数据同步到云端"
+                  desc="把记一记与学习数据同步到云端"
                   meta="云端"
                   control={
                     <button type="button" className="btn-ghost h-8 px-3 py-0 text-xs" onClick={handleSync} disabled={syncing}>
@@ -313,7 +313,7 @@ export default function Profile() {
                   icon={<Icon name="download" size={17} />}
                   tint={TINT.emerald}
                   label={exporting ? '正在导出…' : '导出数据'}
-                  desc="导出学习记录 / 生词本 / 待办为 JSON 备份"
+                  desc="导出学习记录 / 记一记 / 待办为 JSON 备份"
                   meta="JSON"
                   control={
                     <button type="button" className="btn-ghost h-8 px-3 py-0 text-xs" onClick={handleExport} disabled={exporting}>
@@ -502,15 +502,8 @@ export default function Profile() {
               to="/study-notes"
               icon={<Icon name="bulb" size={17} />}
               tint={TINT.red}
-              label="不熟本"
-              desc="数学 / 408 不熟知识点与截图"
-            />
-            <SettingRow
-              to="/vocabulary"
-              icon={<Icon name="vocab" size={17} />}
-              tint={TINT.emerald}
-              label="生词本"
-              desc="背单词、复习与发音"
+              label="记一记"
+              desc="数学 / 408 知识点、真题与英语生词"
             />
             <SettingRow
               to="/achievements"
@@ -571,7 +564,7 @@ export default function Profile() {
               icon={<Icon name="cloud" size={17} />}
               tint={TINT.blue}
               label={syncing ? '正在同步…' : '同步数据'}
-              desc="把生词本与学习数据同步到云端"
+              desc="把记一记与学习数据同步到云端"
               meta="云端"
               control={
                 <button type="button" className="btn-ghost h-8 px-3 py-0 text-xs" onClick={handleSync} disabled={syncing}>
@@ -583,7 +576,7 @@ export default function Profile() {
               icon={<Icon name="download" size={17} />}
               tint={TINT.emerald}
               label={exporting ? '正在导出…' : '导出数据'}
-              desc="导出学习记录 / 生词本 / 待办为 JSON 备份"
+              desc="导出学习记录 / 记一记 / 待办为 JSON 备份"
               meta="JSON"
               control={
                 <button type="button" className="btn-ghost h-8 px-3 py-0 text-xs" onClick={handleExport} disabled={exporting}>

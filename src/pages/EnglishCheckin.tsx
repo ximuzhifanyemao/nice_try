@@ -798,12 +798,12 @@ export default function EnglishCheckin() {
       .then((result) => {
         if (reviewWordKeyRef.current !== key) return
         setReviewMeaning(
-          result ? result.meanings.join('；') : '本地词库暂未收录，可到生词本用 AI 查词。',
+          result ? result.meanings.join('；') : '本地词库暂未收录，可到「记一记 · 生词」用 AI 查词。',
         )
       })
       .catch(() => {
         if (reviewWordKeyRef.current === key) {
-          setReviewMeaning('本地词库暂未收录，可到生词本用 AI 查词。')
+          setReviewMeaning('本地词库暂未收录，可到「记一记 · 生词」用 AI 查词。')
         }
       })
       .finally(() => {
@@ -1077,7 +1077,7 @@ export default function EnglishCheckin() {
       if (user) {
         void removeWordFromCloud(user.id, selectedDay, activeTerm.word, activeTerm.sentence).catch(() => {})
       }
-      toast.show('已移出生词本')
+      toast.show('已移出记一记')
     } else {
       const at = new Date().toISOString()
       const record = { ...toRecord(activeTerm), at }
@@ -1085,7 +1085,7 @@ export default function EnglishCheckin() {
       setOpenedTerms((prev) => [...prev.filter((t) => t.id !== record.id), record])
       addToVocab(record, activeTerm.sentence)
       setActiveTerm({ ...activeTerm, at })
-      toast.show('已加入生词本')
+      toast.show('已加入记一记')
     }
   }
 
@@ -1259,7 +1259,7 @@ export default function EnglishCheckin() {
 
   async function handleUndo() {
     if (!user || lastDoneDay < 1 || busy) return
-    if (!window.confirm(`确定撤销 Day ${lastDoneDay} 的打卡？阅读进度与生词本会保留。`)) return
+    if (!window.confirm(`确定撤销 Day ${lastDoneDay} 的打卡？阅读进度与记一记里的生词会保留。`)) return
     exitReview()
     setBusy(true)
     setError(null)
@@ -2033,8 +2033,8 @@ export default function EnglishCheckin() {
                 跨篇待复习 {reviewItems.length} 句
               </button>
             )}
-            <Link to="/vocabulary" className="ec-ghost">
-              打开生词本
+            <Link to="/study-notes?tab=vocab" className="ec-ghost">
+              打开记一记
             </Link>
           </div>
 
@@ -2203,7 +2203,7 @@ export default function EnglishCheckin() {
                     {sheetSaved && (
                       <span className="ec-saved-tag">
                         <Icon name="check" size={12} />
-                        已收进生词本
+                        已收进记一记
                       </span>
                     )}
                   </div>
@@ -2227,7 +2227,7 @@ export default function EnglishCheckin() {
                     aria-pressed={sheetSaved}
                   >
                     <span className="ec-save-box">{sheetSaved && <Icon name="check" size={14} />}</span>
-                    <span className="ec-save-text">{sheetSaved ? '已加入生词本' : '加入生词本'}</span>
+                    <span className="ec-save-text">{sheetSaved ? '已加入记一记' : '加入记一记'}</span>
                     <span className="ec-save-note">
                       {sheetSaved ? '再次点击移出' : '点击重新加入'}
                     </span>
@@ -2236,7 +2236,7 @@ export default function EnglishCheckin() {
                   {sheetSaved && (
                     <p className="ec-review-note">
                       <Icon name="refresh" size={13} />
-                      我们稍后会在「本篇生词 / 生词本」里复习这个词
+                      我们稍后会在「本篇生词 / 记一记」里复习这个词
                     </p>
                   )}
 
@@ -2326,8 +2326,8 @@ export default function EnglishCheckin() {
                     <button type="button" className="ec-primary" onClick={closeSheet}>
                       记下了
                     </button>
-                    <Link to="/vocabulary" className="ec-ghost" onClick={closeSheet}>
-                      查看生词本
+                    <Link to="/study-notes?tab=vocab" className="ec-ghost" onClick={closeSheet}>
+                      查看记一记
                     </Link>
                   </div>
                 </>
@@ -2382,7 +2382,7 @@ export default function EnglishCheckin() {
                   <p className="ec-sheet-sub">点开即收词 · 共 {dayOpenedCount} 个</p>
                   {openedTerms.length === 0 ? (
                     <p className="ec-about-p">
-                      还没有点开词条。回到句子，点击任意单词或虚线短语，释义会自动收进生词本，不用等到打卡。
+                      还没有点开词条。回到句子，点击任意单词或虚线短语，释义会自动收进记一记，不用等到打卡。
                     </p>
                   ) : (
                     <div className="ec-list">
@@ -2405,8 +2405,8 @@ export default function EnglishCheckin() {
                     </div>
                   )}
                   <div className="ec-sheet-actions">
-                    <Link to="/vocabulary" className="ec-primary" onClick={closeSheet}>
-                      打开生词本
+                    <Link to="/study-notes?tab=vocab" className="ec-primary" onClick={closeSheet}>
+                      打开记一记
                     </Link>
                     <button type="button" className="ec-ghost" onClick={closeSheet}>
                       继续精读
@@ -2480,7 +2480,7 @@ export default function EnglishCheckin() {
                       <b>怎么清空：</b>回看时重新标为「全对」，这句就自动移出清单。
                     </p>
                     <p className="ec-about-p">
-                      <b>穿插生词：</b>复习时会从生词本抽取单词，和待复习句子交替出现。
+                      <b>穿插生词：</b>复习时会从记一记的「生词」里抽取单词，和待复习句子交替出现。
                     </p>
                   </div>
                 </>
@@ -2612,7 +2612,7 @@ export default function EnglishCheckin() {
                       <b>逐句自评：</b>每句看完答案后选一档掌握程度，没把握的句子会进入待复习，计划格里带橙点。
                     </p>
                     <p className="ec-about-p">
-                      <b>即点即收：</b>点击虚线短语或任意单词，词条会自动进入生词本，无需等到打卡。
+                      <b>即点即收：</b>点击虚线短语或任意单词，词条会自动进入记一记，无需等到打卡。
                     </p>
                   </div>
                 </>

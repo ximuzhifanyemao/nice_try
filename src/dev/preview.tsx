@@ -397,7 +397,7 @@ function previewImage(label: string, from: string, to: string): string {
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 }
 
-/** ?notes=1 的不熟本示例数据：核对卡片、配图、掌握态的排版 */
+/** ?notes=1 的记一记示例数据：核对卡片、配图、掌握态的排版 */
 function buildPreviewStudyNotes() {
   const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
   const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
@@ -446,6 +446,47 @@ function buildPreviewStudyNotes() {
       mastered: true,
       createdAt: twoDaysAgo,
       updatedAt: twoDaysAgo,
+    },
+  ]
+}
+
+/** ?vocab=1 的记一记 · 生词示例：核对按天分组、AI 查词入口与两栏排版 */
+function buildPreviewVocabulary() {
+  const now = new Date().toISOString()
+  return [
+    {
+      day: 1,
+      words: [
+        {
+          word: 'persistent',
+          sentence: 'Persistent effort is what separates progress from stagnation.',
+          day: 1,
+          sentIdx: 0,
+          wordIdx: 0,
+          addedAt: now,
+        },
+        {
+          word: 'stagnation',
+          sentence: 'Persistent effort is what separates progress from stagnation.',
+          day: 1,
+          sentIdx: 0,
+          wordIdx: 8,
+          addedAt: now,
+        },
+      ],
+    },
+    {
+      day: 3,
+      words: [
+        {
+          word: 'incentive',
+          sentence: 'A well-designed incentive can align individual goals with collective ones.',
+          day: 3,
+          sentIdx: 1,
+          wordIdx: 3,
+          addedAt: now,
+        },
+      ],
     },
   ]
 }
@@ -561,10 +602,15 @@ function seedData(view: string, theme: ThemeMode, running: boolean, params: URLS
   } else if (params.get('pomo') === '1') {
     localStorage.setItem(TIMER_MODE_KEY, 'pomodoro')
   }
-  // 不熟本示例数据：?notes=1 时写入本地缓存，便于核对页面排版
+  // 记一记示例数据：?notes=1 时写入本地缓存，便于核对页面排版
   localStorage.removeItem('kaoyan_study_notes_v1')
   if (params.get('notes') === '1') {
     localStorage.setItem('kaoyan_study_notes_v1', JSON.stringify(buildPreviewStudyNotes()))
+  }
+  // 生词分区示例：?vocab=1 时写入，配合 #/study-notes?tab=vocab 核对合并后的页面
+  localStorage.removeItem('english_vocabulary')
+  if (params.get('vocab') === '1') {
+    localStorage.setItem('english_vocabulary', JSON.stringify(buildPreviewVocabulary()))
   }
   // ?running=1：强制摆出「计时中」态（全功能计时页 Hero 的渐变数字/控制钮也要能截到）
   if (running || view === 'idle' || (view === 'dropdown' && !params.has('pomo'))) {

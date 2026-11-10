@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../lib/Toast'
@@ -6,11 +7,14 @@ import { useWideLayout } from '../App'
 import { Icon } from '../components/Icon'
 import EmptyState from '../components/EmptyState'
 import ConfirmDialog from '../components/ConfirmDialog'
+import ImageCropDialog from '../components/ImageCropDialog'
+import VocabularyPanel, { type VocabularyStats } from '../components/VocabularyPanel'
 import ExamQuestionPicker, {
   ExamQuestionList,
   SECTION_LABELS,
 } from '../components/ExamQuestionPicker'
 import { getQuestionsByIds, type ExamQuestion } from '../lib/exam408'
+import { loadVocabulary } from '../lib/vocabulary'
 import {
   MAX_NOTE_IMAGES,
   STUDY_CATEGORIES,
@@ -75,11 +79,23 @@ function truncateText(text: string, max: number): string {
 }
 
 type PendingUpload = { id: string; preview: string }
+type PendingImageEdit = { id: string; file: File }
+
+/** 页面内的两个分区：知识点（数学 / 408）与英语生词 */
+type NotesTab = 'notes' | 'vocab'
 
 export default function StudyNotes() {
   const wide = useWideLayout()
   const { user } = useAuth()
   const toast = useToast()
+
+  // 分区走 URL：/study-notes?tab=vocab 可以直接打开生词，旧的 /vocabulary 也能跳过来
+  const [searchParams, setSearchParams] = useSearchParams()
+  const activeTab: NotesTab = searchParams.get('tab') === 'vocab' ? 'vocab' : 'notes'
+  const [vocabStats, setVocabStats] = useState<VocabularyStats>(() => {
+    const cached = loadVocabulary()
+    return { days: cached.length, words: cached.reduce((sum, d) => sum + d.words.length, 0) }
+  })
 
   const [notes, setNotes] = useState<StudyNote[]>(() => loadStudyNotes())
   const [loading, setLoading] = useState(true)
@@ -91,7 +107,7 @@ export default function StudyNotes() {
   /** 二级科目筛选，空字符串 = 全部二级科目 */
   const [filterCategory, setFilterCategory] = useState('')
   const [query, setQuery] = useState('')
-  /** 默认只看未掌握：不熟本的核心用法是「反复看自己还没弄懂的」 */
+  /** 默认只看未掌握：记一记的核心用法是「反复看自己还没弄懂的」 */
   const [onlyUnmastered, setOnlyUnmastered] = useState(true)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
 
@@ -105,6 +121,8 @@ export default function StudyNotes() {
   const [pageRef, setPageRef] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [pending, setPending] = useState<PendingUpload[]>([])
+  /** 选好但还没裁剪 / 上传的图片：一次只处理队首那张 */
+  const [cropQueue, setCropQueue] = useState<PendingImageEdit[]>([])
   const [saving, setSaving] = useState(false)
 
   // —— 关联真题 ——
@@ -264,6 +282,7 @@ export default function StudyNotes() {
         if (paths.length > 0) void deleteNoteImages(paths)
       }
       releasePending()
+      setCropQueue([])
       setEditingId(null)
       setSubject('math')
       setCategory('')
@@ -314,9 +333,39 @@ export default function StudyNotes() {
     [focusTitle, resetComposer, wide],
   )
 
-  /** 选图后立即上传：保存时不用再等，失败也能立刻重试 */
+  /** 上传一张已经裁剪好的图片：立即开始，保存时不用再等 */
+  const uploadImageFile = useCallback(
+    async (file: File) => {
+      if (!user) return
+      const session = uploadSession.current
+      const id = newNoteId()
+      const preview = URL.createObjectURL(file)
+      pendingCount.current += 1
+      setPending((prev) => [...prev, { id, preview }])
+
+      try {
+        const path = await uploadNoteImage(user.id, file)
+        if (session !== uploadSession.current) {
+          // 上传期间用户取消了编辑 / 保存了笔记：这张图已不属于当前表单
+          void deleteNoteImages([path])
+          return
+        }
+        uploadedThisSession.current.add(path)
+        setImages((prev) => (prev.includes(path) ? prev : [...prev, path]))
+      } catch (err) {
+        toast.show(err instanceof Error ? err.message : '图片上传失败，请重试', { icon: '🖼️' })
+      } finally {
+        pendingCount.current = Math.max(0, pendingCount.current - 1)
+        setPending((prev) => prev.filter((p) => p.id !== id))
+        URL.revokeObjectURL(preview)
+      }
+    },
+    [toast, user],
+  )
+
+  /** 选图后先进入旋转 / 裁剪编辑器，处理完一张再处理下一张 */
   const handlePickFiles = useCallback(
-    async (picked: File[]) => {
+    (picked: File[]) => {
       if (!user) {
         toast.show('登录后才能上传图片', { icon: '🔑' })
         return
@@ -325,7 +374,7 @@ export default function StudyNotes() {
       if (valid.length !== picked.length) toast.show('已忽略非图片文件', { icon: '🖼️' })
       if (valid.length === 0) return
 
-      const room = MAX_NOTE_IMAGES - images.length - pendingCount.current
+      const room = MAX_NOTE_IMAGES - images.length - pending.length - cropQueue.length
       if (room <= 0) {
         toast.show(`每条最多 ${MAX_NOTE_IMAGES} 张图片`, { icon: '🖼️' })
         return
@@ -335,32 +384,34 @@ export default function StudyNotes() {
         toast.show(`每条最多 ${MAX_NOTE_IMAGES} 张图片，多余的已忽略`, { icon: '🖼️' })
       }
 
-      const session = uploadSession.current
-      pendingCount.current += accepted.length
-      const items = accepted.map((file) => ({ id: newNoteId(), file, preview: URL.createObjectURL(file) }))
-      setPending((prev) => [...prev, ...items.map(({ id, preview }) => ({ id, preview }))])
-
-      for (const item of items) {
-        try {
-          const path = await uploadNoteImage(user.id, item.file)
-          if (session !== uploadSession.current) {
-            // 上传期间用户取消了编辑 / 保存了笔记：这张图已不属于当前表单
-            void deleteNoteImages([path])
-            continue
-          }
-          uploadedThisSession.current.add(path)
-          setImages((prev) => (prev.includes(path) ? prev : [...prev, path]))
-        } catch (err) {
-          toast.show(err instanceof Error ? err.message : '图片上传失败，请重试', { icon: '🖼️' })
-        } finally {
-          pendingCount.current = Math.max(0, pendingCount.current - 1)
-          setPending((prev) => prev.filter((p) => p.id !== item.id))
-          URL.revokeObjectURL(item.preview)
-        }
-      }
+      setCropQueue((prev) => [...prev, ...accepted.map((file) => ({ id: newNoteId(), file }))])
     },
-    [images.length, toast, user],
+    [cropQueue.length, images.length, pending.length, toast, user],
   )
+
+  /** 裁剪完成：把输出的 JPEG 交给上传队列 */
+  const handleCropConfirm = useCallback(
+    (blob: Blob) => {
+      const item = cropQueue[0]
+      if (!item) return
+      setCropQueue((prev) => prev.slice(1))
+      const type = blob.type || 'image/jpeg'
+      const file =
+        blob instanceof File
+          ? blob
+          : new File([blob], `note-${item.id}.${type === 'image/png' ? 'png' : 'jpg'}`, { type })
+      void uploadImageFile(file)
+    },
+    [cropQueue, uploadImageFile],
+  )
+
+  const handleCropSkip = useCallback(() => {
+    setCropQueue((prev) => prev.slice(1))
+  }, [])
+
+  const handleCropCancel = useCallback(() => {
+    setCropQueue([])
+  }, [])
 
   /** 移除编辑器里的图片：本次新上传的立即从存储删除，原有图片等保存时再删 */
   const removeImage = useCallback((path: string) => {
@@ -502,7 +553,7 @@ export default function StudyNotes() {
           <Icon name="bulb" size={16} />
         </span>
         <h2 className="min-w-0 flex-1 text-sm font-semibold text-gray-800 dark:text-slate-100">
-          {editingId ? '编辑知识点' : '记一条不熟的'}
+          {editingId ? '编辑知识点' : '记一条'}
         </h2>
         {editingId && (
           <button
@@ -736,14 +787,14 @@ export default function StudyNotes() {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            disabled={images.length + pending.length >= MAX_NOTE_IMAGES}
+            disabled={images.length + pending.length + cropQueue.length >= MAX_NOTE_IMAGES}
             className="btn-ghost h-9 px-3 py-0 text-xs"
           >
             <Icon name="plus" size={14} />
             添加图片
           </button>
           <p className="min-w-0 text-[11px] leading-relaxed text-gray-400 dark:text-slate-500">
-            可拍照 / 选图 / 直接粘贴截图，最多 {MAX_NOTE_IMAGES} 张
+            可拍照 / 选图 / 直接粘贴截图，上传前可旋转裁剪，最多 {MAX_NOTE_IMAGES} 张
           </p>
         </div>
 
@@ -764,7 +815,7 @@ export default function StudyNotes() {
             ) : editingId ? (
               '保存修改'
             ) : (
-              '保存到不熟本'
+              '保存到记一记'
             )}
           </button>
           {formOpen && !wide && (
@@ -886,7 +937,7 @@ export default function StudyNotes() {
       ) : visibleNotes.length === 0 ? (
         <EmptyState
           icon="bulb"
-          title={notes.length === 0 ? '不熟本还是空的' : onlyUnmastered ? '没有未掌握的知识点' : '没有匹配的知识点'}
+          title={notes.length === 0 ? '记一记还是空的' : onlyUnmastered ? '没有未掌握的知识点' : '没有匹配的知识点'}
           desc={
             notes.length === 0
               ? '把数学、408 里不熟的知识点记下来，配张截图，复习时只看这一本。'
@@ -1036,47 +1087,114 @@ export default function StudyNotes() {
     </>
   )
 
+  const switchTab = (tab: NotesTab) => {
+    setSearchParams(tab === 'vocab' ? { tab: 'vocab' } : {}, { replace: true })
+  }
+
   const header = (
-    <header className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <header className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2">
       <div className="flex min-w-0 items-center gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 text-white shadow-[0_8px_20px_-10px_rgba(79,70,229,0.7)]">
           <Icon name="bulb" size={19} />
         </span>
         <div className="min-w-0">
           <h1 className="flex items-center gap-2 text-xl font-bold text-gray-900 dark:text-slate-50">
-            不熟本
+            记一记
             {syncing && (
               <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600 dark:border-slate-700 dark:border-t-indigo-400" />
             )}
           </h1>
           <p className="truncate text-xs text-gray-500 dark:text-slate-400">
-            数学 / 408 不熟的知识点、易错思路，都能配图记下来
+            数学 / 408 知识点与真题，加上英语生词，都收在这一本里
           </p>
         </div>
       </div>
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
-        <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
-          未掌握 {unmasteredCount}
-        </span>
-        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
-          已掌握 {masteredCount}
-        </span>
-        {!wide && (
-          <button type="button" onClick={openComposer} className="btn-primary h-9 px-3 py-0 text-xs">
-            <Icon name="plus" size={14} />
-            记一条
-          </button>
+        {activeTab === 'notes' ? (
+          <>
+            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] font-medium text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+              未掌握 {unmasteredCount}
+            </span>
+            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+              已掌握 {masteredCount}
+            </span>
+            {!wide && (
+              <button type="button" onClick={openComposer} className="btn-primary h-9 px-3 py-0 text-xs">
+                <Icon name="plus" size={14} />
+                记一条
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-medium text-indigo-700 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300">
+              生词 {vocabStats.words} 个 · {vocabStats.days} 天
+            </span>
+            {!wide && (
+              <Link to="/english-checkin" className="btn-ghost h-9 px-3 py-0 text-xs">
+                <Icon name="book" size={14} />
+                去打卡
+              </Link>
+            )}
+          </>
         )}
       </div>
     </header>
   )
 
+  const tabs = (
+    <div
+      className="mb-3 flex items-center gap-1 rounded-xl border border-gray-200 bg-gray-100/70 p-1 sm:w-fit dark:border-slate-700 dark:bg-slate-800/60"
+      role="tablist"
+      aria-label="记一记分区"
+    >
+      {(
+        [
+          { key: 'notes', label: '知识点', icon: 'bulb', count: notes.length, suffix: '条' },
+          { key: 'vocab', label: '生词', icon: 'vocab', count: vocabStats.words, suffix: '个' },
+        ] as const
+      ).map((tab) => {
+        const active = activeTab === tab.key
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => switchTab(tab.key)}
+            className={`flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-xs transition-colors sm:flex-none ${
+              active
+                ? 'bg-white font-semibold text-indigo-600 shadow-sm dark:bg-slate-900 dark:text-indigo-300'
+                : 'font-medium text-gray-500 hover:text-gray-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Icon name={tab.icon} size={14} />
+            {tab.label}
+            <span
+              className={`rounded-full px-1.5 text-[10px] font-semibold tabular-nums ${
+                active
+                  ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300'
+                  : 'bg-gray-200/70 text-gray-500 dark:bg-slate-700 dark:text-slate-400'
+              }`}
+            >
+              {tab.count}
+              {tab.suffix}
+            </span>
+          </button>
+        )
+      })}
+    </div>
+  )
+
   return (
     <div className={wide ? 'mx-auto max-w-[1280px] px-5 py-4 pb-6' : 'mx-auto max-w-3xl px-4 py-4 pb-6'}>
       {header}
+      {tabs}
 
-      {wide ? (
+      {activeTab === 'vocab' ? (
+        <VocabularyPanel onStatsChange={setVocabStats} />
+      ) : wide ? (
         <div className="grid grid-cols-[380px_minmax(0,1fr)] items-start gap-4">
           <div className="sticky top-4 space-y-3">{composer}</div>
           <div className="min-w-0 space-y-3">{list}</div>
@@ -1106,8 +1224,16 @@ export default function StudyNotes() {
             }
           }
           e.target.value = ''
-          if (files.length > 0) void handlePickFiles(files)
+          if (files.length > 0) handlePickFiles(files)
         }}
+      />
+
+      <ImageCropDialog
+        file={cropQueue[0]?.file ?? null}
+        remaining={cropQueue.length}
+        onCancel={handleCropCancel}
+        onSkip={handleCropSkip}
+        onConfirm={handleCropConfirm}
       />
 
       <ConfirmDialog

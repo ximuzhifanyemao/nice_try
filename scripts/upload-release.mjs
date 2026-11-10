@@ -1,6 +1,8 @@
 // ============================================================
 // 上传产物到 GitHub Releases 脚本
-// 用法：node scripts/upload-release.mjs
+// 用法：node scripts/upload-release.mjs [--no-apk] [--no-desktop]
+//   --no-apk      不包含 apk/DiveDeep.apk（只发布桌面端时使用）
+//   --no-desktop  不包含桌面端 MSI/EXE（只发布 APK 时使用）
 // 前提：apk/DiveDeep.apk 与
 //       src-tauri/target/release/bundle/nsis/*.exe、bundle/msi/*.msi 已构建
 // 认证：优先 GITHUB_TOKEN / GH_TOKEN 环境变量，或 .env.ota 中配置，
@@ -39,6 +41,9 @@ if (existsSync(envPath)) {
 const OWNER = process.env.GITHUB_OWNER || 'ximuzhifanyemao'
 const REPO = process.env.GITHUB_REPO || 'nice_try'
 const VERSION = pkg.version
+const CLI_ARGS = process.argv.slice(2)
+const INCLUDE_APK = !CLI_ARGS.includes('--no-apk')
+const INCLUDE_DESKTOP = !CLI_ARGS.includes('--no-desktop')
 const TAG = `v${VERSION}`
 const APK_PATH = join(__dirname, '..', 'apk', 'DiveDeep.apk')
 const ASSET_NAME = 'DiveDeep.apk'
@@ -126,15 +131,17 @@ function buildChangelog() {
 // 收集本次要上传的全部产物（按当前版本过滤，避免把旧版本 bundle 一起传上去）
 function collectAssets() {
   const assets = []
-  if (existsSync(APK_PATH)) {
+  if (INCLUDE_APK && existsSync(APK_PATH)) {
     assets.push({ path: APK_PATH, name: ASSET_NAME, type: 'application/vnd.android.package-archive', label: 'Android (APK)' })
   }
-  for (const dir of [['Windows 安装包 (NSIS .exe)', NSIS_DIR, 'application/x-msdownload'], ['Windows (MSI)', MSI_DIR, 'application/x-msi']]) {
-    const [label, dirPath, type] = dir
-    if (!existsSync(dirPath)) continue
-    for (const f of readdirSync(dirPath)) {
-      if (f.includes(VERSION)) {
-        assets.push({ path: join(dirPath, f), name: f, type, label })
+  if (INCLUDE_DESKTOP) {
+    for (const dir of [['Windows 安装包 (NSIS .exe)', NSIS_DIR, 'application/x-msdownload'], ['Windows (MSI)', MSI_DIR, 'application/x-msi']]) {
+      const [label, dirPath, type] = dir
+      if (!existsSync(dirPath)) continue
+      for (const f of readdirSync(dirPath)) {
+        if (f.includes(VERSION)) {
+          assets.push({ path: join(dirPath, f), name: f, type, label })
+        }
       }
     }
   }
@@ -222,8 +229,12 @@ export async function uploadApkToGithubRelease({ apkPath = APK_PATH, extraAssets
     console.log(`   已上传 asset: ${a.name}`)
   }
 
-  const downloadUrl = `${WEB}/releases/download/${TAG}/${ASSET_NAME}`
-  const latestUrl = `${WEB}/releases/latest/download/${ASSET_NAME}`
+  const downloadUrl = INCLUDE_APK
+    ? `${WEB}/releases/download/${TAG}/${ASSET_NAME}`
+    : `${WEB}/releases/tag/${TAG}`
+  const latestUrl = INCLUDE_APK
+    ? `${WEB}/releases/latest/download/${ASSET_NAME}`
+    : `${WEB}/releases/latest`
   return { tag: TAG, downloadUrl, latestUrl, assets }
 }
 
@@ -235,7 +246,7 @@ if (isMain) {
     .then(({ tag, downloadUrl, latestUrl, assets }) => {
       console.log(`\n✅ 上传成功！本次 Release ${TAG} 共 ${assets.length} 个产物:`)
       for (const a of assets) console.log(`   - ${a.name}`)
-      console.log(`\n   手机端下载: ${downloadUrl}`)
+      console.log(`\n   ${INCLUDE_APK ? '手机端下载' : 'Release 页面'}: ${downloadUrl}`)
       console.log(`   最新下载: ${latestUrl}\n`)
     })
     .catch((err) => {

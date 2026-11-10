@@ -1,4 +1,4 @@
-// 生词本工具：管理标记单词的持久化存储和生词本数据（支持云端同步）
+// 记一记 · 生词数据层（原英语生词本）：管理标记单词的持久化存储和生词数据（支持云端同步）
 import { supabase } from './supabase'
 import { isSupabaseConfigured } from './supabase'
 

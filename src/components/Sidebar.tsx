@@ -16,20 +16,18 @@ interface NavItem {
 }
 
 /**
- * 侧边栏主导航：顺序对应用户「首页 → 计时 → 打卡 → 记录 → 统计 → 周总结 → 生词 → 成就 → 目标 → 我的」的心智模型。
- * 桌面端侧边栏是常驻导航，因此所有功能入口都必须在这里有一席之地，
- * 「我的」只作为账号与数据管理的落点，不再承担「二级功能索引页」的职责。
+ * 侧边栏主导航：顺序对应用户「首页 → 计时 → 打卡 → 政治 → 记一记 → 记录 → 统计 → 周总结 → 成就 → 目标 → 我的」的心智模型。
+ * 记一记同时承载数学 / 408 知识点与英语生词，因此不再单列「生词」入口。
  */
 const NAV_ITEMS: NavItem[] = [
   { key: 'home', label: '首页', iconKey: 'home', path: '/' },
   { key: 'timer', label: '计时', iconKey: 'timer', path: '/timer' },
   { key: 'checkin', label: '打卡', iconKey: 'checkin', path: '/english-checkin' },
   { key: 'politics', label: '政治', iconKey: 'politics', path: '/politics' },
-  { key: 'notes', label: '不熟本', iconKey: 'notes', path: '/study-notes' },
+  { key: 'notes', label: '记一记', iconKey: 'notes', path: '/study-notes' },
   { key: 'records', label: '记录', iconKey: 'records', path: '/my-records' },
   { key: 'summary', label: '统计', iconKey: 'summary', path: '/summary' },
   { key: 'weeklySummary', label: '周总结', iconKey: 'goal', path: '/weekly-summary' },
-  { key: 'vocab', label: '生词', iconKey: 'vocab', path: '/vocabulary' },
   { key: 'achievements', label: '成就', iconKey: 'achievements', path: '/achievements' },
   { key: 'goal', label: '目标', iconKey: 'goal', path: '/goal' },
   { key: 'profile', label: '我的', iconKey: 'profile', path: '/profile' },
@@ -53,8 +51,8 @@ const PAGE_TITLES: [string, string][] = [
   ['/goal', '目标'],
   ['/english-checkin', '打卡'],
   ['/politics', '政治'],
-  ['/study-notes', '不熟本'],
-  ['/vocabulary', '生词'],
+  ['/study-notes', '记一记'],
+  ['/vocabulary', '记一记'],
   ['/settings', '设置'],
   ['/scan-qr', '扫码登录'],
   ['/', '首页'],
@@ -100,11 +98,10 @@ export default function Sidebar() {
     if (pathname === '/timer') return 'timer'
     if (pathname === '/english-checkin') return 'checkin'
     if (pathname === '/politics') return 'politics'
-    if (pathname === '/study-notes') return 'notes'
+    if (pathname === '/study-notes' || pathname === '/vocabulary') return 'notes'
     if (pathname.startsWith('/my-records')) return 'records'
     if (pathname === '/summary') return 'summary'
     if (pathname === '/weekly-summary') return 'weeklySummary'
-    if (pathname === '/vocabulary') return 'vocab'
     if (pathname === '/achievements') return 'achievements'
     if (pathname === '/goal') return 'goal'
     return pathname === '/profile' ? 'profile' : ''

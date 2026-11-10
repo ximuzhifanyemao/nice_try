@@ -132,7 +132,7 @@ export default function Download() {
               事虽难，<span className="text-[#a6342a]">做则必成</span>。
             </h1>
             <p className="mt-4 max-w-xl text-[13.5px] leading-relaxed text-[#60564b] sm:text-sm">
-              学习计时、周目标、打卡日历、英语精读、生词本——把备考的每一小时都记下来，
+              学习计时、周目标、打卡日历、英语精读、记一记——把备考的每一小时都记下来，
               回头看时才知道自己走了多远。
             </p>
 

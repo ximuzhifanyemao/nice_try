@@ -32,6 +32,21 @@ cp .env.example .env.local
 npm run dev
 ```
 
+## 一键发布（Web / Android / Windows）
+
+项目根目录内置本地发布控制台：输入版本号、勾选 Web / Android APK / Windows 桌面端，
+发布前自动检查 CloudBase、JDK、Android SDK、Rust、GitHub Token 等条件。
+
+```bash
+# 双击 release.cmd，或：
+npm run release:ui
+
+# 只检查环境
+npm run release:check
+```
+
+详细说明、配置项和命令行用法见 [release/README.md](release/README.md)。
+
 ## Supabase 部署
 
 ### 1. 创建 Supabase 项目

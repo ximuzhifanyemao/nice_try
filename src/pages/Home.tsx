@@ -288,7 +288,7 @@ export default function Home() {
           {/* ⑤ 英语打卡 */}
           {user && <EnglishCheckinEntry size="normal" checkinCount={checkinCount} />}
 
-          {/* ⑥ 生词本 / 每周总结（次要） */}
+          {/* ⑥ 记一记 / 每周总结（次要） */}
           {user && <QuickLinksRow />}
 
           {/* ⑦ 待办事项清单（放在首页最下方） */}
