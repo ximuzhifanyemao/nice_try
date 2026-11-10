@@ -40,6 +40,7 @@ const ROUTE_TAB: [RegExp, string][] = [
   [/^\/summary/, 'summary'],
   [/^\/english-checkin/, 'home'], // 由首页入口进入，高亮首页更符合来源直觉
   [/^\/politics/, 'home'], // 政治一页纸是应用内的正常页面，导航语境仍属于首页
+  [/^\/study-notes/, 'home'], // 不熟本主要从首页快捷入口进入
   [
     /^\/(profile|settings|goal|vocabulary|achievements|weekly-summary|trash|scan-qr|login|register)/,
     'profile',

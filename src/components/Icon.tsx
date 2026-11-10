@@ -55,6 +55,7 @@ export type IconName =
   | 'shuffle' // 随机抽背
   | 'cards' // 背诵卡组
   | 'history' // 史纲时间轴
+  | 'bulb' // 不熟本 / 知识点
 
 const PATHS: Record<IconName, ReactNode> = {
   home: (
@@ -104,6 +105,13 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M3 12a9 9 0 1 0 3-6.7" />
       <path d="M3 4v5h5" />
       <path d="M12 8v5l3 2" />
+    </>
+  ),
+  bulb: (
+    <>
+      <path d="M9 18h6" />
+      <path d="M10 22h4" />
+      <path d="M12 2a6 6 0 0 0-3.6 10.8c.6.45 1 1.15 1 1.9V15h5.2v-.3c0-.75.4-1.45 1-1.9A6 6 0 0 0 12 2z" />
     </>
   ),
   globe: (

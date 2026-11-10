@@ -32,6 +32,7 @@ const GoalPage = lazy(() => import('./pages/GoalPage'))
 const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
 const Politics = lazy(() => import('./pages/Politics'))
 const VocabularyBook = lazy(() => import('./pages/VocabularyBook'))
+const StudyNotes = lazy(() => import('./pages/StudyNotes'))
 const Settings = lazy(() => import('./pages/Settings'))
 const WeeklySummary = lazy(() => import('./pages/WeeklySummary'))
 const QrLogin = lazy(() => import('./pages/QrLogin'))
@@ -308,6 +309,7 @@ export default function App({
             <Route path="/goal" element={<GoalPage />} />
             <Route path="/english-checkin" element={<EnglishCheckin />} />
             <Route path="/vocabulary" element={<VocabularyBook />} />
+            <Route path="/study-notes" element={<StudyNotes />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/scan-qr" element={<ScanQr />} />
           </Route>

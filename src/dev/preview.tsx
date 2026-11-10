@@ -391,6 +391,65 @@ function buildPreviewTodayLog() {
   }
 }
 
+/** 生成一张预览用配图（SVG data URL，不依赖网络） */
+function previewImage(label: string, from: string, to: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="420"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${from}"/><stop offset="1" stop-color="${to}"/></linearGradient></defs><rect width="640" height="420" fill="url(#g)"/><text x="50%" y="50%" fill="#fff" font-family="sans-serif" font-size="30" text-anchor="middle" dominant-baseline="middle">${label}</text></svg>`
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+}
+
+/** ?notes=1 的不熟本示例数据：核对卡片、配图、掌握态的排版 */
+function buildPreviewStudyNotes() {
+  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const threeHoursAgo = new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
+  return [
+    {
+      id: 'preview-note-1',
+      subject: 'math',
+      category: '',
+      title: '拉格朗日中值定理：辅助函数怎么构造',
+      content:
+        '看到「存在 ξ 使 f(ξ) + ξ·f′(ξ) = 0」这类式子，先把它写成 (x·f(x))′ = 0 的形式，再对 x·f(x) 用罗尔定理。\n易错：直接对 f 用拉格朗日，忽略乘积项；端点值相等这个条件要先验证。',
+      pageRef: '',
+      examQuestionIds: [],
+      images: [],
+      mastered: false,
+      createdAt: hourAgo,
+      updatedAt: hourAgo,
+    },
+    {
+      id: 'preview-note-2',
+      subject: 'cs408',
+      category: 'co',
+      title: 'TCP 三次握手为什么不能是两次',
+      content:
+        '两次握手时，服务端无法确认客户端的接收能力，且历史延迟的 SYN 会让服务端建立无效连接。\n第三次 ACK 的作用是让服务端确认「客户端收到了我的 SYN+ACK」，同时避免旧连接请求造成资源浪费。',
+      pageRef: '王道 P98',
+      examQuestionIds: ['408-2024-01', '408-2024-41'],
+      images: [
+        previewImage('三次握手时序图', '#6366f1', '#8b5cf6'),
+        previewImage('SYN 重传场景', '#0ea5e9', '#6366f1'),
+      ],
+      mastered: false,
+      createdAt: threeHoursAgo,
+      updatedAt: threeHoursAgo,
+    },
+    {
+      id: 'preview-note-3',
+      subject: 'math',
+      category: 'linear_algebra',
+      title: '线代：相似对角化的判定',
+      content: 'n 阶矩阵可相似对角化 ⇔ 有 n 个线性无关的特征向量 ⇔ 每个特征值的几何重数等于代数重数。',
+      pageRef: '',
+      examQuestionIds: [],
+      images: [],
+      mastered: true,
+      createdAt: twoDaysAgo,
+      updatedAt: twoDaysAgo,
+    },
+  ]
+}
+
 /**
  * 假科目数据：真实用户在登录后会从本地快照恢复自定义科目，
  * 随后云端会返回同一份数据。预览台需要两处都提供，
@@ -501,6 +560,11 @@ function seedData(view: string, theme: ThemeMode, running: boolean, params: URLS
     localStorage.setItem(TIMER_MODE_KEY, 'pomodoro')
   } else if (params.get('pomo') === '1') {
     localStorage.setItem(TIMER_MODE_KEY, 'pomodoro')
+  }
+  // 不熟本示例数据：?notes=1 时写入本地缓存，便于核对页面排版
+  localStorage.removeItem('kaoyan_study_notes_v1')
+  if (params.get('notes') === '1') {
+    localStorage.setItem('kaoyan_study_notes_v1', JSON.stringify(buildPreviewStudyNotes()))
   }
   // ?running=1：强制摆出「计时中」态（全功能计时页 Hero 的渐变数字/控制钮也要能截到）
   if (running || view === 'idle' || (view === 'dropdown' && !params.has('pomo'))) {

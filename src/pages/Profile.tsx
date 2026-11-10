@@ -499,6 +499,13 @@ export default function Profile() {
               desc="本周 vs 上周对比与反思笔记"
             />
             <SettingRow
+              to="/study-notes"
+              icon={<Icon name="bulb" size={17} />}
+              tint={TINT.red}
+              label="不熟本"
+              desc="数学 / 408 不熟知识点与截图"
+            />
+            <SettingRow
               to="/vocabulary"
               icon={<Icon name="vocab" size={17} />}
               tint={TINT.emerald}

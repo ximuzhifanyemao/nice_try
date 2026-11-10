@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'timer', label: '计时', iconKey: 'timer', path: '/timer' },
   { key: 'checkin', label: '打卡', iconKey: 'checkin', path: '/english-checkin' },
   { key: 'politics', label: '政治', iconKey: 'politics', path: '/politics' },
+  { key: 'notes', label: '不熟本', iconKey: 'notes', path: '/study-notes' },
   { key: 'records', label: '记录', iconKey: 'records', path: '/my-records' },
   { key: 'summary', label: '统计', iconKey: 'summary', path: '/summary' },
   { key: 'weeklySummary', label: '周总结', iconKey: 'goal', path: '/weekly-summary' },
@@ -52,6 +53,7 @@ const PAGE_TITLES: [string, string][] = [
   ['/goal', '目标'],
   ['/english-checkin', '打卡'],
   ['/politics', '政治'],
+  ['/study-notes', '不熟本'],
   ['/vocabulary', '生词'],
   ['/settings', '设置'],
   ['/scan-qr', '扫码登录'],
@@ -98,6 +100,7 @@ export default function Sidebar() {
     if (pathname === '/timer') return 'timer'
     if (pathname === '/english-checkin') return 'checkin'
     if (pathname === '/politics') return 'politics'
+    if (pathname === '/study-notes') return 'notes'
     if (pathname.startsWith('/my-records')) return 'records'
     if (pathname === '/summary') return 'summary'
     if (pathname === '/weekly-summary') return 'weeklySummary'

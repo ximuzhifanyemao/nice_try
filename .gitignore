@@ -80,3 +80,6 @@ shots/
 /logo-exports/
 /old-icon-redesign/
 /app-icon-new.jpg
+
+# 临时产物（截图、APK 解包、备份 JSON，不入库）
+/tmp/

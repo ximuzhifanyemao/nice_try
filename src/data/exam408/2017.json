@@ -1,0 +1,797 @@
+{
+  "year": 2017,
+  "source": "公开真题整理",
+  "questions": [
+    {
+      "id": "408-2017-01",
+      "year": 2017,
+      "number": 1,
+      "type": "single",
+      "section": "ds",
+      "stem": "下列函数的时间复杂度是（ ）。int func(int n){ int i=0, sum=0; while(sum<n) sum += ++i; return i; }",
+      "options": [
+        { "key": "A", "text": "O(log n)" },
+        { "key": "B", "text": "O(n^1/2)" },
+        { "key": "C", "text": "O(n)" },
+        { "key": "D", "text": "O(nlog n)" }
+      ],
+      "answer": "B",
+      "analysis": "第 k 趟后 sum=k(k+1)/2，循环次数约 √(2n)，故为 O(n^1/2)。",
+      "tags": ["时间复杂度", "循环次数"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-02",
+      "year": 2017,
+      "number": 2,
+      "type": "single",
+      "section": "ds",
+      "stem": "下列关于栈的叙述中，错误的是（ ）。I. 采用非递归方式重写递归程序时必须使用栈；II. 函数调用时，系统要用栈保存必要的信息；III. 只要确定了入栈次序，即可确定出栈次序；IV. 栈是一种受限的线性表，允许在其两端进行操作。",
+      "options": [
+        { "key": "A", "text": "仅 I" },
+        { "key": "B", "text": "仅 I、II、III" },
+        { "key": "C", "text": "仅 I、III、IV" },
+        { "key": "D", "text": "仅 II、III、IV" }
+      ],
+      "answer": "C",
+      "analysis": "迭代实现未必用栈；入栈次序不能唯一确定出栈序列；栈只允许在栈顶一端操作。",
+      "tags": ["栈", "出栈序列"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-03",
+      "year": 2017,
+      "number": 3,
+      "type": "single",
+      "section": "ds",
+      "stem": "适用于压缩存储稀疏矩阵的两种存储结构是（ ）。",
+      "options": [
+        { "key": "A", "text": "三元组表和十字链表" },
+        { "key": "B", "text": "三元组表和邻接矩阵" },
+        { "key": "C", "text": "十字链表和二叉链表" },
+        { "key": "D", "text": "邻接矩阵和十字链表" }
+      ],
+      "answer": "A",
+      "analysis": "三元组表与十字链表只存非零元素，均可压缩存储稀疏矩阵。",
+      "tags": ["稀疏矩阵", "十字链表"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-04",
+      "year": 2017,
+      "number": 4,
+      "type": "single",
+      "section": "ds",
+      "stem": "要使一棵非空二叉树的先序序列与中序序列相同，其所有非叶结点须满足的条件是（ ）。",
+      "options": [
+        { "key": "A", "text": "只有左子树" },
+        { "key": "B", "text": "只有右子树" },
+        { "key": "C", "text": "结点的度均为 1" },
+        { "key": "D", "text": "结点的度均为 2" }
+      ],
+      "answer": "B",
+      "analysis": "先序先访问根再访左，若各非叶结点只有右子树，则两序列均为“根、右子树”。",
+      "tags": ["二叉树遍历", "先序与中序"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-05",
+      "year": 2017,
+      "number": 5,
+      "type": "single",
+      "section": "ds",
+      "stem": "",
+      "options": [],
+      "answer": "",
+      "tags": [],
+      "status": "missing"
+    },
+    {
+      "id": "408-2017-06",
+      "year": 2017,
+      "number": 6,
+      "type": "single",
+      "section": "ds",
+      "stem": "已知字符集 {a,b,c,d,e,f,g,h}，若各字符的哈夫曼编码依次是 0100，10，0000，0101，001，011，11，0001，则编码序列 0100011001001011110101 的译码结果是（ ）。",
+      "options": [
+        { "key": "A", "text": "acgabfh" },
+        { "key": "B", "text": "adbagbb" },
+        { "key": "C", "text": "afbeagd" },
+        { "key": "D", "text": "afeefgd" }
+      ],
+      "answer": "D",
+      "analysis": "按前缀码逐段切分：0100(a)、011(f)、001(e)、001(e)、011(f)、11(g)、0101(d)。",
+      "tags": ["哈夫曼编码", "译码"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-07",
+      "year": 2017,
+      "number": 7,
+      "type": "single",
+      "section": "ds",
+      "stem": "已知无向图 G 含有 16 条边，其中度为 4 的顶点个数为 3，度为 3 的顶点个数为 4，其他顶点的度均小于 3。图 G 所含的顶点个数至少是（ ）。",
+      "options": [
+        { "key": "A", "text": "10" },
+        { "key": "B", "text": "11" },
+        { "key": "C", "text": "13" },
+        { "key": "D", "text": "15" }
+      ],
+      "answer": "B",
+      "analysis": "度之和为 32，已有 3×4+4×3=24，余 8 由度不超过 2 的顶点分担，至少 4 个，共 11 个。",
+      "tags": ["图", "顶点度"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-08",
+      "year": 2017,
+      "number": 8,
+      "type": "single",
+      "section": "ds",
+      "stem": "",
+      "options": [],
+      "answer": "",
+      "tags": [],
+      "status": "missing"
+    },
+    {
+      "id": "408-2017-09",
+      "year": 2017,
+      "number": 9,
+      "type": "single",
+      "section": "ds",
+      "stem": "下列应用中，适合使用 B+ 树的是（ ）。",
+      "options": [
+        { "key": "A", "text": "编译器中的词法分析" },
+        { "key": "B", "text": "关系数据库系统中的索引" },
+        { "key": "C", "text": "网络中的路由表快速查找" },
+        { "key": "D", "text": "操作系统的磁盘空闲块管理" }
+      ],
+      "answer": "B",
+      "analysis": "B+ 树支持范围查询且叶结点链接，最适合做关系数据库索引。",
+      "tags": ["B+树", "数据库索引"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-10",
+      "year": 2017,
+      "number": 10,
+      "type": "single",
+      "section": "ds",
+      "stem": "在内部排序时，若选择了归并排序而没有选择插入排序，则可能的理由是（ ）。I. 归并排序的程序代码更短；II. 归并排序占用的空间更少；III. 归并排序的运行效率更高。",
+      "options": [
+        { "key": "A", "text": "仅 II" },
+        { "key": "B", "text": "仅 III" },
+        { "key": "C", "text": "仅 I、II" },
+        { "key": "D", "text": "仅 I、III" }
+      ],
+      "answer": "B",
+      "analysis": "归并排序代码更长、空间开销更大，选它的理由只能是效率更高。",
+      "tags": ["归并排序", "插入排序"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-11",
+      "year": 2017,
+      "number": 11,
+      "type": "single",
+      "section": "ds",
+      "stem": "下列排序方法中，若将顺序存储更换为链式存储，则算法的时间效率会降低的是（ ）。I. 插入排序；II. 选择排序；III. 起泡排序；IV. 希尔排序；V. 堆排序。",
+      "options": [
+        { "key": "A", "text": "仅 I、II" },
+        { "key": "B", "text": "仅 II、III" },
+        { "key": "C", "text": "仅 III、IV" },
+        { "key": "D", "text": "仅 IV、V" }
+      ],
+      "answer": "D",
+      "analysis": "希尔排序依赖随机访问定增量分组，堆排序依赖下标定位父子结点，改链式后效率下降。",
+      "tags": ["排序算法", "链式存储"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-12",
+      "year": 2017,
+      "number": 12,
+      "type": "single",
+      "section": "co",
+      "stem": "假定计算机 M1 和 M2 具有相同的指令集体系结构（ISA），主频分别为 1.5GHz 和 1.2GHz。在 M1 和 M2 上运行某基准程序 P，平均 CPI 分别为 2 和 1，则程序 P 在 M1 和 M2 上运行时间的比值是（ ）。",
+      "options": [
+        { "key": "A", "text": "0.4" },
+        { "key": "B", "text": "0.625" },
+        { "key": "C", "text": "1.6" },
+        { "key": "D", "text": "2.5" }
+      ],
+      "answer": "C",
+      "analysis": "指令数相同，时间比为 (2/1.5):(1/1.2)=1.6。",
+      "tags": ["计算机性能", "CPI与主频"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-13",
+      "year": 2017,
+      "number": 13,
+      "type": "single",
+      "section": "co",
+      "stem": "某计算机主存按字节编址，由 4 个 64M×8 位的 DRAM 芯片采用交叉编址方式构成，并与宽度为 32 位的存储器总线相连，主存每次最多读写 32 位数据。若 double 型变量 x 的主存地址为 804001AH，则读取 x 需要的存储周期数是（ ）。",
+      "options": [
+        { "key": "A", "text": "1" },
+        { "key": "B", "text": "2" },
+        { "key": "C", "text": "3" },
+        { "key": "D", "text": "4" }
+      ],
+      "answer": "C",
+      "analysis": "地址 804001AH 对 4 取模为 2，8 字节变量跨越 3 个 32 位存储字，需 3 个存储周期。",
+      "tags": ["交叉编址", "存储周期"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-14",
+      "year": 2017,
+      "number": 14,
+      "type": "single",
+      "section": "co",
+      "stem": "某 C 语言程序段如下：for(i=0;i<=9;i++){ temp=1; for(j=0;j<=i;j++) temp*=a[j]; sum+=temp; } 下列关于数组 a 的访问局部性的描述中，正确的是（ ）。",
+      "options": [
+        { "key": "A", "text": "时间局部性和空间局部性皆有" },
+        { "key": "B", "text": "无时间局部性，有空间局部性" },
+        { "key": "C", "text": "有时间局部性，无空间局部性" },
+        { "key": "D", "text": "时间局部性和空间局部性皆无" }
+      ],
+      "answer": "A",
+      "analysis": "a[j] 按下标顺序访问体现空间局部性，外层循环反复访问数组体现时间局部性。",
+      "tags": ["程序局部性", "Cache"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-15",
+      "year": 2017,
+      "number": 15,
+      "type": "single",
+      "section": "co",
+      "stem": "下列寻址方式中，最适合按下标顺序访问一维数组元素的是（ ）。",
+      "options": [
+        { "key": "A", "text": "相对寻址" },
+        { "key": "B", "text": "寄存器寻址" },
+        { "key": "C", "text": "直接寻址" },
+        { "key": "D", "text": "变址寻址" }
+      ],
+      "answer": "D",
+      "analysis": "变址寻址以变址寄存器保存下标、形式地址为数组首址，便于顺序访问数组元素。",
+      "tags": ["寻址方式", "变址寻址"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-16",
+      "year": 2017,
+      "number": 16,
+      "type": "single",
+      "section": "co",
+      "stem": "某计算机按字节编址，指令字长固定且只有两种指令格式，其中三地址指令 29 条，二地址指令 107 条，每个地址字段为 6 位，则指令字长至少应该是（ ）。",
+      "options": [
+        { "key": "A", "text": "24 位" },
+        { "key": "B", "text": "26 位" },
+        { "key": "C", "text": "28 位" },
+        { "key": "D", "text": "32 位" }
+      ],
+      "answer": "A",
+      "analysis": "三地址需 5 位操作码（29≤32），5+18=23 位；余下 3 个操作码扩展可容纳 3×64=192 条二地址指令，按字节编址取 24 位。",
+      "tags": ["指令格式", "操作码扩展"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-17",
+      "year": 2017,
+      "number": 17,
+      "type": "single",
+      "section": "co",
+      "stem": "下列关于超标量流水线特性的叙述中，正确的是（ ）。I. 能缩短流水线功能段的处理时间；II. 能在一个时钟周期内同时发射多条指令；III. 能结合动态调度技术提高指令执行并行性。",
+      "options": [
+        { "key": "A", "text": "仅 II" },
+        { "key": "B", "text": "仅 I、III" },
+        { "key": "C", "text": "仅 II、III" },
+        { "key": "D", "text": "I、II 和 III" }
+      ],
+      "answer": "C",
+      "analysis": "超标量指一个时钟周期发射多条指令，并可配合动态调度提高并行性，但不缩短各功能段时延。",
+      "tags": ["超标量", "指令流水线"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-18",
+      "year": 2017,
+      "number": 18,
+      "type": "single",
+      "section": "co",
+      "stem": "下列关于主存储器（MM）和控制存储器（CS）的叙述中，错误的是（ ）。",
+      "options": [
+        { "key": "A", "text": "MM 在 CPU 外，CS 在 CPU 内" },
+        { "key": "B", "text": "MM 按地址访问，CS 按内容访问" },
+        { "key": "C", "text": "MM 存储指令和数据，CS 存储微指令" },
+        { "key": "D", "text": "MM 用 RAM 和 ROM 实现，CS 用 ROM 实现" }
+      ],
+      "answer": "B",
+      "analysis": "控制存储器也是按微指令地址访问，而不是按内容访问。",
+      "tags": ["主存储器", "控制存储器"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-19",
+      "year": 2017,
+      "number": 19,
+      "type": "single",
+      "section": "co",
+      "stem": "下列关于指令流水线数据通路的叙述中，错误的是（ ）。",
+      "options": [
+        { "key": "A", "text": "包含生成控制信号的控制部件" },
+        { "key": "B", "text": "包含算术逻辑运算部件（ALU）" },
+        { "key": "C", "text": "包含通用寄存器组和取指部件" },
+        { "key": "D", "text": "由组合逻辑电路和时序逻辑电路组合而成" }
+      ],
+      "answer": "A",
+      "analysis": "数据通路负责数据加工与传送，生成控制信号的控制部件属于控制单元，不在数据通路内。",
+      "tags": ["数据通路", "指令流水线"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-20",
+      "year": 2017,
+      "number": 20,
+      "type": "single",
+      "section": "co",
+      "stem": "下列关于多总线结构的叙述中，错误的是（ ）。",
+      "options": [
+        { "key": "A", "text": "靠近 CPU 的总线速度较快" },
+        { "key": "B", "text": "存储器总线可支持突发传送方式" },
+        { "key": "C", "text": "总线之间须通过桥接器相连" },
+        { "key": "D", "text": "PCI-Express×16 采用并行传输方式" }
+      ],
+      "answer": "D",
+      "analysis": "PCI-Express 采用串行差分传输，而非并行传输。",
+      "tags": ["总线结构", "PCI-Express"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-21",
+      "year": 2017,
+      "number": 21,
+      "type": "single",
+      "section": "co",
+      "stem": "I/O 指令实现的数据传送通常发生在（ ）。",
+      "options": [
+        { "key": "A", "text": "I/O 设备和 I/O 端口之间" },
+        { "key": "B", "text": "通用寄存器和 I/O 设备之间" },
+        { "key": "C", "text": "I/O 端口和 I/O 端口之间" },
+        { "key": "D", "text": "通用寄存器和 I/O 端口之间" }
+      ],
+      "answer": "D",
+      "analysis": "I/O 指令在 CPU 通用寄存器与 I/O 端口之间传送数据。",
+      "tags": ["IO指令", "IO端口"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-22",
+      "year": 2017,
+      "number": 22,
+      "type": "single",
+      "section": "co",
+      "stem": "下列关于多重中断系统的叙述中，错误的是（ ）。",
+      "options": [
+        { "key": "A", "text": "在一条指令执行结束时响应中断" },
+        { "key": "B", "text": "中断处理期间 CPU 处于关中断状态" },
+        { "key": "C", "text": "中断请求的产生与当前指令的执行无关" },
+        { "key": "D", "text": "CPU 通过采样中断请求信号检测中断请求" }
+      ],
+      "answer": "B",
+      "analysis": "多重中断允许高优先级中断打断低优先级中断服务，中断处理期间并非全程关中断。",
+      "tags": ["多重中断", "中断响应"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-23",
+      "year": 2017,
+      "number": 23,
+      "type": "single",
+      "section": "os",
+      "stem": "假设 4 个作业到达系统的时刻和运行时间为：J1 到达时刻 0、运行时间 3；J2 到达时刻 1、运行时间 3；J3 到达时刻 1、运行时间 2；J4 到达时刻 3、运行时间 1。系统在 t=2 时开始作业调度。若分别采用先来先服务和短作业优先调度算法，则选中的作业分别是（ ）。",
+      "options": [
+        { "key": "A", "text": "J2、J3" },
+        { "key": "B", "text": "J1、J4" },
+        { "key": "C", "text": "J2、J4" },
+        { "key": "D", "text": "J1、J3" }
+      ],
+      "answer": "D",
+      "analysis": "t=2 时已到达 J1、J2、J3，先来先服务选 J1，短作业优先选运行时间最短的 J3。",
+      "tags": ["作业调度", "FCFS与SJF"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-24",
+      "year": 2017,
+      "number": 24,
+      "type": "single",
+      "section": "os",
+      "stem": "执行系统调用的过程包括如下主要操作：①返回用户态；②执行陷入（trap）指令；③传递系统调用参数；④执行相应的服务程序。正确的执行顺序是（ ）。",
+      "options": [
+        { "key": "A", "text": "②→③→①→④" },
+        { "key": "B", "text": "②→④→③→①" },
+        { "key": "C", "text": "③→②→④→①" },
+        { "key": "D", "text": "③→④→②→①" }
+      ],
+      "answer": "C",
+      "analysis": "先传参数，再陷入内核，执行服务程序，最后返回用户态。",
+      "tags": ["系统调用", "用户态与内核态"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-25",
+      "year": 2017,
+      "number": 25,
+      "type": "single",
+      "section": "os",
+      "stem": "某计算机按字节编址，其动态分区内存管理采用最佳适应算法，每次分配和回收内存后都对空闲分区链重新排序。当前空闲分区信息为：起始地址 20K、大小 40KB；起始地址 500K、大小 80KB；起始地址 1000K、大小 100KB；起始地址 200K、大小 200KB。回收起始地址为 60K、大小为 140KB 的分区后，系统中空闲分区的数量、空闲分区链第一个分区的起始地址和大小分别是（ ）。",
+      "options": [
+        { "key": "A", "text": "3、20K、380KB" },
+        { "key": "B", "text": "3、500K、80KB" },
+        { "key": "C", "text": "4、20K、180KB" },
+        { "key": "D", "text": "4、500K、80KB" }
+      ],
+      "answer": "B",
+      "analysis": "回收区与前后空闲区合并为 20K 起、380KB 的一块；最佳适应按容量升序排列，首块为 500K/80KB。",
+      "tags": ["动态分区分配", "最佳适应算法"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-26",
+      "year": 2017,
+      "number": 26,
+      "type": "single",
+      "section": "os",
+      "stem": "某文件系统的簇和磁盘扇区大小分别为 1KB 和 512B。若一个文件的大小为 1026B，则系统分配给该文件的磁盘空间大小是（ ）。",
+      "options": [
+        { "key": "A", "text": "1026B" },
+        { "key": "B", "text": "1536B" },
+        { "key": "C", "text": "1538B" },
+        { "key": "D", "text": "2048B" }
+      ],
+      "answer": "D",
+      "analysis": "分配单位是簇，1026B 需 2 个簇，即 2048B。",
+      "tags": ["簇", "磁盘空间分配"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-27",
+      "year": 2017,
+      "number": 27,
+      "type": "single",
+      "section": "os",
+      "stem": "下列有关基于时间片的进程调度的叙述中，错误的是（ ）。",
+      "options": [
+        { "key": "A", "text": "时间片越短，进程切换的次数越多，系统开销也越大" },
+        { "key": "B", "text": "当前进程的时间片用完后，该进程状态由执行态变为阻塞态" },
+        { "key": "C", "text": "时钟中断发生后，系统会修改当前进程在时间片内的剩余时间" },
+        { "key": "D", "text": "影响时间片大小的主要因素包括响应时间、系统开销和进程数量等" }
+      ],
+      "answer": "B",
+      "analysis": "时间片用完只使进程由执行态变为就绪态，而不是阻塞态。",
+      "tags": ["时间片轮转", "进程状态"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-28",
+      "year": 2017,
+      "number": 28,
+      "type": "single",
+      "section": "os",
+      "stem": "与单道程序系统相比，多道程序系统的优点是（ ）。I. CPU 利用率高；II. 系统开销小；III. 系统吞吐量大；IV. I/O 设备利用率高。",
+      "options": [
+        { "key": "A", "text": "仅 I、III" },
+        { "key": "B", "text": "仅 I、IV" },
+        { "key": "C", "text": "仅 II、III" },
+        { "key": "D", "text": "仅 I、III、IV" }
+      ],
+      "answer": "D",
+      "analysis": "多道程序提高 CPU 与 I/O 利用率及吞吐量，但因切换和调度开销增大，系统开销并不小。",
+      "tags": ["多道程序设计", "系统效率"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-29",
+      "year": 2017,
+      "number": 29,
+      "type": "single",
+      "section": "os",
+      "stem": "下列选项中，磁盘逻辑格式化程序所做的工作是（ ）。I. 对磁盘进行分区；II. 建立文件系统的根目录；III. 确定磁盘扇区校验码所占位数；IV. 对保存空闲磁盘块信息的数据结构进行初始化。",
+      "options": [
+        { "key": "A", "text": "仅 II" },
+        { "key": "B", "text": "仅 II、IV" },
+        { "key": "C", "text": "仅 III、IV" },
+        { "key": "D", "text": "仅 I、II、IV" }
+      ],
+      "answer": "B",
+      "analysis": "逻辑格式化建立文件系统结构（根目录、空闲块管理数据结构等），分区属低级/物理格式化范畴。",
+      "tags": ["磁盘格式化", "文件系统"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-30",
+      "year": 2017,
+      "number": 30,
+      "type": "single",
+      "section": "os",
+      "stem": "某文件系统中，针对每个文件，用户类别分为 4 类：安全管理员、文件主、文件主的伙伴、其他用户；访问权限分为 5 种：完全控制、执行、修改、读取、写入。若文件控制块中用二进制位串表示文件权限，为表示不同类别用户对一个文件的访问权限，则描述文件权限的位数至少应为（ ）。",
+      "options": [
+        { "key": "A", "text": "5" },
+        { "key": "B", "text": "9" },
+        { "key": "C", "text": "12" },
+        { "key": "D", "text": "20" }
+      ],
+      "answer": "D",
+      "analysis": "4 类用户各有 5 种权限位，共需 4×5=20 位。",
+      "tags": ["文件权限", "文件控制块"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-31",
+      "year": 2017,
+      "number": 31,
+      "type": "single",
+      "section": "os",
+      "stem": "若文件 f1 的硬链接为 f2，两个进程分别打开 f1 和 f2，获得对应的文件描述符为 fd1 和 fd2，则下列叙述中，正确的是（ ）。I. f1 和 f2 的读写指针位置保持相同；II. f1 和 f2 共享同一个内存索引结点；III. fd1 和 fd2 分别指向各自的用户打开文件表中的一项。",
+      "options": [
+        { "key": "A", "text": "仅 III" },
+        { "key": "B", "text": "仅 II、III" },
+        { "key": "C", "text": "仅 I、II" },
+        { "key": "D", "text": "I、II 和 III" }
+      ],
+      "answer": "B",
+      "analysis": "硬链接共享同一索引结点，但两次 open 各自建立打开文件表项，读写指针独立。",
+      "tags": ["硬链接", "索引结点"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-32",
+      "year": 2017,
+      "number": 32,
+      "type": "single",
+      "section": "os",
+      "stem": "系统将数据从磁盘读到内存的过程包括以下操作：①DMA 控制器发出中断请求；②初始化 DMA 控制器并启动磁盘；③从磁盘传输一块数据到内存缓冲区；④执行“DMA 结束”中断服务程序。正确的执行顺序是（ ）。",
+      "options": [
+        { "key": "A", "text": "③→①→②→④" },
+        { "key": "B", "text": "②→③→①→④" },
+        { "key": "C", "text": "②→①→③→④" },
+        { "key": "D", "text": "①→②→④→③" }
+      ],
+      "answer": "B",
+      "analysis": "先初始化并启动 DMA，传输完成后由 DMA 发中断，再执行中断服务程序。",
+      "tags": ["DMA", "磁盘IO"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-33",
+      "year": 2017,
+      "number": 33,
+      "type": "single",
+      "section": "cn",
+      "stem": "假设 OSI 参考模型的应用层欲发送 400B 的数据（无拆分），除物理层和应用层之外，其他各层在封装 PDU 时均引入 20B 的额外开销，则应用层数据传输效率约为（ ）。",
+      "options": [
+        { "key": "A", "text": "80%" },
+        { "key": "B", "text": "83%" },
+        { "key": "C", "text": "87%" },
+        { "key": "D", "text": "91%" }
+      ],
+      "answer": "A",
+      "analysis": "表示、会话、传输、网络、数据链路 5 层各加 20B，共 500B，效率 400/500=80%。",
+      "tags": ["OSI", "封装开销"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-34",
+      "year": 2017,
+      "number": 34,
+      "type": "single",
+      "section": "cn",
+      "stem": "若信道在无噪声情况下的极限数据传输速率不小于信噪比为 30dB 条件下的极限数据传输速率，则信号状态数至少是（ ）。",
+      "options": [
+        { "key": "A", "text": "4" },
+        { "key": "B", "text": "8" },
+        { "key": "C", "text": "16" },
+        { "key": "D", "text": "32" }
+      ],
+      "answer": "D",
+      "analysis": "香农极限约 9.97W，奈奎斯特需 2W·log2V≥9.97W，log2V≥5，故 V≥32。",
+      "tags": ["奈奎斯特定理", "香农定理"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-35",
+      "year": 2017,
+      "number": 35,
+      "type": "single",
+      "section": "cn",
+      "stem": "",
+      "options": [],
+      "answer": "",
+      "tags": [],
+      "status": "missing"
+    },
+    {
+      "id": "408-2017-36",
+      "year": 2017,
+      "number": 36,
+      "type": "single",
+      "section": "cn",
+      "stem": "下列 IP 地址中，只能作为 IP 分组的源 IP 地址但不能作为目的 IP 地址的是（ ）。",
+      "options": [
+        { "key": "A", "text": "0.0.0.0" },
+        { "key": "B", "text": "127.0.0.1" },
+        { "key": "C", "text": "200.10.10.3" },
+        { "key": "D", "text": "255.255.255.255" }
+      ],
+      "answer": "A",
+      "analysis": "0.0.0.0 可在本机地址未知时作源地址，不能作为目的地址。",
+      "tags": ["IP地址", "特殊地址"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-37",
+      "year": 2017,
+      "number": 37,
+      "type": "single",
+      "section": "cn",
+      "stem": "直接封装 RIP、OSPF、BGP 报文的协议分别是（ ）。",
+      "options": [
+        { "key": "A", "text": "TCP、UDP、IP" },
+        { "key": "B", "text": "TCP、IP、UDP" },
+        { "key": "C", "text": "UDP、TCP、IP" },
+        { "key": "D", "text": "UDP、IP、TCP" }
+      ],
+      "answer": "D",
+      "analysis": "RIP 用 UDP，OSPF 直接用 IP，BGP 用 TCP。",
+      "tags": ["路由协议", "RIP与OSPF与BGP"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-38",
+      "year": 2017,
+      "number": 38,
+      "type": "single",
+      "section": "cn",
+      "stem": "若将网络 21.3.0.0/16 划分为 128 个规模相同的子网，则每个子网可分配的最大 IP 地址个数是（ ）。",
+      "options": [
+        { "key": "A", "text": "254" },
+        { "key": "B", "text": "256" },
+        { "key": "C", "text": "510" },
+        { "key": "D", "text": "512" }
+      ],
+      "answer": "C",
+      "analysis": "128 个子网需借 7 位，子网掩码 /23，共 512 个地址，去掉网络地址与广播地址可分配 510 个。",
+      "tags": ["子网划分", "子网掩码"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-39",
+      "year": 2017,
+      "number": 39,
+      "type": "single",
+      "section": "cn",
+      "stem": "若甲向乙发起一个 TCP 连接，最大段长 MSS=1KB，RTT=5ms，乙开辟的接收缓存为 64KB，则甲从连接建立成功至发送窗口达到 32KB，需经过的时间至少是（ ）。",
+      "options": [
+        { "key": "A", "text": "25 ms" },
+        { "key": "B", "text": "30 ms" },
+        { "key": "C", "text": "160 ms" },
+        { "key": "D", "text": "165 ms" }
+      ],
+      "answer": "A",
+      "analysis": "慢开始下拥塞窗口 1、2、4、8、16、32KB，每 RTT 翻倍，到 32KB 需 5 个 RTT 即 25ms。",
+      "tags": ["TCP慢开始", "拥塞窗口"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-40",
+      "year": 2017,
+      "number": 40,
+      "type": "single",
+      "section": "cn",
+      "stem": "下列关于 FTP 协议的叙述中，错误的是（ ）。",
+      "options": [
+        { "key": "A", "text": "数据连接在每次数据传输完毕后就关闭" },
+        { "key": "B", "text": "控制连接在整个会话期间保持打开状态" },
+        { "key": "C", "text": "服务器与客户端的 TCP/20 端口建立数据连接" },
+        { "key": "D", "text": "客户端与服务器的 TCP/21 端口建立控制连接" }
+      ],
+      "answer": "C",
+      "analysis": "FTP 数据连接由服务器 20 端口主动连接客户端的临时端口，而非连接客户端的 20 端口。",
+      "tags": ["FTP", "控制连接与数据连接"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-41",
+      "year": 2017,
+      "number": 41,
+      "type": "comprehensive",
+      "section": "ds",
+      "stem": "请设计一个算法，将给定的表达式树（二叉树）转换为等价的中缀表达式（通过括号反映操作符的计算次序）并输出。例如，两棵表达式树输出的等价中缀表达式分别为 (a+b)*(c*(-d)) 和 (a*b)+(-(c-d))。二叉树结点定义为 typedef struct node{ char data[10]; struct node *left,*right; } BTree; 要求：(1) 给出算法的基本设计思想；(2) 根据设计思想，采用 C 或 C++ 描述算法，关键之处给出注释。",
+      "options": [],
+      "answer": "(1) 对表达式树做中序遍历：若结点为叶结点（操作数）则直接输出 data；否则先输出左括号，递归输出左子树，再输出根结点的运算符，然后递归输出右子树，最后输出右括号。最外层根结点输出的括号可省略。(2) void Inorder(BTree *root,int deep){ if(root==NULL) return; if(root->left==NULL&&root->right==NULL) printf(\"%s\",root->data); else { if(deep>1) printf(\"(\"); Inorder(root->left,deep+1); printf(\"%s\",root->data); Inorder(root->right,deep+1); if(deep>1) printf(\")\"); } } 初始调用 Inorder(root,1)。时间复杂度 O(n)，空间复杂度 O(h)。",
+      "analysis": "用深度参数控制括号的添加层次，中序遍历即得中缀表达式。",
+      "tags": ["表达式树", "中序遍历"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-42",
+      "year": 2017,
+      "number": 42,
+      "type": "comprehensive",
+      "section": "ds",
+      "stem": "",
+      "options": [],
+      "answer": "",
+      "tags": [],
+      "status": "missing"
+    },
+    {
+      "id": "408-2017-43",
+      "year": 2017,
+      "number": 43,
+      "type": "comprehensive",
+      "section": "co",
+      "stem": "已知 f(n)=Σ2^i=2^(n+1)-1，计算 f(n) 的 C 语言函数 f1 为：int f1(unsigned n){ int sum=1, power=1; for(unsigned i=0;i<=n-1;i++){ power*=2; sum+=power; } return sum; } 将 f1 中的 int 都改为 float 可得到 f2。假设 unsigned 和 int 型数据都占 32 位，float 采用 IEEE 754 单精度标准。请回答：(1) 当 n=0 时 f1 会出现死循环，为什么？若将 f1 中变量 i 和 n 都定义为 int 型，是否还会死循环？为什么？(2) f1(23) 和 f2(23) 的返回值是否相等？机器数各是什么（用十六进制表示）？(3) f1(24) 和 f2(24) 的返回值分别为 33554431 和 33554432.0，为什么不相等？(4) f(31)=2^32-1，而 f1(31) 的返回值却为 -1，为什么？若使 f1(n) 的返回值与 f(n) 相等，则最大的 n 是多少？(5) f2(127) 的机器数为 7F800000H，对应的值是什么？若使 f2(n) 的结果不溢出，则最大的 n 是多少？若使 f2(n) 的结果精确（无舍入），则最大的 n 是多少？",
+      "options": [],
+      "answer": "(1) n=0 时 n-1 为无符号数 2^32-1，条件 i<=n-1 恒成立，i 不断自增，故死循环；若 i、n 均为 int 型，n-1=-1，i<=-1 不成立，不会死循环。(2) 相等，f(23)=2^24-1=16777215；f1(23) 机器数为 00FFFFFFH，f2(23) 机器数为 4B7FFFFFH。(3) f(24)=2^25-1 需要 25 位有效位，而 float 尾数只有 24 位，发生舍入，f2(24) 被舍入为 2^25=33554432，故与 f1(24) 不相等。(4) f(31)=2^32-1 超出 int 的表示范围，按补码解释为 -1；使返回值与 f(n) 相等的最大 n=30。(5) 7F800000H 表示 +∞（正无穷大）；结果不溢出的最大 n=126；结果精确（无舍入）的最大 n=23。",
+      "analysis": "无符号数加减的环绕、int 的溢出以及 float 24 位有效位的舍入是本题三个考点。",
+      "tags": ["补码表示", "IEEE754", "溢出与舍入"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-44",
+      "year": 2017,
+      "number": 44,
+      "type": "comprehensive",
+      "section": "co",
+      "stem": "在按字节编址的计算机 M 上，第 43 题中 f1 的部分源程序与对应机器级代码（包括指令虚拟地址）为：00401020H 55 push ebp；……；0040105EH 39 4D F4 cmp dword ptr [ebp-0Ch],ecx；……；00401066H D1 E2 shl edx,1；……；0040107FH C3 ret。其中机器级代码行包括行号、虚拟地址、机器指令和汇编指令。请回答：(1) 计算机 M 是 RISC 还是 CISC？为什么？(2) f1 的机器指令代码共占多少字节？要求给出计算过程。(3) 第 20 条指令 cmp 通过 i 减 n-1 实现对 i 和 n-1 的比较。执行 f(1) 过程中，当 i=0 时，cmp 指令执行后进/借位标志 CF 的内容是什么？要求给出计算过程。(4) 第 23 条指令 shl 通过左移操作实现了 power*2 运算，在 f2 中能否也用 shl 指令实现 power*2？为什么？",
+      "options": [],
+      "answer": "(1) M 是 CISC，因为指令长度可变（如 1 字节、3 字节、6 字节），指令格式与寻址方式复杂。(2) 代码从 00401020H 到 0040107FH，最后一条 ret 占 1 字节，故共 0040107FH-00401020H+1=5FH+1=60H=96 字节。(3) f(1) 时 n=1、n-1=0、i=0，cmp 执行 i-(n-1)=0-0=0，无借位，故 CF=0。(4) 不能；f2 中 power 是 float 型，其机器数是符号、阶码、尾数的编码，左移一位会改变符号位与阶码位而得不到乘 2 的结果，乘 2 应通过阶码加 1 实现。",
+      "analysis": "指令长度可变说明是 CISC；CF 由减法是否产生借位决定；浮点数不能用整数移位实现乘 2。",
+      "tags": ["CISC", "标志寄存器", "机器级表示"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-45",
+      "year": 2017,
+      "number": 45,
+      "type": "comprehensive",
+      "section": "os",
+      "stem": "假定第 44 题给出的计算机 M 采用二级分页虚拟存储管理方式，虚拟地址格式为页目录号 10 位、页表索引 10 位、页内偏移量 12 位。请针对第 43 题的函数 f1 和第 44 题中的机器指令代码回答：(1) 函数 f1 的机器指令代码占多少页？(2) 取第 1 条指令（push ebp）时，若地址变换过程中需要访问内存中的页目录和页表，则会分别访问它们各自的第几个表项（编号从 0 开始）？(3) M 的 I/O 采用中断控制方式。若进程 P 在调用 f1 之前通过 scanf() 获取 n 的值，则在执行 scanf() 的过程中，进程 P 的状态会如何变化？CPU 是否会进入内核态？",
+      "options": [],
+      "answer": "(1) 代码共 96 字节，远小于页大小 4KB，故占 1 页。(2) 第 1 条指令虚拟地址为 00401020H，页目录号=00401020H>>22=1，页表索引=(00401020H>>12)&3FFH=1，故分别访问页目录的第 1 个表项和页表的第 1 个表项。(3) 执行 scanf() 时进程 P 由运行态变为阻塞态（等待键盘输入），输入完成产生中断后变为就绪态；CPU 会进入内核态，因为需要执行系统调用及中断处理程序。",
+      "analysis": "按 10/10/12 位划分虚拟地址取页目录号和页表索引。",
+      "tags": ["二级页表", "地址变换", "进程状态"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-46",
+      "year": 2017,
+      "number": 46,
+      "type": "comprehensive",
+      "section": "os",
+      "stem": "某进程中有 3 个并发执行的线程 thread1、thread2 和 thread3，其中复数的结构类型为 typedef struct{ float a; float b; } cnum;，全局变量为 num x, y, z，函数 add(num p,num q) 返回 p、q 之和。三个线程的执行代码为：thread1{ num w; w=add(x,y); }；thread2{ num w; w=add(y,z); }；thread3{ num w; w.a=1; w.b=1; z=add(z,w); }。请添加必要的信号量和 P、V（或 wait、signal）操作，要求确保线程互斥访问临界资源，并且最大程度地并发执行。",
+      "options": [],
+      "answer": "为共享变量 x、y、z 各设一个互斥信号量 mx=my=mz=1。thread1：P(mx)；读 x；P(my)；读 y；V(mx)；V(my)；计算 w=add(x,y)。thread2：P(my)；读 y；P(mz)；读 z；V(my)；V(mz)；计算 w=add(y,z)。thread3：P(mz)；z=add(z,w)；V(mz)。按固定顺序申请信号量以避免死锁，不同变量的访问可并发进行。",
+      "analysis": "按变量粒度设置信号量，既保证互斥又使无关访问并发执行。",
+      "tags": ["线程同步", "互斥信号量", "PV操作"],
+      "status": "ok"
+    },
+    {
+      "id": "408-2017-47",
+      "year": 2017,
+      "number": 47,
+      "type": "comprehensive",
+      "section": "cn",
+      "stem": "",
+      "options": [],
+      "answer": "",
+      "tags": [],
+      "status": "missing"
+    }
+  ]
+}
