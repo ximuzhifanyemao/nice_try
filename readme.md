@@ -47,7 +47,7 @@ npm run dev
 
 完整数据库初始化脚本，已合并原根目录下全部分散的 `supabase-migration-*.sql` 迁移（如 goals、trash、rls-daily-logs、customization、subject-rename、legacy-per-user、favorites、custom-presets、health、water、english-checkin、vocab-sync、qr-login、sodium、desktop-versions 等）。包含：
 - 基础核心表：`daily_logs`、`wallets`、`weekly_commitments`、`wallet_transactions`
-- 各功能模块表：个性化设置、自定义科目、食物收藏、自定义预设、健康/饮食/饮水、英语打卡、生词本、扫码登录、桌面端版本
+- 各功能模块表：个性化设置、自定义科目、食物收藏、自定义预设、健康/饮食/饮水、英语打卡、记一记（知识点 / 真题 / 生词）、扫码登录、桌面端版本
 - 完整的 RLS（Row Level Security）策略、触发器与 RPC 函数
 
 > 该文件为幂等脚本：所有语句可重复执行（`CREATE TABLE IF NOT EXISTS`、建索引 `IF NOT EXISTS`、建策略/触发器前先 `DROP IF EXISTS` 等），即使已部分或全部执行过旧迁移，重新运行也不会报错。
