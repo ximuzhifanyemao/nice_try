@@ -49,6 +49,7 @@ const state = {
   logId: null,
   logText: '',
   logCollapsed: false,
+  logWidth: null,
   checkTimer: null,
   startBusy: false,
   panelTab: 'log',
@@ -63,7 +64,13 @@ const state = {
 };
 
 const LOG_COLLAPSED_KEY = 'releasectl.log.collapsed';
+const LOG_WIDTH_KEY = 'releasectl.log.width';
 const PANEL_TAB_KEY = 'releasectl.panel.tab';
+
+const LOG_WIDTH_DEFAULT = 380;
+const LOG_WIDTH_MIN = 300;
+const LOG_WIDTH_MAX = 900;
+const LOG_WIDTH_RESERVED = 520;
 
 function $(id) {
   return document.getElementById(id);
@@ -1562,6 +1569,165 @@ function setLogCollapsed(collapsed, persist) {
   }
 }
 
+/* ── 输出面板宽度：左右拖动分隔条调整 ───────────────── */
+
+function logWidthBounds() {
+  const shell = document.querySelector('.app-shell');
+  const shellWidth = shell ? shell.clientWidth : window.innerWidth;
+  const max = Math.max(LOG_WIDTH_MIN, Math.min(LOG_WIDTH_MAX, Math.round(shellWidth - LOG_WIDTH_RESERVED)));
+  return { min: LOG_WIDTH_MIN, max };
+}
+
+function clampLogWidth(width) {
+  const bounds = logWidthBounds();
+  const value = Number(width);
+  if (!Number.isFinite(value)) return Math.min(LOG_WIDTH_DEFAULT, bounds.max);
+  return Math.round(Math.min(Math.max(value, bounds.min), bounds.max));
+}
+
+/** 读取实际渲染宽度；折叠或窄屏时栅格只剩一列，回退到记录值/默认值。 */
+function measureLogWidth() {
+  const workspace = $('workspace');
+  if (!workspace) return state.logWidth || LOG_WIDTH_DEFAULT;
+  const tracks = getComputedStyle(workspace).gridTemplateColumns.split(/\s+/).filter(Boolean);
+  if (tracks.length < 3) return state.logWidth || LOG_WIDTH_DEFAULT;
+  const value = parseFloat(tracks[tracks.length - 1]);
+  return Number.isFinite(value) && value > 0 ? value : LOG_WIDTH_DEFAULT;
+}
+
+function syncLogResizer() {
+  const resizer = $('log-resizer');
+  if (!resizer) return;
+  const bounds = logWidthBounds();
+  const width = state.logWidth != null ? state.logWidth : Math.round(measureLogWidth());
+  resizer.setAttribute('aria-valuemin', String(bounds.min));
+  resizer.setAttribute('aria-valuemax', String(bounds.max));
+  resizer.setAttribute('aria-valuenow', String(width));
+}
+
+function setLogWidth(width, persist) {
+  const workspace = $('workspace');
+  if (!workspace) return;
+  if (width == null) {
+    state.logWidth = null;
+    workspace.style.removeProperty('--log-width');
+  } else {
+    state.logWidth = clampLogWidth(width);
+    workspace.style.setProperty('--log-width', state.logWidth + 'px');
+  }
+  syncLogResizer();
+  if (persist) {
+    try {
+      if (state.logWidth == null) localStorage.removeItem(LOG_WIDTH_KEY);
+      else localStorage.setItem(LOG_WIDTH_KEY, String(state.logWidth));
+    } catch {
+      // 忽略隐私模式下的存储异常
+    }
+  }
+}
+
+function readStoredLogWidth() {
+  try {
+    const value = Number(localStorage.getItem(LOG_WIDTH_KEY));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function initLogResizer() {
+  const resizer = $('log-resizer');
+  if (!resizer) return;
+
+  resizer.addEventListener('pointerdown', function (event) {
+    if (event.button !== 0 || event.isPrimary === false) return;
+    event.preventDefault();
+
+    const startX = event.clientX;
+    const startWidth = state.logWidth != null ? state.logWidth : measureLogWidth();
+    let moved = false;
+
+    // 拖动期间锁定焦点与操作，松开后即可用 ← → 继续微调
+    try {
+      resizer.focus({ preventScroll: true });
+    } catch {
+      resizer.focus();
+    }
+    resizer.classList.add('dragging');
+    document.body.classList.add('resizing');
+    if (resizer.setPointerCapture) {
+      try {
+        resizer.setPointerCapture(event.pointerId);
+      } catch {
+        // 旧浏览器忽略指针捕获失败
+      }
+    }
+
+    function onPointerMove(moveEvent) {
+      const delta = moveEvent.clientX - startX;
+      if (!moved && Math.abs(delta) < 2) return;
+      moved = true;
+      setLogWidth(startWidth - delta, false);
+    }
+
+    function finish(upEvent) {
+      resizer.removeEventListener('pointermove', onPointerMove);
+      resizer.removeEventListener('pointerup', finish);
+      resizer.removeEventListener('pointercancel', finish);
+      resizer.classList.remove('dragging');
+      document.body.classList.remove('resizing');
+      if (resizer.releasePointerCapture) {
+        try {
+          resizer.releasePointerCapture(upEvent.pointerId);
+        } catch {
+          // 指针可能已被浏览器释放
+        }
+      }
+      if (moved) setLogWidth(measureLogWidth(), true);
+      else syncLogResizer();
+    }
+
+    resizer.addEventListener('pointermove', onPointerMove);
+    resizer.addEventListener('pointerup', finish);
+    resizer.addEventListener('pointercancel', finish);
+  });
+
+  resizer.addEventListener('dblclick', function () {
+    setLogWidth(null, true);
+    toast('输出面板宽度已恢复默认', 'success');
+  });
+
+  resizer.addEventListener('keydown', function (event) {
+    const step = event.shiftKey ? 48 : 16;
+    const current = state.logWidth != null ? state.logWidth : measureLogWidth();
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setLogWidth(current + step, true);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setLogWidth(current - step, true);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setLogWidth(null, true);
+    }
+  });
+
+  let resizeTimer = null;
+  window.addEventListener('resize', function () {
+    if (state.logWidth == null) {
+      syncLogResizer();
+      return;
+    }
+    // 窗口变化后重新夹紧宽度，避免挤掉左侧卡片；稍后再落盘，避免拖动窗口时频繁写存储
+    setLogWidth(state.logWidth, false);
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      resizeTimer = null;
+      if (state.logWidth != null) setLogWidth(state.logWidth, true);
+    }, 250);
+  });
+}
+
 function bindEvents() {
   $('btn-check').addEventListener('click', function () { runChecksNow({}); });
   $('btn-recheck').addEventListener('click', function () { runChecksNow({}); });
@@ -1569,6 +1735,7 @@ function bindEvents() {
   $('btn-save-settings').addEventListener('click', saveSettings);
   $('btn-collapse-log').addEventListener('click', function () { setLogCollapsed(true, true); });
   $('btn-expand-log').addEventListener('click', function () { setLogCollapsed(false, true); });
+  initLogResizer();
 
   $('tab-log').addEventListener('click', function () { setPanelTab('log', true, false); });
   $('tab-terminal').addEventListener('click', function () { setPanelTab('terminal', true, true); });
@@ -1711,6 +1878,7 @@ async function init() {
     renderHistory();
     connectEvents();
     setLogCollapsed(localStorage.getItem(LOG_COLLAPSED_KEY) === '1', false);
+    setLogWidth(readStoredLogWidth(), false);
     setPanelTab(localStorage.getItem(PANEL_TAB_KEY) === 'terminal' ? 'terminal' : 'log', false, false);
     schedulePlanPreview(200);
 

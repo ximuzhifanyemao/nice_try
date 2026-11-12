@@ -200,10 +200,12 @@ button {
 }
 
 .workspace {
+  --log-width: 380px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: minmax(0, 1fr) 16px var(--log-width);
   align-items: start;
-  gap: 16px;
+  column-gap: 0;
+  row-gap: 16px;
   margin-top: 16px;
 }
 
@@ -1213,6 +1215,74 @@ button {
 
 /* ── 右侧输出面板 ─────────────────────────────────────── */
 
+/* 左右拖动的分隔条：把鼠标放在两栏之间的窄条上拖动即可改变日志面板宽度 */
+
+.log-resizer {
+  position: sticky;
+  top: 84px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: calc(100vh - 104px);
+  min-height: 420px;
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.log-resizer::before {
+  content: "";
+  position: absolute;
+  inset: 0 3px;
+  border-radius: 8px;
+  background: transparent;
+  transition: background 0.16s ease;
+}
+
+.log-resizer:hover::before,
+.log-resizer:focus-visible::before,
+.log-resizer.dragging::before {
+  background: rgba(79, 70, 229, 0.07);
+}
+
+.log-resizer-grip {
+  position: relative;
+  width: 4px;
+  height: 32px;
+  border-radius: 999px;
+  background: #dfe3ea;
+  transition: background 0.16s ease, height 0.16s ease, box-shadow 0.16s ease;
+}
+
+.log-resizer:hover .log-resizer-grip,
+.log-resizer:focus-visible .log-resizer-grip {
+  height: 48px;
+  background: #b9bfcc;
+}
+
+.log-resizer.dragging .log-resizer-grip {
+  height: 56px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.workspace.logs-collapsed .log-resizer {
+  display: none;
+}
+
+body.resizing {
+  cursor: col-resize;
+}
+
+body.resizing * {
+  cursor: col-resize !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
 .log-col {
   position: sticky;
   top: 84px;
@@ -2094,7 +2164,8 @@ button {
 
 @media (max-width: 1280px) {
   .workspace {
-    grid-template-columns: minmax(0, 1fr) 340px;
+    --log-width: 340px;
+    grid-template-columns: minmax(0, 1fr) 16px var(--log-width);
   }
   .target-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2105,6 +2176,9 @@ button {
   .workspace,
   .workspace.logs-collapsed {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .log-resizer {
+    display: none;
   }
   .log-col {
     position: static;
