@@ -1151,6 +1151,7 @@ function fillSettings() {
   $('set-deploy-args').value = (cloudbase.deployArgs || []).join(' ');
   $('set-java-home').value = android.javaHome || '';
   $('set-sdk-dir').value = android.sdkDir || '';
+  $('set-ota-host').value = android.otaHost === 'cloudbase' ? 'cloudbase' : 'supabase';
   $('set-cargo-bin').value = desktop.cargoBin || '';
   $('set-bundles').value = desktop.bundles || '';
   $('set-github-owner').value = github.owner || '';
@@ -1184,6 +1185,7 @@ async function saveSettings() {
     android: {
       javaHome: $('set-java-home').value,
       sdkDir: $('set-sdk-dir').value,
+      otaHost: $('set-ota-host').value,
     },
     desktop: {
       cargoBin: $('set-cargo-bin').value,

@@ -200,14 +200,21 @@ export function buildPlan(options = {}) {
   }
 
   if (targets.includes('apk')) {
+    // OTA 上传目标：cloudbase（国内静态托管，快）或 supabase（原有通道）
+    const otaHost = String(config.android?.otaHost || 'supabase').toLowerCase() === 'cloudbase'
+      ? 'cloudbase'
+      : 'supabase'
     push({
       id: 'android-ota',
       title: '发布 Android OTA',
       group: '发布',
       action: 'command',
-      description: '上传 APK 到 Supabase Storage 并写入 app_versions',
+      description:
+        '上传 APK 到 ' + (otaHost === 'cloudbase' ? 'CloudBase 静态托管' : 'Supabase Storage') + ' 并写入 app_versions',
       command:
-        'node scripts/upload-ota.mjs --skip-build --apk "apk/kaoyan-tracker-v' +
+        'node scripts/upload-ota.mjs --skip-build --host ' +
+        otaHost +
+        ' --apk "apk/kaoyan-tracker-v' +
         version +
         '.apk"',
       timeoutMs: timeoutFor(config, 20),

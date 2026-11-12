@@ -22,8 +22,14 @@ function extractToken(text: string): string | null {
   return m ? m[1] : null
 }
 
-/** 二维码内容指向的确认页域名，用于限制只接受本站二维码 */
-const ALLOWED_HOST = 'notoday-code-app-d3ggyfrxu0f39d17f.webapps.tcloudbase.com'
+/**
+ * 只接受本站二维码。静态托管域名是当前主站；
+ * webapps 域名是历史入口，保留以兼容旧版分享图/旧二维码。
+ */
+const ALLOWED_HOSTS = new Set([
+  'code-app-d3ggyfrxu0f39d17f-1317742320.tcloudbaseapp.com',
+  'notoday-code-app-d3ggyfrxu0f39d17f.webapps.tcloudbase.com',
+])
 
 /** 单帧解码图片；scale 到不超过 MAX 像素边长，兼顾速度与识别精度 */
 function decodeFrame(video: HTMLVideoElement): string | null {
@@ -273,7 +279,7 @@ export default function ScanQr() {
       } catch {
         throw new Error('不是有效的登录二维码')
       }
-      if (url.host !== ALLOWED_HOST) throw new Error('不是本应用的登录二维码')
+      if (!ALLOWED_HOSTS.has(url.host)) throw new Error('不是本应用的登录二维码')
       const token = extractToken(text)
       if (!token) throw new Error('二维码缺少登录凭据')
 

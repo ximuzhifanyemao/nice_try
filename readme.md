@@ -147,22 +147,29 @@ keytool -genkey -v -keystore android/kaoyan-tracker.keystore \
 - `TimerForegroundPlugin` — 前台服务插件，控制计时器在后台持续运行
 - `TimerForegroundService` — Android Foreground Service，在通知栏显示计时状态
 
-## Vercel 部署
+## Web 部署
 
-### 配置
+线上站点由腾讯云 CloudBase 静态网站托管提供，前端与 APK 同域，日常发布走发版控制台（勾选 Web 目标）：
 
-1. 在 Vercel 中导入 GitHub 仓库
-2. 构建命令：`npm run build:deploy`
-3. 输出目录：`dist`
-4. 在 Settings → Environment Variables 中添加 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`
+1. `npm run build:deploy`（本地构建，`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` 在构建时注入）
+2. `<CloudBase CLI> hosting deploy dist -e <环境ID> --verify`
+
+站点地址即 `release/config.json` 的 `cloudbase.staticDomain`。
+
+> CloudBase 的「应用托管」（`*.webapps.tcloudbase.com`）已停用：它只提供站点入口、
+> 不返回 APK 等任意文件，而且和静态托管是两套独立版本，容易出现两个域名版本不一致。
+> 旧分享图/二维码仍指向该域名，能正常打开但停在停用时的版本；扫码登录已同时接受两个域名。
 
 ### 路由配置
 
-应用使用 HashRouter（URL 形如 `/#/login`），静态托管天然支持，无需服务器端重写规则；`vercel.json` 中也保留了 SPA 回退配置作为兜底。
+应用使用 HashRouter（URL 形如 `/#/login`），静态托管天然支持，无需服务器端重写规则。
+`public/_redirects` 只用于把 `/download/` 指向下载落地页。
 
-### 分支策略
+### Vercel（已停用）
 
-Vercel 仅将 `main` 分支部署到生产环境，其他分支推送不影响线上站点。
+代码里的 `APP_SITE_URL` 已指向 CloudBase 站点，Vercel 只是同一份 `dist` 的重复部署，
+国内访问也更慢，因此不再使用。如需恢复：在 Vercel 导入仓库，构建命令 `npm run build:deploy`，
+输出目录 `dist`，并在 Environment Variables 中添加 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`。
 
 ## 项目结构
 

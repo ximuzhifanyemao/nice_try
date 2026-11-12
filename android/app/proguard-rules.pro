@@ -5,6 +5,22 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
+# ── Capacitor / Cordova 插件通过反射实例化，必须保留入口 ──
+-keep @com.getcapacitor.annotation.CapacitorPlugin public class * { *; }
+-keep public class * extends com.getcapacitor.Plugin { *; }
+-keepclassmembers class * {
+    @com.getcapacitor.PluginMethod public <methods>;
+}
+-keep public class * extends org.apache.cordova.* {
+    public <methods>;
+    public <fields>;
+}
+
+# WebView 与 JS 交互接口
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+
 # If your project uses WebView with JS, uncomment the following
 # and specify the fully qualified class name to the JavaScript interface
 # class:

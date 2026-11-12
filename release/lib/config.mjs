@@ -34,6 +34,8 @@ export const DEFAULT_CONFIG = {
     cliPath: '',
     envId: '',
     siteUrl: '',
+    // 静态托管默认域名（前端与 APK 同域，网站主入口）
+    staticDomain: '',
     deployArgs: ['--verify'],
     region: 'ap-shanghai',
   },
@@ -41,6 +43,8 @@ export const DEFAULT_CONFIG = {
     javaHome: '',
     sdkDir: '',
     gradleTask: 'assembleRelease',
+    // OTA 上传目标：cloudbase（国内静态托管）/ supabase（原有通道）
+    otaHost: 'supabase',
   },
   desktop: {
     cargoBin: '',
@@ -185,6 +189,9 @@ export function applyConfigPatch(current, patch) {
   if (cloudbase.cliPath !== undefined) next.cloudbase.cliPath = asString(cloudbase.cliPath, next.cloudbase.cliPath)
   if (cloudbase.envId !== undefined) next.cloudbase.envId = asString(cloudbase.envId, next.cloudbase.envId)
   if (cloudbase.siteUrl !== undefined) next.cloudbase.siteUrl = asString(cloudbase.siteUrl, next.cloudbase.siteUrl)
+  if (cloudbase.staticDomain !== undefined) {
+    next.cloudbase.staticDomain = asString(cloudbase.staticDomain, next.cloudbase.staticDomain)
+  }
   if (cloudbase.region !== undefined) next.cloudbase.region = asString(cloudbase.region, next.cloudbase.region)
   if (cloudbase.deployArgs !== undefined) {
     next.cloudbase.deployArgs = asStringArray(cloudbase.deployArgs, next.cloudbase.deployArgs)
@@ -193,6 +200,10 @@ export function applyConfigPatch(current, patch) {
   if (android.javaHome !== undefined) next.android.javaHome = asString(android.javaHome, next.android.javaHome)
   if (android.sdkDir !== undefined) next.android.sdkDir = asString(android.sdkDir, next.android.sdkDir)
   if (android.gradleTask !== undefined) next.android.gradleTask = asString(android.gradleTask, next.android.gradleTask)
+  if (android.otaHost !== undefined) {
+    const host = asString(android.otaHost, next.android.otaHost).toLowerCase()
+    next.android.otaHost = host === 'cloudbase' ? 'cloudbase' : 'supabase'
+  }
 
   if (desktop.cargoBin !== undefined) next.desktop.cargoBin = asString(desktop.cargoBin, next.desktop.cargoBin)
   if (desktop.bundles !== undefined) next.desktop.bundles = asString(desktop.bundles, next.desktop.bundles)

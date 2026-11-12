@@ -23,7 +23,7 @@
 |------|----------|----------|------------|------------|----------|
 | 腾讯云 CloudBase | 1GB存储 + 5GB流量/月 | 快 | 默认域名不需要，自定义域名需要 | 需手动配置 | ⭐⭐⭐⭐⭐ |
 | Cloudflare Pages | 无限流量 | 一般（有国内节点但有限） | 不需要 | 原生支持 | ⭐⭐⭐⭐ |
-| Vercel（当前） | 100GB流量/月 | 一般偏慢 | 不需要 | 原生支持 | ⭐⭐⭐⭐ |
+| Vercel（已停用） | 100GB流量/月 | 一般偏慢 | 不需要 | 原生支持 | ⭐⭐⭐ |
 | GitHub Pages | 100GB流量/月 | 慢 | 不需要 | 需额外配置 | ⭐⭐⭐ |
 | Gitee Pages | 有限制 | 快 | 需实名+备案 | 需额外配置 | ⭐⭐ |
 
@@ -32,6 +32,10 @@
 ---
 
 ## 方案一：腾讯云 CloudBase 静态网站托管（推荐）
+
+> **注意**：CloudBase 里「静态网站托管」和「应用托管」是两套独立版本。
+> 本项目只用静态网站托管（`<env-id>-<appid>.tcloudbaseapp.com`），前端和 APK 同域；
+> 应用托管（`*.webapps.tcloudbase.com`）已停用，不要再往里部署。
 
 ### 免费额度说明
 
@@ -254,11 +258,14 @@ Cloudflare Pages 原生支持 SPA 回退。在项目根目录创建 `public/_red
 
 ---
 
-## 方案三：Vercel（当前方案，保持不变）
+## 方案三：Vercel（已停用，仅作备选）
 
-如果 Vercel 在你的网络环境下可以正常访问，其实没必要迁移。Vercel 免费额度为 100GB/月，对个人项目足够。
+线上前端现由 CloudBase 静态托管提供（`src/lib/appLinks.ts` 的 `APP_SITE_URL` 指向 CloudBase），
+Vercel 已不再部署——它是同一份 `dist` 的重复托管，且国内访问偏慢。
 
-项目已经配置了 `vercel.json` 处理 SPA 路由，只需确保环境变量在 Vercel Dashboard 中正确设置即可。
+如 CloudBase 出问题需要临时兜底，可按以下方式恢复：在 Vercel 导入 GitHub 仓库，
+构建命令 `npm run build:deploy`，输出目录 `dist`，并在 Dashboard 的 Environment Variables
+中添加 `VITE_SUPABASE_URL` 和 `VITE_SUPABASE_ANON_KEY`；`vercel.json` 中保留了 SPA 回退规则。
 
 ---
 

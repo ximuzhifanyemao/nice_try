@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Capacitor } from '@capacitor/core'
 import { isTauri } from '@tauri-apps/api/core'
-import { apkDownloadUrl } from '../lib/supabase'
+import { useApkDownloadUrl } from '../hooks/useApkDownloadUrl'
 import { Icon } from './Icon'
 
 /**
@@ -14,6 +14,7 @@ import { Icon } from './Icon'
  */
 export default function AppVersion({ footer }: { footer?: ReactNode }) {
   const [expanded, setExpanded] = useState(false)
+  const apkDownloadUrl = useApkDownloadUrl()
   const version = __APP_VERSION__
   const hash = __APP_GIT_HASH__
   const changelog = __APP_GIT_CHANGELOG__ ?? []

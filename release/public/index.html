@@ -268,7 +268,7 @@
           </label>
           <label class="field">
             <span>网站地址</span>
-            <input id="set-site-url" placeholder="https://...webapps.tcloudbase.com" />
+            <input id="set-site-url" placeholder="https://...tcloudbaseapp.com" />
           </label>
           <label class="field wide">
             <span>部署额外参数</span>
@@ -286,6 +286,13 @@
           <label class="field">
             <span>Android SDK</span>
             <input id="set-sdk-dir" placeholder="D:\codeapp\sdk" />
+          </label>
+          <label class="field">
+            <span>OTA 上传目标</span>
+            <select id="set-ota-host">
+              <option value="cloudbase">CloudBase 静态托管（国内，快）</option>
+              <option value="supabase">Supabase Storage（原有通道）</option>
+            </select>
           </label>
         </div>
 

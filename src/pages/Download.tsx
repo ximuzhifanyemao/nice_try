@@ -4,7 +4,8 @@ import { Link } from 'react-router-dom'
 import QRCode from 'qrcode'
 import DesktopLogo from '../components/DesktopLogo'
 import { Icon } from '../components/Icon'
-import { supabase, apkDownloadUrl } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
+import { useApkDownloadUrl } from '../hooks/useApkDownloadUrl'
 import { GITHUB_RELEASES_URL, GITHUB_REPO_URL } from '../lib/appLinks'
 
 /** 桌面端最新安装包（来自 Supabase desktop_versions 的当前活跃版本） */
@@ -34,6 +35,7 @@ function formatSize(bytes?: number | null) {
  * transform 祖先接管，就会缩在内容列里而不是盖住整屏。
  */
 export default function Download() {
+  const apkDownloadUrl = useApkDownloadUrl()
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [desktop, setDesktop] = useState<DesktopRelease | null>(null)
   const [desktopLoading, setDesktopLoading] = useState(true)
@@ -73,7 +75,7 @@ export default function Download() {
     return () => {
       alive = false
     }
-  }, [])
+  }, [apkDownloadUrl])
 
   const desktopHref = desktop?.bundle_url ?? GITHUB_RELEASES_URL
   const sizeText = formatSize(desktop?.file_size)

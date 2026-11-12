@@ -48,13 +48,17 @@
 
 站点地址使用配置里的 `cloudbase.siteUrl`，发布完成后可点开确认。
 
+> CloudBase 的「应用托管」（`*.webapps.tcloudbase.com`）已停用：
+> 它只提供站点入口、不返回 APK 等任意文件，且与静态托管是两套独立版本。
+> 现在前端与 APK 统一由静态网站托管（`cloudbase.staticDomain`）提供，发版只需上面两步。
+
 ### Android APK
 
 1. `npm run build:deploy`
 2. `npx cap sync android`
 3. `android\gradlew.bat assembleRelease --console=plain`
 4. 把产物复制为 `apk/kaoyan-tracker-v<版本>.apk` 和 `apk/DiveDeep.apk`
-5. `node scripts/upload-ota.mjs --skip-build`（Supabase Storage + app_versions 表）
+5. `node scripts/upload-ota.mjs --skip-build`（按 `android.otaHost` 上传到 CloudBase 静态托管或 Supabase Storage，并写 app_versions 表）
 6. 如勾选 GitHub Release：`node scripts/upload-release.mjs --no-desktop`
 
 ### Windows 桌面端
@@ -90,9 +94,11 @@ GitHub owner/repo 等）。该文件已加入 .gitignore。
 | cloudbase.cliPath | CloudBase CLI 路径，例如 D:\cloudbase-cli\cloudbase.cmd |
 | cloudbase.envId | CloudBase 环境 ID |
 | cloudbase.siteUrl | 线上网站地址，用于发布后验证 |
+| cloudbase.staticDomain | 静态托管默认域名，前端与 APK 同域，网站主入口 |
 | cloudbase.deployArgs | 额外部署参数，默认 ["--verify"]，可加 --safe |
 | android.javaHome | JDK 21 目录 |
 | android.sdkDir | Android SDK 目录 |
+| android.otaHost | APK 上传目标：cloudbase（国内，快）/ supabase（原有通道） |
 | desktop.cargoBin | cargo/rustc 所在目录，通常是 %USERPROFILE%\.cargo\bin |
 | desktop.bundles | 例如 nsis,msi；留空使用 Tauri 默认 |
 | git.exe | git.exe 路径；留空则按 PATH → 注册表 → 常见安装目录自动检测 |

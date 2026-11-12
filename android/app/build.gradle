@@ -23,8 +23,8 @@ android {
         applicationId "com.kaoyan.tracker"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 105
-        versionName "1.17.1"
+        versionCode 106
+        versionName "1.17.2"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             // 只保留手机架构，去掉 x86/x86_64（仅模拟器用），大幅减小 APK 体积
@@ -39,8 +39,16 @@ android {
     buildTypes {
         release {
             signingConfig signingConfigs.release
-            minifyEnabled false
+            // 开启 R8 代码压缩 + 资源压缩：classes.dex 从 9MB 级明显缩小
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    packaging {
+        jniLibs {
+            // 原生库默认原样存储，压缩后 APK 再小一大截（安装时解压，略微增加安装耗时）
+            useLegacyPackaging = true
         }
     }
 }
