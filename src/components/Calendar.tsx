@@ -19,7 +19,7 @@ import type { CalendarEvent } from '../lib/calendarEvents'
 import { fetchMyEvents, createEvent, deleteEvent } from '../lib/calendarEvents'
 import { formatActivityLabel, formatSubjectLabel, getSubjectById } from '../lib/subjects'
 import { getDotColor } from '../lib/colors'
-import { formatDateShort } from '../lib/format'
+import { formatDateShort, formatPauseMs } from '../lib/format'
 import { useAuth } from '../contexts/AuthContext'
 import { Link } from 'react-router-dom'
 import { Icon } from './Icon'
@@ -34,16 +34,6 @@ const EVENT_EMOJIS = ['🎂', '🎉', '📝', '📖', '⭐', '❤️', '🎯', '
 function fmtHours(h: number): string {
   const v = Math.round(h * 10) / 10
   return Number.isInteger(v) ? `${v}` : `${v}`
-}
-
-/** 暂停时长格式化：40s → '不到 1 分钟'，12min → '12 分钟'，75min → '1 小时 15 分钟' */
-function formatPauseMs(ms: number): string {
-  const totalMin = Math.round(ms / 60000)
-  if (totalMin < 1) return '不到 1 分钟'
-  if (totalMin < 60) return `${totalMin} 分钟`
-  const h = Math.floor(totalMin / 60)
-  const m = totalMin % 60
-  return m > 0 ? `${h} 小时 ${m} 分钟` : `${h} 小时`
 }
 
 /** 暂停明细悬浮提示：逐条列出「几点暂停了多久」 */

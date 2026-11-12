@@ -3,7 +3,7 @@ import type { DailyLog } from '../lib/dailyLogs'
 import { sortSubjectsByStartTime, updateLog, updateLogVersioned, isVersionConflict } from '../lib/dailyLogs'
 import { formatActivityLabel, formatSubjectLabel, getSubjectById } from '../lib/subjects'
 import { getChipColor } from '../lib/colors'
-import { formatDateShort, formatTimeRange } from '../lib/format'
+import { formatDateCompact, formatPauseMs, formatTimeRange } from '../lib/format'
 import { useToast } from '../lib/Toast'
 import DayTimeline from './DayTimeline'
 import ConfirmDialog from './ConfirmDialog'
@@ -89,31 +89,36 @@ function LogCard({
 
   const saveSummary = () => doSave(false)
 
-  const formattedDate = formatDateShort(log.date)
+  const formattedDate = formatDateCompact(log.date)
 
   const totalHours = log.subjects?.reduce((sum, s) => sum + (s.hours || 0), 0) ?? 0
+  /** 卡片右上角只显示一位小数，避免「今日 12.34h」这种长文本把一行挤断 */
+  const totalHoursText = `${Math.round(totalHours * 10) / 10}h`
 
   return (
     <div className="card-hover p-5 space-y-3">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           <h3 className="truncate text-lg font-semibold text-gray-900 dark:text-slate-100">{formattedDate}</h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5">
           {isOwner && onShare && (
             <button
               type="button"
               onClick={onShare}
               title="生成分享图（可选总计或时间轴）"
-              className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 transition-colors hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
+              className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap rounded-full border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:bg-indigo-100 dark:border-indigo-500/30 dark:bg-indigo-500/10 dark:text-indigo-300 dark:hover:bg-indigo-500/20"
             >
-              <Icon name="share" size={12} />
+              <Icon name="share" size={11} />
               分享
             </button>
           )}
           {totalHours > 0 && (
-            <span className="text-xs bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-full">
-              今日 {totalHours.toFixed(2)}h
+            <span
+              title={`学习 ${totalHours.toFixed(2)} 小时`}
+              className="whitespace-nowrap rounded-full bg-gray-100 px-2 py-0.5 text-[11px] tabular-nums text-gray-600 dark:bg-slate-700 dark:text-slate-300"
+            >
+              {totalHoursText}
             </span>
           )}
         </div>
@@ -146,6 +151,15 @@ function LogCard({
                   <span className="ml-auto shrink-0 text-xs tabular-nums text-gray-500 dark:text-slate-400">
                     {s.hours.toFixed(2)}h{range ? ` · ${range}` : ''}
                   </span>
+                  {/* 暂停明细：几点暂停了多久（仅计时器产生的记录有） */}
+                  {s.pauses && s.pauses.length > 0 && (
+                    <p className="flex w-full flex-wrap items-center gap-x-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                      <Icon name="pause" size={10} strokeWidth={2.5} />
+                      <span>
+                        暂停 {s.pauses.map((p) => `${p.at}（${formatPauseMs(p.ms)}）`).join(' · ')}
+                      </span>
+                    </p>
+                  )}
                   {s.summary && (
                     <p className="w-full text-xs text-gray-500 dark:text-slate-400">{s.summary}</p>
                   )}

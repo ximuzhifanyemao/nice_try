@@ -11,6 +11,24 @@ export function formatDateCn(dateStr: string): string {
   return `${Number(m)}月${Number(d)}日`
 }
 
+/** yyyy-MM-dd → 8月5日 周三（不带年份，用于卡片标题等横向空间有限的位置） */
+export function formatDateCompact(dateStr: string): string {
+  const d = new Date(dateStr + 'T00:00:00')
+  if (Number.isNaN(d.getTime())) return dateStr
+  const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
+  return `${formatDateCn(dateStr)} ${week}`
+}
+
+/** 毫秒 → 暂停时长（40s → '不到 1 分钟'，12min → '12 分钟'，75min → '1 小时 15 分钟'） */
+export function formatPauseMs(ms: number): string {
+  const totalMin = Math.round(ms / 60000)
+  if (totalMin < 1) return '不到 1 分钟'
+  if (totalMin < 60) return `${totalMin} 分钟`
+  const h = Math.floor(totalMin / 60)
+  const m = totalMin % 60
+  return m > 0 ? `${h} 小时 ${m} 分钟` : `${h} 小时`
+}
+
 /** yyyy-MM-dd → 2026.8.5 周二 */
 export function formatDateShort(dateStr: string): string {
   const parts = dateStr.split('-')
