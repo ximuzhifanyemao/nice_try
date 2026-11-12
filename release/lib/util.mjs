@@ -117,8 +117,99 @@ export function deepMerge(base, patch) {
 
 const ANSI_PATTERN = new RegExp(String.fromCharCode(27) + '\\[[0-9;?]*[ -/]*[@-~]', 'g')
 
+const UTF8_STRICT_DECODER = new TextDecoder('utf-8', { fatal: true })
+let gbkDecoder = null
+
+/**
+ * 解码命令行输出的一行。
+ * 子进程编码并不统一：node / npm 输出 UTF-8，而 cmd 与 git 在 Windows 控制台
+ * 代码页下输出 GBK。先按 UTF-8 严格解码，失败再退回 GBK，避免日志出现 U+FFFD。
+ */
+function decodeOutputLine(buffer) {
+  if (!buffer || buffer.length === 0) return ''
+  try {
+    return UTF8_STRICT_DECODER.decode(buffer)
+  } catch {
+    // 不是合法 UTF-8，继续尝试 GBK
+  }
+  try {
+    if (!gbkDecoder) gbkDecoder = new TextDecoder('gbk')
+    return gbkDecoder.decode(buffer)
+  } catch {
+    return buffer.toString('utf8')
+  }
+}
+
 export function stripAnsi(text) {
   return String(text).replace(ANSI_PATTERN, '')
+}
+
+/**
+ * 读取环境对象里的 PATH 值。
+ * Windows 上 PATH 的键名大小写不固定（例如被某些启动器写成小写 `path`），
+ * 直接读 env.PATH / env.Path 会漏掉，进而导致子进程 PATH 被清空。
+ */
+export function getEnvPath(envObj = process.env) {
+  if (!envObj) return ''
+  let found = ''
+  for (const key of Object.keys(envObj)) {
+    if (key.toLowerCase() !== 'path') continue
+    const value = envObj[key]
+    if (value) found = String(value)
+  }
+  return found
+}
+
+/** 写入 PATH，并删除其它大小写变体，保证只留下一个键。 */
+export function setEnvPath(envObj, value) {
+  for (const key of Object.keys(envObj)) {
+    if (key.toLowerCase() === 'path') delete envObj[key]
+  }
+  envObj[IS_WINDOWS ? 'Path' : 'PATH'] = String(value || '')
+  return envObj
+}
+
+export function splitPathList(value) {
+  if (!value) return []
+  const sep = IS_WINDOWS ? ';' : ':'
+  return String(value)
+    .split(sep)
+    .map((item) => item.trim().replace(/^"|"$/g, ''))
+    .filter(Boolean)
+}
+
+/** 合并多组 PATH 片段并去重（Windows 不区分大小写），保持先出现的顺序。 */
+export function mergePathList(...lists) {
+  const seen = new Set()
+  const out = []
+  for (const list of lists) {
+    for (const item of list || []) {
+      const trimmed = String(item || '').trim().replace(/^"|"$/g, '')
+      if (!trimmed) continue
+      const key = trimmed.replace(/[\\/]+$/, '')
+      const dedupeKey = IS_WINDOWS ? key.toLowerCase() : key
+      if (seen.has(dedupeKey)) continue
+      seen.add(dedupeKey)
+      out.push(trimmed)
+    }
+  }
+  return out
+}
+
+/**
+ * 合并 process.env 与附加 env，并修正 PATH 的大小写问题。
+ * 子进程 env 里若同时存在 `PATH` 与 `path`，Windows 取哪个键是不确定的，
+ * 必须收敛成一个键再交给 spawn。
+ */
+export function mergeEnv(extra = {}) {
+  const merged = { ...process.env, ...extra }
+  const basePath = getEnvPath(process.env)
+  const extraPath = getEnvPath(extra)
+  setEnvPath(merged, extraPath || basePath)
+  if (IS_WINDOWS && !merged.PATHEXT) {
+    merged.PATHEXT = '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC'
+  }
+  return merged
 }
 
 export function which(command) {
@@ -129,7 +220,7 @@ export function which(command) {
     return existsSync(cmd) ? cmd : null
   }
 
-  const pathValue = process.env.PATH || ''
+  const pathValue = getEnvPath(process.env)
   const dirs = pathValue.split(IS_WINDOWS ? ';' : ':').filter(Boolean)
   const exts = IS_WINDOWS
     ? (process.env.PATHEXT || '.EXE;.CMD;.BAT;.COM').split(';').filter(Boolean)
@@ -184,7 +275,7 @@ export function runShell(command, options = {}) {
         cwd,
         shell: true,
         windowsHide: true,
-        env: { ...process.env, ...env },
+        env: mergeEnv(env),
         stdio: ['pipe', 'pipe', 'pipe'],
       })
     } catch (error) {
@@ -212,35 +303,38 @@ export function runShell(command, options = {}) {
     let settled = false
     let timedOut = false
 
+    const emit = (buffer, stream) => {
+      let line = stripAnsi(decodeOutputLine(buffer))
+      if (line.endsWith('\r')) line = line.slice(0, -1)
+      if (stream === 'stdout') stdout = appendCapped(stdout, line + '\n')
+      else stderr = appendCapped(stderr, line + '\n')
+      if (!line.trim()) return
+      try {
+        onLine(line, stream)
+      } catch {
+        // 忽略 UI 错误
+      }
+    }
+
+    // 按字节缓冲、以换行切行，再逐行判断编码（UTF-8 / GBK）
     const makeReader = (stream) => {
-      let buffer = ''
+      let pending = Buffer.alloc(0)
       return {
         push(chunk) {
-          buffer += chunk
+          const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+          pending = pending.length ? Buffer.concat([pending, buffer]) : buffer
           let index
-          while ((index = buffer.indexOf('\n')) >= 0) {
-            let line = buffer.slice(0, index)
-            buffer = buffer.slice(index + 1)
-            if (line.endsWith('\r')) line = line.slice(0, -1)
-            if (line.trim() !== '') {
-              try {
-                onLine(line, stream)
-              } catch {
-                // 忽略 UI 错误
-              }
-            }
+          while ((index = pending.indexOf(0x0a)) >= 0) {
+            const lineBuffer = pending.subarray(0, index)
+            pending = pending.subarray(index + 1)
+            emit(lineBuffer, stream)
           }
         },
         flush() {
-          const line = buffer.trimEnd()
-          if (line.trim() !== '') {
-            try {
-              onLine(line, stream)
-            } catch {
-              // 忽略 UI 错误
-            }
-          }
-          buffer = ''
+          if (pending.length === 0) return
+          const rest = pending
+          pending = Buffer.alloc(0)
+          emit(rest, stream)
         },
       }
     }
@@ -269,18 +363,8 @@ export function runShell(command, options = {}) {
       })
     }
 
-    child.stdout.setEncoding('utf8')
-    child.stderr.setEncoding('utf8')
-    child.stdout.on('data', (chunk) => {
-      const text = stripAnsi(chunk)
-      stdout = appendCapped(stdout, text)
-      outReader.push(text)
-    })
-    child.stderr.on('data', (chunk) => {
-      const text = stripAnsi(chunk)
-      stderr = appendCapped(stderr, text)
-      errReader.push(text)
-    })
+    child.stdout.on('data', (chunk) => outReader.push(chunk))
+    child.stderr.on('data', (chunk) => errReader.push(chunk))
     child.on('error', (error) => {
       stderr = appendCapped(stderr, String(error?.message || error) + '\n')
       finish(null, null)

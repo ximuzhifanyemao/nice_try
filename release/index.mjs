@@ -16,8 +16,8 @@ import {
 import { loadConfig } from './lib/config.mjs'
 import { getRuntime } from './lib/runtime.mjs'
 import { runChecks, CHECK_GROUPS } from './lib/checks.mjs'
-import { buildPlan, executePlan } from './lib/pipeline.mjs'
-import { appendHistory } from './lib/history.mjs'
+import { buildPlan, executePlan, planRetry } from './lib/pipeline.mjs'
+import { appendHistory, loadHistory } from './lib/history.mjs'
 import { startServer } from './server.mjs'
 
 const USE_COLOR = Boolean(process.stdout.isTTY) && !process.env.NO_COLOR
@@ -37,6 +37,8 @@ const HELP = [
   '  release.cmd --check                 只检查当前发布环境',
   '  release.cmd 1.18.0 --targets web,apk,desktop --dry-run',
   '                                      无界面发布（--dry-run 为演练）',
+  '  release.cmd --retry                 从上次失败的那一步重试（跳过已成功步骤）',
+  '  release.cmd --retry <runId>         指定某次失败记录重试',
   '',
   '参数：',
   '  --ui                    启动 Web 控制台（默认）',
@@ -45,6 +47,7 @@ const HELP = [
   '  --targets <列表>        web,apk,desktop（逗号分隔，默认全部）',
   '  --dry-run               演练模式：只检查/打印，不写版本、不构建、不上传',
   '  --yes, -y               跳过交互确认（自动化/CI 用）',
+  '  --retry [runId]         从失败步骤重试；不带 runId 时取最近一次失败记录',
   '  --no-github             不创建 GitHub Release',
   '  --allow-dirty           允许工作区有未提交改动',
   '  --port <端口>           Web 控制台端口（默认 4780）',
@@ -53,6 +56,7 @@ const HELP = [
   '',
   '示例：',
   '  release.cmd --check',
+  '  release.cmd --retry',
   '  release.cmd 1.17.1 --targets web --dry-run',
   '  release.cmd --release 1.18.0 --targets apk,desktop --yes',
   '',
@@ -68,6 +72,8 @@ function parseArgs(argv) {
     dryRun: false,
     yes: false,
     github: true,
+    retry: false,
+    retryRunId: '',
     allowDirty: null,
     port: null,
     noOpen: false,
@@ -87,6 +93,13 @@ function parseArgs(argv) {
         .split(',')
         .map((item) => item.trim())
         .filter(Boolean)
+    } else if (arg === '--retry' || arg === '--retry-last') {
+      options.retry = true
+      const next = argv[index + 1]
+      if (next && !next.startsWith('-') && /^[A-Za-z0-9._-]+$/.test(next) && !/^\d+\.\d+\.\d+/.test(next)) {
+        options.retryRunId = next
+        index += 1
+      }
     } else if (arg === '--dry-run') options.dryRun = true
     else if (arg === '--yes' || arg === '-y') options.yes = true
     else if (arg === '--no-github') options.github = false
@@ -211,8 +224,87 @@ async function runHeadless(options) {
     }
   }
 
+  return executeAndReport({ config, runtime, plan }, options)
+}
+
+/** 取最近一次失败记录；也可以用 runId 指定。 */
+function pickRetryEntry(options) {
+  const entries = loadHistory()
+  if (options.retryRunId) {
+    const entry = entries.find((item) => item.id === options.retryRunId)
+    if (!entry) throw new Error('找不到发布记录：' + options.retryRunId)
+    return entry
+  }
+  const candidate = entries.find((item) => {
+    if (item.dryRun) return false
+    if (item.status !== 'failed' && item.status !== 'cancelled') return false
+    return (item.steps || []).some((step) => step.status === 'failed' || step.status === 'cancelled')
+  })
+  if (!candidate) throw new Error('没有可重试的失败记录（可用 --retry <runId> 指定）')
+  return candidate
+}
+
+async function runRetryHeadless(options) {
+  let prepared
+  try {
+    const config = loadConfig()
+    const entry = pickRetryEntry(options)
+    const runtime = getRuntime(config)
+    const plan = buildPlan({
+      config,
+      runtime,
+      version: entry.version,
+      targets: entry.targets || [],
+      dryRun: Boolean(options.dryRun),
+      githubRelease: (entry.steps || []).some((step) => step.id === 'github-release'),
+      allowDirty: true,
+    })
+    prepared = { config, runtime, plan, retry: planRetry(entry, plan) }
+  } catch (error) {
+    console.error(red('无法重试：' + String(error?.message || error)))
+    return 1
+  }
+
+  const { plan, retry } = prepared
   console.log('')
-  console.log(bold('开始发布 v' + plan.version + (plan.dryRun ? '（演练）' : '')))
+  console.log(bold('重试发布 v' + plan.version))
+  console.log(dim('源记录：' + retry.runId))
+  console.log('从第 ' + (retry.fromIndex + 1) + '/' + retry.total + ' 步开始：' + bold(retry.fromTitle))
+  console.log('复用前 ' + retry.reusedCount + ' 个已完成步骤（不重新构建、不改版本号）')
+  console.log('')
+
+  if (!options.yes) {
+    let ok = false
+    try {
+      ok = await confirmRetry()
+    } catch (error) {
+      console.error(red(String(error?.message || error)))
+      return 1
+    }
+    if (!ok) {
+      console.log('已取消重试。')
+      return 0
+    }
+  }
+
+  return executeAndReport(prepared, options)
+}
+
+async function confirmRetry() {
+  if (!process.stdin.isTTY) {
+    throw new Error('当前不是交互式终端，请追加 --yes 确认重试')
+  }
+  const rl = createInterface({ input: process.stdin, output: process.stdout })
+  const answer = await new Promise((resolvePromise) => {
+    rl.question('确认开始重试？输入 y 继续，其他任意键取消：', (value) => resolvePromise(value))
+  })
+  rl.close()
+  return /^y(es)?$/i.test(answer.trim())
+}
+
+async function executeAndReport({ config, runtime, plan, retry = null }, options) {
+  console.log('')
+  console.log(bold('开始发布 v' + plan.version + (plan.dryRun ? '（演练）' : '') + (retry ? '（重试）' : '')))
   console.log('')
 
   const startedAt = Date.now()
@@ -229,6 +321,13 @@ async function runHeadless(options) {
   writeLog('DiveDeep 发布控制台', 'system')
   writeLog('版本：v' + plan.version + (plan.dryRun ? '（演练）' : ''), 'system')
   writeLog('目标：' + plan.targets.join(' / '), 'system')
+  if (retry) {
+    writeLog(
+      '重试：从第 ' + (retry.fromIndex + 1) + '/' + retry.total + ' 步「' + retry.fromTitle +
+        '」开始，前 ' + retry.reusedCount + ' 步复用 ' + retry.runId,
+      'system',
+    )
+  }
 
   let cancelled = false
   let activeChild = null
@@ -244,6 +343,7 @@ async function runHeadless(options) {
     config,
     runtime,
     dryRun: plan.dryRun,
+    retry,
     onStep: (step) => {
       if (step.status === 'running') {
         console.log(cyan('▶ ' + step.title))
@@ -293,6 +393,9 @@ async function runHeadless(options) {
     artifacts: result.artifacts || [],
     logFile: 'logs/' + runId + '.log',
     error: result.error || null,
+    retryOf: retry ? retry.runId : null,
+    retryFromStepId: retry ? retry.fromStepId : null,
+    retryFromTitle: retry ? retry.fromTitle : null,
   }
   try {
     appendHistory(entry, config.options?.keepHistory || 80)
@@ -304,7 +407,7 @@ async function runHeadless(options) {
 
   console.log('')
   if (result.status === 'success') {
-    console.log(green(bold('🎉 发布完成 v' + plan.version + (plan.dryRun ? '（演练）' : ''))))
+    console.log(green(bold('🎉 发布完成 v' + plan.version + (plan.dryRun ? '（演练）' : '') + (retry ? '（重试）' : ''))))
     for (const artifact of result.artifacts || []) {
       console.log(
         '  - ' +
@@ -351,6 +454,12 @@ async function main() {
     })
     printChecks(result)
     process.exitCode = result.summary.canRun ? 0 : 1
+    return
+  }
+
+  if (options.retry) {
+    const code = await runRetryHeadless(options)
+    process.exitCode = code
     return
   }
 

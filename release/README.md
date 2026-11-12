@@ -95,6 +95,7 @@ GitHub owner/repo 等）。该文件已加入 .gitignore。
 | android.sdkDir | Android SDK 目录 |
 | desktop.cargoBin | cargo/rustc 所在目录，通常是 %USERPROFILE%\.cargo\bin |
 | desktop.bundles | 例如 nsis,msi；留空使用 Tauri 默认 |
+| git.exe | git.exe 路径；留空则按 PATH → 注册表 → 常见安装目录自动检测 |
 | github.owner / repo | GitHub 仓库 |
 | github.tokenEnv | Token 环境变量名，默认 GITHUB_TOKEN |
 | server.port | 控制台端口，修改后需重启 |
@@ -115,6 +116,34 @@ GitHub owner/repo 等）。该文件已加入 .gitignore。
 
         GITHUB_TOKEN=ghp_xxxxxxxx
 
+第 3 种方式依赖 `git` 命令：控制台会先定位 git.exe（PATH → 注册表 → 常见安装目录），
+再把它所在目录注入所有子进程的 PATH，因此即使启动环境里 PATH 的键名被写成小写
+`path`、或缺少 git，也不会再出现「'git' 不是内部或外部命令」。
+
+### 常见问题
+
+**「创建 GitHub Release」步骤失败，提示 `'git' 不是内部或外部命令` 或「未找到 GitHub 令牌」**
+
+这是 1.17.1 及更早版本的已知问题：发布控制台重建子进程 PATH 时只读取了
+`env.PATH` / `env.Path`，而 Windows 上 PATH 的键名可能是小写 `path`，
+结果子进程的 PATH 被截断成只剩 Java/cargo/CloudBase/Node 四个目录——
+git 因此不可见，`git credential fill` 拿不到令牌。
+
+现在的处理：
+
+1. `buildRuntimeEnv` 按大小写不敏感的方式读取 PATH 并去重合并，PATH 只保留一个键；
+2. `detect.mjs` 新增 `detectGit()`，从 PATH / 注册表 / 常见目录定位 git.exe，
+   并把它所在目录放进子进程 PATH（也可在配置里填 `git.exe` 强制指定）；
+3. `scripts/upload-release.mjs` 用 git.exe 绝对路径执行 `git credential fill`，
+   不再经过 cmd，缺 git 时给出明确原因。
+
+排查顺序：
+
+1. 运行 `release.cmd --check`，看「通用环境 · Git 命令」与「GitHub Release · GitHub Token」两项；
+2. 若 Git 命令显示未找到：安装 Git for Windows，或在 `release/config.json` 的
+   `git.exe` 填绝对路径；
+3. 若 Token 未找到：在 `.env.ota` 加 `GITHUB_TOKEN=...`，或在 Git 凭据管理器里登录一次 GitHub。
+
 ### Supabase OTA
 
 APK / 桌面端 OTA 依赖项目根目录 `.env.ota`：
@@ -126,6 +155,9 @@ APK / 桌面端 OTA 依赖项目根目录 `.env.ota`：
 
         release.cmd                                     启动 Web 控制台
         release.cmd --check                             只检查环境
+        release.cmd --retry                             从上次失败的那一步重试
+        release.cmd --retry <runId>                     指定某条失败记录重试
+        release.cmd --retry --dry-run                   只看重试会执行什么
         release.cmd 1.18.0 --targets web --dry-run      演练 Web 发布
         release.cmd 1.18.0 --targets apk,desktop --yes  跳过确认直接发布
 
@@ -134,10 +166,30 @@ APK / 桌面端 OTA 依赖项目根目录 `.env.ota`：
 - `--targets web,apk,desktop`：目标列表，默认全部
 - `--dry-run`：演练模式
 - `--yes` / `-y`：跳过交互确认
+- `--retry [runId]`：从失败步骤重试，不带 runId 时取最近一次失败记录
 - `--no-github`：不创建 GitHub Release
 - `--allow-dirty`：允许工作区有未提交改动
 - `--port 4780`：控制台端口
 - `--no-open`：启动控制台但不自动打开浏览器
+
+## 重试失败步骤
+
+某一版发布中途失败时（例如最后一步「创建 GitHub Release」报错），不需要从头重来：
+
+- **界面**：发布历史里失败记录右侧点「重试」；或当前这次失败后，在「发布运行」卡片右上角点「重试失败步骤」。
+- **命令行**：`release.cmd --retry`（最近一次失败）或 `release.cmd --retry <runId>`。
+
+重试的含义：
+
+- 起点 = 上次**失败（或被中止）的那一步**，之前已成功的步骤全部复用上次结果；
+- 复用步骤不会再执行：**不重新构建、不重新部署、不会再改版本文件**；
+- 只有失败步及其之后的步骤（通常是最后的汇总）会真正执行；
+- 会新写一条发布记录，标注重试来源，原记录保留。
+
+不能重试的情况（会直接提示原因）：记录已成功、记录是演练、失败步骤已不在当前计划中、
+前序步骤上次没有成功、版本号或发布目标与记录不一致。
+
+注意：重试会跳过「发布前检查」，所以即使工作区有未提交改动也能重试；改动是否已提交请在发布前自行确认。
 
 ## 日志、历史与产物
 

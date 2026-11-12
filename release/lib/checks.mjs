@@ -186,6 +186,19 @@ export async function runChecks(options = {}) {
   )
 
   push(
+    check('git-available', '通用环境', 'Git 命令', TARGET_IDS, async () => {
+      const gitTool = runtime.gitTool || {}
+      if (gitTool.exe) {
+        return statusOk((gitTool.version || 'git 已安装') + ' · ' + (gitTool.source || '自动检测'))
+      }
+      return statusWarn(
+        '未找到 git 命令',
+        '安装 Git for Windows 并确保 git.exe 在 PATH（或在配置中填写 git.exe 路径）；缺失时 GitHub Release 的更新日志与凭据读取会退化',
+      )
+    }),
+  )
+
+  push(
     check('git-clean', '通用环境', '工作区是否干净', TARGET_IDS, async () => {
       const git = runtime.git
       if (!git.isRepo) return statusFail('不是 Git 仓库', '请先初始化 Git 仓库')
@@ -674,7 +687,14 @@ export async function runChecks(options = {}) {
         if (runtime.githubToken.token) {
           return statusOk('已找到 Token · ' + runtime.githubToken.source)
         }
-        const result = await runShell('git credential fill', {
+        const gitExe = runtime.gitTool?.exe
+        if (!gitExe) {
+          return statusFail(
+            '未找到 GitHub Token（同时未找到 git 命令）',
+            '安装 Git for Windows，或在项目根目录 .env.ota 中添加 GITHUB_TOKEN=你的token（需要 repo 权限）',
+          )
+        }
+        const result = await runShell(buildCommand([gitExe, 'credential', 'fill']), {
           cwd: runtime.root,
           timeoutMs: 8000,
           input: 'protocol=https\nhost=github.com\n\n',
@@ -689,7 +709,7 @@ export async function runChecks(options = {}) {
         }
         return statusFail(
           '未找到 GitHub Token',
-          '在项目根目录 .env.ota 中添加 GITHUB_TOKEN=你的token（需要 repo 权限），或设置同名环境变量',
+          '在项目根目录 .env.ota 中添加 GITHUB_TOKEN=你的token（需要 repo 权限），或设置同名环境变量；也可用 Git 凭据管理器保存一次 GitHub 账号',
         )
       }),
     )

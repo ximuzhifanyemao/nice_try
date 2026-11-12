@@ -4,11 +4,19 @@
 // ============================================================
 
 import { delimiter, dirname, join } from 'node:path'
-import { PROJECT_ROOT, readEnvFile } from './util.mjs'
+import {
+  PROJECT_ROOT,
+  getEnvPath,
+  mergePathList,
+  readEnvFile,
+  setEnvPath,
+  splitPathList,
+} from './util.mjs'
 import {
   detectAndroidSdk,
   detectCargoBin,
   detectGithubRepo,
+  detectGit,
   detectJavaHome,
   getCurrentVersions,
   getGitInfo,
@@ -23,7 +31,8 @@ export function getRuntime(config) {
   const sdk = detectAndroidSdk(config, root)
   const cargo = detectCargoBin(config)
   const github = detectGithubRepo(config, root)
-  const git = getGitInfo(root)
+  const gitTool = detectGit(config)
+  const git = getGitInfo(root, gitTool.exe)
   const versions = getCurrentVersions(root)
   const productionEnv = readEnvFile(join(root, '.env.production'))
   const otaEnv = readEnvFile(join(root, '.env.ota'))
@@ -39,6 +48,7 @@ export function getRuntime(config) {
     cargo,
     github,
     git,
+    gitTool,
     versions,
     envId,
     productionEnv,
@@ -85,16 +95,23 @@ export function buildRuntimeEnv(runtime) {
     env.ANDROID_HOME = runtime.sdk.dir
     env.ANDROID_SDK_ROOT = runtime.sdk.dir
   }
+  if (runtime.gitTool?.exe) {
+    env.GIT_EXECUTABLE = runtime.gitTool.exe
+  }
 
   const pathParts = []
   if (runtime.java?.home) pathParts.push(join(runtime.java.home, 'bin'))
   if (runtime.cargo?.dir) pathParts.push(runtime.cargo.dir)
   if (runtime.cli?.path) pathParts.push(dirname(runtime.cli.path))
+  // git 不在 PATH 时也要能让子进程找到它（发布日志、tag 与凭据读取都依赖 git）
+  if (runtime.gitTool?.dir) pathParts.push(runtime.gitTool.dir)
   pathParts.push(dirname(process.execPath))
 
-  const existingPath = env.PATH || env.Path || ''
-  env.PATH = pathParts.filter(Boolean).join(delimiter) + delimiter + existingPath
-  env.Path = env.PATH
+  // 注意：Windows 上 PATH 的键名大小写不固定（可能是 path / Path / PATH），
+  // 只读 env.PATH 会拿到空值，把子进程的 PATH 清成只剩上面几个目录。
+  const existingPath = getEnvPath(process.env) || getEnvPath(env)
+  const mergedPath = mergePathList(pathParts, splitPathList(existingPath))
+  setEnvPath(env, mergedPath.join(delimiter))
 
   return env
 }
@@ -135,6 +152,11 @@ export function publicRuntime(runtime) {
     },
     versions: runtime.versions,
     git: runtime.git,
+    gitTool: {
+      exe: runtime.gitTool?.exe || null,
+      version: runtime.gitTool?.version || '',
+      source: runtime.gitTool?.source || '未检测到',
+    },
     env: {
       production: {
         hasUrl: Boolean(runtime.productionEnv.VITE_SUPABASE_URL),

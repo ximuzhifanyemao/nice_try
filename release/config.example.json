@@ -18,6 +18,9 @@
     "cargoBin": "C:\\Users\\<you>\\.cargo\\bin",
     "bundles": ""
   },
+  "git": {
+    "exe": "C:\\Program Files\\Git\\cmd\\git.exe"
+  },
   "github": {
     "enabled": true,
     "owner": "your-github-owner",

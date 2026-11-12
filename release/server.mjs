@@ -33,7 +33,7 @@ import {
 } from './lib/config.mjs'
 import { getRuntime, publicRuntime } from './lib/runtime.mjs'
 import { runChecks } from './lib/checks.mjs'
-import { buildPlan, executePlan, summarizePlan } from './lib/pipeline.mjs'
+import { buildPlan, executePlan, planRetry, summarizePlan } from './lib/pipeline.mjs'
 import { suggestNextVersion } from './lib/versioning.mjs'
 import {
   appendHistory,
@@ -136,6 +136,9 @@ function publicRun(run) {
     steps: run.steps,
     artifacts: run.artifacts || [],
     error: run.error || null,
+    retryOf: run.retryOf || null,
+    retryFromStepId: run.retryFromStepId || null,
+    retryFromTitle: run.retryFromTitle || null,
     cancelRequested: Boolean(run.cancelRequested),
     currentStepId: runningStep ? runningStep.id : null,
     logFile: run.logFile || '',
@@ -163,7 +166,7 @@ function appendRunLog(run, text, stream = 'stdout') {
   broadcast({ type: 'log', runId: run.id, line })
 }
 
-function createRunRecord(plan) {
+function createRunRecord(plan, extra = {}) {
   const run = {
     id: makeRunId(plan.version),
     version: plan.version,
@@ -173,9 +176,13 @@ function createRunRecord(plan) {
     startedAt: Date.now(),
     finishedAt: null,
     durationMs: null,
+    retryOf: extra.retryOf || null,
+    retryFromStepId: extra.retryFromStepId || null,
+    retryFromTitle: extra.retryFromTitle || null,
     steps: plan.steps.map((step) => ({
       ...step,
       status: 'pending',
+      reused: false,
       startedAt: null,
       finishedAt: null,
       durationMs: null,
@@ -194,7 +201,26 @@ function createRunRecord(plan) {
   return run
 }
 
-async function startRelease(run, plan, runtime) {
+/**
+ * 依据历史记录重建发布计划，用于「从失败步骤重试」。
+ * 保留原来的版本号、发布目标与是否创建 GitHub Release。
+ */
+function buildPlanForRetry(entry) {
+  const runtime = getRuntime(config)
+  const plan = buildPlan({
+    config,
+    runtime,
+    version: entry.version,
+    targets: entry.targets || [],
+    dryRun: false,
+    githubRelease: (entry.steps || []).some((step) => step.id === 'github-release'),
+    // 重试跳过预检，工作区可能有未提交改动也允许继续
+    allowDirty: true,
+  })
+  return { runtime, plan }
+}
+
+async function startRelease(run, plan, runtime, retry = null) {
   currentRun = run
   ensureRuntimeDirs()
   run.logStream = createWriteStream(logPathFor(run.id), { flags: 'w' })
@@ -208,6 +234,14 @@ async function startRelease(run, plan, runtime) {
   appendRunLog(run, '版本：v' + plan.version + (plan.dryRun ? '（演练模式）' : ''), 'system')
   appendRunLog(run, '目标：' + plan.targets.join(' / '), 'system')
   appendRunLog(run, '开始时间：' + new Date(run.startedAt).toLocaleString('zh-CN'), 'system')
+  if (retry) {
+    appendRunLog(
+      run,
+      '重试：从第 ' + (retry.fromIndex + 1) + '/' + retry.total + ' 步「' + retry.fromTitle +
+        '」开始，前 ' + retry.reusedCount + ' 步复用 ' + retry.runId + ' 的结果',
+      'system',
+    )
+  }
 
   let result
   try {
@@ -216,6 +250,7 @@ async function startRelease(run, plan, runtime) {
       config,
       runtime,
       dryRun: plan.dryRun,
+      retry,
       onStep: (step) => {
         const index = run.steps.findIndex((item) => item.id === step.id)
         if (index >= 0) run.steps[index] = step
@@ -278,6 +313,9 @@ async function startRelease(run, plan, runtime) {
     artifacts: run.artifacts,
     logFile: run.logFile,
     error: run.error,
+    retryOf: run.retryOf || null,
+    retryFromStepId: run.retryFromStepId || null,
+    retryFromTitle: run.retryFromTitle || null,
   }
   try {
     appendHistory(historyEntry, config.options?.keepHistory || 80)
@@ -348,6 +386,33 @@ async function handleApi(req, res, url) {
 
   if (req.method === 'GET' && pathname === '/api/history') {
     sendJson(res, 200, { history: loadHistory().map(publicHistoryEntry) })
+    return
+  }
+
+  if (req.method === 'GET' && pathname === '/api/retry-plan') {
+    const runId = String(url.searchParams.get('runId') || '')
+    const entry = findHistory(runId)
+    if (!entry) {
+      sendJson(res, 404, { error: '找不到发布记录：' + (runId || '（空）') })
+      return
+    }
+    try {
+      const { plan } = buildPlanForRetry(entry)
+      const retry = planRetry(entry, plan)
+      sendJson(res, 200, {
+        plan: summarizePlan(plan),
+        retry: {
+          runId: retry.runId,
+          fromStepId: retry.fromStepId,
+          fromIndex: retry.fromIndex,
+          fromTitle: retry.fromTitle,
+          total: retry.total,
+          reusedCount: retry.reusedCount,
+        },
+      })
+    } catch (error) {
+      sendJson(res, 400, { error: String(error?.message || error) })
+    }
     return
   }
 
@@ -448,6 +513,53 @@ async function handleApi(req, res, url) {
     currentRun = run
     sendJson(res, 202, { run: publicRun(run) })
     startRelease(run, plan, runtime).catch((error) => {
+      if (run.logStream) {
+        appendRunLog(run, '发布异常：' + String(error?.message || error), 'error')
+        run.logStream.end()
+        run.logStream = null
+      }
+      run.status = 'failed'
+      run.error = String(error?.message || error)
+      run.finishedAt = Date.now()
+      run.durationMs = run.finishedAt - run.startedAt
+      broadcast({ type: 'run-end', run: publicRun(run) })
+    })
+    return
+  }
+
+  if (req.method === 'POST' && pathname === '/api/retry') {
+    if (currentRun && currentRun.status === 'running') {
+      sendJson(res, 409, { error: '已有发布任务正在执行，请先等待完成或点击「中止」' })
+      return
+    }
+    const body = await readJsonBody(req)
+    const entry = findHistory(String(body.runId || ''))
+    if (!entry) {
+      sendJson(res, 404, { error: '找不到发布记录：' + (body.runId || '（空）') })
+      return
+    }
+
+    let runtime
+    let plan
+    let retry
+    try {
+      const prepared = buildPlanForRetry(entry)
+      runtime = prepared.runtime
+      plan = prepared.plan
+      retry = planRetry(entry, plan)
+    } catch (error) {
+      sendJson(res, 400, { error: String(error?.message || error) })
+      return
+    }
+
+    const run = createRunRecord(plan, {
+      retryOf: retry.runId,
+      retryFromStepId: retry.fromStepId,
+      retryFromTitle: retry.fromTitle,
+    })
+    currentRun = run
+    sendJson(res, 202, { run: publicRun(run), retry: { fromIndex: retry.fromIndex, total: retry.total } })
+    startRelease(run, plan, runtime, retry).catch((error) => {
       if (run.logStream) {
         appendRunLog(run, '发布异常：' + String(error?.message || error), 'error')
         run.logStream.end()

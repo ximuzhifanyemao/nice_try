@@ -39,6 +39,11 @@ export function logPathFor(runId) {
 }
 
 export function publicHistoryEntry(entry) {
+  const steps = entry.steps || []
+  const failedStep =
+    steps.find((step) => step.status === 'failed') ||
+    steps.find((step) => step.status === 'cancelled') ||
+    null
   return {
     id: entry.id,
     version: entry.version,
@@ -48,15 +53,23 @@ export function publicHistoryEntry(entry) {
     startedAt: entry.startedAt,
     finishedAt: entry.finishedAt,
     durationMs: entry.durationMs,
-    steps: (entry.steps || []).map((step) => ({
+    steps: steps.map((step) => ({
       id: step.id,
       title: step.title,
       group: step.group,
       status: step.status,
+      reused: Boolean(step.reused),
       durationMs: step.durationMs,
     })),
     artifacts: entry.artifacts || [],
     logFile: entry.logFile || null,
     error: entry.error || null,
+    retryOf: entry.retryOf || null,
+    retryFromStepId: entry.retryFromStepId || null,
+    retryFromTitle: entry.retryFromTitle || null,
+    failedStep: failedStep ? { id: failedStep.id, title: failedStep.title } : null,
+    canRetry: Boolean(
+      !entry.dryRun && failedStep && (entry.status === 'failed' || entry.status === 'cancelled'),
+    ),
   }
 }

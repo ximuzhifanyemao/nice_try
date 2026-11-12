@@ -6,7 +6,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { readJsonIfExists, readTextIfExists, which } from './util.mjs'
+import { IS_WINDOWS, readJsonIfExists, readTextIfExists, which } from './util.mjs'
 
 export function readPackageJson(root) {
   return readJsonIfExists(join(root, 'package.json'))
@@ -126,9 +126,93 @@ function readGitFallback(root) {
   }
 }
 
-export function getGitInfo(root) {
+function readWindowsGitInstallPath() {
+  if (!IS_WINDOWS) return null
+  const keys = [
+    'HKLM\\SOFTWARE\\GitForWindows',
+    'HKCU\\SOFTWARE\\GitForWindows',
+    'HKLM\\SOFTWARE\\WOW6432Node\\GitForWindows',
+  ]
+  for (const key of keys) {
+    const result = spawnSync('reg', ['query', key, '/v', 'InstallPath'], {
+      encoding: 'utf8',
+      timeout: 5000,
+      windowsHide: true,
+    })
+    if (result.status !== 0) continue
+    const match = String(result.stdout || '').match(/InstallPath\s+REG_SZ\s+(.+)/i)
+    if (match) return match[1].trim()
+  }
+  return null
+}
+
+/**
+ * 定位 git 可执行文件。
+ * 发布流水线会用重建后的 PATH 启动子进程，若 PATH 里没有 git（例如 PATH 键名
+ * 被写成小写 path、或从极简环境启动），依赖 git 的步骤会直接失败，因此这里
+ * 额外从注册表与常见安装目录兜底，并返回 git 所在目录用于注入子进程 PATH。
+ */
+export function detectGit(config) {
+  const candidates = []
+  const configured = config?.git?.exe || config?.git?.bin
+  if (configured) candidates.push({ value: configured, source: '配置' })
+  if (process.env.GIT_EXECUTABLE) {
+    candidates.push({ value: process.env.GIT_EXECUTABLE, source: 'GIT_EXECUTABLE' })
+  }
+  const onPath = which('git')
+  if (onPath) candidates.push({ value: onPath, source: 'PATH' })
+
+  if (IS_WINDOWS) {
+    const installPath = readWindowsGitInstallPath()
+    if (installPath) {
+      candidates.push({ value: join(installPath, 'cmd', 'git.exe'), source: '注册表' })
+      candidates.push({ value: join(installPath, 'bin', 'git.exe'), source: '注册表' })
+    }
+    const roots = [
+      process.env.ProgramFiles,
+      process.env['ProgramFiles(x86)'],
+      process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Programs') : null,
+      process.env.LOCALAPPDATA,
+    ]
+    for (const base of roots) {
+      if (!base) continue
+      candidates.push({ value: join(base, 'Git', 'cmd', 'git.exe'), source: '常见路径' })
+    }
+  } else {
+    for (const value of ['/usr/bin/git', '/usr/local/bin/git', '/opt/homebrew/bin/git']) {
+      candidates.push({ value, source: '常见路径' })
+    }
+  }
+
+  const seen = new Set()
+  for (const item of candidates) {
+    if (!item.value) continue
+    const exe = resolve(item.value)
+    const key = IS_WINDOWS ? exe.toLowerCase() : exe
+    if (seen.has(key)) continue
+    seen.add(key)
+    if (!existsSync(exe)) continue
+    const versionResult = spawnSync(exe, ['--version'], {
+      encoding: 'utf8',
+      timeout: 8000,
+      windowsHide: true,
+    })
+    if (versionResult.status !== 0) continue
+    return {
+      exe,
+      dir: dirname(exe),
+      version: String(versionResult.stdout || '').trim(),
+      source: item.source,
+    }
+  }
+
+  return { exe: null, dir: null, version: '', source: '未检测到' }
+}
+
+export function getGitInfo(root, gitExe = null) {
+  const gitBinary = gitExe || 'git'
   const git = (args) => {
-    const result = spawnSync('git', args, {
+    const result = spawnSync(gitBinary, args, {
       cwd: root,
       encoding: 'utf8',
       timeout: 8000,

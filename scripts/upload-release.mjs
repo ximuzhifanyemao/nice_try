@@ -12,7 +12,7 @@
 import { readFileSync, existsSync, readdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
-import { execSync, execFileSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { createRequire } from 'module'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -54,13 +54,77 @@ const UPLOAD_API = `https://uploads.github.com/repos/${OWNER}/${REPO}`
 const WEB = `https://github.com/${OWNER}/${REPO}`
 
 // ========== 获取 GitHub 令牌 ==========
-function getToken() {
+// Windows 上 PATH 的键名大小写不固定（path / Path / PATH 都见过），
+// 统一按大小写不敏感的方式读取，避免误判「找不到 git」。
+function readEnvPath() {
+  for (const key of Object.keys(process.env)) {
+    if (key.toLowerCase() !== 'path') continue
+    const value = process.env[key]
+    if (value) return value
+  }
+  return ''
+}
+
+export function resolveGit() {
+  const explicit = process.env.GIT_EXECUTABLE
+  if (explicit && existsSync(explicit)) return explicit
+
+  const sep = process.platform === 'win32' ? ';' : ':'
+  const exts = process.platform === 'win32' ? ['.exe', '.cmd', '.bat', ''] : ['']
+  const dirs = readEnvPath()
+    .split(sep)
+    .map((dir) => dir.trim().replace(/^"|"$/g, ''))
+    .filter(Boolean)
+  for (const dir of dirs) {
+    for (const ext of exts) {
+      const candidate = join(dir, 'git' + ext)
+      if (existsSync(candidate)) return candidate
+    }
+  }
+
+  const fallbacks =
+    process.platform === 'win32'
+      ? [
+          process.env.ProgramFiles && join(process.env.ProgramFiles, 'Git', 'cmd', 'git.exe'),
+          process.env['ProgramFiles(x86)'] &&
+            join(process.env['ProgramFiles(x86)'], 'Git', 'cmd', 'git.exe'),
+          process.env.LOCALAPPDATA &&
+            join(process.env.LOCALAPPDATA, 'Programs', 'Git', 'cmd', 'git.exe'),
+        ]
+      : ['/usr/bin/git', '/usr/local/bin/git']
+  for (const candidate of fallbacks) {
+    if (candidate && existsSync(candidate)) return candidate
+  }
+  return null
+}
+
+const GIT = resolveGit()
+
+function git(args, options = {}) {
+  if (!GIT) {
+    throw new Error('未找到 git 命令（不在 PATH，也没有 GIT_EXECUTABLE）')
+  }
+  return execFileSync(GIT, args, {
+    cwd: join(__dirname, '..'),
+    encoding: 'utf-8',
+    timeout: 15000,
+    windowsHide: true,
+    ...options,
+  })
+}
+
+export function getToken() {
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN
   if (process.env.GH_TOKEN) return process.env.GH_TOKEN
+  if (!GIT) return null
   try {
-    const input = 'protocol=https\nhost=github.com\n\n'
-    const out = execSync('git credential fill', { input, encoding: 'utf-8' })
-    for (const line of out.split('\n')) {
+    // 用 git.exe 绝对路径直接执行，避免经过 shell：缺 git 时不会再冒出
+    // cmd 的「'git' 不是内部或外部命令」这类难以定位的报错。
+    const out = git(['credential', 'fill'], {
+      input: 'protocol=https\nhost=github.com\n\n',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    })
+    for (const line of String(out || '').split('\n')) {
       const t = line.trim()
       if (t.startsWith('password=')) return t.slice('password='.length)
     }
@@ -68,6 +132,20 @@ function getToken() {
     // 忽略，交给上层报错
   }
   return null
+}
+
+function tokenHelpMessage() {
+  const reasons = []
+  if (!GIT) {
+    reasons.push('未找到 git 命令，无法读取 git 凭据管理器')
+  } else {
+    reasons.push('git 凭据管理器中也没有 github.com 的凭据')
+  }
+  return (
+    '未找到 GitHub 令牌。已尝试：GITHUB_TOKEN / GH_TOKEN 环境变量、.env.ota、git 凭据管理器。\n' +
+    reasons.map((r) => '  - ' + r).join('\n') +
+    '\n  修复：在项目根目录 .env.ota 中添加 GITHUB_TOKEN=你的token（需 repo 权限），或设置同名环境变量'
+  )
 }
 
 // ========== GitHub API 封装 ==========
@@ -103,24 +181,26 @@ async function ghApi(path, options = {}, token, base = API) {
 // "最近 N 条提交"，从而与前一个版本日志大量重复。这里先从远端拉取 tag，
 // 再按版本号排序找出当前版本的上一个版本，取其 ..HEAD 提交为本次日志。
 function ensureTags() {
+  if (!GIT) return
   try {
     // 已有 tag 仍要拉取，确保拿到远端最新的 tag（当前版本可能尚未本地打 tag）
-    const remote = (execFileSync('git', ['remote'], { encoding: 'utf-8' }).trim().split('\n').filter(Boolean)[0]) || 'origin'
-    execFileSync('git', ['fetch', '--tags', '--force', remote], { encoding: 'utf-8', stdio: 'pipe' })
+    const remote = git(['remote']).trim().split('\n').filter(Boolean)[0] || 'origin'
+    git(['fetch', '--tags', '--force', remote], { stdio: 'pipe' })
   } catch {
     // 网络失败时忽略，退回本地 tag
   }
 }
 
 function buildChangelog() {
+  if (!GIT) return { prevTag: null, lines: [] }
   try {
-    const buf = execFileSync('git', ['tag', '--sort=-v:refname'], { encoding: 'utf-8' })
+    const buf = git(['tag', '--sort=-v:refname'])
     const tags = buf.trim().split('\n').filter(Boolean)
     const current = `v${VERSION}`
     const prevTag = tags.find((t) => t && t !== current) || null
     if (!prevTag) return { prevTag: null, lines: [] }
     const range = `${prevTag}..HEAD`
-    const lines = execFileSync('git', ['log', '--pretty=%s', '-30', range], { encoding: 'utf-8' })
+    const lines = git(['log', '--pretty=%s', '-30', range])
       .trim().split('\n').filter(Boolean)
     return { prevTag, lines }
   } catch {
@@ -162,7 +242,7 @@ function buildReleaseBody(changelog, assets) {
 export async function uploadApkToGithubRelease({ apkPath = APK_PATH, extraAssets = [] } = {}) {
   const token = getToken()
   if (!token) {
-    throw new Error('未找到 GitHub 令牌（请设置 GITHUB_TOKEN，或配置 git 凭据管理器）')
+    throw new Error(tokenHelpMessage())
   }
 
   ensureTags()

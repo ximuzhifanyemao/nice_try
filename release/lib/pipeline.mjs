@@ -17,9 +17,11 @@ import {
   buildCommand,
   formatBytes,
   formatDuration,
+  getEnvPath,
   runShell,
   sha256File,
   sleep,
+  splitPathList,
   unique,
 } from './util.mjs'
 import { computeVersionChanges, applyVersionChanges } from './versioning.mjs'
@@ -407,6 +409,7 @@ function stepPublic(step) {
     description: step.description,
     command: step.command,
     status: step.status,
+    reused: Boolean(step.reused),
     startedAt: step.startedAt,
     finishedAt: step.finishedAt,
     durationMs: step.durationMs,
@@ -425,12 +428,80 @@ function formatChecksFailure(checks) {
   return lines.join('\n')
 }
 
+/**
+ * 计算「从哪一步重试」。
+ * 规则：重试从上次失败（或被中止）的那一步开始，前序步骤必须全部成功；
+ * 版本与发布目标必须和记录一致，否则产物与计划对不上。
+ */
+export function planRetry(entry, plan) {
+  if (!entry) throw new Error('找不到对应的发布记录')
+  if (entry.status === 'running') throw new Error('该发布仍在执行中，不能重试')
+  if (entry.status === 'success') throw new Error('该发布已成功，无需重试')
+  if (entry.dryRun) throw new Error('演练记录不能重试')
+
+  const entryVersion = String(entry.version || '').replace(/^v/i, '')
+  if (entryVersion !== String(plan.version)) {
+    throw new Error(
+      '版本已变化（记录 v' + entryVersion + '，当前 v' + plan.version + '），请重新发布而不是重试',
+    )
+  }
+  const entryTargets = (entry.targets || []).join(',')
+  const planTargets = (plan.targets || []).join(',')
+  if (entryTargets !== planTargets) {
+    throw new Error(
+      '发布目标与记录不一致（记录 ' + (entryTargets || '-') + '，当前 ' + (planTargets || '-') + '），请重新发布',
+    )
+  }
+
+  const entrySteps = entry.steps || []
+  const fromStep = entrySteps.find((step) => step.status === 'failed') ||
+    entrySteps.find((step) => step.status === 'cancelled')
+  if (!fromStep) throw new Error('该记录没有失败步骤，无法重试')
+
+  const fromIndex = plan.steps.findIndex((step) => step.id === fromStep.id)
+  if (fromIndex < 0) {
+    throw new Error(
+      '失败步骤「' + (fromStep.title || fromStep.id) + '」已不在当前发布计划中，请重新发布',
+    )
+  }
+
+  const previous = new Map(entrySteps.map((step) => [step.id, step]))
+  for (let index = 0; index < fromIndex; index++) {
+    const step = plan.steps[index]
+    const previousStep = previous.get(step.id)
+    // reused 表示这一步在上一次重试里也是复用的，等价于「在更早的记录里已经成功」
+    const completed = Boolean(previousStep) && (previousStep.status === 'success' || previousStep.reused)
+    if (!completed) {
+      throw new Error(
+        '第 ' + (index + 1) + ' 步「' + step.title + '」上次未成功（' +
+          (previousStep ? previousStep.status : '缺失') + '），无法跳过，请重新发布',
+      )
+    }
+  }
+
+  const previousSteps = plan.steps
+    .slice(0, fromIndex)
+    .map((step) => previous.get(step.id))
+    .filter(Boolean)
+
+  return {
+    runId: entry.id,
+    fromStepId: plan.steps[fromIndex].id,
+    fromIndex,
+    fromTitle: plan.steps[fromIndex].title,
+    total: plan.steps.length,
+    reusedCount: fromIndex,
+    previousSteps,
+  }
+}
+
 export async function executePlan(context) {
   const {
     plan,
     config,
     runtime,
     dryRun,
+    retry = null,
     onStep = () => {},
     onLog = () => {},
     onChecks = () => {},
@@ -453,6 +524,27 @@ export async function executePlan(context) {
   let cancelled = false
   const emit = (step) => onStep(stepPublic(step))
 
+  // 重试：把失败步骤之前的步骤标记为「已复用」，并回收它们的结果（如 APK 产物信息）
+  let startIndex = 0
+  if (retry && retry.fromStepId) {
+    const index = steps.findIndex((step) => step.id === retry.fromStepId)
+    if (index < 0) throw new Error('重试起点「' + retry.fromStepId + '」不在当前发布计划中')
+    startIndex = index
+    const previous = new Map((retry.previousSteps || []).map((step) => [step.id, step]))
+    for (let cursor = 0; cursor < index; cursor++) {
+      const step = steps[cursor]
+      const previousStep = previous.get(step.id) || {}
+      step.status = 'skipped'
+      step.reused = true
+      step.startedAt = previousStep.startedAt ?? null
+      step.finishedAt = previousStep.finishedAt ?? null
+      step.durationMs = previousStep.durationMs ?? null
+      step.result = previousStep.result ?? null
+      if (step.result) stepResults.set(step.id, step.result)
+      emit(step)
+    }
+  }
+
   const checkCancel = () => {
     if (cancelled || isCancelled()) {
       cancelled = true
@@ -460,7 +552,17 @@ export async function executePlan(context) {
     }
   }
 
-  for (let index = 0; index < steps.length; index++) {
+  if (startIndex > 0) {
+    log('')
+    log(
+      '↺ 重试模式：复用前 ' + startIndex + ' 个已完成步骤，从第 ' + (startIndex + 1) + ' 步「' +
+        steps[startIndex].title + '」开始执行',
+      'system',
+    )
+    log('  已复用的步骤不会重新构建，也不会再次修改版本文件', 'muted')
+  }
+
+  for (let index = startIndex; index < steps.length; index++) {
     const step = steps[index]
     if (cancelled) {
       step.status = 'skipped'
@@ -514,6 +616,14 @@ export async function executePlan(context) {
           }
         }
         step.result = { summary: checks.summary, checkedAt: checks.checkedAt }
+        // 记录子进程实际拿到的 PATH，便于排查「父进程有 git、子进程找不到 git」这类问题
+        log(
+          '命令环境：PATH ' +
+            splitPathList(getEnvPath(commandEnv)).length +
+            ' 项 · ' +
+            (runtime.gitTool?.exe ? 'git ' + (runtime.gitTool.version || runtime.gitTool.exe) : '未找到 git'),
+          'muted',
+        )
         if (checks.summary.blocking > 0 && !dryRun) {
           throw new Error(formatChecksFailure(checks))
         }

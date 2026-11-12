@@ -38,13 +38,22 @@ const state = {
   checksLoading: false,
   run: null,
   plan: null,
+  planPreview: null,
+  planPreviewError: '',
+  planPreviewLoading: false,
+  planSeq: 0,
+  planTimer: null,
+  retryMeta: null,
   eventSource: null,
   autoScroll: true,
   logId: null,
   logText: '',
+  logCollapsed: false,
   checkTimer: null,
   startBusy: false,
 };
+
+const LOG_COLLAPSED_KEY = 'releasectl.log.collapsed';
 
 function $(id) {
   return document.getElementById(id);
@@ -405,23 +414,20 @@ function toggleTarget(target) {
   else state.targets.add(target);
   renderTargets();
   updateOptionsState();
+  schedulePlanPreview(250);
 }
 
 function renderChecks() {
   const card = $('checks-card');
   if (!card) return;
-  if (!state.checks && !state.checksLoading) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
   const summaryEl = $('checks-summary');
   const body = $('checks-body');
 
   if (!state.checks) {
     summaryEl.innerHTML = '';
-    body.innerHTML =
-      '<div class="checks-loading"><span class="spinner"></span><span>正在检测本机发布环境，请稍候…</span></div>';
+    body.innerHTML = state.checksLoading
+      ? '<div class="checks-loading"><span class="spinner"></span><span>正在检测本机发布环境，请稍候…</span></div>'
+      : '<div class="empty">环境检查尚未运行，点击右上角「重新检查」开始检测。</div>';
     return;
   }
 
@@ -439,9 +445,19 @@ function renderChecks() {
     if (items.length === 0) return '';
     const rows = items.map(function (item) {
       const status = item.status;
-      const icon = status === 'ok' ? '✓' : status === 'warn' ? '!' : '×';
-      const stateText = status === 'ok' ? '通过' : status === 'warn' ? '警告' : '失败';
-      const fix = item.fix && (status === 'fail' || status === 'warn')
+      if (status === 'ok') {
+        // 通过项收成一行，避免整块检查面板被成功信息淹没
+        return (
+          '<div class="check-row compact ok">' +
+          '<span class="check-icon">✓</span>' +
+          '<span class="check-title">' + escapeHtml(item.title) + '</span>' +
+          '<span class="check-detail-inline" title="' + escapeHtml(item.detail) + '">' + escapeHtml(item.detail) + '</span>' +
+          '</div>'
+        );
+      }
+      const icon = status === 'warn' ? '!' : '×';
+      const stateText = status === 'warn' ? '警告' : '失败';
+      const fix = item.fix
         ? '<div class="check-fix">修复：' + escapeHtml(item.fix) + '</div>'
         : '';
       return (
@@ -456,11 +472,17 @@ function renderChecks() {
     }).join('');
     const failed = items.filter(function (item) { return item.status === 'fail'; }).length;
     const warned = items.filter(function (item) { return item.status === 'warn'; }).length;
-    const countText = failed ? failed + ' 项失败' : warned ? warned + ' 项警告' : '全部通过';
+    const hasIssue = failed > 0 || warned > 0;
+    const countText = failed
+      ? failed + ' 项失败' + (warned ? ' · ' + warned + ' 项警告' : '')
+      : warned
+        ? warned + ' 项警告'
+        : '全部通过 · ' + items.length + ' 项';
+    // 只有存在警告/失败的分类才默认展开
     return (
-      '<details class="check-group" open>' +
+      '<details class="check-group' + (hasIssue ? ' has-issue' : '') + '"' + (hasIssue ? ' open' : '') + '>' +
       '<summary>' + escapeHtml(group) + '<span class="check-group-count">' + countText + '</span></summary>' +
-      rows +
+      '<div class="check-rows">' + rows + '</div>' +
       '</details>'
     );
   }).join('');
@@ -529,19 +551,83 @@ function statusPill(status, dry) {
   return '<span class="status-pill ' + cls + '">' + (map[status] || status) + '</span>' + (dry ? ' <span class="badge dry">演练</span>' : '');
 }
 
-function stepBullet(step) {
+function flowMarker(step, index) {
+  if (step.reused) return '↺';
   if (step.status === 'success') return '✓';
   if (step.status === 'failed') return '×';
   if (step.status === 'cancelled') return '–';
   if (step.status === 'skipped') return '–';
-  if (step.status === 'running') return '';
-  return '·';
+  if (step.status === 'running') return '<span class="flow-spin"></span>';
+  return String(index + 1);
+}
+
+function updateLogMeta(run) {
+  const sub = $('log-head-sub');
+  const file = $('log-file');
+  const dot = $('log-rail-dot');
+  if (file) file.textContent = run && run.logFile ? run.logFile : '';
+  if (dot) {
+    dot.className =
+      'log-rail-dot' +
+      (run && run.status === 'running' ? ' running' : '') +
+      (run && run.status === 'success' ? ' success' : '') +
+      (run && run.status === 'failed' ? ' failed' : '');
+  }
+  if (!sub) return;
+  if (!run) {
+    sub.textContent = '等待发布开始';
+    return;
+  }
+  const steps = run.steps || [];
+  const running = steps.find(function (step) { return step.status === 'running'; });
+  const finished = steps.filter(function (step) {
+    return step.status === 'success' || step.status === 'skipped';
+  }).length;
+  const statusText =
+    run.status === 'success'
+      ? '已完成'
+      : run.status === 'failed'
+        ? '失败'
+        : run.status === 'cancelled'
+          ? '已取消'
+          : running
+            ? running.title
+            : '准备中';
+  sub.textContent = 'v' + run.version + ' · ' + finished + '/' + steps.length + ' 步 · ' + statusText;
 }
 
 function renderRunHeader() {
   const run = state.run;
-  if (!run) return;
-  $('run-title').textContent = '发布 v' + run.version + (run.dryRun ? '（演练）' : '');
+  const statusEl = $('run-status');
+  const cancel = $('btn-cancel');
+  const retryButton = $('btn-retry');
+
+  if (!run) {
+    $('run-title').textContent = '发布流程';
+    const preview = state.planPreview;
+    const sub = $('run-sub');
+    if (preview) {
+      sub.textContent =
+        '共 ' + preview.steps.length + ' 步 · 目标 ' +
+        (preview.targets || []).map(targetLabel).join(' / ') +
+        (preview.dryRun ? ' · 演练' : '');
+    } else if (state.planPreviewError) {
+      sub.textContent = state.planPreviewError;
+    } else if (state.planPreviewLoading) {
+      sub.textContent = '正在生成发布流程…';
+    } else {
+      sub.textContent = '选择版本与发布目标后，这里会显示完整流程';
+    }
+    statusEl.className = 'status-pill idle';
+    statusEl.textContent = '待开始';
+    cancel.hidden = true;
+    if (retryButton) retryButton.hidden = true;
+    updateLogMeta(null);
+    return;
+  }
+
+  updateLogMeta(run);
+  $('run-title').textContent = '发布 v' + run.version + (run.dryRun ? '（演练）' : '') + (run.retryOf ? '（重试）' : '');
   const start = run.startedAt ? formatClock(run.startedAt) : '-';
   const duration = run.durationMs != null
     ? formatDuration(run.durationMs)
@@ -549,41 +635,68 @@ function renderRunHeader() {
       ? formatDuration(Date.now() - run.startedAt)
       : '-';
   $('run-sub').textContent =
-    '开始 ' + start + ' · 目标 ' + (run.targets || []).map(targetLabel).join(' / ') + ' · 耗时 ' + duration;
-  const statusEl = $('run-status');
+    '开始 ' + start + ' · 目标 ' + (run.targets || []).map(targetLabel).join(' / ') + ' · 耗时 ' + duration +
+    (run.retryOf && run.retryFromTitle ? ' · 从「' + run.retryFromTitle + '」重试' : '');
   const statusClass =
     run.status === 'success' ? 'success' : run.status === 'failed' ? 'failed' : run.status === 'cancelled' ? 'cancelled' : 'running';
   const statusText =
     run.status === 'success' ? '成功' : run.status === 'failed' ? '失败' : run.status === 'cancelled' ? '已取消' : '进行中';
   statusEl.className = 'status-pill ' + statusClass;
   statusEl.textContent = statusText + (run.dryRun ? ' · 演练' : '');
-  const cancel = $('btn-cancel');
   cancel.hidden = run.status !== 'running';
   cancel.disabled = Boolean(run.cancelRequested);
+  if (retryButton) {
+    const hasFailedStep = (run.steps || []).some(function (step) {
+      return step.status === 'failed' || step.status === 'cancelled';
+    });
+    retryButton.hidden = !(run.status !== 'running' && !run.dryRun && hasFailedStep);
+    retryButton.disabled = run.status === 'running';
+  }
 }
 
 function renderRunSteps() {
-  const run = state.run;
   const container = $('run-steps');
-  if (!run || !container) return;
+  if (!container) return;
+  const run = state.run;
+  const steps = run ? run.steps || [] : state.planPreview ? state.planPreview.steps || [] : [];
+  if (steps.length === 0) {
+    if (!run && state.planPreviewLoading) {
+      container.innerHTML =
+        '<div class="checks-loading"><span class="spinner"></span><span>正在生成发布流程…</span></div>';
+      return;
+    }
+    const message = !run && state.planPreviewError
+      ? '暂时无法生成流程预览：' + state.planPreviewError
+      : '选择版本与发布目标后，这里会显示完整发布流程。';
+    container.innerHTML = '<div class="empty">' + escapeHtml(message) + '</div>';
+    return;
+  }
+
   const order = [];
   const groups = {};
-  run.steps.forEach(function (step) {
-    if (!groups[step.group]) {
-      groups[step.group] = [];
-      order.push(step.group);
+  steps.forEach(function (step) {
+    const group = step.group || '执行';
+    if (!groups[group]) {
+      groups[group] = [];
+      order.push(group);
     }
-    groups[step.group].push(step);
+    groups[group].push(step);
   });
+
+  let position = 0;
   const html = order.map(function (group) {
-    const items = groups[group].map(function (step) {
+    const nodes = groups[group].map(function (step) {
+      const status = step.status || 'pending';
       const duration = step.durationMs != null ? formatDuration(step.durationMs) : '';
       const error = step.error ? '<div class="step-error">' + escapeHtml(step.error) + '</div>' : '';
+      const reusedBadge = step.reused ? ' <span class="badge reused">复用</span>' : '';
+      position += 1;
       return (
-        '<div class="step-item ' + step.status + '">' +
-        '<span class="step-bullet">' + stepBullet(step) + '</span>' +
+        '<div class="flow-node ' + status + (step.reused ? ' reused' : '') + '">' +
+        '<span class="flow-marker">' + flowMarker(step, position - 1) + '</span>' +
         '<div class="step-main">' +
         '<div class="step-title-row"><span class="step-title">' + escapeHtml(step.title) + '</span>' +
+        reusedBadge +
         (duration ? '<span class="step-duration">' + duration + '</span>' : '') +
         '</div>' +
         (step.description ? '<div class="step-desc">' + escapeHtml(step.description) + '</div>' : '') +
@@ -591,14 +704,21 @@ function renderRunSteps() {
         '</div></div>'
       );
     }).join('');
-    return '<div class="step-group-label">' + escapeHtml(group) + '</div>' + items;
+    return (
+      '<div class="flow-group">' +
+      '<div class="flow-group-label">' + escapeHtml(group) + '</div>' +
+      nodes +
+      '</div>'
+    );
   }).join('');
-  container.innerHTML = html || '<div class="empty">等待开始…</div>';
+  container.innerHTML = html;
 }
 
 function appendLogLine(line) {
   const pre = $('run-log');
   if (!pre) return;
+  const placeholder = pre.querySelector('.log-empty');
+  if (placeholder) placeholder.remove();
   const el = document.createElement('div');
   el.className = 'log-line stream-' + (line.stream || 'stdout');
   const time = document.createElement('span');
@@ -619,6 +739,10 @@ function renderRunLogs() {
   if (!pre) return;
   pre.innerHTML = '';
   const logs = (state.run && state.run.logs) || [];
+  if (logs.length === 0) {
+    pre.innerHTML = '<div class="log-empty">等待发布开始，实时日志会显示在这里。</div>';
+    return;
+  }
   const fragment = document.createDocumentFragment();
   logs.forEach(function (line) {
     const el = document.createElement('div');
@@ -640,16 +764,64 @@ function renderRunLogs() {
 function renderRun() {
   const card = $('run-card');
   if (!card) return;
-  if (!state.run) {
-    card.hidden = true;
-    updateStartState();
-    return;
-  }
   card.hidden = false;
   renderRunHeader();
   renderRunSteps();
   renderRunLogs();
   updateStartState();
+}
+
+/** 读取当前选择对应的发布计划，用于在未开始时展示完整流程图。 */
+async function refreshPlanPreview() {
+  const version = normalizeVersion($('version-input').value);
+  if (!version || !parseVersion(version) || state.targets.size === 0) {
+    state.planPreview = null;
+    state.planPreviewError = '';
+    state.planPreviewLoading = false;
+    renderRunHeader();
+    renderRunSteps();
+    return;
+  }
+  // 已有发布记录时流程图展示实际执行结果，不再请求计划预览
+  if (state.run) return;
+
+  const seq = ++state.planSeq;
+  state.planPreviewLoading = true;
+  renderRunHeader();
+  renderRunSteps();
+
+  const params = new URLSearchParams();
+  params.set('version', version);
+  params.set(
+    'targets',
+    TARGET_ORDER.filter(function (target) { return state.targets.has(target); }).join(','),
+  );
+  params.set('github', $('opt-github').checked ? '1' : '0');
+  params.set('dryRun', $('opt-dry').checked ? '1' : '0');
+  try {
+    const data = await api('/api/plan?' + params.toString());
+    if (seq !== state.planSeq) return;
+    if (state.run && state.run.status === 'running') return;
+    state.planPreview = data.plan;
+    state.planPreviewError = '';
+  } catch (error) {
+    if (seq !== state.planSeq) return;
+    state.planPreview = null;
+    state.planPreviewError = error.message;
+  } finally {
+    if (seq === state.planSeq) state.planPreviewLoading = false;
+  }
+  if (state.run) return;
+  renderRunHeader();
+  renderRunSteps();
+}
+
+function schedulePlanPreview(delay) {
+  if (state.planTimer) clearTimeout(state.planTimer);
+  state.planTimer = setTimeout(function () {
+    state.planTimer = null;
+    refreshPlanPreview();
+  }, delay == null ? 400 : delay);
 }
 
 async function loadHistory() {
@@ -696,14 +868,19 @@ function renderHistory() {
   }
   if (count) count.textContent = state.history.length + ' 次';
   const rows = state.history.slice(0, 20).map(function (entry) {
+    const retryBadge = entry.retryOf ? ' <span class="badge reused">重试</span>' : '';
+    const retryButton = entry.canRetry
+      ? ' <button class="mini-btn" type="button" data-retry-id="' + escapeHtml(entry.id) + '" title="从失败步骤「' +
+        escapeHtml(entry.failedStep ? entry.failedStep.title : '') + '」重试">重试</button>'
+      : '';
     return (
       '<tr>' +
       '<td class="h-time">' + escapeHtml(formatDateTime(entry.startedAt)) + '</td>' +
-      '<td class="h-version">v' + escapeHtml(entry.version) + (entry.dryRun ? ' <span class="badge dry">演练</span>' : '') + '</td>' +
+      '<td class="h-version">v' + escapeHtml(entry.version) + (entry.dryRun ? ' <span class="badge dry">演练</span>' : '') + retryBadge + '</td>' +
       '<td>' + (targetBadges(entry.targets) || '<span class="badge">-</span>') + '</td>' +
       '<td>' + statusPill(entry.status, false) + '</td>' +
       '<td class="h-duration">' + escapeHtml(formatDuration(entry.durationMs)) + '</td>' +
-      '<td><button class="mini-btn" type="button" data-log-id="' + escapeHtml(entry.id) + '">日志</button></td>' +
+      '<td class="h-actions"><button class="mini-btn" type="button" data-log-id="' + escapeHtml(entry.id) + '">日志</button>' + retryButton + '</td>' +
       '</tr>'
     );
   }).join('');
@@ -716,39 +893,57 @@ function renderHistory() {
 function renderConfirm() {
   const plan = state.plan;
   if (!plan) return;
-  $('confirm-title').textContent = '确认发布 v' + plan.version;
+  const retry = state.retryMeta;
+  $('confirm-title').textContent = retry ? '确认重试 v' + plan.version : '确认发布 v' + plan.version;
   const checks = state.checks;
   const blocking = checks ? checks.summary.blocking : 0;
   const banner = $('confirm-banner');
-  let bannerText = plan.dryRun
-    ? '演练模式：不会修改版本文件、不会构建或上传，只按真实流程打印命令与产物。'
-    : '正式发布会修改版本文件、构建安装包并上传到 CloudBase / Supabase / GitHub，无法自动回滚。';
-  if (plan.githubRelease) {
-    bannerText += ' GitHub Release 会按当前 HEAD 打 tag，而版本号改动要等发布后才提交；如需 tag 与源码一致，请先手动提交版本号再运行。';
-  }
-  if (!plan.dryRun && blocking > 0) {
-    bannerText += ' 当前环境检查仍有 ' + blocking + ' 项阻塞，预检可能会直接中止。';
+  let bannerText;
+  if (retry) {
+    bannerText =
+      '重试模式：从第 ' + (retry.fromIndex + 1) + '/' + retry.total + ' 步「' + retry.fromTitle + '」开始，前 ' +
+      retry.reusedCount + ' 步直接复用 ' + retry.runId + ' 的结果——不重新构建，也不会再次修改版本文件。';
+  } else {
+    bannerText = plan.dryRun
+      ? '演练模式：不会修改版本文件、不会构建或上传，只按真实流程打印命令与产物。'
+      : '正式发布会修改版本文件、构建安装包并上传到 CloudBase / Supabase / GitHub，无法自动回滚。';
+    if (plan.githubRelease) {
+      bannerText += ' GitHub Release 会按当前 HEAD 打 tag，而版本号改动要等发布后才提交；如需 tag 与源码一致，请先手动提交版本号再运行。';
+    }
+    if (!plan.dryRun && blocking > 0) {
+      bannerText += ' 当前环境检查仍有 ' + blocking + ' 项阻塞，预检可能会直接中止。';
+    }
   }
   banner.textContent = bannerText;
-  banner.className = 'confirm-banner' + (plan.dryRun ? '' : ' danger');
+  banner.className = 'confirm-banner' + (retry ? ' retry' : plan.dryRun ? '' : ' danger');
 
   $('confirm-summary').innerHTML =
     '<div class="confirm-cell"><span>版本</span><strong>v' + escapeHtml(plan.version) + '</strong></div>' +
-    '<div class="confirm-cell"><span>模式</span><strong>' + (plan.dryRun ? '演练（不产生真实变更）' : '正式发布') + '</strong></div>' +
+    '<div class="confirm-cell"><span>模式</span><strong>' +
+      (retry ? '从第 ' + (retry.fromIndex + 1) + ' 步重试' : plan.dryRun ? '演练（不产生真实变更）' : '正式发布') +
+    '</strong></div>' +
     '<div class="confirm-cell"><span>发布目标</span><strong>' + escapeHtml(plan.targets.map(targetLabel).join('、')) + '</strong></div>' +
-    '<div class="confirm-cell"><span>GitHub Release</span><strong>' + (plan.githubRelease ? '创建 / 更新' : '不创建') + '</strong></div>';
+    '<div class="confirm-cell"><span>复用步骤</span><strong>' +
+      (retry ? retry.reusedCount + ' 步（不执行）' : '—') +
+    '</strong></div>';
 
   const changes = plan.versionChanges || [];
-  $('confirm-changes').innerHTML = changes.length
-    ? '<div class="change-list">' + changes.map(function (change) {
-        return '<div class="change-item"><span class="change-file">' + escapeHtml(change.displayPath) + '</span><span class="change-label">' + escapeHtml(change.label) + '</span><span class="change-value">' + escapeHtml(change.from) + ' → ' + escapeHtml(change.to) + '</span></div>';
-      }).join('') + '</div>'
-    : '<div class="empty" style="padding:12px">版本文件已经是目标版本，无需修改。</div>';
+  $('confirm-changes').innerHTML = retry
+    ? '<div class="empty" style="padding:12px">重试不会修改任何版本文件，直接沿用上次已写入的 v' + escapeHtml(plan.version) + '。</div>'
+    : changes.length
+      ? '<div class="change-list">' + changes.map(function (change) {
+          return '<div class="change-item"><span class="change-file">' + escapeHtml(change.displayPath) + '</span><span class="change-label">' + escapeHtml(change.label) + '</span><span class="change-value">' + escapeHtml(change.from) + ' → ' + escapeHtml(change.to) + '</span></div>';
+        }).join('') + '</div>'
+      : '<div class="empty" style="padding:12px">版本文件已经是目标版本，无需修改。</div>';
 
   $('confirm-steps').innerHTML = (plan.steps || []).map(function (step, index) {
-    const detail = step.command || step.description || '';
-    return '<li><span class="p-index">' + (index + 1) + '</span><span class="p-title">' + escapeHtml(step.title) + '</span><span class="p-cmd">' + escapeHtml(detail) + '</span></li>';
+    const reused = Boolean(retry) && index < retry.reusedCount;
+    const detail = reused ? '复用上次结果，不再执行' : (step.command || step.description || '');
+    return '<li' + (reused ? ' class="p-reused"' : '') + '><span class="p-index">' + (index + 1) + '</span><span class="p-title">' + escapeHtml(step.title) + (reused ? ' <span class="badge reused">复用</span>' : '') + '</span><span class="p-cmd">' + escapeHtml(detail) + '</span></li>';
   }).join('');
+
+  const confirmButton = $('btn-confirm-run');
+  confirmButton.textContent = retry ? '确认重试' : '确认并开始';
 }
 
 function openDialog(dialog) {
@@ -782,10 +977,17 @@ async function openConfirm() {
   params.set('dryRun', $('opt-dry').checked ? '1' : '0');
 
   state.startBusy = true;
+  state.retryMeta = null;
   updateStartState();
   try {
     const data = await api('/api/plan?' + params.toString());
     state.plan = data.plan;
+    state.planPreview = data.plan;
+    state.planPreviewError = '';
+    if (!state.run) {
+      renderRunHeader();
+      renderRunSteps();
+    }
     renderConfirm();
     openDialog($('confirm-dialog'));
   } catch (error) {
@@ -796,33 +998,63 @@ async function openConfirm() {
   }
 }
 
+/** 打开「从失败步骤重试」确认框 */
+async function openRetryConfirm(runId) {
+  if (!runId) return;
+  if (state.run && state.run.status === 'running') {
+    toast('已有发布任务正在执行', 'warn');
+    return;
+  }
+  state.startBusy = true;
+  state.retryMeta = null;
+  updateStartState();
+  try {
+    const data = await api('/api/retry-plan?runId=' + encodeURIComponent(runId));
+    state.plan = data.plan;
+    state.retryMeta = data.retry;
+    renderConfirm();
+    openDialog($('confirm-dialog'));
+  } catch (error) {
+    toast('无法重试：' + error.message, 'error');
+  } finally {
+    state.startBusy = false;
+    updateStartState();
+  }
+}
+
 async function confirmStart() {
   const plan = state.plan;
   if (!plan) return;
+  const retry = state.retryMeta;
   const button = $('btn-confirm-run');
   button.disabled = true;
-  button.textContent = '启动中…';
+  button.textContent = retry ? '重试中…' : '启动中…';
   try {
-    const data = await api('/api/run', {
-      method: 'POST',
-      body: JSON.stringify({
-        version: plan.version,
-        targets: plan.targets,
-        dryRun: plan.dryRun,
-        githubRelease: plan.githubRelease,
-        allowDirty: $('opt-dirty').checked,
-      }),
-    });
+    const data = retry
+      ? await api('/api/retry', {
+          method: 'POST',
+          body: JSON.stringify({ runId: retry.runId }),
+        })
+      : await api('/api/run', {
+          method: 'POST',
+          body: JSON.stringify({
+            version: plan.version,
+            targets: plan.targets,
+            dryRun: plan.dryRun,
+            githubRelease: plan.githubRelease,
+            allowDirty: $('opt-dirty').checked,
+          }),
+        });
     closeDialog($('confirm-dialog'));
     state.run = data.run;
     renderRun();
     $('run-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    toast('发布任务已启动', 'success');
+    toast(retry ? '已开始重试：从「' + (retry.fromTitle || '失败步骤') + '」继续' : '发布任务已启动', 'success');
   } catch (error) {
-    toast('启动发布失败：' + error.message, 'error');
+    toast((retry ? '启动重试失败：' : '启动发布失败：') + error.message, 'error');
   } finally {
     button.disabled = false;
-    button.textContent = '确认并开始';
+    button.textContent = retry ? '确认重试' : '确认并开始';
   }
 }
 
@@ -851,6 +1083,7 @@ function handleEvent(event) {
   }
   if (event.type === 'run-start') {
     state.run = event.run;
+    state.retryMeta = null;
     renderRun();
     renderHistory();
     return;
@@ -981,6 +1214,7 @@ async function saveSettings() {
     closeDialog($('settings-dialog'));
     toast('配置已保存，立即生效（端口需重启）', 'success');
     scheduleCheck(300);
+    schedulePlanPreview(300);
   } catch (error) {
     toast('保存配置失败：' + error.message, 'error');
   } finally {
@@ -1019,33 +1253,69 @@ function downloadLog() {
   setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
 }
 
+function setLogCollapsed(collapsed, persist) {
+  state.logCollapsed = Boolean(collapsed);
+  const workspace = $('workspace');
+  if (workspace) workspace.classList.toggle('logs-collapsed', state.logCollapsed);
+  const rail = $('btn-expand-log');
+  if (rail) rail.hidden = !state.logCollapsed;
+  if (persist) {
+    try {
+      localStorage.setItem(LOG_COLLAPSED_KEY, state.logCollapsed ? '1' : '0');
+    } catch {
+      // 忽略隐私模式下的存储异常
+    }
+  }
+  if (!state.logCollapsed) {
+    const pre = $('run-log');
+    if (pre && $('auto-scroll').checked) pre.scrollTop = pre.scrollHeight;
+  }
+}
+
 function bindEvents() {
   $('btn-check').addEventListener('click', function () { runChecksNow({}); });
   $('btn-recheck').addEventListener('click', function () { runChecksNow({}); });
   $('btn-settings').addEventListener('click', openSettings);
   $('btn-save-settings').addEventListener('click', saveSettings);
+  $('btn-collapse-log').addEventListener('click', function () { setLogCollapsed(true, true); });
+  $('btn-expand-log').addEventListener('click', function () { setLogCollapsed(false, true); });
   $('btn-suggest').addEventListener('click', function () {
     const value = suggestVersion();
     if (value) {
       $('version-input').value = value;
       updateVersionPreview();
+      schedulePlanPreview(200);
     }
   });
-  $('version-input').addEventListener('input', updateVersionPreview);
+  $('version-input').addEventListener('input', function () {
+    updateVersionPreview();
+    schedulePlanPreview(500);
+  });
   $('btn-start').addEventListener('click', openConfirm);
   $('btn-confirm-run').addEventListener('click', confirmStart);
   $('btn-cancel').addEventListener('click', cancelRun);
+  $('btn-retry').addEventListener('click', function () {
+    if (state.run) openRetryConfirm(state.run.id);
+  });
   $('btn-select-all').addEventListener('click', function () {
     state.targets = new Set(TARGET_ORDER);
     renderTargets();
+    schedulePlanPreview(250);
   });
   $('btn-select-none').addEventListener('click', function () {
     state.targets = new Set();
     renderTargets();
+    schedulePlanPreview(250);
   });
-  $('opt-github').addEventListener('change', updateOptionsState);
+  $('opt-github').addEventListener('change', function () {
+    updateOptionsState();
+    schedulePlanPreview(250);
+  });
   $('opt-dirty').addEventListener('change', updateOptionsState);
-  $('opt-dry').addEventListener('change', updateStartState);
+  $('opt-dry').addEventListener('change', function () {
+    updateStartState();
+    schedulePlanPreview(250);
+  });
   $('auto-scroll').addEventListener('change', function () {
     state.autoScroll = $('auto-scroll').checked;
     if (state.autoScroll) {
@@ -1064,6 +1334,11 @@ function bindEvents() {
   });
 
   $('history-body').addEventListener('click', function (event) {
+    const retryButton = event.target.closest('[data-retry-id]');
+    if (retryButton) {
+      openRetryConfirm(retryButton.getAttribute('data-retry-id'));
+      return;
+    }
     const button = event.target.closest('[data-log-id]');
     if (!button) return;
     openLog(button.getAttribute('data-log-id'));
@@ -1094,6 +1369,8 @@ async function init() {
     renderRun();
     renderHistory();
     connectEvents();
+    setLogCollapsed(localStorage.getItem(LOG_COLLAPSED_KEY) === '1', false);
+    schedulePlanPreview(200);
 
     const checkedTargets = state.checks && Array.isArray(state.checks.targets) ? state.checks.targets : [];
     if (!state.checks || checkedTargets.length < TARGET_ORDER.length) scheduleCheck(500);

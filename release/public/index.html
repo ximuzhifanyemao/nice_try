@@ -42,131 +42,172 @@
       </div>
     </header>
 
-    <main class="content">
-      <section class="hero card">
-        <div class="hero-copy">
-          <span class="eyebrow">RELEASE WORKFLOW</span>
-          <h2>输入版本号，选择要发布的目标</h2>
-          <p>
-            发布前自动检查 CloudBase、JDK、Android SDK、Rust、GitHub Token 等条件；
-            所有构建成功后才开始上传，避免线上出现半成品。
-          </p>
-          <div class="hero-points">
-            <span><i class="point point-blue"></i>构建与发布分离</span>
-            <span><i class="point point-green"></i>实时日志</span>
-            <span><i class="point point-amber"></i>可先演练</span>
+    <main class="workspace" id="workspace">
+      <div class="flow-col">
+        <section class="stage">
+          <div class="stage-rail"><span class="stage-index">01</span></div>
+          <div class="stage-body">
+            <section class="hero card">
+              <div class="hero-copy">
+                <span class="eyebrow">RELEASE WORKFLOW</span>
+                <h2>输入版本号，选择要发布的目标</h2>
+                <p>
+                  发布前自动检查 CloudBase、JDK、Android SDK、Rust、GitHub Token 等条件；
+                  所有构建成功后才开始上传，避免线上出现半成品。
+                </p>
+                <div class="hero-points">
+                  <span><i class="point point-blue"></i>构建与发布分离</span>
+                  <span><i class="point point-green"></i>实时日志</span>
+                  <span><i class="point point-amber"></i>可先演练</span>
+                </div>
+                <div class="hero-env" id="hero-env"></div>
+              </div>
+
+              <div class="version-panel">
+                <div class="version-head">
+                  <label for="version-input">发布版本号</label>
+                  <button class="mini-btn" id="btn-suggest" type="button" title="填入建议的下一个版本号">建议 v<span id="suggest-version">—</span></button>
+                </div>
+                <div class="version-input-wrap">
+                  <span class="v-prefix">v</span>
+                  <input id="version-input" inputmode="text" autocomplete="off" spellcheck="false" placeholder="1.18.0" />
+                </div>
+                <div class="version-hint" id="version-hint">正在读取当前版本…</div>
+                <div class="version-preview" id="version-preview"></div>
+                <button class="btn primary start-btn" id="btn-start" type="button">开始发布</button>
+                <p class="version-footnote">正式发布会修改版本文件、构建产物并上传；可勾选「演练模式」先看完整计划。</p>
+              </div>
+            </section>
+
+            <div class="stage-stack">
+              <div class="section-head">
+                <div>
+                  <h3>选择发布目标</h3>
+                  <p>可以只发其中一个，也可以组合发布。</p>
+                </div>
+                <div class="section-tools">
+                  <span class="selection-summary" id="selection-summary">已选 3 项</span>
+                  <button class="mini-btn" id="btn-select-all" type="button">全选</button>
+                  <button class="mini-btn" id="btn-select-none" type="button">清空</button>
+                </div>
+              </div>
+
+              <section class="target-grid" id="target-grid" aria-label="发布目标"></section>
+
+              <section class="options-card card" id="options-card">
+                <label class="option">
+                  <input type="checkbox" id="opt-github" checked />
+                  <span class="option-copy">
+                    <strong>创建 GitHub Release</strong>
+                    <small>把 APK / 桌面安装包上传到 v&lt;版本号&gt; Release</small>
+                  </span>
+                </label>
+                <label class="option">
+                  <input type="checkbox" id="opt-dirty" />
+                  <span class="option-copy">
+                    <strong>允许未提交改动</strong>
+                    <small>开启后工作区不干净也可发布；建议先 commit</small>
+                  </span>
+                </label>
+                <label class="option option-warn">
+                  <input type="checkbox" id="opt-dry" />
+                  <span class="option-copy">
+                    <strong>演练模式</strong>
+                    <small>只检查并打印命令，不写版本、不构建、不上传</small>
+                  </span>
+                </label>
+              </section>
+            </div>
+
+            <div class="alert" id="alert" hidden></div>
           </div>
-          <div class="hero-env" id="hero-env"></div>
-        </div>
+        </section>
 
-        <div class="version-panel">
-          <div class="version-head">
-            <label for="version-input">发布版本号</label>
-            <button class="mini-btn" id="btn-suggest" type="button" title="填入建议的下一个版本号">建议 v<span id="suggest-version">—</span></button>
+        <section class="stage">
+          <div class="stage-rail"><span class="stage-index">02</span></div>
+          <div class="stage-body">
+            <section class="checks card" id="checks-card">
+              <header class="card-head">
+                <div>
+                  <span class="eyebrow">PREFLIGHT</span>
+                  <h3>发布环境检查</h3>
+                  <p class="run-sub">全部通过的分类会自动收起，只展开需要处理的问题</p>
+                </div>
+                <div class="checks-head-right">
+                  <div class="checks-summary" id="checks-summary"></div>
+                  <button class="btn ghost small" id="btn-recheck" type="button">重新检查</button>
+                </div>
+              </header>
+              <div class="checks-body" id="checks-body"></div>
+            </section>
           </div>
-          <div class="version-input-wrap">
-            <span class="v-prefix">v</span>
-            <input id="version-input" inputmode="text" autocomplete="off" spellcheck="false" placeholder="1.18.0" />
+        </section>
+
+        <section class="stage">
+          <div class="stage-rail"><span class="stage-index">03</span></div>
+          <div class="stage-body">
+            <section class="run card" id="run-card">
+              <header class="card-head run-head">
+                <div>
+                  <span class="eyebrow">PIPELINE</span>
+                  <h3 id="run-title">发布流程</h3>
+                  <p class="run-sub" id="run-sub"></p>
+                </div>
+                <div class="run-head-right">
+                  <span class="status-pill" id="run-status">待开始</span>
+                  <button class="btn ghost small" id="btn-retry" type="button" hidden>重试失败步骤</button>
+                  <button class="btn danger ghost small" id="btn-cancel" type="button" hidden>中止</button>
+                </div>
+              </header>
+
+              <div class="flow" id="run-steps"></div>
+            </section>
           </div>
-          <div class="version-hint" id="version-hint">正在读取当前版本…</div>
-          <div class="version-preview" id="version-preview"></div>
-          <button class="btn primary start-btn" id="btn-start" type="button">开始发布</button>
-          <p class="version-footnote">正式发布会修改版本文件、构建产物并上传；可勾选「演练模式」先看完整计划。</p>
-        </div>
-      </section>
+        </section>
 
-      <section class="section-head">
-        <div>
-          <h3>选择发布目标</h3>
-          <p>可以只发其中一个，也可以组合发布。</p>
-        </div>
-        <div class="section-tools">
-          <span class="selection-summary" id="selection-summary">已选 3 项</span>
-          <button class="mini-btn" id="btn-select-all" type="button">全选</button>
-          <button class="mini-btn" id="btn-select-none" type="button">清空</button>
-        </div>
-      </section>
-
-      <section class="target-grid" id="target-grid" aria-label="发布目标"></section>
-
-      <section class="options-card card" id="options-card">
-        <label class="option">
-          <input type="checkbox" id="opt-github" checked />
-          <span class="option-copy">
-            <strong>创建 GitHub Release</strong>
-            <small>把 APK / 桌面安装包上传到 v&lt;版本号&gt; Release</small>
-          </span>
-        </label>
-        <label class="option">
-          <input type="checkbox" id="opt-dirty" />
-          <span class="option-copy">
-            <strong>允许未提交改动</strong>
-            <small>开启后工作区不干净也可发布；建议先 commit</small>
-          </span>
-        </label>
-        <label class="option option-warn">
-          <input type="checkbox" id="opt-dry" />
-          <span class="option-copy">
-            <strong>演练模式</strong>
-            <small>只检查并打印命令，不写版本、不构建、不上传</small>
-          </span>
-        </label>
-      </section>
-
-      <div class="alert" id="alert" hidden></div>
-
-      <section class="checks card" id="checks-card" hidden>
-        <header class="card-head">
-          <div>
-            <span class="eyebrow">PREFLIGHT</span>
-            <h3>发布环境检查</h3>
+        <section class="stage">
+          <div class="stage-rail"><span class="stage-index">04</span></div>
+          <div class="stage-body">
+            <section class="history card" id="history-card">
+              <header class="card-head">
+                <div>
+                  <span class="eyebrow">HISTORY</span>
+                  <h3>发布历史</h3>
+                </div>
+                <span class="history-count" id="history-count">0 次</span>
+              </header>
+              <div id="history-body"></div>
+            </section>
           </div>
-          <div class="checks-head-right">
-            <div class="checks-summary" id="checks-summary"></div>
-            <button class="btn ghost small" id="btn-recheck" type="button">重新检查</button>
-          </div>
-        </header>
-        <div class="checks-body" id="checks-body"></div>
-      </section>
+        </section>
+      </div>
 
-      <section class="run card" id="run-card" hidden>
-        <header class="card-head run-head">
-          <div>
-            <span class="eyebrow">RELEASE RUN</span>
-            <h3 id="run-title">发布</h3>
-            <p class="run-sub" id="run-sub"></p>
-          </div>
-          <div class="run-head-right">
-            <span class="status-pill" id="run-status">等待中</span>
-            <button class="btn danger ghost small" id="btn-cancel" type="button" hidden>中止</button>
-          </div>
-        </header>
-
-        <div class="steps" id="run-steps"></div>
-
-        <div class="terminal">
-          <div class="terminal-head">
-            <span class="terminal-dots"><i></i><i></i><i></i></span>
-            <span class="terminal-title">release log</span>
+      <aside class="log-col">
+        <section class="log-card card" id="log-card">
+          <header class="log-head">
+            <div class="log-head-copy">
+              <span class="eyebrow">LIVE LOG</span>
+              <h3>发布日志</h3>
+              <p class="log-head-sub" id="log-head-sub">等待发布开始</p>
+            </div>
+            <button class="icon-btn" id="btn-collapse-log" type="button" title="收起日志面板" aria-label="收起日志面板">›</button>
+          </header>
+          <pre class="log-output" id="run-log" aria-live="polite"></pre>
+          <footer class="log-foot">
             <label class="terminal-auto">
               <input type="checkbox" id="auto-scroll" checked />
               <span>自动滚动</span>
             </label>
-          </div>
-          <pre class="terminal-body" id="run-log" aria-live="polite"></pre>
-        </div>
-      </section>
+            <span class="log-file" id="log-file"></span>
+          </footer>
+        </section>
 
-      <section class="history card" id="history-card">
-        <header class="card-head">
-          <div>
-            <span class="eyebrow">HISTORY</span>
-            <h3>发布历史</h3>
-          </div>
-          <span class="history-count" id="history-count">0 次</span>
-        </header>
-        <div id="history-body"></div>
-      </section>
+        <button class="log-rail card" id="btn-expand-log" type="button" title="展开日志面板" aria-label="展开日志面板" hidden>
+          <span class="log-rail-chevron">«</span>
+          <span class="log-rail-text">发布日志</span>
+          <span class="log-rail-dot" id="log-rail-dot"></span>
+        </button>
+      </aside>
     </main>
 
     <footer class="footer">

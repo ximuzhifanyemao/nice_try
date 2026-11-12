@@ -19,6 +19,7 @@ import {
   detectAndroidSdk,
   detectCargoBin,
   detectGithubRepo,
+  detectGit,
   detectJavaHome,
   getGitInfo,
   parseGithubRemote,
@@ -45,6 +46,10 @@ export const DEFAULT_CONFIG = {
     cargoBin: '',
     bundles: '',
   },
+  git: {
+    // git.exe 路径；留空则自动检测（PATH / 注册表 / 常见安装目录）
+    exe: '',
+  },
   github: {
     enabled: true,
     owner: '',
@@ -68,7 +73,8 @@ export function detectDefaultConfig() {
   const java = detectJavaHome(base, PROJECT_ROOT)
   const sdk = detectAndroidSdk(base, PROJECT_ROOT)
   const cargo = detectCargoBin(base)
-  const git = getGitInfo(PROJECT_ROOT)
+  const gitTool = detectGit(base)
+  const git = getGitInfo(PROJECT_ROOT, gitTool.exe)
   const remoteRepo = parseGithubRemote(git.remote) || detectGithubRepo(base, PROJECT_ROOT)
 
   return {
@@ -87,6 +93,10 @@ export function detectDefaultConfig() {
     desktop: {
       ...base.desktop,
       cargoBin: cargo.dir || '',
+    },
+    git: {
+      ...base.git,
+      exe: gitTool.exe || '',
     },
     github: {
       ...base.github,
@@ -167,6 +177,7 @@ export function applyConfigPatch(current, patch) {
   const cloudbase = patch.cloudbase || {}
   const android = patch.android || {}
   const desktop = patch.desktop || {}
+  const gitCfg = patch.git || {}
   const github = patch.github || {}
   const server = patch.server || {}
   const options = patch.options || {}
@@ -185,6 +196,9 @@ export function applyConfigPatch(current, patch) {
 
   if (desktop.cargoBin !== undefined) next.desktop.cargoBin = asString(desktop.cargoBin, next.desktop.cargoBin)
   if (desktop.bundles !== undefined) next.desktop.bundles = asString(desktop.bundles, next.desktop.bundles)
+
+  if (!next.git) next.git = { exe: '' }
+  if (gitCfg.exe !== undefined) next.git.exe = asString(gitCfg.exe, next.git.exe)
 
   if (github.enabled !== undefined) next.github.enabled = asBoolean(github.enabled, next.github.enabled)
   if (github.owner !== undefined) next.github.owner = asString(github.owner, next.github.owner)
