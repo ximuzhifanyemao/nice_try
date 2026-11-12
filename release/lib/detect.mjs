@@ -209,6 +209,51 @@ export function detectGit(config) {
   return { exe: null, dir: null, version: '', source: '未检测到' }
 }
 
+/**
+ * 定位 Git Bash 的 bash.exe，用于控制台内置终端。
+ * 找不到时退回系统默认 shell（Windows 上是 cmd）。
+ */
+export function detectBash(gitTool) {
+  const candidates = []
+  if (gitTool?.exe) {
+    // git.exe 通常在 <Git>\cmd\git.exe，bash.exe 在 <Git>\bin\bash.exe
+    const gitRoot = dirname(dirname(gitTool.exe))
+    candidates.push({ path: join(gitRoot, 'bin', 'bash.exe'), source: 'Git for Windows' })
+  }
+  if (IS_WINDOWS) {
+    const installPath = readWindowsGitInstallPath()
+    if (installPath) {
+      candidates.push({ path: join(installPath, 'bin', 'bash.exe'), source: '注册表' })
+    }
+    const roots = [process.env.ProgramFiles, process.env['ProgramFiles(x86)']]
+    for (const base of roots) {
+      if (!base) continue
+      candidates.push({ path: join(base, 'Git', 'bin', 'bash.exe'), source: '常见路径' })
+    }
+  } else {
+    for (const value of ['/bin/bash', '/usr/bin/bash']) {
+      candidates.push({ path: value, source: '系统 bash' })
+    }
+  }
+
+  for (const item of candidates) {
+    if (!item.path || !existsSync(item.path)) continue
+    return {
+      path: item.path,
+      args: ['-c'],
+      label: IS_WINDOWS ? 'Git Bash' : 'Bash',
+      source: item.source,
+    }
+  }
+
+  return {
+    path: null,
+    args: [],
+    label: IS_WINDOWS ? 'CMD' : 'Shell',
+    source: '系统默认',
+  }
+}
+
 export function getGitInfo(root, gitExe = null) {
   const gitBinary = gitExe || 'git'
   const git = (args) => {

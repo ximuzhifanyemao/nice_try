@@ -18,6 +18,19 @@
 3. 浏览器会自动打开 `http://127.0.0.1:4780/`。
 4. 输入版本号，选择目标，先点「检查环境」；没问题后点「开始发布」。
 
+### 内置命令终端
+
+右侧输出面板可在「发布日志 / 终端」之间切换。终端默认使用本机 Git Bash
+（找不到时退回系统默认 shell），工作目录就是项目根目录，可直接执行：
+
+        git status
+        git add <文件列表>
+        git commit -m "chore: release v1.18.0"
+        git push origin main
+
+支持 `cd`（含 `/e/code_app` 这种 Git Bash 风格路径）、`clear`、`Ctrl+L` 清屏、`↑` `↓` 翻历史。
+发布控制台不会自动执行 git commit / push，仍然由你在这里手动确认后执行。
+
 只想检查环境、不启动界面：
 
         npm run release:check
@@ -30,10 +43,11 @@
 
 | 目标 | 检查项 |
 |------|--------|
-| 通用 | Node.js 22+、npm、项目可写、Git 仓库/工作区、依赖、磁盘空间 |
+| 通用 | Node.js 22+、npm、项目可写、Git 仓库/工作区、依赖、磁盘空间、Supabase OTA 配置 |
 | Web | CloudBase CLI 路径/版本/登录状态、环境 ID、.env.production、public/_redirects、站点可访问性 |
-| APK | JDK 21、Android SDK（platform 36 / build-tools）、Gradle、keystore、versionCode、Supabase OTA 配置 |
-| 桌面端 | cargo/rustc、Tauri CLI、tauri.conf.json、WebView2、打包目录、Supabase OTA 配置 |
+| APK | JDK 21、Android SDK（platform 36 / build-tools）、Gradle、keystore、versionCode |
+| 桌面端 | cargo/rustc、Tauri CLI、tauri.conf.json、WebView2、打包目录 |
+| OTA | 选择 CloudBase 时检查 CLI / 环境 ID / 静态托管域名，并显示 APK 与桌面安装包的最终下载地址 |
 | GitHub | owner/repo、GitHub Token、GitHub API 连通性 |
 
 检查结果分「通过 / 警告 / 失败」：失败项会阻止正式发布，警告项不阻止。
@@ -64,8 +78,12 @@
 ### Windows 桌面端
 
 1. `npm run build:desktop`（Tauri build，会自动先构建 Web）
-2. `node scripts/upload-desktop-update.mjs`（Supabase Storage + desktop_versions 表）
+2. `node scripts/upload-desktop-update.mjs --host <cloudbase|supabase>`
+   （按 `desktop.otaHost` 上传到 CloudBase 静态托管或 Supabase Storage，并写 desktop_versions 表）
 3. 如勾选 GitHub Release：`node scripts/upload-release.mjs --no-apk`
+
+桌面端更新记录始终写在 Supabase 的 `desktop_versions` 表（客户端从那里检测更新），
+只是安装包文件可以放在 CloudBase 上，下载更快。
 
 ### 版本号会改哪些文件
 
@@ -99,14 +117,23 @@ GitHub owner/repo 等）。该文件已加入 .gitignore。
 | android.javaHome | JDK 21 目录 |
 | android.sdkDir | Android SDK 目录 |
 | android.otaHost | APK 上传目标：cloudbase（国内，快）/ supabase（原有通道） |
+| android.cloudbaseDir | APK 在 CloudBase 静态托管上的目录，默认 downloads |
+| android.supabaseBucket | APK 在 Supabase Storage 的公开桶名，默认 ota-bundles |
 | desktop.cargoBin | cargo/rustc 所在目录，通常是 %USERPROFILE%\.cargo\bin |
 | desktop.bundles | 例如 nsis,msi；留空使用 Tauri 默认 |
+| desktop.otaHost | 桌面安装包上传目标：cloudbase（默认）/ supabase |
+| desktop.cloudbaseDir | 桌面安装包在 CloudBase 上的目录，默认 downloads/desktop |
+| desktop.supabaseBucket | 桌面安装包在 Supabase Storage 的桶名，默认 desktop-bundles |
 | git.exe | git.exe 路径；留空则按 PATH → 注册表 → 常见安装目录自动检测 |
 | github.owner / repo | GitHub 仓库 |
 | github.tokenEnv | Token 环境变量名，默认 GITHUB_TOKEN |
 | server.port | 控制台端口，修改后需重启 |
 | options.allowDirty | 默认是否允许未提交改动 |
 | options.stepTimeoutMinutes | 单个步骤超时，默认 40 分钟 |
+
+设置页底部有「上传地址预览」，会按当前配置拼出 APK / 桌面安装包在
+CloudBase 与 Supabase 上的实际下载地址，切换 `otaHost` 时可以直接对比，
+不用猜目录或桶名是否写对。
 
 想重新自动检测本机路径：退出程序，删除 `release/config.json`，再启动。
 

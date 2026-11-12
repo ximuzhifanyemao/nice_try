@@ -267,6 +267,36 @@ export async function runChecks(options = {}) {
     }),
   )
 
+  const otaTargets = []
+  if (selected.includes('apk') && config.android?.otaHost === 'cloudbase') otaTargets.push('apk')
+  if (selected.includes('desktop') && config.desktop?.otaHost === 'cloudbase') otaTargets.push('desktop')
+  if (otaTargets.length > 0) {
+    push(
+      check('cloudbase-ota', '通用环境', 'CloudBase 静态托管（OTA）', otaTargets, async () => {
+        const staticDomain = String(
+          config.cloudbase?.staticDomain || config.cloudbase?.siteUrl || '',
+        ).replace(/\/+$/, '')
+        const missing = []
+        if (!runtime.cli.path) missing.push('CLI 路径')
+        if (!runtime.envId) missing.push('环境 ID')
+        if (!staticDomain) missing.push('静态托管域名')
+        if (missing.length) {
+          return statusFail(
+            '缺少 ' + missing.join('、') + '，无法上传 OTA 安装包到 CloudBase',
+            '在「设置 → CloudBase」中补齐 CLI 路径、环境 ID 与静态托管域名；或把 OTA 上传目标改为 Supabase',
+          )
+        }
+        const apkUrl = staticDomain + '/' + String(config.android?.cloudbaseDir || 'downloads').replace(/^\/+/, '') + '/DiveDeep.apk'
+        const desktopDir = String(config.desktop?.cloudbaseDir || 'downloads/desktop').replace(/^\/+/, '')
+        return statusOk(
+          'CLI ' + runtime.cli.path + ' · 环境 ' + runtime.envId +
+            (otaTargets.includes('apk') ? ' · APK → ' + apkUrl : '') +
+            (otaTargets.includes('desktop') ? ' · 桌面 → ' + staticDomain + '/' + desktopDir + '/' : ''),
+        )
+      }),
+    )
+  }
+
   // ── Web 发布 ─────────────────────────────────────────────
   push(
     check('cloudbase-cli', 'Web 发布', 'CloudBase CLI', ['web'], async () => {

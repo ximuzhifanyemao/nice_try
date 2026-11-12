@@ -11,7 +11,7 @@ import {
   readFileSync,
   statSync,
 } from 'node:fs'
-import { extname, resolve } from 'node:path'
+import { extname, isAbsolute, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   CONFIG_PATH,
@@ -24,6 +24,7 @@ import {
   isInside,
   killProcessTree,
   makeRunId,
+  runShell,
 } from './lib/util.mjs'
 import {
   applyConfigPatch,
@@ -31,7 +32,7 @@ import {
   loadConfig,
   saveConfig,
 } from './lib/config.mjs'
-import { getRuntime, publicRuntime } from './lib/runtime.mjs'
+import { buildRuntimeEnv, getRuntime, publicRuntime } from './lib/runtime.mjs'
 import { runChecks } from './lib/checks.mjs'
 import { buildPlan, executePlan, planRetry, summarizePlan } from './lib/pipeline.mjs'
 import { suggestNextVersion } from './lib/versioning.mjs'
@@ -62,6 +63,17 @@ let currentRun = null
 let serverPort = 0
 let serverUrl = ''
 const sseClients = new Set()
+
+// 内置命令终端：同一时间只允许一条命令，输出通过 SSE 实时推给页面
+const terminal = {
+  cwd: PROJECT_ROOT,
+  shell: { path: null, args: [], label: process.platform === 'win32' ? 'CMD' : 'Shell' },
+  running: false,
+  cancelled: false,
+  child: null,
+  lines: [],
+  lastExit: null,
+}
 
 function sendJson(res, statusCode, data) {
   const body = JSON.stringify(data)
@@ -164,6 +176,120 @@ function appendRunLog(run, text, stream = 'stdout') {
     }
   }
   broadcast({ type: 'log', runId: run.id, line })
+}
+
+function terminalSnapshot() {
+  return {
+    cwd: terminal.cwd,
+    shell: { label: terminal.shell.label, path: terminal.shell.path },
+    running: terminal.running,
+    lastExit: terminal.lastExit,
+    lines: terminal.lines.slice(-1000),
+  }
+}
+
+function appendTerminalLine(line) {
+  const entry = {
+    t: Date.now(),
+    stream: line.stream || 'stdout',
+    text: String(line.text == null ? '' : line.text),
+  }
+  terminal.lines.push(entry)
+  if (terminal.lines.length > 2000) terminal.lines.splice(0, terminal.lines.length - 2000)
+  broadcast({ type: 'terminal-line', line: entry })
+}
+
+/** 处理终端里的 cd：切换工作目录而不是起子进程。 */
+function handleTerminalCd(command) {
+  const match = command.match(/^cd(?:\s+(.+))?$/i)
+  if (!match) return null
+  let target = String(match[1] || '').trim().replace(/^["']|["']$/g, '')
+  if (!target || target === '~') target = PROJECT_ROOT
+  // Git Bash 风格路径 /e/code_app → E:\code_app
+  const msys = target.match(/^\/([a-zA-Z])\/(.*)$/)
+  if (msys) target = msys[1] + ':\\' + msys[2].replace(/\//g, '\\')
+  const next = isAbsolute(target) ? resolve(target) : resolve(terminal.cwd, target)
+  if (!existsSync(next)) {
+    appendTerminalLine({ stream: 'error', text: '目录不存在：' + next })
+    return { ok: false, cwd: terminal.cwd }
+  }
+  if (!statSync(next).isDirectory()) {
+    appendTerminalLine({ stream: 'error', text: '不是目录：' + next })
+    return { ok: false, cwd: terminal.cwd }
+  }
+  terminal.cwd = next
+  appendTerminalLine({ stream: 'muted', text: 'cwd → ' + next })
+  broadcast({ type: 'terminal-cwd', cwd: next })
+  return { ok: true, cwd: next }
+}
+
+function startTerminalCommand(command) {
+  const runtime = getRuntime(config)
+  terminal.running = true
+  terminal.cancelled = false
+  terminal.lastExit = null
+  appendTerminalLine({ stream: 'command', text: '$ ' + command })
+  broadcast({
+    type: 'terminal-start',
+    command,
+    cwd: terminal.cwd,
+    shell: terminal.shell.label,
+  })
+
+  runTerminalCommand(command, runtime)
+    .then((result) => {
+      terminal.lastExit = {
+        code: result.code,
+        cancelled: terminal.cancelled,
+        timedOut: result.timedOut,
+        durationMs: result.durationMs,
+      }
+      if (result.timedOut) {
+        appendTerminalLine({ stream: 'error', text: '命令超时（30 分钟），已终止' })
+      } else if (terminal.cancelled) {
+        appendTerminalLine({ stream: 'warn', text: '命令已中止' })
+      } else if (result.code === 0) {
+        appendTerminalLine({
+          stream: 'success',
+          text: '完成（' + formatDuration(result.durationMs) + '）',
+        })
+      } else {
+        appendTerminalLine({
+          stream: 'error',
+          text:
+            '退出码 ' + (result.code == null ? 'null' : result.code) +
+            '（' + formatDuration(result.durationMs) + '）',
+        })
+      }
+    })
+    .finally(() => {
+      terminal.running = false
+      terminal.child = null
+      broadcast({
+        type: 'terminal-end',
+        cwd: terminal.cwd,
+        exitCode: terminal.lastExit ? terminal.lastExit.code : null,
+        cancelled: terminal.lastExit ? terminal.lastExit.cancelled : false,
+        timedOut: terminal.lastExit ? terminal.lastExit.timedOut : false,
+      })
+      terminal.cancelled = false
+    })
+}
+
+async function runTerminalCommand(command, runtime) {
+  return runShell(command, {
+    cwd: terminal.cwd,
+    env: buildRuntimeEnv(runtime),
+    timeoutMs: 30 * 60 * 1000,
+    shellExe: terminal.shell.path,
+    shellArgs: terminal.shell.args,
+    onLine: (line, stream) => {
+      appendTerminalLine({ stream: stream === 'stderr' ? 'stderr' : 'stdout', text: line })
+    },
+    onSpawn: (child) => {
+      terminal.child = child
+    },
+  })
 }
 
 function createRunRecord(plan, extra = {}) {
@@ -339,6 +465,7 @@ function getBootstrap() {
     history: loadHistory().map(publicHistoryEntry),
     checks: lastChecks,
     currentRun: currentRun ? publicRun(currentRun) : null,
+    terminal: terminalSnapshot(),
     meta: {
       ...getConfigMeta(),
       port: serverPort,
@@ -380,7 +507,62 @@ async function handleApi(req, res, url) {
     sendJson(res, 200, {
       run: currentRun ? publicRun(currentRun) : null,
       checks: lastChecks,
+      terminal: terminalSnapshot(),
     })
+    return
+  }
+
+  if (req.method === 'POST' && pathname === '/api/terminal/run') {
+    if (terminal.running) {
+      sendJson(res, 409, { error: '已有命令正在执行，请等待完成或点击「中止」' })
+      return
+    }
+    const body = await readJsonBody(req)
+    const command = String(body.command || '').trim()
+    if (!command) {
+      sendJson(res, 400, { error: '命令不能为空' })
+      return
+    }
+    if (command.length > 4000) {
+      sendJson(res, 400, { error: '命令过长（最多 4000 字符）' })
+      return
+    }
+    if (command === 'clear' || command === 'cls') {
+      terminal.lines = []
+      broadcast({ type: 'terminal-clear' })
+      sendJson(res, 200, { ok: true, cwd: terminal.cwd })
+      return
+    }
+    const cdResult = handleTerminalCd(command)
+    if (cdResult) {
+      sendJson(res, 200, { ok: cdResult.ok, cwd: cdResult.cwd })
+      return
+    }
+    sendJson(res, 202, {
+      ok: true,
+      cwd: terminal.cwd,
+      shell: terminal.shell.label,
+    })
+    startTerminalCommand(command)
+    return
+  }
+
+  if (req.method === 'POST' && pathname === '/api/terminal/stop') {
+    if (!terminal.running) {
+      sendJson(res, 409, { error: '当前没有正在执行的命令' })
+      return
+    }
+    terminal.cancelled = true
+    if (terminal.child) killProcessTree(terminal.child)
+    appendTerminalLine({ stream: 'warn', text: '收到中止请求，正在终止当前命令…' })
+    sendJson(res, 200, { ok: true })
+    return
+  }
+
+  if (req.method === 'POST' && pathname === '/api/terminal/clear') {
+    terminal.lines = []
+    broadcast({ type: 'terminal-clear' })
+    sendJson(res, 200, { ok: true })
     return
   }
 
@@ -705,6 +887,7 @@ async function handleRequest(req, res) {
           run: currentRun ? publicRun(currentRun) : null,
           checks: lastChecks,
           history: loadHistory().map(publicHistoryEntry),
+          terminal: terminalSnapshot(),
         }) +
         '\n\n',
     )
@@ -785,6 +968,12 @@ async function listenOn(port) {
 export async function startServer(options = {}) {
   ensureRuntimeDirs()
   config = loadConfig()
+  const bootRuntime = getRuntime(config)
+  terminal.shell = {
+    path: bootRuntime.terminalShell?.path || null,
+    args: bootRuntime.terminalShell?.args || [],
+    label: bootRuntime.terminalShell?.label || (process.platform === 'win32' ? 'CMD' : 'Shell'),
+  }
   const desiredPort = Number(options.port || config.server?.port || 4780)
   const maxPort = desiredPort + 20
   let server = null

@@ -45,10 +45,18 @@ export const DEFAULT_CONFIG = {
     gradleTask: 'assembleRelease',
     // OTA 上传目标：cloudbase（国内静态托管）/ supabase（原有通道）
     otaHost: 'supabase',
+    // CloudBase 上的存放目录（相对静态托管根目录）
+    cloudbaseDir: 'downloads',
+    // Supabase Storage 的公开桶名
+    supabaseBucket: 'ota-bundles',
   },
   desktop: {
     cargoBin: '',
     bundles: '',
+    // 桌面端 OTA 上传目标，默认走 CloudBase（国内下载更快）
+    otaHost: 'cloudbase',
+    cloudbaseDir: 'downloads/desktop',
+    supabaseBucket: 'desktop-bundles',
   },
   git: {
     // git.exe 路径；留空则自动检测（PATH / 注册表 / 常见安装目录）
@@ -158,6 +166,18 @@ function asInt(value, fallback, min, max) {
   return Math.min(max, Math.max(min, parsed))
 }
 
+/** 云端目录：去掉首尾斜杠，空值回退默认值。 */
+function asCloudDir(value, fallback) {
+  const text = asString(value, fallback).replace(/^[/\\]+|[/\\]+$/g, '')
+  return text || fallback
+}
+
+/** Supabase 桶名：只保留桶名本身，不允许斜杠。 */
+function asBucket(value, fallback) {
+  const text = asString(value, fallback).replace(/^\/+|\/+$/g, '')
+  return text && !text.includes('/') ? text : fallback
+}
+
 function asStringArray(value, fallback) {
   if (Array.isArray(value)) {
     return value.map((item) => String(item).trim()).filter(Boolean)
@@ -204,9 +224,25 @@ export function applyConfigPatch(current, patch) {
     const host = asString(android.otaHost, next.android.otaHost).toLowerCase()
     next.android.otaHost = host === 'cloudbase' ? 'cloudbase' : 'supabase'
   }
+  if (android.cloudbaseDir !== undefined) {
+    next.android.cloudbaseDir = asCloudDir(android.cloudbaseDir, next.android.cloudbaseDir)
+  }
+  if (android.supabaseBucket !== undefined) {
+    next.android.supabaseBucket = asBucket(android.supabaseBucket, next.android.supabaseBucket)
+  }
 
   if (desktop.cargoBin !== undefined) next.desktop.cargoBin = asString(desktop.cargoBin, next.desktop.cargoBin)
   if (desktop.bundles !== undefined) next.desktop.bundles = asString(desktop.bundles, next.desktop.bundles)
+  if (desktop.otaHost !== undefined) {
+    const host = asString(desktop.otaHost, next.desktop.otaHost).toLowerCase()
+    next.desktop.otaHost = host === 'cloudbase' ? 'cloudbase' : 'supabase'
+  }
+  if (desktop.cloudbaseDir !== undefined) {
+    next.desktop.cloudbaseDir = asCloudDir(desktop.cloudbaseDir, next.desktop.cloudbaseDir)
+  }
+  if (desktop.supabaseBucket !== undefined) {
+    next.desktop.supabaseBucket = asBucket(desktop.supabaseBucket, next.desktop.supabaseBucket)
+  }
 
   if (!next.git) next.git = { exe: '' }
   if (gitCfg.exe !== undefined) next.git.exe = asString(gitCfg.exe, next.git.exe)

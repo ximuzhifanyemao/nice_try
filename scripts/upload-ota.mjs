@@ -46,7 +46,6 @@ if (existsSync(envPath)) {
 // ========== 配置 ==========
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY // 需要 service_role key（非 anon key）
-const BUCKET_NAME = 'ota-bundles'
 const VERSION = pkg.version
 const APK_DIR = join(__dirname, '..', 'apk')
 const APK_STORAGE_NAME = 'DiveDeep.apk' // bucket 中使用固定文件名，保证公共下载链接稳定
@@ -70,7 +69,11 @@ const CLOUDBASE_ENV_ID = String(releaseConfig.cloudbase?.envId || '')
 const CLOUDBASE_STATIC_DOMAIN = String(
   releaseConfig.cloudbase?.staticDomain || releaseConfig.cloudbase?.siteUrl || '',
 ).replace(/\/+$/, '')
-const CLOUDBASE_OTA_DIR = 'downloads' // 云端目录：downloads/DiveDeep.apk
+// 云端目录：默认 downloads/DiveDeep.apk，可在 release/config.json 中改
+const CLOUDBASE_OTA_DIR = String(releaseConfig.android?.cloudbaseDir || 'downloads')
+  .replace(/^\/+|\/+$/g, '') || 'downloads'
+// Supabase 公开桶名，可在 release/config.json 中改
+const BUCKET_NAME = String(releaseConfig.android?.supabaseBucket || 'ota-bundles').replace(/^\/+|\/+$/g, '') || 'ota-bundles'
 
 /**
  * 自动挑选最新 APK：

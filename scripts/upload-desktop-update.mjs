@@ -1,19 +1,29 @@
 // ============================================================
 // 桌面端（Windows）更新上传脚本
-// 用法：npm run ota:desktop
+// 用法：node scripts/upload-desktop-update.mjs [--host cloudbase|supabase] [--force]
 // 前提：npm run build:desktop 已产出 MSI / NSIS bundle；
 //       .env.ota 已配置 SUPABASE_URL / SUPABASE_SERVICE_KEY
-// 作用：把安装包上传到 Supabase Storage 公开桶 desktop-bundles，
-//       并写入 desktop_versions 表（仅当前版本 is_active=true）。
-//       这样电脑端无需访问 GitHub 也能检测更新（国内直连）。
+// 作用：把安装包上传到 CloudBase 静态托管（默认，国内快）
+//       或 Supabase Storage（原有通道），并写入 desktop_versions 表；
+//       版本记录始终写 Supabase，因为桌面端用它检测更新。
 // ============================================================
 
 import { createClient } from '@supabase/supabase-js'
-import { readFileSync, existsSync } from 'fs'
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { createHash } from 'crypto'
 import { createRequire } from 'module'
+import { execSync } from 'child_process'
+import { request as httpsRequest } from 'https'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -35,14 +45,56 @@ if (existsSync(envPath)) {
   }
 }
 
+// ========== 发版控制台配置（与 release/config.json 共用一份设置）==========
+const RELEASE_CONFIG_PATH = join(__dirname, '..', 'release', 'config.json')
+let releaseConfig = {}
+try {
+  if (existsSync(RELEASE_CONFIG_PATH)) {
+    releaseConfig = JSON.parse(readFileSync(RELEASE_CONFIG_PATH, 'utf-8'))
+  }
+} catch {
+  console.warn('⚠️  release/config.json 解析失败，桌面端 OTA 目标回退为 supabase')
+}
+const CLOUDBASE_CLI = String(releaseConfig.cloudbase?.cliPath || '')
+const CLOUDBASE_ENV_ID = String(releaseConfig.cloudbase?.envId || '')
+const CLOUDBASE_STATIC_DOMAIN = String(
+  releaseConfig.cloudbase?.staticDomain || releaseConfig.cloudbase?.siteUrl || '',
+).replace(/\/+$/, '')
+const CLOUDBASE_DIR = String(releaseConfig.desktop?.cloudbaseDir || 'downloads/desktop')
+  .replace(/^\/+|\/+$/g, '') || 'downloads/desktop'
+
 const SUPABASE_URL = process.env.SUPABASE_URL
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY
-const BUCKET_NAME = 'desktop-bundles'
+const BUCKET_NAME = String(releaseConfig.desktop?.supabaseBucket || 'desktop-bundles')
+  .replace(/^\/+|\/+$/g, '') || 'desktop-bundles'
 const VERSION = pkg.version
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error('❌ 请设置环境变量 SUPABASE_URL / SUPABASE_SERVICE_KEY（配置在 .env.ota）')
   process.exit(1)
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+function describeError(err) {
+  const cause = err?.cause
+  const code = cause?.code || err?.code
+  const message = cause?.message || err?.message || String(err)
+  return code && !message.includes(code) ? `${message} (${code})` : message
+}
+
+function quoteArg(value) {
+  const text = String(value)
+  return /\s/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+function joinUrl(base, ...parts) {
+  const root = String(base || '').replace(/\/+$/, '')
+  const rest = parts
+    .map((part) => String(part || '').replace(/^\/+|\/+$/g, ''))
+    .filter(Boolean)
+    .join('/')
+  return root + (rest ? '/' + rest : '')
 }
 
 // 收集本次版本对应的桌面安装包（来自 tauri bundle 输出）
@@ -56,7 +108,7 @@ function collectBundles() {
     if (!existsSync(dir)) continue
     for (const f of readdirSafe(dir)) {
       if (f.includes(VERSION) && /\.(msi|exe)$/i.test(f)) {
-        files.push({ name: f, path: join(dir, f) })
+        files.push({ name: f, path: join(dir, f), size: statSync(join(dir, f)).size })
       }
     }
   }
@@ -70,16 +122,13 @@ function collectBundles() {
 
 function readdirSafe(dir) {
   try {
-    const { readdirSync } = require('fs')
     return readdirSync(dir)
   } catch {
     return []
   }
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-
-// 确保公开存储桶存在（不存在则自动创建，避免 Dashboard 手动建桶）
+/** 确保公开存储桶存在（不存在则自动创建，避免 Dashboard 手动建桶） */
 async function ensureBucket() {
   const resp = await fetch(`${SUPABASE_URL}/storage/v1/bucket`, {
     method: 'POST',
@@ -94,7 +143,6 @@ async function ensureBucket() {
     return
   }
   const text = await resp.text().catch(() => '')
-  // 已存在则忽略（400 Bucket already exists / 409）
   if (/already exists|Duplicate/i.test(text) || resp.status === 409) {
     console.log(`ℹ️  存储桶 ${BUCKET_NAME} 已存在`)
     return
@@ -102,22 +150,80 @@ async function ensureBucket() {
   console.warn(`⚠️ 创建存储桶失败（HTTP ${resp.status}），若上传报 Bucket not found 请手动在 Dashboard 建桶: ${text}`)
 }
 
-async function main() {
-  console.log(`\n📦 DiveDeep 桌面端更新上传 - v${VERSION}\n`)
-  await ensureBucket()
-  const files = collectBundles()
-  if (files.length === 0) {
-    console.error(`❌ 未找到 v${VERSION} 的 MSI/EXE（请先执行 npm run build:desktop）`)
-    process.exit(1)
+function headRemoteFileSize(urlStr) {
+  return new Promise((resolvePromise) => {
+    const target = new URL(urlStr)
+    const req = httpsRequest(
+      {
+        method: 'HEAD',
+        hostname: target.hostname,
+        port: Number(target.port) || 443,
+        path: target.pathname + target.search,
+        agent: false,
+      },
+      (res) => {
+        res.resume()
+        const size = res.statusCode === 200 ? Number(res.headers['content-length']) : null
+        resolvePromise(Number.isFinite(size) ? size : null)
+      },
+    )
+    req.setTimeout(30000, () => req.destroy(new Error('HEAD 请求超时')))
+    req.on('error', () => resolvePromise(null))
+    req.end()
+  })
+}
+
+/** 上传到 CloudBase 静态托管：把本版本安装包放到 downloads/desktop 下。 */
+function uploadToCloudBase(files) {
+  if (!CLOUDBASE_CLI) {
+    throw new Error('未配置 CloudBase CLI 路径（release/config.json → cloudbase.cliPath）')
+  }
+  if (!CLOUDBASE_ENV_ID) {
+    throw new Error('未配置 CloudBase 环境 ID（release/config.json → cloudbase.envId）')
+  }
+  if (!CLOUDBASE_STATIC_DOMAIN) {
+    throw new Error('未配置静态托管域名（release/config.json → cloudbase.staticDomain）')
   }
 
-  // 1. 上传每个安装包到桌面公开桶
+  const stagingDir = join(__dirname, '..', 'release', '.tmp', 'desktop-ota')
+  rmSync(stagingDir, { recursive: true, force: true })
+  mkdirSync(stagingDir, { recursive: true })
+  for (const file of files) {
+    copyFileSync(file.path, join(stagingDir, file.name))
+  }
+
+  console.log(`   上传到 CloudBase: ${CLOUDBASE_ENV_ID}/${CLOUDBASE_DIR}/`)
+  const command = [
+    CLOUDBASE_CLI,
+    'hosting',
+    'deploy',
+    stagingDir,
+    CLOUDBASE_DIR,
+    '-e',
+    CLOUDBASE_ENV_ID,
+    '--verify',
+  ]
+    .map(quoteArg)
+    .join(' ')
+  execSync(command, { cwd: join(__dirname, '..'), stdio: 'inherit', shell: true })
+
+  return files.map((file) => ({
+    name: file.name,
+    bundleUrl: joinUrl(CLOUDBASE_STATIC_DOMAIN, CLOUDBASE_DIR, encodeURIComponent(file.name)),
+    fileSize: file.size,
+    checksum: createHash('sha256').update(readFileSync(file.path)).digest('hex'),
+  }))
+}
+
+/** 上传到 Supabase Storage（原有通道，保留备用）。 */
+async function uploadToSupabase(files) {
+  await ensureBucket()
   const uploaded = []
-  for (const f of files) {
-    const buf = readFileSync(f.path)
+  for (const file of files) {
+    const buf = readFileSync(file.path)
     const checksum = createHash('sha256').update(buf).digest('hex')
-    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${encodeURIComponent(f.name)}`
-    console.log(`☁️  上传 ${f.name} (${(buf.length / 1024 / 1024).toFixed(2)} MB) → ${BUCKET_NAME}/`)
+    const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${BUCKET_NAME}/${encodeURIComponent(file.name)}`
+    console.log(`☁️  上传 ${file.name} (${(buf.length / 1024 / 1024).toFixed(2)} MB) → ${BUCKET_NAME}/`)
     const resp = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
@@ -129,17 +235,56 @@ async function main() {
     })
     if (!resp.ok) {
       const errText = await resp.text().catch(() => '')
-      console.error(`❌ 上传失败 ${f.name}: HTTP ${resp.status} ${errText}`)
-      process.exit(1)
+      throw new Error(`上传失败 ${file.name}: HTTP ${resp.status} ${errText}`)
     }
-    const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(f.name)
-    uploaded.push({ name: f.name, bundleUrl: urlData.publicUrl, fileSize: buf.length, checksum })
+    const { data: urlData } = supabase.storage.from(BUCKET_NAME).getPublicUrl(file.name)
+    uploaded.push({ name: file.name, bundleUrl: urlData.publicUrl, fileSize: buf.length, checksum })
+  }
+  return uploaded
+}
+
+async function main() {
+  const hostArgIndex = process.argv.indexOf('--host')
+  const otaHost = String(
+    (hostArgIndex >= 0 ? process.argv[hostArgIndex + 1] : '') ||
+      process.env.DESKTOP_OTA_HOST ||
+      releaseConfig.desktop?.otaHost ||
+      'cloudbase',
+  ).toLowerCase()
+  if (!['cloudbase', 'supabase'].includes(otaHost)) {
+    console.error(`❌ 未知的桌面端 OTA 上传目标: ${otaHost}（可选 cloudbase / supabase）`)
+    process.exit(1)
   }
 
-  // 2. 优先选 MSI 作为「推荐安装包」，记录到表
+  console.log(`\n📦 DiveDeep 桌面端更新上传 - v${VERSION}`)
+  console.log(`   目标: ${otaHost === 'cloudbase' ? 'CloudBase 静态托管（国内）' : 'Supabase Storage'}\n`)
+
+  const files = collectBundles()
+  if (files.length === 0) {
+    console.error(`❌ 未找到 v${VERSION} 的 MSI/EXE（请先执行 npm run build:desktop）`)
+    process.exit(1)
+  }
+
+  const uploaded = otaHost === 'cloudbase' ? uploadToCloudBase(files) : await uploadToSupabase(files)
+
+  // CloudBase CDN 刷新有延迟，仅做提示性校验，不阻塞发布
+  if (otaHost === 'cloudbase') {
+    for (const item of uploaded) {
+      const remoteSize = await headRemoteFileSize(item.bundleUrl)
+      if (remoteSize !== item.fileSize) {
+        console.warn(
+          `   ⚠️ 远端校验未通过（远端 ${remoteSize ?? '读取失败'} / 本地 ${item.fileSize}），CDN 可能尚未刷新：${item.name}`,
+        )
+      } else {
+        console.log(`   ✅ 远端校验通过：${item.name}`)
+      }
+    }
+  }
+
+  // 优先选 MSI 作为「推荐安装包」，记录到表
   const primary = uploaded.find((u) => /\.msi$/i.test(u.name)) ?? uploaded[0]
 
-  // 3. 先把本版本以外全部置为 is_active=false，再写入当前版本
+  // 先把本版本以外全部置为 is_active=false，再写入当前版本
   const { error: deactivateErr } = await supabase
     .from('desktop_versions')
     .update({ is_active: false })
@@ -170,6 +315,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(`❌ 脚本执行失败: ${err.message}`)
+  console.error(`❌ 脚本执行失败: ${describeError(err)}`)
   process.exit(1)
 })

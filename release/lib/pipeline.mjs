@@ -222,13 +222,19 @@ export function buildPlan(options = {}) {
   }
 
   if (targets.includes('desktop')) {
+    const desktopOtaHost = String(config.desktop?.otaHost || 'cloudbase').toLowerCase() === 'supabase'
+      ? 'supabase'
+      : 'cloudbase'
     push({
       id: 'desktop-ota',
       title: '发布桌面端 OTA',
       group: '发布',
       action: 'command',
-      description: '上传 MSI/EXE 到 Supabase Storage 并写入 desktop_versions',
-      command: 'node scripts/upload-desktop-update.mjs',
+      description:
+        '上传 MSI/EXE 到 ' +
+        (desktopOtaHost === 'cloudbase' ? 'CloudBase 静态托管' : 'Supabase Storage') +
+        ' 并写入 desktop_versions',
+      command: 'node scripts/upload-desktop-update.mjs --host ' + desktopOtaHost,
       timeoutMs: timeoutFor(config, 20),
     })
   }
@@ -360,6 +366,20 @@ export function findDesktopBundles(root, version) {
   return bundles
 }
 
+/** 拼出 OTA 文件在云端的公开地址。 */
+function otaPublicUrl(options) {
+  const { config, runtime, host, cloudbaseDir, supabaseBucket, fileName } = options
+  if (host === 'cloudbase') {
+    const base = String(config.cloudbase?.staticDomain || config.cloudbase?.siteUrl || '').replace(/\/+$/, '')
+    if (!base) return ''
+    const dir = String(cloudbaseDir || '').replace(/^\/+|\/+$/g, '')
+    return base + (dir ? '/' + dir : '') + '/' + encodeURIComponent(fileName)
+  }
+  const base = String(runtime.otaEnv?.SUPABASE_URL || '').replace(/\/+$/, '')
+  if (!base) return ''
+  return base + '/storage/v1/object/public/' + supabaseBucket + '/' + encodeURIComponent(fileName)
+}
+
 function buildArtifacts(plan, config, runtime, stepResults) {
   const artifacts = []
   if (plan.targets.includes('web')) {
@@ -371,6 +391,9 @@ function buildArtifacts(plan, config, runtime, stepResults) {
   }
   const apkResult = stepResults.get('android-collect')
   if (plan.targets.includes('apk') && apkResult) {
+    const apkHost = String(config.android?.otaHost || 'supabase').toLowerCase() === 'cloudbase'
+      ? 'cloudbase'
+      : 'supabase'
     artifacts.push({
       type: 'apk',
       label: 'Android APK',
@@ -378,9 +401,21 @@ function buildArtifacts(plan, config, runtime, stepResults) {
       name: apkResult.name,
       size: apkResult.size,
       sha256: apkResult.sha256,
+      url: otaPublicUrl({
+        config,
+        runtime,
+        host: apkHost,
+        cloudbaseDir: config.android?.cloudbaseDir || 'downloads',
+        supabaseBucket: config.android?.supabaseBucket || 'ota-bundles',
+        fileName: 'DiveDeep.apk',
+      }),
+      host: apkHost,
     })
   }
   if (plan.targets.includes('desktop')) {
+    const desktopHost = String(config.desktop?.otaHost || 'cloudbase').toLowerCase() === 'supabase'
+      ? 'supabase'
+      : 'cloudbase'
     const bundles = findDesktopBundles(runtime.root, plan.version)
     for (const bundle of bundles) {
       artifacts.push({
@@ -389,6 +424,15 @@ function buildArtifacts(plan, config, runtime, stepResults) {
         name: bundle.name,
         path: bundle.path,
         size: bundle.size,
+        host: desktopHost,
+        url: otaPublicUrl({
+          config,
+          runtime,
+          host: desktopHost,
+          cloudbaseDir: config.desktop?.cloudbaseDir || 'downloads/desktop',
+          supabaseBucket: config.desktop?.supabaseBucket || 'desktop-bundles',
+          fileName: bundle.name,
+        }),
       })
     }
   }

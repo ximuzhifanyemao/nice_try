@@ -51,9 +51,19 @@ const state = {
   logCollapsed: false,
   checkTimer: null,
   startBusy: false,
+  panelTab: 'log',
+  terminal: {
+    cwd: '',
+    shell: { label: '终端', path: null },
+    running: false,
+    lines: [],
+    history: [],
+    historyIndex: -1,
+  },
 };
 
 const LOG_COLLAPSED_KEY = 'releasectl.log.collapsed';
+const PANEL_TAB_KEY = 'releasectl.panel.tab';
 
 function $(id) {
   return document.getElementById(id);
@@ -771,6 +781,168 @@ function renderRun() {
   updateStartState();
 }
 
+/* ── 右侧面板：发布日志 / 内置终端 ───────────────────── */
+
+function setPanelTab(tab, persist, focus) {
+  state.panelTab = tab === 'terminal' ? 'terminal' : 'log';
+  const isTerminal = state.panelTab === 'terminal';
+  const logPanel = $('panel-log');
+  const terminalPanel = $('panel-terminal');
+  const logTab = $('tab-log');
+  const terminalTab = $('tab-terminal');
+  if (!logPanel || !terminalPanel) return;
+  logPanel.hidden = isTerminal;
+  terminalPanel.hidden = !isTerminal;
+  logTab.classList.toggle('active', !isTerminal);
+  terminalTab.classList.toggle('active', isTerminal);
+  logTab.setAttribute('aria-selected', isTerminal ? 'false' : 'true');
+  terminalTab.setAttribute('aria-selected', isTerminal ? 'true' : 'false');
+  if (persist) {
+    try {
+      localStorage.setItem(PANEL_TAB_KEY, state.panelTab);
+    } catch {
+      // 忽略隐私模式下的存储异常
+    }
+  }
+  if (isTerminal) {
+    renderTerminal();
+    renderTerminalMeta();
+    if (focus !== false) {
+      const input = $('terminal-input');
+      if (input) input.focus();
+    }
+  } else if ($('auto-scroll').checked) {
+    const pre = $('run-log');
+    if (pre) pre.scrollTop = pre.scrollHeight;
+  }
+}
+
+function renderTerminalMeta() {
+  const shell = state.terminal.shell || {};
+  const shellEl = $('terminal-shell-label');
+  const cwdEl = $('terminal-cwd');
+  const statusEl = $('terminal-status');
+  const stopBtn = $('terminal-stop');
+  if (shellEl) shellEl.textContent = shell.label || '终端';
+  if (cwdEl) cwdEl.textContent = state.terminal.cwd || '—';
+  if (statusEl) {
+    statusEl.textContent = state.terminal.running ? '运行中' : '';
+    statusEl.classList.toggle('running', state.terminal.running);
+  }
+  if (stopBtn) stopBtn.hidden = !state.terminal.running;
+}
+
+function appendTerminalLine(line, scroll) {
+  const pre = $('terminal-output');
+  if (!pre) return;
+  const placeholder = pre.querySelector('.log-empty');
+  if (placeholder) placeholder.remove();
+  const nearBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 80;
+  const el = document.createElement('div');
+  el.className = 'term-line stream-' + (line.stream || 'stdout');
+  const time = document.createElement('span');
+  time.className = 'log-time';
+  time.textContent = formatClock(line.t || Date.now());
+  const text = document.createElement('span');
+  text.className = 'log-text';
+  text.textContent = line.text == null ? '' : String(line.text);
+  el.appendChild(time);
+  el.appendChild(text);
+  pre.appendChild(el);
+  while (pre.children.length > 2000) pre.removeChild(pre.firstElementChild);
+  if (scroll !== false && (nearBottom || state.terminal.running)) {
+    pre.scrollTop = pre.scrollHeight;
+  }
+}
+
+function renderTerminal() {
+  const pre = $('terminal-output');
+  if (!pre) return;
+  pre.innerHTML = '';
+  const lines = state.terminal.lines || [];
+  if (lines.length === 0) {
+    pre.innerHTML =
+      '<div class="log-empty">内置终端已就绪。<br>可直接执行 git add / commit / push、npm 等命令。</div>';
+    return;
+  }
+  const fragment = document.createDocumentFragment();
+  lines.forEach(function (line) {
+    const el = document.createElement('div');
+    el.className = 'term-line stream-' + (line.stream || 'stdout');
+    const time = document.createElement('span');
+    time.className = 'log-time';
+    time.textContent = formatClock(line.t || Date.now());
+    const text = document.createElement('span');
+    text.className = 'log-text';
+    text.textContent = line.text == null ? '' : String(line.text);
+    el.appendChild(time);
+    el.appendChild(text);
+    fragment.appendChild(el);
+  });
+  pre.appendChild(fragment);
+  pre.scrollTop = pre.scrollHeight;
+}
+
+function applyTerminalSnapshot(snapshot) {
+  if (!snapshot) return;
+  state.terminal.cwd = snapshot.cwd || state.terminal.cwd;
+  state.terminal.shell = snapshot.shell || state.terminal.shell;
+  state.terminal.running = Boolean(snapshot.running);
+  state.terminal.lines = Array.isArray(snapshot.lines)
+    ? snapshot.lines.slice(-1000)
+    : state.terminal.lines;
+  renderTerminal();
+  renderTerminalMeta();
+}
+
+async function submitTerminalCommand(value) {
+  const command = String(value || '').trim();
+  if (!command) return;
+  if (state.terminal.running) {
+    toast('已有命令正在执行，请等待完成或点击「中止」', 'warn');
+    return;
+  }
+  state.terminal.history.push(command);
+  state.terminal.historyIndex = state.terminal.history.length;
+  const input = $('terminal-input');
+  if (input) input.value = '';
+  try {
+    const data = await api('/api/terminal/run', {
+      method: 'POST',
+      body: JSON.stringify({ command: command }),
+    });
+    if (data && data.cwd) {
+      state.terminal.cwd = data.cwd;
+      renderTerminalMeta();
+    }
+  } catch (error) {
+    toast('命令执行失败：' + error.message, 'error');
+    appendTerminalLine({ t: Date.now(), stream: 'error', text: error.message });
+  }
+}
+
+async function stopTerminalCommand() {
+  try {
+    await api('/api/terminal/stop', { method: 'POST', body: JSON.stringify({}) });
+  } catch (error) {
+    toast('中止失败：' + error.message, 'error');
+  }
+}
+
+async function clearTerminal() {
+  if (state.terminal.running) {
+    toast('命令正在执行，请先中止再清空', 'warn');
+    return;
+  }
+  try {
+    await api('/api/terminal/clear', { method: 'POST', body: JSON.stringify({}) });
+    state.terminal.lines = [];
+    renderTerminal();
+  } catch (error) {
+    toast('清空失败：' + error.message, 'error');
+  }
+}
+
 /** 读取当前选择对应的发布计划，用于在未开始时展示完整流程图。 */
 async function refreshPlanPreview() {
   const version = normalizeVersion($('version-input').value);
@@ -1075,10 +1247,41 @@ function handleEvent(event) {
     state.run = event.run || null;
     if (event.checks) state.checks = event.checks;
     if (Array.isArray(event.history)) state.history = event.history;
+    if (event.terminal) applyTerminalSnapshot(event.terminal);
     renderChecks();
     renderTargets();
     renderRun();
     renderHistory();
+    return;
+  }
+  if (event.type === 'terminal-line') {
+    state.terminal.lines.push(event.line);
+    if (state.terminal.lines.length > 2000) {
+      state.terminal.lines.splice(0, state.terminal.lines.length - 2000);
+    }
+    appendTerminalLine(event.line);
+    return;
+  }
+  if (event.type === 'terminal-start') {
+    state.terminal.running = true;
+    if (event.cwd) state.terminal.cwd = event.cwd;
+    renderTerminalMeta();
+    return;
+  }
+  if (event.type === 'terminal-end') {
+    state.terminal.running = false;
+    if (event.cwd) state.terminal.cwd = event.cwd;
+    renderTerminalMeta();
+    return;
+  }
+  if (event.type === 'terminal-cwd') {
+    state.terminal.cwd = event.cwd || state.terminal.cwd;
+    renderTerminalMeta();
+    return;
+  }
+  if (event.type === 'terminal-clear') {
+    state.terminal.lines = [];
+    renderTerminal();
     return;
   }
   if (event.type === 'run-start') {
@@ -1137,6 +1340,76 @@ function connectEvents() {
   };
 }
 
+function joinUrlParts(base) {
+  const root = String(base || '').replace(/\/+$/, '');
+  const rest = Array.prototype.slice
+    .call(arguments, 1)
+    .map(function (part) {
+      return String(part || '').replace(/^\/+|\/+$/g, '');
+    })
+    .filter(Boolean)
+    .join('/');
+  return root + (rest ? '/' + rest : '');
+}
+
+/** 设置页的「上传地址预览」：把 CloudBase / Supabase 的最终下载地址写清楚。 */
+function renderOtaEndpoints() {
+  const box = $('set-ota-endpoints');
+  if (!box) return;
+  const staticDomain = $('set-static-domain').value.trim().replace(/\/+$/, '');
+  const supabaseUrl = (state.runtime && state.runtime.supabaseUrl) || '';
+  const apkHost = $('set-ota-host').value;
+  const desktopHost = $('set-desktop-ota-host').value;
+  const apkDir = $('set-ota-cloudbase-dir').value.trim() || 'downloads';
+  const apkBucket = $('set-ota-supabase-bucket').value.trim() || 'ota-bundles';
+  const desktopDir = $('set-desktop-cloudbase-dir').value.trim() || 'downloads/desktop';
+  const desktopBucket = $('set-desktop-supabase-bucket').value.trim() || 'desktop-bundles';
+
+  const rows = [
+    {
+      label: 'APK · CloudBase',
+      current: apkHost === 'cloudbase',
+      url: staticDomain ? joinUrlParts(staticDomain, apkDir, 'DiveDeep.apk') : '',
+      empty: '未配置静态托管域名',
+    },
+    {
+      label: 'APK · Supabase',
+      current: apkHost === 'supabase',
+      url: supabaseUrl
+        ? joinUrlParts(supabaseUrl, 'storage/v1/object/public', apkBucket, 'DiveDeep.apk')
+        : '',
+      empty: '未在 .env.ota 配置 SUPABASE_URL',
+    },
+    {
+      label: '桌面 · CloudBase',
+      current: desktopHost === 'cloudbase',
+      url: staticDomain ? joinUrlParts(staticDomain, desktopDir) + '/' : '',
+      empty: '未配置静态托管域名',
+    },
+    {
+      label: '桌面 · Supabase',
+      current: desktopHost === 'supabase',
+      url: supabaseUrl
+        ? joinUrlParts(supabaseUrl, 'storage/v1/object/public', desktopBucket) + '/'
+        : '',
+      empty: '未在 .env.ota 配置 SUPABASE_URL',
+    },
+  ];
+
+  box.innerHTML = rows
+    .map(function (row) {
+      return (
+        '<div class="endpoint-row' + (row.current ? ' current' : '') + '">' +
+        '<span class="endpoint-label">' + escapeHtml(row.label) + (row.current ? '<em>当前</em>' : '') + '</span>' +
+        '<code class="endpoint-url' + (row.url ? '' : ' muted') + '">' +
+        escapeHtml(row.url || row.empty) +
+        '</code>' +
+        '</div>'
+      );
+    })
+    .join('');
+}
+
 function fillSettings() {
   const config = state.config || {};
   const cloudbase = config.cloudbase || {};
@@ -1148,12 +1421,18 @@ function fillSettings() {
   $('set-cli-path').value = cloudbase.cliPath || '';
   $('set-env-id').value = cloudbase.envId || '';
   $('set-site-url').value = cloudbase.siteUrl || '';
+  $('set-static-domain').value = cloudbase.staticDomain || '';
   $('set-deploy-args').value = (cloudbase.deployArgs || []).join(' ');
   $('set-java-home').value = android.javaHome || '';
   $('set-sdk-dir').value = android.sdkDir || '';
   $('set-ota-host').value = android.otaHost === 'cloudbase' ? 'cloudbase' : 'supabase';
+  $('set-ota-cloudbase-dir').value = android.cloudbaseDir || 'downloads';
+  $('set-ota-supabase-bucket').value = android.supabaseBucket || 'ota-bundles';
   $('set-cargo-bin').value = desktop.cargoBin || '';
   $('set-bundles').value = desktop.bundles || '';
+  $('set-desktop-ota-host').value = desktop.otaHost === 'supabase' ? 'supabase' : 'cloudbase';
+  $('set-desktop-cloudbase-dir').value = desktop.cloudbaseDir || 'downloads/desktop';
+  $('set-desktop-supabase-bucket').value = desktop.supabaseBucket || 'desktop-bundles';
   $('set-github-owner').value = github.owner || '';
   $('set-github-repo').value = github.repo || '';
   $('set-token-env').value = github.tokenEnv || 'GITHUB_TOKEN';
@@ -1164,6 +1443,7 @@ function fillSettings() {
   const meta = state.boot && state.boot.meta ? state.boot.meta : {};
   $('settings-config-path').textContent = meta.configPath || 'release/config.json';
   $('settings-meta').textContent = 'Node ' + (meta.node || '') + ' · ' + (meta.platform || '');
+  renderOtaEndpoints();
 }
 
 function openSettings() {
@@ -1180,16 +1460,22 @@ async function saveSettings() {
       cliPath: $('set-cli-path').value,
       envId: $('set-env-id').value,
       siteUrl: $('set-site-url').value,
+      staticDomain: $('set-static-domain').value,
       deployArgs: $('set-deploy-args').value,
     },
     android: {
       javaHome: $('set-java-home').value,
       sdkDir: $('set-sdk-dir').value,
       otaHost: $('set-ota-host').value,
+      cloudbaseDir: $('set-ota-cloudbase-dir').value,
+      supabaseBucket: $('set-ota-supabase-bucket').value,
     },
     desktop: {
       cargoBin: $('set-cargo-bin').value,
       bundles: $('set-bundles').value,
+      otaHost: $('set-desktop-ota-host').value,
+      cloudbaseDir: $('set-desktop-cloudbase-dir').value,
+      supabaseBucket: $('set-desktop-supabase-bucket').value,
     },
     github: {
       enabled: $('set-github-enabled').checked,
@@ -1269,8 +1555,10 @@ function setLogCollapsed(collapsed, persist) {
     }
   }
   if (!state.logCollapsed) {
-    const pre = $('run-log');
-    if (pre && $('auto-scroll').checked) pre.scrollTop = pre.scrollHeight;
+    const pre = state.panelTab === 'terminal' ? $('terminal-output') : $('run-log');
+    if (pre && (state.panelTab === 'terminal' || $('auto-scroll').checked)) {
+      pre.scrollTop = pre.scrollHeight;
+    }
   }
 }
 
@@ -1281,6 +1569,56 @@ function bindEvents() {
   $('btn-save-settings').addEventListener('click', saveSettings);
   $('btn-collapse-log').addEventListener('click', function () { setLogCollapsed(true, true); });
   $('btn-expand-log').addEventListener('click', function () { setLogCollapsed(false, true); });
+
+  $('tab-log').addEventListener('click', function () { setPanelTab('log', true, false); });
+  $('tab-terminal').addEventListener('click', function () { setPanelTab('terminal', true, true); });
+  $('terminal-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    submitTerminalCommand($('terminal-input').value);
+  });
+  $('terminal-stop').addEventListener('click', stopTerminalCommand);
+  $('terminal-clear').addEventListener('click', clearTerminal);
+  $('terminal-input').addEventListener('keydown', function (event) {
+    const history = state.terminal.history;
+    if (event.key === 'ArrowUp') {
+      if (history.length === 0) return;
+      event.preventDefault();
+      if (state.terminal.historyIndex > 0) state.terminal.historyIndex -= 1;
+      $('terminal-input').value = history[state.terminal.historyIndex] || '';
+      return;
+    }
+    if (event.key === 'ArrowDown') {
+      if (history.length === 0) return;
+      event.preventDefault();
+      if (state.terminal.historyIndex < history.length - 1) {
+        state.terminal.historyIndex += 1;
+        $('terminal-input').value = history[state.terminal.historyIndex] || '';
+      } else {
+        state.terminal.historyIndex = history.length;
+        $('terminal-input').value = '';
+      }
+      return;
+    }
+    if (event.key === 'l' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      clearTerminal();
+    }
+  });
+
+  [
+    'set-static-domain',
+    'set-ota-host',
+    'set-ota-cloudbase-dir',
+    'set-ota-supabase-bucket',
+    'set-desktop-ota-host',
+    'set-desktop-cloudbase-dir',
+    'set-desktop-supabase-bucket',
+  ].forEach(function (id) {
+    const element = $(id);
+    if (!element) return;
+    element.addEventListener('input', renderOtaEndpoints);
+    element.addEventListener('change', renderOtaEndpoints);
+  });
   $('btn-suggest').addEventListener('click', function () {
     const value = suggestVersion();
     if (value) {
@@ -1359,6 +1697,7 @@ async function init() {
     state.history = boot.history || [];
     state.checks = boot.checks || null;
     state.run = boot.currentRun || null;
+    if (boot.terminal) applyTerminalSnapshot(boot.terminal);
 
     renderHeader();
     renderHeroEnv();
@@ -1372,6 +1711,7 @@ async function init() {
     renderHistory();
     connectEvents();
     setLogCollapsed(localStorage.getItem(LOG_COLLAPSED_KEY) === '1', false);
+    setPanelTab(localStorage.getItem(PANEL_TAB_KEY) === 'terminal' ? 'terminal' : 'log', false, false);
     schedulePlanPreview(200);
 
     const checkedTargets = state.checks && Array.isArray(state.checks.targets) ? state.checks.targets : [];

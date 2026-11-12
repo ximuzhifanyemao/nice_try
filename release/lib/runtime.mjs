@@ -14,6 +14,7 @@ import {
 } from './util.mjs'
 import {
   detectAndroidSdk,
+  detectBash,
   detectCargoBin,
   detectGithubRepo,
   detectGit,
@@ -32,6 +33,7 @@ export function getRuntime(config) {
   const cargo = detectCargoBin(config)
   const github = detectGithubRepo(config, root)
   const gitTool = detectGit(config)
+  const terminalShell = detectBash(gitTool)
   const git = getGitInfo(root, gitTool.exe)
   const versions = getCurrentVersions(root)
   const productionEnv = readEnvFile(join(root, '.env.production'))
@@ -49,6 +51,7 @@ export function getRuntime(config) {
     github,
     git,
     gitTool,
+    terminalShell,
     versions,
     envId,
     productionEnv,
@@ -157,6 +160,13 @@ export function publicRuntime(runtime) {
       version: runtime.gitTool?.version || '',
       source: runtime.gitTool?.source || '未检测到',
     },
+    terminal: {
+      label: runtime.terminalShell?.label || 'Shell',
+      path: runtime.terminalShell?.path || null,
+      source: runtime.terminalShell?.source || '系统默认',
+    },
+    // Supabase 项目地址（公开 URL，用于在设置页展示实际上传地址）
+    supabaseUrl: String(runtime.otaEnv?.SUPABASE_URL || '').replace(/\/+$/, ''),
     env: {
       production: {
         hasUrl: Boolean(runtime.productionEnv.VITE_SUPABASE_URL),

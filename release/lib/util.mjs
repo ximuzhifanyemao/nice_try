@@ -265,19 +265,29 @@ export function runShell(command, options = {}) {
     input = null,
     onLine = () => {},
     onSpawn = null,
+    // 指定 shell 可执行文件时不再经过 cmd，例如用 Git Bash 执行命令
+    shellExe = null,
+    shellArgs = [],
   } = options
 
   return new Promise((resolvePromise) => {
     const startedAt = Date.now()
     let child
     try {
-      child = spawn(command, {
-        cwd,
-        shell: true,
-        windowsHide: true,
-        env: mergeEnv(env),
-        stdio: ['pipe', 'pipe', 'pipe'],
-      })
+      child = shellExe
+        ? spawn(shellExe, [...shellArgs, command], {
+            cwd,
+            windowsHide: true,
+            env: mergeEnv(env),
+            stdio: ['pipe', 'pipe', 'pipe'],
+          })
+        : spawn(command, {
+            cwd,
+            shell: true,
+            windowsHide: true,
+            env: mergeEnv(env),
+            stdio: ['pipe', 'pipe', 'pipe'],
+          })
     } catch (error) {
       resolvePromise({
         code: null,
