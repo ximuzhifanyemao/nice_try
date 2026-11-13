@@ -7,6 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react'
 import { Icon } from './Icon'
+import { createPortal } from 'react-dom'
 import {
   CROP_OUTPUT_MAX_SIDE,
   FULL_CROP,
@@ -305,7 +306,9 @@ export default function ImageCropDialog({
 
   const cancelLabel = remaining > 1 ? '取消剩余' : '取消'
 
-  return (
+  // portal 到 body：避开桌面全功能模式 ScaleToFit 的 transform 祖先，
+  // 否则 fixed 遮罩会以整页内容为包含块，裁剪框跑到看不见的位置
+  return createPortal(
     <div
       className="fixed inset-0 z-[92] flex items-center justify-center bg-black/70 p-3 sm:p-4"
       role="dialog"
@@ -534,6 +537,7 @@ export default function ImageCropDialog({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

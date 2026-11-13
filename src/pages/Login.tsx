@@ -66,7 +66,16 @@ export default function Login() {
         if (cancelledRef.current) return
         if (e) {
           setQrStatus('error')
-          setQrError('登录失败：' + e.message)
+          // 手机端写入的 session 已被服务端吊销时，auth-js 只会给出
+          // "Auth session missing!"，这里换成可操作的提示
+          const invalidSession =
+            e.name === 'AuthSessionMissingError' ||
+            /Auth session missing|session_not_found/i.test(e.message)
+          setQrError(
+            invalidSession
+              ? '登录失败：手机端登录状态已失效，请在手机上重新登录后再扫码'
+              : '登录失败：' + e.message,
+          )
           return
         }
         setTimeout(() => navigate(redirect), 800)

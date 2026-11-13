@@ -119,15 +119,47 @@ export function pollQrSession(
   return { promise, handle }
 }
 
+/**
+ * 是否为「服务端会话已失效」类错误。
+ * getSession 只读本地缓存：token 没到期不代表服务端还有这个 session
+ * （其他设备全局登出、刷新令牌轮换/复用检测都会把 session 直接删掉），
+ * 此时把本地 token 写进扫码表，桌面端 setSession 只会报一句
+ * 难以理解的 "Auth session missing!"。
+ */
+function isInvalidSessionError(err: { name?: string; status?: number; message?: string }): boolean {
+  const msg = err.message ?? ''
+  return (
+    err.name === 'AuthSessionMissingError' ||
+    err.status === 401 ||
+    err.status === 403 ||
+    /session_not_found|Auth session missing|Invalid Refresh Token/i.test(msg)
+  )
+}
+
 /** 手机端：确认登录，将当前 session 写入扫码会话 */
 export async function confirmQrLogin(
   token: string,
 ): Promise<{ error: string | null }> {
   const { data: sessionData } = await supabase.auth.getSession()
-  const session = sessionData.session
-  if (!session) {
+  if (!sessionData.session) {
     return { error: '请先登录后再确认' }
   }
+
+  // 先做一次服务端校验，确认这套 session 在服务端仍然有效再交给桌面端
+  const { error: verifyError } = await supabase.auth.getUser()
+  if (verifyError) {
+    if (verifyError.name === 'AuthRetryableFetchError' || !verifyError.status) {
+      return { error: '网络错误，请检查连接后重试' }
+    }
+    if (isInvalidSessionError(verifyError)) {
+      return { error: '手机端登录状态已失效，请重新登录后再扫码确认' }
+    }
+    return { error: '确认失败：' + verifyError.message }
+  }
+
+  // 校验过程中可能触发过 token 刷新（refresh token 会轮换），以最新 session 为准
+  const { data: latestData } = await supabase.auth.getSession()
+  const session = latestData.session ?? sessionData.session
 
   const { error } = await supabase
     .from('qr_login_sessions')

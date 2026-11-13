@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Icon } from './Icon'
 import {
   EXAM_SECTIONS,
@@ -149,7 +150,9 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
 
   const shown = results.slice(0, RESULT_LIMIT)
 
-  return (
+  // portal 到 body：桌面全功能模式的 ScaleToFit 会给内容加 transform，
+  // fixed 弹窗会以整页内容为包含块，选择器被顶到页面中部而看不见
+  return createPortal(
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 p-4"
       onClick={onCancel}
@@ -365,7 +368,8 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -449,15 +453,41 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
     })
   }
 
+  /** 「关联真题」这一行也可以点：一键展开 / 收起这道笔记下所有题目 */
+  const allOpen = questions.length > 0 && questions.every((q) => openQuestionIds.has(q.id))
+  const toggleAllQuestions = () => {
+    if (allOpen) {
+      setOpenQuestionIds(new Set())
+      setOpenAnswerIds(new Set())
+    } else {
+      setOpenQuestionIds(new Set(questions.map((q) => q.id)))
+    }
+  }
+
   if (ids.length === 0) return null
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500 dark:text-slate-400">
-        <Icon name="cards" size={12} />
-        关联真题
-        {questions.length > 0 && ` · ${questions.length}`}
-      </div>
+      {questions.length > 0 ? (
+        <button
+          type="button"
+          onClick={toggleAllQuestions}
+          aria-expanded={allOpen}
+          className="flex w-full cursor-pointer items-center gap-1.5 rounded-md text-[11px] font-medium text-gray-500 transition-colors hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300"
+        >
+          <Icon name="cards" size={12} />
+          关联真题 · {questions.length}
+          <span className="ml-auto inline-flex shrink-0 items-center gap-0.5">
+            {allOpen ? '收起' : '展开全部'}
+            <Icon name={allOpen ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
+          </span>
+        </button>
+      ) : (
+        <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500 dark:text-slate-400">
+          <Icon name="cards" size={12} />
+          关联真题
+        </div>
+      )}
 
       {loading && (
         <div className="space-y-1.5">

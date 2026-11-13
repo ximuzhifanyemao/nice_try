@@ -127,7 +127,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 登出前先把正在计时/专注的时长封存进待入库队列，别让「退出登录」把这段时间吞掉
     bankRunningTimers(user?.id ?? null)
     try {
-      await supabase.auth.signOut()
+      // 只登出当前设备：默认的 global 会把该账号在所有设备上的 session 一并吊销，
+      // 导致「在桌面端登出后，手机端扫码时写入的是一套已被服务端删除的 token」，
+      // 桌面端 setSession 报 Auth session missing!
+      await supabase.auth.signOut({ scope: 'local' })
     } finally {
       // 事件回调没及时到达时兜底复位，避免标志长期为真
       window.setTimeout(() => {

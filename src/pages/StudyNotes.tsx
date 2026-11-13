@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { useAuth } from '../contexts/AuthContext'
@@ -1256,30 +1257,32 @@ export default function StudyNotes() {
         }}
       />
 
-      {lightbox && (
-        <div
-          className="fixed inset-0 z-[95] flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightbox(null)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="查看大图"
-        >
-          <button
-            type="button"
+      {lightbox &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[95] flex items-center justify-center bg-black/80 p-4"
             onClick={() => setLightbox(null)}
-            aria-label="关闭"
-            className="absolute right-4 top-4 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25"
+            role="dialog"
+            aria-modal="true"
+            aria-label="查看大图"
           >
-            <Icon name="x" size={18} strokeWidth={2.2} />
-          </button>
-          <img
-            src={lightbox}
-            alt="知识点大图"
-            onClick={(e) => e.stopPropagation()}
-            className="max-h-full max-w-full rounded-xl object-contain"
-          />
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={() => setLightbox(null)}
+              aria-label="关闭"
+              className="absolute right-4 top-4 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25"
+            >
+              <Icon name="x" size={18} strokeWidth={2.2} />
+            </button>
+            <img
+              src={lightbox}
+              alt="知识点大图"
+              onClick={(e) => e.stopPropagation()}
+              className="max-h-full max-w-full rounded-xl object-contain"
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

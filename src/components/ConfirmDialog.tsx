@@ -1,3 +1,5 @@
+import { createPortal } from 'react-dom'
+
 interface ConfirmDialogProps {
   open: boolean
   title: string
@@ -21,7 +23,9 @@ export default function ConfirmDialog({
 }: ConfirmDialogProps) {
   if (!open) return null
 
-  return (
+  // portal 到 body：桌面全功能模式的 ScaleToFit 会给内容加 transform，
+  // 变成 fixed 子元素的包含块，弹窗会被定位到整页中部而不是视口中间
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
       onClick={onCancel}
@@ -51,6 +55,7 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
