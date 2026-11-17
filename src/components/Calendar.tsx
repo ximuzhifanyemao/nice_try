@@ -30,10 +30,9 @@ const DURATION_VISIBLE_KEY = 'calendar.showDuration'
 /** 重要日新增表单的预设 emoji 选项 */
 const EVENT_EMOJIS = ['🎂', '🎉', '📝', '📖', '⭐', '❤️', '🎯', '📌', '🏆', '💊', '✈️', '🏠']
 
-/** 小时数格式化：2 → '2'，2.5 → '2.5'（去掉末尾多余 0） */
+/** 小时数格式化：保留计时精度（最多两位小数），不把 2.57 进位成 2.6 */
 function fmtHours(h: number): string {
-  const v = Math.round(h * 10) / 10
-  return Number.isInteger(v) ? `${v}` : `${v}`
+  return `${Math.round(h * 100) / 100}`
 }
 
 /** 暂停明细悬浮提示：逐条列出「几点暂停了多久」 */

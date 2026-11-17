@@ -13,6 +13,8 @@ interface SubjectRow {
   hours: number
   hoursText: string // 时长输入框原文（保留 "0." / "0" 等中间态，避免输入 0.2 时被清空）
   summary: string
+  /** 该行对应的已有记录（编辑已有记录时才有）：用于保留计时器写入的时间段/暂停明细 */
+  origin?: DailyLogSubject
 }
 
 /** 学习总结的快捷模板：label 为按钮文案，text 为填入内容，suffix 为追加时的衔接符 */
@@ -35,29 +37,21 @@ function buildInitialRows(
   availableSubjects: Subject[]
 ): SubjectRow[] {
   const rows: SubjectRow[] = []
-  // 按 (科目, 时长, 总结) 分组：相同时长的多个学习内容合并为一行（可勾选多项）
-  const index = new Map<string, number>() // id::hours::summary -> 行下标
   if (initialData) {
+    // 每条已有记录独立成行：不再按「科目 + 时长 + 总结」合并。
+    // 合并会把同科目同时长的两次学习压成一行（保存后少一段时长），
+    // 且行内拿不到原始条目，编辑别的时长时会把所有条目的时间段/暂停明细一起丢掉。
     for (const s of initialData.subjects) {
       if (!(s.hours > 0)) continue
-      const keyBase = `${s.id}::${s.hours}::${s.summary ?? ''}`
-      const existingIdx = index.get(keyBase)
-      if (existingIdx !== undefined) {
-        const row = rows[existingIdx]
-        if (s.activity && !row.activities.includes(s.activity)) {
-          rows[existingIdx] = { ...row, activities: [...row.activities, s.activity] }
-        }
-      } else {
-        index.set(keyBase, rows.length)
-        rows.push({
-          key: `${keyBase}#${rows.length}`,
-          subjectId: s.id,
-          activities: s.activity ? [s.activity] : [],
-          hours: s.hours,
-          hoursText: String(s.hours),
-          summary: s.summary ?? '',
-        })
-      }
+      rows.push({
+        key: `${s.id}#${rows.length}`,
+        subjectId: s.id,
+        activities: s.activity ? [s.activity] : [],
+        hours: s.hours,
+        hoursText: String(s.hours),
+        summary: s.summary ?? '',
+        origin: s,
+      })
     }
   }
   for (const subj of availableSubjects) {
@@ -162,12 +156,19 @@ export default function LogForm({
     for (const r of rows) {
       if (!(r.hours > 0)) continue
       const acts = r.activities.length > 0 ? r.activities : ['']
-      for (const act of acts) {
+      acts.forEach((act, actIndex) => {
         const entry: DailyLogSubject = { id: r.subjectId, hours: r.hours }
         if (act) entry.activity = act
         if (r.summary.trim()) entry.summary = r.summary.trim()
+        // 计时器写入的时间段与暂停明细跟着原条目保留：
+        // 只改某一行的时长时，其它记录的时间段不能被抹掉；同一行勾了多个内容时只挂给第一条
+        if (r.origin && actIndex === 0) {
+          if (r.origin.startTime) entry.startTime = r.origin.startTime
+          if (r.origin.endTime) entry.endTime = r.origin.endTime
+          if (r.origin.pauses && r.origin.pauses.length > 0) entry.pauses = r.origin.pauses
+        }
         subjects.push(entry)
-      }
+      })
     }
 
     onSubmit({ date, subjects, summary: summary.trim() })
