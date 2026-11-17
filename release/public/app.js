@@ -401,7 +401,23 @@ function updateSelectionSummary() {
   $('selection-summary').textContent = '已选 ' + count + ' 项';
   $('btn-select-all').disabled = count === TARGET_ORDER.length;
   $('btn-select-none').disabled = count === 0;
+  updatePresets();
   updateOptionsState();
+}
+
+/** 高亮与当前目标完全一致的快捷选项。 */
+function updatePresets() {
+  const buttons = document.querySelectorAll('#target-presets .preset-btn');
+  for (const button of buttons) {
+    const preset = String(button.getAttribute('data-preset') || '')
+      .split(',')
+      .filter(Boolean);
+    const active =
+      preset.length === state.targets.size &&
+      preset.every(function (target) { return state.targets.has(target); });
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  }
 }
 
 function updateOptionsState() {
@@ -1838,6 +1854,18 @@ function bindEvents() {
     const card = event.target.closest('[data-target]');
     if (!card) return;
     toggleTarget(card.getAttribute('data-target'));
+  });
+
+  $('target-presets').addEventListener('click', function (event) {
+    const button = event.target.closest('[data-preset]');
+    if (!button) return;
+    state.targets = new Set(
+      String(button.getAttribute('data-preset') || '')
+        .split(',')
+        .filter(Boolean),
+    );
+    renderTargets();
+    schedulePlanPreview(250);
   });
 
   $('history-body').addEventListener('click', function (event) {

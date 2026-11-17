@@ -71,6 +71,14 @@
             </div>
 
             <div class="target-panel">
+              <div class="target-presets" id="target-presets" role="group" aria-label="快速选择打包内容">
+                <span class="preset-label">打包内容</span>
+                <button class="preset-btn" type="button" data-preset="desktop">仅电脑端</button>
+                <button class="preset-btn" type="button" data-preset="apk">仅 APK</button>
+                <button class="preset-btn" type="button" data-preset="apk,desktop">APK + 电脑端</button>
+                <button class="preset-btn" type="button" data-preset="web,apk,desktop">全部</button>
+              </div>
+
               <section class="target-grid" id="target-grid" aria-label="发布目标"></section>
 
               <section class="options-card" id="options-card">
