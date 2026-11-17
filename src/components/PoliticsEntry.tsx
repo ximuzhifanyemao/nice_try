@@ -29,7 +29,7 @@ export default function PoliticsEntry() {
           </span>
         </span>
         <span className="mt-0.5 block truncate text-[11px] text-gray-500 dark:text-slate-400">
-          马原 · 史纲 · 时政｜检索、背诵、时轴
+          马原 · 史纲 · 时政｜检索、背诵、解题
         </span>
       </span>
       <span className="flex shrink-0 items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-[11px] font-medium text-[#a6342a] shadow-sm dark:bg-slate-800/80 dark:text-red-300">

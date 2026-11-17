@@ -108,12 +108,13 @@ export const POLITICS_TL_ROWS = [
   },
 ]
 
-export type PoliticsPageKey = 'home' | 'library' | 'recite' | 'history' | 'me'
+export type PoliticsPageKey = 'home' | 'library' | 'solution' | 'recite' | 'history' | 'me'
 export type PoliticsFontSize = 'sm' | 'md' | 'lg'
 
-export const POLITICS_NAV: { page: PoliticsPageKey; label: string; icon: 'home' | 'book' | 'cards' | 'history' | 'user' }[] = [
+export const POLITICS_NAV: { page: PoliticsPageKey; label: string; icon: 'home' | 'book' | 'cards' | 'history' | 'user' | 'bulb' }[] = [
   { page: 'home', label: '概览', icon: 'home' },
   { page: 'library', label: '知识库', icon: 'book' },
+  { page: 'solution', label: '解题', icon: 'bulb' },
   { page: 'recite', label: '背诵', icon: 'cards' },
   { page: 'history', label: '史纲', icon: 'history' },
   { page: 'me', label: '我的', icon: 'user' },
@@ -122,6 +123,7 @@ export const POLITICS_NAV: { page: PoliticsPageKey; label: string; icon: 'home' 
 export const POLITICS_PAGE_NAME: Record<PoliticsPageKey, string> = {
   home: '概览',
   library: '知识库',
+  solution: '解题',
   recite: '背诵',
   history: '史纲',
   me: '我的',

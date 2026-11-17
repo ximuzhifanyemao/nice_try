@@ -12,6 +12,7 @@ import CountdownPanel from '../components/CountdownPanel'
 import EnglishCheckinEntry from '../components/EnglishCheckinEntry'
 import PoliticsEntry from '../components/PoliticsEntry'
 import QuickLinksRow from '../components/QuickLinksRow'
+import { canAccessPolitics } from '../lib/politicsAccess'
 import { todayStr } from '../lib/dailyLogs'
 import { computeStudyStats, computeStreak } from '../lib/achievements'
 import { fetchCommitments, getWeekStartStr, getWeekEndStr, sumHoursInRange } from '../lib/commitments'
@@ -282,8 +283,8 @@ export default function Home() {
           {/* ③ 日历 */}
           <Calendar logs={logs} loading={loading} />
 
-          {/* ④ 政治一页纸（公开资料，未登录也可用） */}
-          <PoliticsEntry />
+          {/* ④ 政治一页纸（仅白名单账号可见） */}
+          {canAccessPolitics(user) && <PoliticsEntry />}
 
           {/* ⑤ 英语打卡 */}
           {user && <EnglishCheckinEntry size="normal" checkinCount={checkinCount} />}

@@ -6,6 +6,7 @@ import { useToast } from '../lib/Toast'
 import { Icon } from '../components/Icon'
 import OverviewPage from '../components/politics/OverviewPage'
 import LibraryPage from '../components/politics/LibraryPage'
+import SolutionPage from '../components/politics/SolutionPage'
 import RecitePage, { type ReciteRequest } from '../components/politics/RecitePage'
 import HistoryPage from '../components/politics/HistoryPage'
 import MePage from '../components/politics/MePage'
@@ -416,6 +417,7 @@ export default function Politics() {
             onToggleSave={toggleSave}
           />
         )}
+        {page === 'solution' && <SolutionPage />}
         {page === 'recite' && (
           <RecitePage
             state={state}

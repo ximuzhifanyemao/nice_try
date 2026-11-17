@@ -10,6 +10,7 @@ import UpdateChecker from './components/UpdateChecker'
 import AchievementNotifier from './components/AchievementNotifier'
 import CheckinReminder from './components/CheckinReminder'
 import { ToastProvider } from './lib/Toast'
+import { canAccessPolitics } from './lib/politicsAccess'
 import { Capacitor } from '@capacitor/core'
 import { App as CapacitorApp } from '@capacitor/app'
 import { isTauri } from '@tauri-apps/api/core'
@@ -163,6 +164,24 @@ function PageLoading() {
 const WEB_PUBLIC_PATHS = new Set(['/login', '/register', '/forgot-password', '/reset-password', '/qr-login', '/download'])
 
 /**
+ * 政治一页纸门禁：所有平台都要求登录，且只允许白名单账号访问。
+ *
+ * 未登录 → 去登录页（登录后回到政治页）；已登录但不在白名单 → 回首页，
+ * 不暴露「无权限」这类可被探测的信息。
+ */
+function PoliticsGate({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth()
+  const location = useLocation()
+
+  if (loading) return <PageLoading />
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+  }
+  if (!canAccessPolitics(user)) return <Navigate to="/" replace />
+  return <>{children}</>
+}
+
+/**
  * 网页版登录门禁。
  *
  * 浏览器里除公开路径外，所有功能页都必须先登录；未登录访问首页等页面会直接跳到登录页。
@@ -293,8 +312,15 @@ export default function App({
           <Route path="/qr-login" element={<QrLogin />} />
           {/* 公开下载落地页：分享图二维码扫码后打开，无需登录 */}
           <Route path="/download" element={<Download />} />
-          {/* 考研政治一页纸：桌面/App 免登录，网页版由 WebLoginGate 统一要求登录 */}
-          <Route path="/politics" element={<Politics />} />
+          {/* 考研政治一页纸：登录 + 白名单账号才能访问 */}
+          <Route
+            path="/politics"
+            element={
+              <PoliticsGate>
+                <Politics />
+              </PoliticsGate>
+            }
+          />
           <Route element={<ProtectedRoute />}>
             <Route path="/my-records" element={<MyRecords />} />
             <Route path="/profile" element={<Profile />} />

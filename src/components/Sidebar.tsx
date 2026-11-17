@@ -1,7 +1,6 @@
 import { useLocation, useNavigate, Link } from 'react-router-dom'
-import { Capacitor } from '@capacitor/core'
-import { isTauri } from '@tauri-apps/api/core'
 import { useAuth } from '../contexts/AuthContext'
+import { canAccessPolitics } from '../lib/politicsAccess'
 import { getCurrentTheme, setTheme as persistTheme, THEMES, type ThemeMode } from '../lib/theme'
 import DesktopLogo from './DesktopLogo'
 import { BlueIcons } from './BlueCircleIcon'
@@ -119,12 +118,11 @@ export default function Sidebar() {
     setThemeOpen(false)
   }
 
-  // 政治一页纸在桌面 / 手机 App 里是公开资料；网页版由 WebLoginGate 统一要求登录，
-  // 因此未登录的网页访客不再显示这个会被立刻重定向的入口
-  const isWeb = !isTauri() && !Capacitor.isNativePlatform()
+  // 政治一页纸只对白名单账号开放：未登录、或登录账号不在白名单时都不显示入口
+  const politicsAllowed = canAccessPolitics(user)
   const items = user
-    ? NAV_ITEMS
-    : NAV_ITEMS.filter((i) => i.key === 'home' || i.key === 'profile' || (!isWeb && i.key === 'politics'))
+    ? NAV_ITEMS.filter((i) => i.key !== 'politics' || politicsAllowed)
+    : NAV_ITEMS.filter((i) => i.key === 'home' || i.key === 'profile')
 
   return (
     <aside className="theme-surface relative isolate flex w-56 flex-col bg-gray-50 dark:bg-slate-900 border-r border-gray-200 dark:border-slate-800 h-full shrink-0">
