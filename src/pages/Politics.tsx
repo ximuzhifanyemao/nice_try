@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../lib/Toast'
 import { Icon } from '../components/Icon'
@@ -56,12 +56,16 @@ const CLOUD_SAVE_DEBOUNCE_MS = 800
  */
 export default function Politics() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useAuth()
   const { show } = useToast()
   const userId = user?.id ?? null
   const pageRef = useRef<HTMLDivElement>(null)
 
-  const [page, setPage] = useState<PoliticsPageKey>('home')
+  const [page, setPage] = useState<PoliticsPageKey>(() => {
+    const target = new URLSearchParams(location.search).get('page')
+    return POLITICS_NAV.find((item) => item.page === target)?.page ?? 'home'
+  })
   const [state, setState] = useState<PoliticsLocalState>(() => loadPoliticsState())
   const [filters, setFilters] = useState<PoliticsFilters>(DEFAULT_FILTERS)
   const [drawerNo, setDrawerNo] = useState<number | null>(null)
@@ -72,6 +76,13 @@ export default function Politics() {
   const [reciteRequest, setReciteRequest] = useState<ReciteRequest | null>(null)
   /** 云端首轮合并完成前不写云，避免用本机旧数据覆盖另一台设备的进度 */
   const [cloudReady, setCloudReady] = useState(!userId)
+
+  /* 支持从侧边栏 / 首页直达某个分区：/politics?page=solution */
+  useEffect(() => {
+    const target = new URLSearchParams(location.search).get('page')
+    const matched = POLITICS_NAV.find((item) => item.page === target)
+    setPage(matched ? matched.page : 'home')
+  }, [location.search])
 
   /* 首次进入记一次访问（连续学习天数） */
   useEffect(() => {
@@ -208,10 +219,15 @@ export default function Politics() {
     setConfirmReset(false)
   }, [])
 
-  const goPage = useCallback((target: PoliticsPageKey) => {
-    setPage(target)
-    closeLayers()
-  }, [closeLayers])
+  const goPage = useCallback(
+    (target: PoliticsPageKey) => {
+      setPage(target)
+      closeLayers()
+      /* 让地址栏跟上当前分区：刷新后仍停在原分区，桌面侧边栏也能正确高亮 */
+      navigate(target === 'home' ? '/politics' : `/politics?page=${target}`, { replace: true })
+    },
+    [closeLayers, navigate],
+  )
 
   const requestRecite = useCallback((scope: string, shuffle?: boolean) => {
     setReciteRequest({ scope, nonce: Date.now(), shuffle })

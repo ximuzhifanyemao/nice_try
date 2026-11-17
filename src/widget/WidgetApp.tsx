@@ -189,14 +189,14 @@ const windowBtnBase =
  * 由 App 渲染在右侧内容列顶部（侧边栏不在该列内），因此只横跨内容区、不参与滚动。
  */
 function FullModeTitleBar({ onToggleMode }: { onToggleMode: () => void }) {
-  const { pathname } = useLocation()
+  const { pathname, search } = useLocation()
   return (
     <div
       data-tauri-drag-region
       className="flex h-12 shrink-0 select-none items-center gap-1 border-b border-gray-200 px-3 dark:border-slate-800/80"
     >
       <span className="min-w-0 flex-1 truncate text-[13px] font-medium text-gray-500 dark:text-slate-400">
-        {desktopPageTitle(pathname)}
+        {desktopPageTitle(pathname, search)}
       </span>
       <button
         onClick={onToggleMode}

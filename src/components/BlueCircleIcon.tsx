@@ -64,6 +64,14 @@ export const BlueIcons = {
       <path d="m12 3 8.5 5h-17z" />
     </BlueCircleIcon>
   ),
+  solution: (
+    <BlueCircleIcon>
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <path d="m3.5 6 1.2 1.2L7 4.9" />
+      <path d="m3.5 12 1.2 1.2L7 10.9" />
+      <path d="m3.5 18 1.2 1.2L7 16.9" />
+    </BlueCircleIcon>
+  ),
   notes: (
     <BlueCircleIcon>
       <path d="M9 18h6" />

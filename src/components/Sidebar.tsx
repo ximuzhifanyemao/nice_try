@@ -15,14 +15,16 @@ interface NavItem {
 }
 
 /**
- * 侧边栏主导航：顺序对应用户「首页 → 计时 → 打卡 → 政治 → 记一记 → 记录 → 统计 → 周总结 → 成就 → 目标 → 我的」的心智模型。
+ * 侧边栏主导航：顺序对应用户「首页 → 计时 → 打卡 → 政治 / 解题 → 记一记 → 记录 → 统计 → 周总结 → 成就 → 目标 → 我的」的心智模型。
  * 记一记同时承载数学 / 408 知识点与英语生词，因此不再单列「生词」入口。
+ * 「解题」是政治一页纸里的二级分区，单独列出是为了在电脑端能直接进入。
  */
 const NAV_ITEMS: NavItem[] = [
   { key: 'home', label: '首页', iconKey: 'home', path: '/' },
   { key: 'timer', label: '计时', iconKey: 'timer', path: '/timer' },
   { key: 'checkin', label: '打卡', iconKey: 'checkin', path: '/english-checkin' },
   { key: 'politics', label: '政治', iconKey: 'politics', path: '/politics' },
+  { key: 'solution', label: '解题', iconKey: 'solution', path: '/politics?page=solution' },
   { key: 'notes', label: '记一记', iconKey: 'notes', path: '/study-notes' },
   { key: 'records', label: '记录', iconKey: 'records', path: '/my-records' },
   { key: 'summary', label: '统计', iconKey: 'summary', path: '/summary' },
@@ -58,7 +60,8 @@ const PAGE_TITLES: [string, string][] = [
 ]
 
 /** 取窗口标题栏要显示的页面名；未收录的路径回落到产品名 */
-export function desktopPageTitle(pathname: string): string {
+export function desktopPageTitle(pathname: string, search = ''): string {
+  if (pathname === '/politics' && new URLSearchParams(search).get('page') === 'solution') return '解题'
   for (const [prefix, title] of PAGE_TITLES) {
     if (prefix === '/' ? pathname === '/' : pathname.startsWith(prefix)) return title
   }
@@ -96,7 +99,9 @@ export default function Sidebar() {
     if (pathname === '/') return 'home'
     if (pathname === '/timer') return 'timer'
     if (pathname === '/english-checkin') return 'checkin'
-    if (pathname === '/politics') return 'politics'
+    if (pathname === '/politics') {
+      return new URLSearchParams(location.search).get('page') === 'solution' ? 'solution' : 'politics'
+    }
     if (pathname === '/study-notes' || pathname === '/vocabulary') return 'notes'
     if (pathname.startsWith('/my-records')) return 'records'
     if (pathname === '/summary') return 'summary'
@@ -118,10 +123,11 @@ export default function Sidebar() {
     setThemeOpen(false)
   }
 
-  // 政治一页纸只对白名单账号开放：未登录、或登录账号不在白名单时都不显示入口
+  // 政治一页纸 / 解题只对白名单账号开放：未登录、或登录账号不在白名单时都不显示入口
   const politicsAllowed = canAccessPolitics(user)
+  const restrictedKeys = new Set(['politics', 'solution'])
   const items = user
-    ? NAV_ITEMS.filter((i) => i.key !== 'politics' || politicsAllowed)
+    ? NAV_ITEMS.filter((i) => politicsAllowed || !restrictedKeys.has(i.key))
     : NAV_ITEMS.filter((i) => i.key === 'home' || i.key === 'profile')
 
   return (
