@@ -386,7 +386,7 @@ export default function Profile() {
                     <div className="flex flex-wrap items-center gap-2">
                       {status === 'available' && updateInfo && (Capacitor.isNativePlatform() || isTauri()) && (
                         <button type="button" className="btn-primary h-8 px-3 py-0 text-xs" onClick={() => downloadAndInstall(updateInfo)}>
-                          {Capacitor.isNativePlatform() ? '下载 APK' : '下载新版本安装包'}
+                          {Capacitor.isNativePlatform() ? '前往下载页' : '下载新版本安装包'}
                         </button>
                       )}
                       <button
@@ -616,7 +616,7 @@ export default function Profile() {
                 <div className="flex shrink-0 items-center gap-2">
                   {status === 'available' && updateInfo && (Capacitor.isNativePlatform() || isTauri()) && (
                     <button type="button" className="btn-primary h-8 px-3 py-0 text-xs" onClick={() => downloadAndInstall(updateInfo)}>
-                      {Capacitor.isNativePlatform() ? '下载 APK' : '下载新版本安装包'}
+                      {Capacitor.isNativePlatform() ? '前往下载页' : '下载新版本安装包'}
                     </button>
                   )}
                   <button

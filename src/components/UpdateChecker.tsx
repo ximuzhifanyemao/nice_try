@@ -78,7 +78,7 @@ export default function UpdateChecker() {
             onClick={handleDownload}
             className="flex-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium py-2 cursor-pointer transition-colors"
           >
-            {isDesktop ? '下载新版本安装包' : Capacitor.isNativePlatform() ? '下载 APK' : '查看更新'}
+            {isDesktop ? '下载新版本安装包' : Capacitor.isNativePlatform() ? '前往下载页' : '查看更新'}
           </button>
         )}
 

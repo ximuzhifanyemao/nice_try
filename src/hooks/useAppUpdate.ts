@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { App } from '@capacitor/app'
 import { Capacitor } from '@capacitor/core'
 import { isTauri, invoke } from '@tauri-apps/api/core'
@@ -108,6 +109,7 @@ async function checkGitHubDesktopUpdate(current: {
 }
 
 export function useAppUpdate() {
+  const navigate = useNavigate()
   const [status, setStatus] = useState<UpdateStatus>('idle')
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [downloadProgress, setDownloadProgress] = useState(0)
@@ -235,8 +237,15 @@ export function useAppUpdate() {
     }
   }, [getCurrentVersion])
 
-  // 下载更新（APK 模式）：打开系统浏览器下载 APK，用户手动安装
+  // 下载更新：手机 App 只跳转下载页（避免 WebView 直接拉 APK 被系统判定为安装包不可用），
+  // 电脑端打开安装包下载地址，网页端新标签页打开
   const downloadAndInstall = useCallback(async (info: UpdateInfo) => {
+    if (Capacitor.isNativePlatform()) {
+      setError(null)
+      navigate('/download')
+      return true
+    }
+
     setStatus('downloading')
     setError(null)
 
@@ -249,14 +258,8 @@ export function useAppUpdate() {
         return true
       }
 
-      if (Capacitor.isNativePlatform()) {
-        // Android 原生：使用 window.open 打开 APK 下载链接
-        // 系统浏览器/下载管理器会自动下载 APK，用户点击通知即可安装
-        window.open(info.bundleUrl, '_system')
-      } else {
-        // Web 端：直接在新标签页打开下载链接
-        window.open(info.bundleUrl, '_blank')
-      }
+      // Web 端：直接在新标签页打开下载链接
+      window.open(info.bundleUrl, '_blank')
 
       setDownloadProgress(100)
       setStatus('downloaded')
@@ -267,7 +270,7 @@ export function useAppUpdate() {
       setStatus('error')
       return null
     }
-  }, [])
+  }, [navigate])
 
   // 应用启动时自动检查一次
   useEffect(() => {

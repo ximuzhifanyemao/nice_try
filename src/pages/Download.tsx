@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
+import { Capacitor } from '@capacitor/core'
 import QRCode from 'qrcode'
 import DesktopLogo from '../components/DesktopLogo'
 import { Icon } from '../components/Icon'
@@ -79,6 +80,15 @@ export default function Download() {
 
   const desktopHref = desktop?.bundle_url ?? GITHUB_RELEASES_URL
   const sizeText = formatSize(desktop?.file_size)
+  const isNative = Capacitor.isNativePlatform()
+
+  // 手机 App 内直接用 WebView 打开 APK 链接，下载下来的包容易被系统判定为「安装包不可用」；
+  // 改为触发一次外部导航，Capacitor 会交给系统浏览器下载，下载完成后再安装
+  const handleApkClick = (e: MouseEvent<HTMLAnchorElement>) => {
+    if (!Capacitor.isNativePlatform()) return
+    e.preventDefault()
+    window.location.href = apkDownloadUrl
+  }
 
   return createPortal(
     <div className="fixed inset-0 z-[60] overflow-y-auto bg-[#f4efe6] text-[#2b2521]">
@@ -167,7 +177,7 @@ export default function Download() {
                 to="/"
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-[#e4dac9] bg-[#fffcf6] px-5 py-3 text-sm font-semibold text-[#60564b] transition-colors hover:border-[#d3c3ac] hover:text-[#2b2521]"
               >
-                网页版直接使用
+                {isNative ? '返回应用' : '网页版直接使用'}
                 <Icon name="arrowRight" size={15} />
               </Link>
             </div>
@@ -270,6 +280,7 @@ export default function Download() {
                   href={apkDownloadUrl}
                   target="_blank"
                   rel="noopener"
+                  onClick={handleApkClick}
                   className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#2f7451] px-3 py-2 text-[12.5px] font-semibold text-[#fffcf6] transition-colors hover:bg-[#22533a]"
                 >
                   <Icon name="download" size={14} />
