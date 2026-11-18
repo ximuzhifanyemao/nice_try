@@ -79,6 +79,13 @@ export const BlueIcons = {
       <path d="M12 2a6 6 0 0 0-3.6 10.8c.6.45 1 1.15 1 1.9V15h5.2v-.3c0-.75.4-1.45 1-1.9A6 6 0 0 0 12 2z" />
     </BlueCircleIcon>
   ),
+  questions: (
+    <BlueCircleIcon>
+      <path d="M6 3.5h9.5L20 8v12.5H6z" />
+      <path d="M15.5 3.5V8H20" />
+      <path d="M9.5 12.5h6M9.5 16.5h4" />
+    </BlueCircleIcon>
+  ),
   achievements: (
     <BlueCircleIcon>
       <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />

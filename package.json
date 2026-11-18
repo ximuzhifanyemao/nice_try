@@ -1,7 +1,7 @@
 {
   "name": "kaoyan-tracker",
   "private": true,
-  "version": "1.17.6",
+  "version": "1.17.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -21,7 +21,9 @@
     "release:ui": "node release/index.mjs --ui",
     "release:check": "node release/index.mjs --check",
     "release:android": "node scripts/release-android.mjs",
-    "release:upload": "node scripts/upload-release.mjs"
+    "release:upload": "node scripts/upload-release.mjs",
+    "import:variant": "node scripts/import-variant-questions.mjs",
+    "check:variant": "node scripts/check-variant.mjs"
   },
   "dependencies": {
     "@capacitor-community/bluetooth-le": "^8.3.0",
@@ -50,6 +52,7 @@
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.0",
+    "@napi-rs/canvas": "^1.1.1",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^24.13.3",
@@ -57,6 +60,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "oxlint": "^1.75.0",
+    "pdfjs-dist": "^6.5.438",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"

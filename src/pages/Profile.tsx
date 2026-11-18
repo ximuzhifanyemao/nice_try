@@ -499,6 +499,13 @@ export default function Profile() {
               desc="本周 vs 上周对比与反思笔记"
             />
             <SettingRow
+              to="/questions"
+              icon={<Icon name="questions" size={17} />}
+              tint={TINT.indigo}
+              label="题目"
+              desc="408 真题与变形题，按年份浏览、关键词搜索"
+            />
+            <SettingRow
               to="/study-notes"
               icon={<Icon name="bulb" size={17} />}
               tint={TINT.red}

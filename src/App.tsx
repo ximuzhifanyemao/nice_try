@@ -33,6 +33,7 @@ const GoalPage = lazy(() => import('./pages/GoalPage'))
 const EnglishCheckin = lazy(() => import('./pages/EnglishCheckin'))
 const Politics = lazy(() => import('./pages/Politics'))
 const StudyNotes = lazy(() => import('./pages/StudyNotes'))
+const QuestionBank = lazy(() => import('./pages/QuestionBank'))
 const Settings = lazy(() => import('./pages/Settings'))
 const WeeklySummary = lazy(() => import('./pages/WeeklySummary'))
 const QrLogin = lazy(() => import('./pages/QrLogin'))
@@ -336,6 +337,8 @@ export default function App({
             {/* 生词本已并入「记一记」：旧链接统一跳到生词分区，收藏的历史地址不会失效 */}
             <Route path="/vocabulary" element={<Navigate to="/study-notes?tab=vocab" replace />} />
             <Route path="/study-notes" element={<StudyNotes />} />
+            {/* 题目：408 真题 + docs 中的真题变形题，按年份/关键词/题型检索 */}
+            <Route path="/questions" element={<QuestionBank />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/scan-qr" element={<ScanQr />} />
           </Route>

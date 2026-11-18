@@ -25,6 +25,7 @@ const NAV_ITEMS: NavItem[] = [
   { key: 'checkin', label: '打卡', iconKey: 'checkin', path: '/english-checkin' },
   { key: 'politics', label: '政治', iconKey: 'politics', path: '/politics' },
   { key: 'solution', label: '解题', iconKey: 'solution', path: '/politics?page=solution' },
+  { key: 'questions', label: '题目', iconKey: 'questions', path: '/questions' },
   { key: 'notes', label: '记一记', iconKey: 'notes', path: '/study-notes' },
   { key: 'records', label: '记录', iconKey: 'records', path: '/my-records' },
   { key: 'summary', label: '统计', iconKey: 'summary', path: '/summary' },
@@ -52,6 +53,7 @@ const PAGE_TITLES: [string, string][] = [
   ['/goal', '目标'],
   ['/english-checkin', '打卡'],
   ['/politics', '政治'],
+  ['/questions', '题目'],
   ['/study-notes', '记一记'],
   ['/vocabulary', '记一记'],
   ['/settings', '设置'],
@@ -103,6 +105,7 @@ export default function Sidebar() {
       return new URLSearchParams(location.search).get('page') === 'solution' ? 'solution' : 'politics'
     }
     if (pathname === '/study-notes' || pathname === '/vocabulary') return 'notes'
+    if (pathname === '/questions') return 'questions'
     if (pathname.startsWith('/my-records')) return 'records'
     if (pathname === '/summary') return 'summary'
     if (pathname === '/weekly-summary') return 'weeklySummary'

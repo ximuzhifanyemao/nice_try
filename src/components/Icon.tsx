@@ -46,6 +46,7 @@ export type IconName =
   | 'stop' // 计时：结束（实心）
   | 'copy' // 复制（桌面端复制邮箱/ID）
   | 'list' // 精读：本篇句子列表
+  | 'questions' // 题目（真题 / 变形题）
   | 'hand' // 精读：读懂这句话
   | 'sparkles' // 精读：领会意思 / 显示答案
   | 'share' // 分享
@@ -363,6 +364,13 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M8 6h13M8 12h13M8 18h13" />
       <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
+    </>
+  ),
+  questions: (
+    <>
+      <path d="M6 3.5h9.5L20 8v12.5H6z" />
+      <path d="M15.5 3.5V8H20" />
+      <path d="M9.5 12.5h6M9.5 16.5h4" />
     </>
   ),
   hand: (
