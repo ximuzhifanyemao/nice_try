@@ -1,19 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Icon } from './Icon'
+import { EXAM_SECTIONS, EXAM_TYPES, type ExamQuestionType, type ExamSection } from '../lib/exam408'
 import {
-  EXAM_SECTIONS,
-  EXAM_TYPES,
-  EXAM_YEARS,
-  filterQuestions,
-  getQuestionsByIds,
-  loadAllPapers,
-  loadPaper,
-  type ExamPaper,
-  type ExamQuestion,
-  type ExamQuestionType,
-  type ExamSection,
-} from '../lib/exam408'
+  getBankQuestionsByIds,
+  loadBankPapers,
+  searchBankQuestions,
+  type BankPaper,
+  type BankQuestion,
+  type BankSource,
+} from '../lib/questionBank'
 
 /** 真题科目 / 题型的中文名：选择器与卡片共用一份，避免各写一套 */
 export const SECTION_LABELS: Record<ExamSection, string> = {
@@ -28,6 +24,11 @@ export const TYPE_LABELS: Record<ExamQuestionType, string> = {
   comprehensive: '综合',
 }
 
+export const SOURCE_LABELS: Record<BankSource, string> = {
+  exam: '真题',
+  variant: '变形题',
+}
+
 /** 结果列表一次最多渲染多少条，避免一次性挂几百个节点 */
 const RESULT_LIMIT = 60
 
@@ -38,6 +39,11 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}…` : text
 }
 
+/** 变形题 id 形如 V-2024-01，真题为 408-2024-01 */
+export function isVariantId(id: string): boolean {
+  return id.startsWith('V-')
+}
+
 interface ExamQuestionPickerProps {
   open: boolean
   /** 外部已关联的题目 id，打开时复制到内部草稿 */
@@ -46,17 +52,18 @@ interface ExamQuestionPickerProps {
   onConfirm: (ids: string[]) => void
 }
 
-/** 408 真题选择弹窗：按年份懒加载题库，支持科目 / 题型 / 关键词筛选与多选 */
+/** 题目选择弹窗：真题 + 变形题统一检索，支持来源 / 年份 / 科目 / 题型 / 关键词筛选与多选 */
 export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }: ExamQuestionPickerProps) {
   const [draft, setDraft] = useState<Set<string>>(() => new Set(value))
+  const [source, setSource] = useState<BankSource | 'all'>('all')
   const [year, setYear] = useState<number | 'all'>('all')
   const [section, setSection] = useState<ExamSection | 'all'>('all')
   const [type, setType] = useState<ExamQuestionType | 'all'>('all')
   const [keyword, setKeyword] = useState('')
-  const [papers, setPapers] = useState<ExamPaper[]>([])
+  const [papers, setPapers] = useState<BankPaper[]>([])
   const [loading, setLoading] = useState(false)
   const [loadFailed, setLoadFailed] = useState(false)
-  const [detail, setDetail] = useState<Map<string, ExamQuestion>>(new Map())
+  const [detail, setDetail] = useState<Map<string, BankQuestion>>(new Map())
 
   // 打开时把外部值复制进草稿：取消不修改原值，确定才提交
   useEffect(() => {
@@ -73,16 +80,16 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [open, onCancel])
 
-  // 按当前年份加载：全部年份走 loadAllPapers，单年只加载该年分片
+  // 打开时一次加载两个题库（真题 + 变形题）：年份筛选在本地做，切换来源不再重复请求
   useEffect(() => {
     if (!open) return
     let cancelled = false
     setLoading(true)
     setLoadFailed(false)
-    const task = year === 'all' ? loadAllPapers() : loadPaper(year).then((paper) => [paper])
-    task
-      .then((list) => {
+    Promise.all([loadBankPapers('exam'), loadBankPapers('variant')])
+      .then(([exam, variant]) => {
         if (cancelled) return
+        const list = [...exam, ...variant]
         setPapers(list)
         setLoadFailed(list.length === 0)
       })
@@ -97,11 +104,14 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
     return () => {
       cancelled = true
     }
-  }, [open, year])
+  }, [open])
+
+  /** 年份选项取两个题库的并集，倒序 */
+  const years = useMemo(() => [...new Set(papers.map((p) => p.year))].sort((a, b) => b - a), [papers])
 
   const results = useMemo(
-    () => filterQuestions(papers, { section, type, keyword }),
-    [papers, section, type, keyword],
+    () => searchBankQuestions(papers, { source, year, section, type, keyword }),
+    [papers, source, year, section, type, keyword],
   )
 
   const resultIds = useMemo(() => new Set(results.map((q) => q.id)), [results])
@@ -114,7 +124,7 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
       return
     }
     let cancelled = false
-    getQuestionsByIds(draftKey.split(','))
+    getBankQuestionsByIds(draftKey.split(','))
       .then((map) => {
         if (!cancelled) setDetail(map)
       })
@@ -158,7 +168,7 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
-      aria-label="关联 408 真题"
+      aria-label="关联题目"
     >
       <div
         className="flex max-h-[82vh] w-[min(920px,96vw)] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-800"
@@ -170,8 +180,8 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
             <Icon name="cards" size={16} />
           </span>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">关联 408 真题</h3>
-            <p className="text-[11px] text-gray-500 dark:text-slate-400">已选 {draft.size} 题</p>
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-slate-100">关联题目</h3>
+            <p className="text-[11px] text-gray-500 dark:text-slate-400">真题 + 变形题 · 已选 {draft.size} 题</p>
           </div>
           <button
             type="button"
@@ -219,6 +229,16 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
         {/* 筛选条 */}
         <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2.5 dark:border-slate-700">
           <select
+            value={source}
+            onChange={(e) => setSource(e.target.value as BankSource | 'all')}
+            aria-label="题目来源"
+            className={SELECT_CLS}
+          >
+            <option value="all">全部题目</option>
+            <option value="exam">仅真题</option>
+            <option value="variant">仅变形题</option>
+          </select>
+          <select
             value={String(year)}
             onChange={(e) => {
               const v = e.target.value
@@ -228,7 +248,7 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
             className={SELECT_CLS}
           >
             <option value="all">全部年份</option>
-            {EXAM_YEARS.map((y) => (
+            {years.map((y) => (
               <option key={y} value={y}>
                 {y}
               </option>
@@ -239,6 +259,7 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
             onChange={(e) => setSection(e.target.value as ExamSection | 'all')}
             aria-label="科目"
             className={SELECT_CLS}
+            title="科目只对真题生效"
           >
             <option value="all">全部科目</option>
             {EXAM_SECTIONS.map((s) => (
@@ -319,9 +340,20 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
                           <span className="text-[11px] font-semibold text-gray-700 dark:text-slate-200">
                             {q.year} · 第 {q.number} 题
                           </span>
-                          <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
-                            {SECTION_LABELS[q.section]}
+                          <span
+                            className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
+                              isVariantId(q.id)
+                                ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+                                : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
+                            }`}
+                          >
+                            {isVariantId(q.id) ? SOURCE_LABELS.variant : SOURCE_LABELS.exam}
                           </span>
+                          {q.section && (
+                            <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+                              {SECTION_LABELS[q.section]}
+                            </span>
+                          )}
                           <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-slate-700/60 dark:text-slate-300">
                             {TYPE_LABELS[q.type]}
                           </span>
@@ -374,19 +406,19 @@ export default function ExamQuestionPicker({ open, value, onCancel, onConfirm }:
 }
 
 interface ExamQuestionListProps {
-  /** 关联的真题 id 列表（笔记里保存的那份，不要在组件内改写） */
+  /** 关联的题目 id 列表（真题 408-* 与变形题 V-*，笔记里保存的那份，不要在组件内改写） */
   ids: string[]
 }
 
 /**
- * 知识点卡片里的关联真题：按年份 + 题号展示，默认折叠题目、隐藏答案。
+ * 知识点卡片里的关联题目：按年份 + 题号展示，默认折叠题目、隐藏答案。
  * 每道题各自维护展开状态，互不影响；题库按 id 只加载涉及的年份。
  */
 export function ExamQuestionList({ ids }: ExamQuestionListProps) {
   const idsKey = ids.join(',')
   const [loading, setLoading] = useState(ids.length > 0)
   const [failed, setFailed] = useState(false)
-  const [questions, setQuestions] = useState<ExamQuestion[]>([])
+  const [questions, setQuestions] = useState<BankQuestion[]>([])
   /** 已展开题干的题目 */
   const [openQuestionIds, setOpenQuestionIds] = useState<Set<string>>(() => new Set())
   /** 已展开答案的题目 */
@@ -403,12 +435,12 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
     let cancelled = false
     setLoading(true)
     setFailed(false)
-    getQuestionsByIds(target)
+    getBankQuestionsByIds(target)
       .then((map) => {
         if (cancelled) return
         const list = target
           .map((id) => map.get(id))
-          .filter((q): q is ExamQuestion => Boolean(q))
+          .filter((q): q is BankQuestion => Boolean(q))
           .sort((a, b) => a.year - b.year || a.number - b.number)
         setQuestions(list)
       })
@@ -476,7 +508,7 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
           className="flex w-full cursor-pointer items-center gap-1.5 rounded-md text-[11px] font-medium text-gray-500 transition-colors hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-300"
         >
           <Icon name="cards" size={12} />
-          关联真题 · {questions.length}
+          关联题目 · {questions.length}
           <span className="ml-auto inline-flex shrink-0 items-center gap-0.5">
             {allOpen ? '收起' : '展开全部'}
             <Icon name={allOpen ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
@@ -485,7 +517,7 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
       ) : (
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-gray-500 dark:text-slate-400">
           <Icon name="cards" size={12} />
-          关联真题
+          关联题目
         </div>
       )}
 
@@ -494,21 +526,22 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
           <div className="h-1 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-slate-800">
             <span className="block h-full w-1/3 animate-pulse rounded-full bg-indigo-400/70 dark:bg-indigo-400/50" />
           </div>
-          <p className="text-[11px] text-gray-400 dark:text-slate-500">真题加载中…</p>
+          <p className="text-[11px] text-gray-400 dark:text-slate-500">题目加载中…</p>
         </div>
       )}
 
       {!loading && failed && (
-        <p className="text-[11px] text-amber-600 dark:text-amber-400">真题加载失败，不影响笔记其它内容</p>
+        <p className="text-[11px] text-amber-600 dark:text-amber-400">题目加载失败，不影响笔记其它内容</p>
       )}
 
       {!loading && !failed && questions.length === 0 && (
-        <p className="text-[11px] text-gray-400 dark:text-slate-500">关联真题暂未收录</p>
+        <p className="text-[11px] text-gray-400 dark:text-slate-500">关联题目暂未收录</p>
       )}
 
       {questions.map((q) => {
         const expanded = openQuestionIds.has(q.id)
         const answerOpen = openAnswerIds.has(q.id)
+        const variant = isVariantId(q.id)
         return (
           <article
             key={q.id}
@@ -520,15 +553,17 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
               onClick={() => toggleQuestion(q.id)}
               aria-expanded={expanded}
               aria-controls={`exam-question-${q.id}`}
-              aria-label={`${q.year} 年 408 第 ${q.number} 题，${SECTION_LABELS[q.section]}，${TYPE_LABELS[q.type]}，${expanded ? '收起题目' : '展开题目'}`}
+              aria-label={`${q.year} 年${variant ? '变形题' : ' 408'}第 ${q.number} 题${q.section ? `，${SECTION_LABELS[q.section]}` : ''}，${TYPE_LABELS[q.type]}，${expanded ? '收起题目' : '展开题目'}`}
               className="flex w-full cursor-pointer flex-wrap items-center gap-1.5 rounded-md text-left transition-colors hover:text-indigo-600 dark:hover:text-indigo-300"
             >
               <span className="text-[11px] font-semibold text-gray-700 dark:text-slate-200">
-                408 · {q.year} · 第 {q.number} 题
+                {variant ? '变形题' : '408'} · {q.year} · 第 {q.number} 题
               </span>
-              <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
-                {SECTION_LABELS[q.section]}
-              </span>
+              {q.section && (
+                <span className="rounded-md bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+                  {SECTION_LABELS[q.section]}
+                </span>
+              )}
               <span className="rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-slate-700/60 dark:text-slate-300">
                 {TYPE_LABELS[q.type]}
               </span>
@@ -558,17 +593,19 @@ export function ExamQuestionList({ ids }: ExamQuestionListProps) {
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() => toggleAnswer(q.id)}
-                  aria-expanded={answerOpen}
-                  className="mt-2 inline-flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
-                >
-                  <Icon name={answerOpen ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
-                  {answerOpen ? '收起答案' : '显示答案'}
-                </button>
+                {q.answer && (
+                  <button
+                    type="button"
+                    onClick={() => toggleAnswer(q.id)}
+                    aria-expanded={answerOpen}
+                    className="mt-2 inline-flex cursor-pointer items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] font-medium text-indigo-600 transition-colors hover:bg-indigo-50 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
+                  >
+                    <Icon name={answerOpen ? 'chevronDown' : 'chevronRight'} size={11} strokeWidth={2} />
+                    {answerOpen ? '收起答案' : '显示答案'}
+                  </button>
+                )}
 
-                {answerOpen && (
+                {q.answer && answerOpen && (
                   <div className="mt-1.5 rounded-lg border border-emerald-200 bg-emerald-50/70 p-2 dark:border-emerald-500/25 dark:bg-emerald-500/10">
                     {q.type === 'comprehensive' ? (
                       <>

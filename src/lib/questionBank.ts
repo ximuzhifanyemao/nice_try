@@ -2,6 +2,7 @@
 // 真题数据已有答案/解析；变形题由 docs 下 PDF 自动整理，含原题截图裁剪信息。
 import {
   loadAllPapers,
+  loadPaper,
   type ExamPaper,
   type ExamQuestion,
   type ExamQuestionType,
@@ -147,21 +148,74 @@ export function loadBankPapers(source: BankSource): Promise<BankPaper[]> {
   return task
 }
 
+/**
+ * 按 id 批量取题：真题 408-<year>-<2位题号>、变形题 V-<year>-<2位题号> 都支持，
+ * 且只加载涉及到的年份。格式不合法、找不到或加载失败的 id 一律忽略。
+ */
+export async function getBankQuestionsByIds(ids: string[]): Promise<Map<string, BankQuestion>> {
+  const examByYear = new Map<number, string[]>()
+  const variantByYear = new Map<number, string[]>()
+
+  for (const id of ids) {
+    const exam = /^408-(\d{4})-\d{2}$/.exec(id)
+    if (exam) {
+      const year = Number(exam[1])
+      examByYear.set(year, [...(examByYear.get(year) ?? []), id])
+      continue
+    }
+    const variant = /^V-(\d{4})-\d{2}$/.exec(id)
+    if (variant) {
+      const year = Number(variant[1])
+      variantByYear.set(year, [...(variantByYear.get(year) ?? []), id])
+    }
+  }
+
+  const result = new Map<string, BankQuestion>()
+  const collect = (paper: BankPaper, yearIds: string[]) => {
+    const index = new Map(paper.questions.map((q) => [q.id, q]))
+    for (const id of yearIds) {
+      const question = index.get(id)
+      if (question) result.set(id, question)
+    }
+  }
+
+  await Promise.all([
+    ...[...examByYear].map(async ([year, yearIds]) => {
+      try {
+        collect(toBankPaper(await loadPaper(year)), yearIds)
+      } catch {
+        // 该年份数据缺失或加载失败：忽略
+      }
+    }),
+    ...[...variantByYear].map(async ([year, yearIds]) => {
+      try {
+        collect(await loadVariantPaper(year), yearIds)
+      } catch {
+        // 该年份变形题缺失：忽略
+      }
+    }),
+  ])
+  return result
+}
+
 // ---------- 检索 ----------
 
 export interface BankFilter {
+  source?: BankSource | 'all'
   year?: number | 'all'
+  /** 科目只对真题生效；选了具体科目时变形题会被排除 */
+  section?: ExamSection | 'all'
   type?: ExamQuestionType | 'all'
   /** 空格分隔多个关键词（AND），匹配题干、选项、标签、年份 */
   keyword?: string
 }
 
 /**
- * 过滤题目：年份 + 题型 + 关键词。
+ * 过滤题目：来源 + 年份 + 科目 + 题型 + 关键词。
  * 返回值按年份倒序、题号升序排列，便于直接渲染。
  */
 export function searchBankQuestions(papers: BankPaper[], filter: BankFilter = {}): BankQuestion[] {
-  const { year = 'all', type = 'all' } = filter
+  const { source = 'all', year = 'all', section = 'all', type = 'all' } = filter
   const tokens = (filter.keyword ?? '')
     .toLowerCase()
     .split(/[\s\u3000]+/)
@@ -169,8 +223,10 @@ export function searchBankQuestions(papers: BankPaper[], filter: BankFilter = {}
 
   const out: BankQuestion[] = []
   for (const paper of papers) {
+    if (source !== 'all' && paper.source !== source) continue
     if (year !== 'all' && paper.year !== year) continue
     for (const question of paper.questions) {
+      if (section !== 'all' && question.section !== section) continue
       if (type !== 'all' && question.type !== type) continue
       if (tokens.length) {
         const haystack = [

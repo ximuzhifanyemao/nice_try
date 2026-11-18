@@ -13,8 +13,9 @@ import VocabularyPanel, { type VocabularyStats } from '../components/VocabularyP
 import ExamQuestionPicker, {
   ExamQuestionList,
   SECTION_LABELS,
+  isVariantId,
 } from '../components/ExamQuestionPicker'
-import { getQuestionsByIds, type ExamQuestion } from '../lib/exam408'
+import { getBankQuestionsByIds, type BankQuestion } from '../lib/questionBank'
 import { loadVocabulary } from '../lib/vocabulary'
 import {
   MAX_NOTE_IMAGES,
@@ -126,11 +127,11 @@ export default function StudyNotes() {
   const [cropQueue, setCropQueue] = useState<PendingImageEdit[]>([])
   const [saving, setSaving] = useState(false)
 
-  // —— 关联真题 ——
+  // —— 关联题目（真题 + 变形题） ——
   const [examPickerOpen, setExamPickerOpen] = useState(false)
   const [selectedExamIds, setSelectedExamIds] = useState<string[]>([])
   /** 编辑器里展示题目摘要用；题库未收录的 id 不在 Map 里 */
-  const [selectedExamDetail, setSelectedExamDetail] = useState<Map<string, ExamQuestion>>(new Map())
+  const [selectedExamDetail, setSelectedExamDetail] = useState<Map<string, BankQuestion>>(new Map())
   const [selectedExamLoading, setSelectedExamLoading] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -206,7 +207,7 @@ export default function StudyNotes() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [lightbox])
 
-  // 编辑器已选真题的摘要：按 id 批量取，只加载涉及到的年份
+  // 编辑器已选题目的摘要：按 id 批量取，只加载涉及到的年份
   const selectedExamKey = selectedExamIds.join(',')
   useEffect(() => {
     if (!selectedExamKey) {
@@ -216,7 +217,7 @@ export default function StudyNotes() {
     }
     let cancelled = false
     setSelectedExamLoading(true)
-    getQuestionsByIds(selectedExamKey.split(','))
+    getBankQuestionsByIds(selectedExamKey.split(','))
       .then((map) => {
         if (!cancelled) setSelectedExamDetail(map)
       })
@@ -673,13 +674,13 @@ export default function StudyNotes() {
           />
         </div>
 
-        {/* 关联真题：点开选择器多选，已选题以摘要卡片回显 */}
+        {/* 关联题目：点开选择器多选（真题 + 变形题），已选题以摘要卡片回显 */}
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300">
               <Icon name="cards" size={13} />
             </span>
-            <span className="text-xs font-medium text-gray-700 dark:text-slate-300">关联真题</span>
+            <span className="text-xs font-medium text-gray-700 dark:text-slate-300">关联题目</span>
             <span className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-slate-800 dark:text-slate-400">
               {selectedExamIds.length}
             </span>
@@ -689,7 +690,7 @@ export default function StudyNotes() {
               className="btn-ghost ml-auto h-8 px-2.5 py-0 text-[11px]"
             >
               <Icon name="plus" size={12} />
-              选择真题
+              选择题
             </button>
           </div>
 
@@ -710,10 +711,12 @@ export default function StudyNotes() {
                       {q ? (
                         <>
                           <p className="text-[11px] font-semibold text-gray-700 dark:text-slate-200">
-                            {q.year} · 第 {q.number} 题 ·{' '}
-                            <span className="font-normal text-gray-500 dark:text-slate-400">
-                              {SECTION_LABELS[q.section]}
-                            </span>
+                            {isVariantId(q.id) ? '变形题' : '408'} · {q.year} · 第 {q.number} 题
+                            {q.section && (
+                              <span className="ml-1 font-normal text-gray-500 dark:text-slate-400">
+                                {SECTION_LABELS[q.section]}
+                              </span>
+                            )}
                           </p>
                           <p className="mt-0.5 break-words text-[11.5px] leading-relaxed text-gray-600 dark:text-slate-300">
                             {truncateText(q.stem, 60)}
@@ -789,13 +792,13 @@ export default function StudyNotes() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={images.length + pending.length + cropQueue.length >= MAX_NOTE_IMAGES}
-            className="btn-ghost h-9 px-3 py-0 text-xs"
+            className="btn-ghost h-9 shrink-0 whitespace-nowrap px-3 py-0 text-xs"
           >
             <Icon name="plus" size={14} />
             添加图片
           </button>
           <p className="min-w-0 text-[11px] leading-relaxed text-gray-400 dark:text-slate-500">
-            可拍照 / 选图 / 直接粘贴截图，上传前可旋转裁剪，最多 {MAX_NOTE_IMAGES} 张
+            可拍照 / 选图 / 粘贴，最多 {MAX_NOTE_IMAGES} 张
           </p>
         </div>
 
