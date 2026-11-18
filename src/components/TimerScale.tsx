@@ -74,22 +74,23 @@ export default function TimerScale({
   /* ── 轨道 + 目标：一条连续轨道，超出目标的部分转绿 ── */
   if (style === 'track') {
     return (
-      <div className={`relative flex items-center ${className}`} role="img" aria-label={ariaLabel} title={title}>
-        <div
-          className={`relative overflow-hidden rounded-full ${trackBg} ${compact ? 'h-[5px] w-[170px]' : 'h-[8px] w-[300px]'}`}
-        >
-          <span
-            className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-out ${fillBg}`}
-            style={{ width: `${fillPct}%` }}
-          />
-          {overPct > 0 && goalPct !== null && (
+      <div className={`flex w-fit items-center ${className}`} role="img" aria-label={ariaLabel} title={title}>
+        {/* 目标线必须相对轨道本体定位：根节点在块级父容器里会被拉满整行，百分比会落到轨道外 */}
+        <div className={`relative shrink-0 ${compact ? 'h-[5px] w-[170px]' : 'h-[8px] w-[300px]'}`}>
+          <div className={`relative h-full overflow-hidden rounded-full ${trackBg}`}>
             <span
-              className="absolute inset-y-0 rounded-full bg-emerald-500 transition-[left,width] duration-500 ease-out dark:bg-emerald-400"
-              style={{ left: `${goalPct}%`, width: `${overPct}%` }}
+              className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-out ${fillBg}`}
+              style={{ width: `${fillPct}%` }}
             />
-          )}
+            {overPct > 0 && goalPct !== null && (
+              <span
+                className="absolute inset-y-0 rounded-full bg-emerald-500 transition-[left,width] duration-500 ease-out dark:bg-emerald-400"
+                style={{ left: `${goalPct}%`, width: `${overPct}%` }}
+              />
+            )}
+          </div>
+          {notch}
         </div>
-        {notch}
       </div>
     )
   }
@@ -99,7 +100,7 @@ export default function TimerScale({
     const trackSize = compact ? 'h-[2px] w-[170px]' : 'h-[3px] w-[300px]'
     return (
       <div
-        className={`flex flex-col justify-center ${compact ? 'gap-[3px]' : 'gap-[4px]'} ${className}`}
+        className={`flex w-fit flex-col justify-center ${compact ? 'gap-[3px]' : 'gap-[4px]'} ${className}`}
         role="img"
         aria-label={ariaLabel}
         title={title}
@@ -126,30 +127,27 @@ export default function TimerScale({
   if (style === 'dots') {
     const dotSize = compact ? 'h-[6px] w-[6px]' : 'h-[9px] w-[9px]'
     return (
-      <div
-        className={`relative flex items-center ${compact ? 'gap-[6px]' : 'gap-[8px]'} ${className}`}
-        role="img"
-        aria-label={ariaLabel}
-        title={title}
-      >
-        {Array.from({ length: MARKS }, (_, i) => {
-          const f = clamp01(hours - i)
-          const full = f >= 1
-          const current = !full && f > 0
-          return (
-            <span
-              key={i}
-              className={`shrink-0 rounded-full transition-colors duration-300 ${dotSize} ${
-                full
-                  ? fillBg
-                  : current
-                    ? 'border-2 border-indigo-500 bg-transparent dark:border-indigo-400'
-                    : trackBg
-              }`}
-            />
-          )
-        })}
-        {notch}
+      <div className={`flex w-fit items-center ${className}`} role="img" aria-label={ariaLabel} title={title}>
+        <div className={`relative flex items-center ${compact ? 'gap-[6px]' : 'gap-[8px]'}`}>
+          {Array.from({ length: MARKS }, (_, i) => {
+            const f = clamp01(hours - i)
+            const full = f >= 1
+            const current = !full && f > 0
+            return (
+              <span
+                key={i}
+                className={`shrink-0 rounded-full transition-colors duration-300 ${dotSize} ${
+                  full
+                    ? fillBg
+                    : current
+                      ? 'border-2 border-indigo-500 bg-transparent dark:border-indigo-400'
+                      : trackBg
+                }`}
+              />
+            )
+          })}
+          {notch}
+        </div>
       </div>
     )
   }
@@ -157,36 +155,33 @@ export default function TimerScale({
   /* ── 刻度尺（默认）与等高胶囊：10 段逐格填充 ── */
   const equalHeight = style === 'blocks'
   return (
-    <div
-      className={`relative flex items-center ${compact ? 'gap-[3px]' : 'gap-[4px]'} ${className}`}
-      role="img"
-      aria-label={ariaLabel}
-      title={title}
-    >
-      {Array.from({ length: MARKS }, (_, i) => {
-        const f = clamp01(hours - i)
-        const full = f >= 1
-        return (
-          <span
-            key={i}
-            className={`relative overflow-hidden rounded-full transition-colors duration-300 ${segment} ${
-              equalHeight || i % 2 === 0 ? segmentTall : segmentLow
-            } ${full ? fillBg : trackBg}`}
-          >
-            {!full && f > 0 && (
-              <span
-                className="absolute inset-y-0 left-0 rounded-full bg-indigo-500/85 transition-[width] duration-500 ease-out dark:bg-indigo-400/85"
-                style={{ width: `${f * 100}%` }}
-              />
-            )}
-            {/* 等高胶囊：正在计入的那一格做呼吸提示 */}
-            {equalHeight && !full && f > 0 && (
-              <span className="absolute inset-0 animate-pulse rounded-full bg-indigo-400/60 dark:bg-indigo-300/50" />
-            )}
-          </span>
-        )
-      })}
-      {notch}
+    <div className={`flex w-fit items-center ${className}`} role="img" aria-label={ariaLabel} title={title}>
+      <div className={`relative flex items-center ${compact ? 'gap-[3px]' : 'gap-[4px]'}`}>
+        {Array.from({ length: MARKS }, (_, i) => {
+          const f = clamp01(hours - i)
+          const full = f >= 1
+          return (
+            <span
+              key={i}
+              className={`relative overflow-hidden rounded-full transition-colors duration-300 ${segment} ${
+                equalHeight || i % 2 === 0 ? segmentTall : segmentLow
+              } ${full ? fillBg : trackBg}`}
+            >
+              {!full && f > 0 && (
+                <span
+                  className="absolute inset-y-0 left-0 rounded-full bg-indigo-500/85 transition-[width] duration-500 ease-out dark:bg-indigo-400/85"
+                  style={{ width: `${f * 100}%` }}
+                />
+              )}
+              {/* 等高胶囊：正在计入的那一格做呼吸提示 */}
+              {equalHeight && !full && f > 0 && (
+                <span className="absolute inset-0 animate-pulse rounded-full bg-indigo-400/60 dark:bg-indigo-300/50" />
+              )}
+            </span>
+          )
+        })}
+        {notch}
+      </div>
     </div>
   )
 }
