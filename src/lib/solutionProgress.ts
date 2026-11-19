@@ -4,6 +4,7 @@
  * 只存选项字母，不存题目内容：题库更新后旧记录仍然可用，
  * 题号不存在的记录在读取时保留，但页面统计只按当前题库计算。
  */
+import { readUserCache } from './userScope'
 
 export interface SolutionAnswer {
   /** 用户选择的选项字母，按 A→D 排序 */
@@ -74,13 +75,13 @@ export function mergeSolutionProgress(
 }
 
 /**
- * 读取本机旧键里的作答记录。
+ * 读取本机旧键里的作答记录（按账号隔离）。
  * 现在作答记录并入政治学习状态（onepaper.state.v1）统一保存 / 同步，
  * 这里只用于把老版本的 kaoyan_solution_progress_v1 迁移过来。
  */
-export function loadSolutionProgress(): SolutionProgress {
+export function loadSolutionProgress(userId?: string | null): SolutionProgress {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = readUserCache(STORAGE_KEY, userId)
     if (!raw) return {}
     return sanitizeSolutionProgress(JSON.parse(raw) as unknown)
   } catch {

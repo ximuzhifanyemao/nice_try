@@ -6,6 +6,7 @@ import { loadUserSubjects, resetSubjectCache, hydrateUserSubjects, ensureBuiltin
 import { settleExpiredCommitments } from '../lib/commitments'
 import { bankRunningTimers, clearTimerLocalState } from '../lib/timerSync'
 import { runAutoFlush } from '../lib/timerOutbox'
+import { setActiveUserId } from '../lib/userScope'
 import type { Session, User } from '@supabase/supabase-js'
 
 interface AuthContextValue {
@@ -53,6 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setSession(session)
       setUser(session?.user ?? null)
+      // 本地用户内容缓存（记一记 / 生词 / 政治进度等）按账号分区，必须先同步当前用户
+      setActiveUserId(session?.user?.id ?? null)
       setLoading(false)
       // 恢复会话后立即同步恢复该用户的自定义科目本地缓存，
       // 让科目列表在云端返回前即可显示（避免冷启动先内置后自定义）
@@ -81,6 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       setSession(session)
       setUser(session?.user ?? null)
+      // 切换账号 / 登出：后续读写的本地缓存立即切到新账号（或 anon）分区
+      setActiveUserId(session?.user?.id ?? null)
       setLoading(false)
       // 登录成功后加载该用户的云端自定义科目；登出时清空科目缓存
       if (session?.user) {

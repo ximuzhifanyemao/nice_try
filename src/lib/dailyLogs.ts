@@ -172,12 +172,14 @@ export async function fetchMyLogsPaginated(
   return { data: data as DailyLog[], total: count ?? 0 }
 }
 
-/** 按 id 查询单条记录（用于编辑页，避免拉取全部日志；回收站中的记录视为不存在） */
-export async function fetchLogById(logId: string): Promise<DailyLog | null> {
+/** 按 id 查询单条记录（用于编辑页，避免拉取全部日志；回收站中的记录视为不存在）
+ *  显式带 user_id 过滤：即使 RLS 配置有误，也不会读到其他账号的记录 */
+export async function fetchLogById(userId: string, logId: string): Promise<DailyLog | null> {
   const { data, error } = await supabase
     .from('daily_logs')
     .select('*')
     .eq('id', logId)
+    .eq('user_id', userId)
     .is('deleted_at', null)
     .maybeSingle()
 

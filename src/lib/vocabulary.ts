@@ -1,6 +1,7 @@
 // 记一记 · 生词数据层（原英语生词本）：管理标记单词的持久化存储和生词数据（支持云端同步）
 import { supabase } from './supabase'
 import { isSupabaseConfigured } from './supabase'
+import { readUserCache, writeUserCache, removeUserCache } from './userScope'
 
 const MARKED_WORDS_KEY = 'english_marked_words'
 const VOCABULARY_KEY = 'english_vocabulary'
@@ -27,9 +28,9 @@ function wordKey(w: Pick<VocabWord, 'word' | 'sentence'>): string {
 // ---------- 标记单词（红色标记）持久化（纯本地） ----------
 
 /** 从 localStorage 读取已标记的单词 key 集合 */
-export function loadMarkedWords(): Set<string> {
+export function loadMarkedWords(userId?: string | null): Set<string> {
   try {
-    const raw = localStorage.getItem(MARKED_WORDS_KEY)
+    const raw = readUserCache(MARKED_WORDS_KEY, userId)
     if (!raw) return new Set()
     const arr: string[] = JSON.parse(raw)
     return new Set(arr)
@@ -39,16 +40,16 @@ export function loadMarkedWords(): Set<string> {
 }
 
 /** 将已标记的单词 key 集合保存到 localStorage */
-export function saveMarkedWords(words: Set<string>): void {
-  localStorage.setItem(MARKED_WORDS_KEY, JSON.stringify([...words]))
+export function saveMarkedWords(words: Set<string>, userId?: string | null): void {
+  writeUserCache(MARKED_WORDS_KEY, JSON.stringify([...words]), userId)
 }
 
 // ---------- 生词本持久化（本地缓存） ----------
 
-/** 从 localStorage 读取本地生词本缓存 */
-export function loadVocabulary(): VocabDay[] {
+/** 从 localStorage 读取本地生词本缓存（按账号隔离） */
+export function loadVocabulary(userId?: string | null): VocabDay[] {
   try {
-    const raw = localStorage.getItem(VOCABULARY_KEY)
+    const raw = readUserCache(VOCABULARY_KEY, userId)
     if (!raw) return []
     return JSON.parse(raw) as VocabDay[]
   } catch {
@@ -56,9 +57,9 @@ export function loadVocabulary(): VocabDay[] {
   }
 }
 
-/** 保存生词本到本地缓存 */
-export function saveVocabulary(data: VocabDay[]): void {
-  localStorage.setItem(VOCABULARY_KEY, JSON.stringify(data))
+/** 保存生词本到本地缓存（按账号隔离） */
+export function saveVocabulary(data: VocabDay[], userId?: string | null): void {
+  writeUserCache(VOCABULARY_KEY, JSON.stringify(data), userId)
 }
 
 /** 将 VocabDay[] 展平为单词数组 */
@@ -106,9 +107,9 @@ function toWord(r: CloudVocabRow): VocabWord {
  * 返回合并后的结果。
  */
 export async function syncVocabularyFromCloud(userId: string): Promise<VocabDay[]> {
-  if (!isSupabaseConfigured) return loadVocabulary()
+  if (!isSupabaseConfigured) return loadVocabulary(userId)
 
-  const local = flattenDays(loadVocabulary())
+  const local = flattenDays(loadVocabulary(userId))
   let cloud: VocabWord[] = []
   try {
     const { data, error } = await supabase
@@ -120,7 +121,7 @@ export async function syncVocabularyFromCloud(userId: string): Promise<VocabDay[
   } catch (err) {
     // 云端读取失败（如表未建/未授权）：保留本地数据，静默降级
     console.warn('[Vocab] cloud sync read failed, keep local:', err instanceof Error ? err.message : err)
-    return loadVocabulary()
+    return loadVocabulary(userId)
   }
 
   // 合并：以 位置键(day-sentIdx-wordIdx) 为主键
@@ -145,7 +146,7 @@ export async function syncVocabularyFromCloud(userId: string): Promise<VocabDay[
   })
 
   const result = groupByDay(mergedWords)
-  saveVocabulary(result)
+  saveVocabulary(result, userId)
   return result
 }
 
@@ -213,8 +214,9 @@ export async function clearVocabularyFromCloud(userId: string): Promise<void> {
 export function addDayToVocabulary(
   day: number,
   words: { word: string; sentence: string; sentIdx: number; wordIdx: number }[],
+  userId?: string | null,
 ): VocabDay[] {
-  const vocab = loadVocabulary()
+  const vocab = loadVocabulary(userId)
   const existing = vocab.find((v) => v.day === day)
 
   const newWords: VocabWord[] = words.map((w) => ({
@@ -231,13 +233,18 @@ export function addDayToVocabulary(
     vocab.push({ day, words: newWords })
   }
 
-  saveVocabulary(vocab)
+  saveVocabulary(vocab, userId)
   return vocab
 }
 
 /** 从生词本中删除某个单词（本地） */
-export function removeWordFromVocabulary(day: number, word: string, sentence: string): VocabDay[] {
-  const vocab = loadVocabulary()
+export function removeWordFromVocabulary(
+  day: number,
+  word: string,
+  sentence: string,
+  userId?: string | null,
+): VocabDay[] {
+  const vocab = loadVocabulary(userId)
   const dayEntry = vocab.find((v) => v.day === day)
   if (dayEntry) {
     dayEntry.words = dayEntry.words.filter((w) => !(w.word === word && w.sentence === sentence))
@@ -246,11 +253,11 @@ export function removeWordFromVocabulary(day: number, word: string, sentence: st
       vocab.splice(idx, 1)
     }
   }
-  saveVocabulary(vocab)
+  saveVocabulary(vocab, userId)
   return vocab
 }
 
 /** 清空本地生词本 */
-export function clearVocabulary(): void {
-  localStorage.removeItem(VOCABULARY_KEY)
+export function clearVocabulary(userId?: string | null): void {
+  removeUserCache(VOCABULARY_KEY, userId)
 }

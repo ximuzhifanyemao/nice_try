@@ -1,5 +1,6 @@
 import rawData from '../data/politics.json'
 import { loadSolutionProgress, sanitizeSolutionProgress, type SolutionProgress } from './solutionProgress'
+import { readUserCache, writeUserCache } from './userScope'
 
 /**
  * 考研政治「一页纸」的静态数据与纯函数工具。
@@ -153,16 +154,16 @@ function toVisits(value: unknown): string[] {
   ).slice(-180)
 }
 
-export function loadPoliticsState(): PoliticsLocalState {
+export function loadPoliticsState(userId?: string | null): PoliticsLocalState {
   try {
-    const raw = localStorage.getItem(POLITICS_STATE_KEY)
+    const raw = readUserCache(POLITICS_STATE_KEY, userId)
     const obj = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
     const font = obj.font === 'sm' || obj.font === 'lg' ? obj.font : 'md'
     /* 老版本的解题记录单独存在 kaoyan_solution_progress_v1，首次读取时迁移过来 */
     const answers =
       obj.answers && typeof obj.answers === 'object'
         ? sanitizeSolutionProgress(obj.answers)
-        : loadSolutionProgress()
+        : loadSolutionProgress(userId)
     return {
       mastered: toNoArray(obj.mastered),
       saved: toNoArray(obj.saved),
@@ -178,14 +179,14 @@ export function loadPoliticsState(): PoliticsLocalState {
       visits: [],
       last: null,
       font: 'md',
-      answers: loadSolutionProgress(),
+      answers: loadSolutionProgress(userId),
     }
   }
 }
 
-export function savePoliticsState(state: PoliticsLocalState): void {
+export function savePoliticsState(state: PoliticsLocalState, userId?: string | null): void {
   try {
-    localStorage.setItem(POLITICS_STATE_KEY, JSON.stringify(state))
+    writeUserCache(POLITICS_STATE_KEY, JSON.stringify(state), userId)
   } catch {
     /* 隐私模式 / 配额不足时保持内存态 */
   }

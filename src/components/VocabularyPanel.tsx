@@ -108,7 +108,7 @@ export default function VocabularyPanel({ onStatsChange }: VocabularyPanelProps)
   const [lookupErrorWord, setLookupErrorWord] = useState('')
 
   const userId = user?.id
-  const refresh = useCallback(() => setVocab(loadVocabulary()), [])
+  const refresh = useCallback(() => setVocab(loadVocabulary(userId)), [userId])
 
   // 登录后进入分区时同步云端生词（合并本地 + 云端并回写）
   useEffect(() => {
@@ -157,7 +157,7 @@ export default function VocabularyPanel({ onStatsChange }: VocabularyPanelProps)
   }, [onStatsChange, totalWords, vocab.length])
 
   const handleRemove = async (day: number, word: string, sentence: string) => {
-    const updated = removeWordFromVocabulary(day, word, sentence)
+    const updated = removeWordFromVocabulary(day, word, sentence, userId)
     setVocab(updated)
     if (userId) {
       try {
@@ -173,7 +173,7 @@ export default function VocabularyPanel({ onStatsChange }: VocabularyPanelProps)
       setConfirmClear(true)
       return
     }
-    clearVocabulary()
+    clearVocabulary(userId)
     setVocab([])
     setConfirmClear(false)
     if (userId) {

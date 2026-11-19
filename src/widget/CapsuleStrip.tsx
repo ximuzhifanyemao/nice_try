@@ -180,7 +180,12 @@ export default function CapsuleStrip({ expanded, vertical = false, onOpenDropdow
       // 待入库时长：今日总时长 = 云端已打卡 + 尚未补传的段（离线/刚结束还没写完时也不漏）
       try {
         const today = todayStr()
-        setPendingSeconds(loadOutbox().reduce((sum, item) => (item.date === today ? sum + item.seconds : sum), 0))
+        // 只统计自己的（含未登录时暂存的）条目：别人的待入库时长不显示、不累加
+        setPendingSeconds(
+          loadOutbox()
+            .filter((item) => item.userId === user?.id || item.userId === null)
+            .reduce((sum, item) => (item.date === today ? sum + item.seconds : sum), 0),
+        )
       } catch {
         /* 队列读取失败时保持原值 */
       }

@@ -307,8 +307,8 @@ function extractPos(lookup: WordLookup | null): string {
   return matched ? matched[1] : ''
 }
 
-function collectLegacyMarkedWords(day: number, dayData: EnglishDay) {
-  const marked = loadMarkedWords()
+function collectLegacyMarkedWords(day: number, dayData: EnglishDay, userKey: string) {
+  const marked = loadMarkedWords(userKey)
   if (marked.size === 0) return []
   const words: { word: string; sentence: string; sentIdx: number; wordIdx: number }[] = []
   for (let si = 0; si < dayData.sentences.length; si++) {
@@ -471,7 +471,7 @@ export default function EnglishCheckin() {
 
   // 生词本快照：换用户时重载；进入待复习抽屉时也会刷新
   useEffect(() => {
-    setVocabWords(loadVocabulary().flatMap((day) => day.words))
+    setVocabWords(loadVocabulary(userKey).flatMap((day) => day.words))
   }, [userKey])
 
   // 自评云端同步：本地数据先渲染，登录后后台拉取云端合并（同句新者胜），
@@ -905,7 +905,7 @@ export default function EnglishCheckin() {
     }
     if (kind === 'review') {
       setReviewItems(loadReviewItems(userKey))
-      setVocabWords(loadVocabulary().flatMap((day) => day.words))
+      setVocabWords(loadVocabulary(userKey).flatMap((day) => day.words))
     }
     setActiveSheet(kind)
   }
@@ -922,7 +922,7 @@ export default function EnglishCheckin() {
       sentIdx: record.sentIdx,
       wordIdx: vocabWordIdx(record),
     }
-    addDayToVocabulary(selectedDay, [payload])
+    addDayToVocabulary(selectedDay, [payload], user?.id)
     if (user) {
       void pushVocabularyToCloud(user.id, [{ ...payload, day: selectedDay }]).catch(() => {})
     }
@@ -1073,7 +1073,7 @@ export default function EnglishCheckin() {
     if (saved) {
       removeOpenedTerm(userKey, selectedDay, activeTerm.id)
       setOpenedTerms((prev) => prev.filter((t) => t.id !== activeTerm.id))
-      removeWordFromVocabulary(selectedDay, activeTerm.word, activeTerm.sentence)
+      removeWordFromVocabulary(selectedDay, activeTerm.word, activeTerm.sentence, user?.id)
       if (user) {
         void removeWordFromCloud(user.id, selectedDay, activeTerm.word, activeTerm.sentence).catch(() => {})
       }
@@ -1230,9 +1230,9 @@ export default function EnglishCheckin() {
 
       const data = daily.find((d) => d.day === day)
       if (data) {
-        const legacyWords = collectLegacyMarkedWords(day, data)
+        const legacyWords = collectLegacyMarkedWords(day, data, userKey)
         if (legacyWords.length > 0) {
-          addDayToVocabulary(day, legacyWords)
+          addDayToVocabulary(day, legacyWords, user.id)
           try {
             await pushVocabularyToCloud(
               user.id,

@@ -9,6 +9,7 @@
  * 云端未配置 / 表或桶尚未创建时静默降级为纯本地，页面会给出提示。
  */
 import { supabase, isSupabaseConfigured } from './supabase'
+import { readUserCache, writeUserCache } from './userScope'
 
 export type StudySubject = 'math' | 'cs408'
 
@@ -84,9 +85,9 @@ export function newNoteId(): string {
 
 // ---------- 本地缓存 ----------
 
-export function loadStudyNotes(): StudyNote[] {
+export function loadStudyNotes(userId?: string | null): StudyNote[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = readUserCache(STORAGE_KEY, userId)
     if (!raw) return []
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
@@ -99,9 +100,9 @@ export function loadStudyNotes(): StudyNote[] {
   }
 }
 
-export function saveStudyNotes(notes: StudyNote[]): void {
+export function saveStudyNotes(notes: StudyNote[], userId?: string | null): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(notes))
+    writeUserCache(STORAGE_KEY, JSON.stringify(notes), userId)
   } catch (err) {
     console.warn('[StudyNotes] 本地保存失败:', err instanceof Error ? err.message : err)
   }
@@ -193,7 +194,7 @@ function toRow(userId: string, note: StudyNote) {
  * 返回 cloudOk=false 表示云端不可用（未建表、未配置、网络失败），此时保留本地数据。
  */
 export async function syncStudyNotes(userId: string): Promise<{ notes: StudyNote[]; cloudOk: boolean }> {
-  const local = loadStudyNotes()
+  const local = loadStudyNotes(userId)
   if (!isSupabaseConfigured) return { notes: local, cloudOk: false }
 
   let cloud: StudyNote[]
@@ -216,7 +217,7 @@ export async function syncStudyNotes(userId: string): Promise<{ notes: StudyNote
   }
 
   const result = [...merged.values()].sort(sortNotes)
-  saveStudyNotes(result)
+  saveStudyNotes(result, userId)
 
   // 本地新增 / 本地更新的条目回推云端（失败不影响本地可用）
   const toPush = [...localById.values()].filter((l) => {

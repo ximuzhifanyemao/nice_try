@@ -63,7 +63,9 @@ export default function Politics() {
     const target = new URLSearchParams(location.search).get('page')
     return POLITICS_NAV.find((item) => item.page === target)?.page ?? 'library'
   })
-  const [state, setState] = useState<PoliticsLocalState>(() => loadPoliticsState())
+  const [state, setState] = useState<PoliticsLocalState>(() => loadPoliticsState(userId))
+  /** state 当前所属账号：切换账号的瞬间 state 还停留在上一账号，禁止把它写进新账号 */
+  const [stateOwner, setStateOwner] = useState<string | null>(userId)
   const [filters, setFilters] = useState<PoliticsFilters>(DEFAULT_FILTERS)
   const [drawerNo, setDrawerNo] = useState<number | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -88,15 +90,22 @@ export default function Politics() {
     })
   }, [])
 
-  /* 本机持久化 */
+  /* 切换账号 / 登出：先切到本账号（或空）的本机进度，避免把上一账号的数据带过去 */
   useEffect(() => {
-    savePoliticsState(state)
-  }, [state])
+    setStateOwner(userId)
+    setState(loadPoliticsState(userId))
+  }, [userId])
+
+  /* 本机持久化：只写 state 自己所属的账号 */
+  useEffect(() => {
+    if (stateOwner !== userId) return
+    savePoliticsState(state, userId)
+  }, [state, stateOwner, userId])
 
   /* 登录用户：先把云端进度与本机取并集，再回写云端 */
   useEffect(() => {
-    if (!userId) {
-      setCloudReady(true)
+    if (!userId || stateOwner !== userId) {
+      setCloudReady(!userId)
       return
     }
     let cancelled = false
@@ -120,11 +129,12 @@ export default function Politics() {
     return () => {
       cancelled = true
     }
-  }, [userId])
+  }, [userId, stateOwner])
 
   /* 进度变化后防抖落库（考点进度 + 解题作答记录一起写） */
   useEffect(() => {
-    if (!userId || !cloudReady) return
+    // stateOwner 校验：切换账号的首帧 state 仍属于上一账号，绝不能写进新账号的云端
+    if (!userId || !cloudReady || stateOwner !== userId) return
     const timer = setTimeout(() => {
       void savePoliticsProgress(userId, {
         mastered: state.mastered,
@@ -135,7 +145,7 @@ export default function Politics() {
       })
     }, CLOUD_SAVE_DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [state, userId, cloudReady])
+  }, [state, userId, cloudReady, stateOwner])
 
   /* 切页时把内容滚回顶部（兼容桌面端内容列自身的滚动容器） */
   useEffect(() => {

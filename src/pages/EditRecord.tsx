@@ -33,7 +33,7 @@ export default function EditRecord() {
   useEffect(() => {
     if (!user || !id) return
     setLoading(true)
-    fetchLogById(id)
+    fetchLogById(user.id, id)
       .then((found) => {
         if (!found) {
           setError('记录不存在')

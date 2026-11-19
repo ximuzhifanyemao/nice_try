@@ -95,11 +95,11 @@ export default function StudyNotes() {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeTab: NotesTab = searchParams.get('tab') === 'vocab' ? 'vocab' : 'notes'
   const [vocabStats, setVocabStats] = useState<VocabularyStats>(() => {
-    const cached = loadVocabulary()
+    const cached = loadVocabulary(user?.id)
     return { days: cached.length, words: cached.reduce((sum, d) => sum + d.words.length, 0) }
   })
 
-  const [notes, setNotes] = useState<StudyNote[]>(() => loadStudyNotes())
+  const [notes, setNotes] = useState<StudyNote[]>(() => loadStudyNotes(user?.id))
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [cloudOk, setCloudOk] = useState(true)
@@ -150,9 +150,12 @@ export default function StudyNotes() {
   // —— 删除确认 ——
   const [deleteTarget, setDeleteTarget] = useState<StudyNote | null>(null)
 
-  // 首次进入：先展示本地缓存，再与云端合并
+  // 首次进入：先展示本账号的本地缓存，再与云端合并
   useEffect(() => {
-    setNotes(loadStudyNotes())
+    setNotes(loadStudyNotes(user?.id))
+    // 生词数量角标也属于账号数据：换号时先按新账号本地缓存重置，避免残留上一账号的数字
+    const cachedVocab = loadVocabulary(user?.id)
+    setVocabStats({ days: cachedVocab.length, words: cachedVocab.reduce((sum, d) => sum + d.words.length, 0) })
     if (!user) {
       setLoading(false)
       return
@@ -471,7 +474,7 @@ export default function StudyNotes() {
     const next = (existing ? notes.map((n) => (n.id === existing.id ? note : n)) : [note, ...notes]) as StudyNote[]
     const ordered = [...next].sort(sortNotes)
     setNotes(ordered)
-    saveStudyNotes(ordered)
+    saveStudyNotes(ordered, user?.id)
 
     uploadedThisSession.current.clear()
     resetComposer(false)
@@ -515,7 +518,7 @@ export default function StudyNotes() {
       }
       const ordered = notes.map((n) => (n.id === note.id ? updated : n)).sort(sortNotes)
       setNotes(ordered)
-      saveStudyNotes(ordered)
+      saveStudyNotes(ordered, user?.id)
       if (user) {
         pushStudyNote(user.id, updated).catch(() => toast.show('云端同步失败，稍后会自动补上', { icon: '⚠️' }))
       }
@@ -530,7 +533,7 @@ export default function StudyNotes() {
     if (editingId === note.id) resetComposer(true)
     const next = notes.filter((n) => n.id !== note.id)
     setNotes(next)
-    saveStudyNotes(next)
+    saveStudyNotes(next, user?.id)
     setDeleteTarget(null)
     toast.show('已删除', { icon: '🗑️' })
     if (user) deleteStudyNoteFromCloud(user.id, note.id).catch(() => {})
