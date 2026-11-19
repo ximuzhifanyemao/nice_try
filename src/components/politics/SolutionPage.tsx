@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Icon } from '../Icon'
 import { padNo } from '../../lib/politics'
 import {
@@ -11,42 +11,32 @@ import {
   type SolutionQuestion,
 } from '../../lib/politicsSolutions'
 import {
-  clearSolutionAnswer,
   isSolutionCorrect,
-  loadSolutionProgress,
-  recordSolutionAnswer,
-  saveSolutionProgress,
   summarizeSolution,
   type SolutionAnswer,
   type SolutionProgress,
 } from '../../lib/solutionProgress'
 
-const STORAGE_KEY = 'kaoyan_solution_progress_v1'
-
 /**
  * 解题手册：按专题把「知识点」和「对应习题」接到一起。
  * 每个专题先给该专题的解题知识点（可折叠），紧接着是习题流；
- * 选项可以直接点选，提交后立即判对错，作答进度保存在本机。
+ * 选项可以直接点选，提交后立即判对错。
+ *
+ * 作答记录由外层政治页统一持有（和考点进度一起存本机 + 同步云端），
+ * 这里只负责展示与回传，保证换设备 / 重装后进度还能拿回来。
  */
-export default function SolutionPage() {
+export default function SolutionPage({
+  progress,
+  onAnswer,
+  onClear,
+}: {
+  progress: SolutionProgress
+  onAnswer: (no: number, picked: string[], answer: string) => void
+  onClear: (no: number) => void
+}) {
   const [chapterId, setChapterId] = useState<string | null>(null)
-  const [progress, setProgress] = useState<SolutionProgress>(() => loadSolutionProgress())
   const pageRef = useRef<HTMLElement>(null)
   const chapter = chapterId ? findSolutionChapter(chapterId) : undefined
-
-  /* 本机持久化：每次作答 / 重做后自动落盘 */
-  useEffect(() => {
-    saveSolutionProgress(progress)
-  }, [progress])
-
-  /* 多标签页 / 多窗口同步：另一个窗口答完题，这边也立即更新 */
-  useEffect(() => {
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === STORAGE_KEY) setProgress(loadSolutionProgress())
-    }
-    window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
-  }, [])
 
   /* 进入 / 退出专题时把滚动位置带回顶部（兼容桌面端内容列自身的滚动容器） */
   useEffect(() => {
@@ -68,14 +58,6 @@ export default function SolutionPage() {
   )
   const summary = useMemo(() => summarizeSolution(progress, allQuestionNos), [progress, allQuestionNos])
 
-  const handleAnswer = useCallback((no: number, picked: string[], answer: string) => {
-    setProgress((prev) => recordSolutionAnswer(prev, no, picked, answer))
-  }, [])
-
-  const handleClear = useCallback((no: number) => {
-    setProgress((prev) => clearSolutionAnswer(prev, no))
-  }, [])
-
   if (chapter) {
     return (
       <ChapterView
@@ -83,8 +65,8 @@ export default function SolutionPage() {
         onBack={() => setChapterId(null)}
         sectionRef={pageRef}
         progress={progress}
-        onAnswer={handleAnswer}
-        onClear={handleClear}
+        onAnswer={onAnswer}
+        onClear={onClear}
       />
     )
   }

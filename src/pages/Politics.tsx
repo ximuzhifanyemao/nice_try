@@ -1,15 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useToast } from '../lib/Toast'
 import { Icon } from '../components/Icon'
-import OverviewPage from '../components/politics/OverviewPage'
 import LibraryPage from '../components/politics/LibraryPage'
 import SolutionPage from '../components/politics/SolutionPage'
-import RecitePage, { type ReciteRequest } from '../components/politics/RecitePage'
 import HistoryPage from '../components/politics/HistoryPage'
-import MePage from '../components/politics/MePage'
 import ItemDrawer from '../components/politics/ItemDrawer'
 import SearchModal from '../components/politics/SearchModal'
 import {
@@ -29,13 +25,16 @@ import {
   type PoliticsItem,
   type PoliticsLocalState,
   type PoliticsPageKey,
-  type PoliticsRecitePrefs,
 } from '../lib/politics'
 import {
   fetchPoliticsProgress,
   mergePoliticsProgress,
   savePoliticsProgress,
 } from '../lib/politicsProgress'
+import {
+  clearSolutionAnswer,
+  recordSolutionAnswer,
+} from '../lib/solutionProgress'
 import './politics.css'
 
 /** 阅读字号 → 正文字号缩放（只作用于知识点正文） */
@@ -47,12 +46,10 @@ const CLOUD_SAVE_DEBOUNCE_MS = 800
 /**
  * 考研政治「一页纸」。
  *
- * 原单文件版（public/politics）已完整原生化：
- * - 100 个考点 / 33 场会议的数据在 src/data/politics.json；
- * - 概览、知识库、背诵、史纲、我的都是应用内的正常 React 页面，
- *   使用应用自身的侧边栏 / 底部 Tab，不再是全屏 iframe；
+ * 只保留三个分区：知识库（100 个考点）、解题（知识点 + 对应习题）、史纲（时间轴 + 33 场会议）。
+ * - 数据在 src/data/politics.json 与 politics-solutions.json；
  * - 页头「返回」永远直接回首页，而不是退回上一页；
- * - 学习进度沿用本机 localStorage（onepaper.state.v1），登录后与 Supabase 取并集同步。
+ * - 学习进度与解题作答记录一起存本机（onepaper.state.v1），登录后与 Supabase 合并同步。
  */
 export default function Politics() {
   const navigate = useNavigate()
@@ -64,16 +61,14 @@ export default function Politics() {
 
   const [page, setPage] = useState<PoliticsPageKey>(() => {
     const target = new URLSearchParams(location.search).get('page')
-    return POLITICS_NAV.find((item) => item.page === target)?.page ?? 'home'
+    return POLITICS_NAV.find((item) => item.page === target)?.page ?? 'library'
   })
   const [state, setState] = useState<PoliticsLocalState>(() => loadPoliticsState())
   const [filters, setFilters] = useState<PoliticsFilters>(DEFAULT_FILTERS)
   const [drawerNo, setDrawerNo] = useState<number | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
-  const [confirmReset, setConfirmReset] = useState(false)
   const [historyTab, setHistoryTab] = useState<'timeline' | 'meetings'>('timeline')
   const [stage, setStage] = useState<string | null>(null)
-  const [reciteRequest, setReciteRequest] = useState<ReciteRequest | null>(null)
   /** 云端首轮合并完成前不写云，避免用本机旧数据覆盖另一台设备的进度 */
   const [cloudReady, setCloudReady] = useState(!userId)
 
@@ -81,7 +76,7 @@ export default function Politics() {
   useEffect(() => {
     const target = new URLSearchParams(location.search).get('page')
     const matched = POLITICS_NAV.find((item) => item.page === target)
-    setPage(matched ? matched.page : 'home')
+    setPage(matched ? matched.page : 'library')
   }, [location.search])
 
   /* 首次进入记一次访问（连续学习天数） */
@@ -115,9 +110,9 @@ export default function Politics() {
           ...prev,
           mastered: merged.mastered.filter((no) => POLITICS_BY_NO.has(no)),
           saved: merged.saved.filter((no) => POLITICS_BY_NO.has(no)),
-          review: merged.review.filter((no) => POLITICS_BY_NO.has(no)),
           visits: merged.visits,
           last: merged.last != null && POLITICS_BY_NO.has(merged.last) ? merged.last : null,
+          answers: merged.answers,
         }
       })
       setCloudReady(true)
@@ -127,11 +122,17 @@ export default function Politics() {
     }
   }, [userId])
 
-  /* 进度变化后防抖落库 */
+  /* 进度变化后防抖落库（考点进度 + 解题作答记录一起写） */
   useEffect(() => {
     if (!userId || !cloudReady) return
     const timer = setTimeout(() => {
-      void savePoliticsProgress(userId, state)
+      void savePoliticsProgress(userId, {
+        mastered: state.mastered,
+        saved: state.saved,
+        visits: state.visits,
+        last: state.last,
+        answers: state.answers,
+      })
     }, CLOUD_SAVE_DEBOUNCE_MS)
     return () => clearTimeout(timer)
   }, [state, userId, cloudReady])
@@ -150,11 +151,6 @@ export default function Politics() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [page])
 
-  /* 离开背诵页就清掉一次性的开局请求，避免下次回到背诵页又自动开一轮 */
-  useEffect(() => {
-    if (page !== 'recite' && reciteRequest) setReciteRequest(null)
-  }, [page, reciteRequest])
-
   const toggleMastered = useCallback(
     (no: number) => {
       const mastered = state.mastered.includes(no)
@@ -165,7 +161,6 @@ export default function Politics() {
           : {
               ...prev,
               mastered: Array.from(new Set([...prev.mastered, no])).sort((a, b) => a - b),
-              review: prev.review.filter((n) => n !== no),
             },
       )
     },
@@ -185,38 +180,28 @@ export default function Politics() {
     [show, state.saved],
   )
 
-  /** 背诵自评：记住 → 掌握并移出待复习；没记住 → 进待复习并取消掌握 */
-  const rateCard = useCallback((no: number, known: boolean) => {
-    setState((prev) => {
-      if (known) {
-        return {
-          ...prev,
-          mastered: Array.from(new Set([...prev.mastered, no])).sort((a, b) => a - b),
-          review: prev.review.filter((n) => n !== no),
-          last: no,
-        }
-      }
-      return {
-        ...prev,
-        mastered: prev.mastered.filter((n) => n !== no),
-        review: Array.from(new Set([...prev.review, no])).sort((a, b) => a - b),
-        last: no,
-      }
-    })
+  /* 解题作答：记录并入同一份本机状态，登录后随考点进度一起同步 */
+  const handleSolutionAnswer = useCallback((no: number, picked: string[], answer: string) => {
+    setState((prev) => ({
+      ...prev,
+      answers: recordSolutionAnswer(prev.answers, no, picked, answer),
+    }))
+  }, [])
+
+  const handleSolutionClear = useCallback((no: number) => {
+    setState((prev) => ({ ...prev, answers: clearSolutionAnswer(prev.answers, no) }))
   }, [])
 
   const openItem = useCallback((no: number) => {
     if (!POLITICS_BY_NO.has(no)) return
     setDrawerNo(no)
     setSearchOpen(false)
-    setConfirmReset(false)
     setState((prev) => (prev.last === no ? prev : { ...prev, last: no }))
   }, [])
 
   const closeLayers = useCallback(() => {
     setDrawerNo(null)
     setSearchOpen(false)
-    setConfirmReset(false)
   }, [])
 
   const goPage = useCallback(
@@ -224,17 +209,10 @@ export default function Politics() {
       setPage(target)
       closeLayers()
       /* 让地址栏跟上当前分区：刷新后仍停在原分区，桌面侧边栏也能正确高亮 */
-      navigate(target === 'home' ? '/politics' : `/politics?page=${target}`, { replace: true })
+      navigate(target === 'library' ? '/politics' : `/politics?page=${target}`, { replace: true })
     },
     [closeLayers, navigate],
   )
-
-  const requestRecite = useCallback((scope: string, shuffle?: boolean) => {
-    setReciteRequest({ scope, nonce: Date.now(), shuffle })
-    setPage('recite')
-    setDrawerNo(null)
-    setSearchOpen(false)
-  }, [])
 
   const openCategory = useCallback((cat: string) => {
     setFilters({ cat, group: '全部', status: 'all', q: '' })
@@ -247,29 +225,6 @@ export default function Politics() {
     setPage('library')
     closeLayers()
   }, [closeLayers])
-
-  const openStatus = useCallback((status: PoliticsFilters['status']) => {
-    setFilters({ cat: '全部', group: '全部', status, q: '' })
-    setPage('library')
-    closeLayers()
-  }, [closeLayers])
-
-  const setPrefs = useCallback((patch: Partial<PoliticsRecitePrefs>) => {
-    setState((prev) => ({ ...prev, recite: { ...prev.recite, ...patch } }))
-  }, [])
-
-  const resetLearning = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      mastered: [],
-      saved: [],
-      review: [],
-      last: null,
-      visits: [dateKey()],
-    }))
-    setConfirmReset(false)
-    show('学习数据已清空')
-  }, [show])
 
   const copyItem = useCallback(
     async (item: PoliticsItem) => {
@@ -328,8 +283,7 @@ export default function Politics() {
         return
       }
       if (e.key === 'Escape') {
-        if (confirmReset) setConfirmReset(false)
-        else if (searchOpen) setSearchOpen(false)
+        if (searchOpen) setSearchOpen(false)
         else if (drawerNo != null) setDrawerNo(null)
         return
       }
@@ -342,7 +296,7 @@ export default function Politics() {
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [confirmReset, drawerNo, drawerOrder, openItem, searchOpen])
+  }, [drawerNo, drawerOrder, openItem, searchOpen])
 
   const pageStyle = { '--read-scale': String(FONT_SCALE[state.font]) } as CSSProperties
 
@@ -400,29 +354,12 @@ export default function Politics() {
             >
               <Icon name={item.icon} size={15} />
               <span>{item.label}</span>
-              {item.page === 'recite' && state.review.length > 0 && (
-                <span className="pp-tab-badge">{state.review.length > 99 ? '99+' : state.review.length}</span>
-              )}
             </button>
           ))}
         </nav>
       </header>
 
       <main className="pp-main">
-        {page === 'home' && (
-          <OverviewPage
-            state={state}
-            onOpenItem={openItem}
-            onNav={goPage}
-            onSelectCategory={openCategory}
-            onOpenSearch={() => setSearchOpen(true)}
-            onRandomRecite={() => requestRecite('all', true)}
-            onHistoryMeetings={() => {
-              setHistoryTab('meetings')
-              goPage('history')
-            }}
-          />
-        )}
         {page === 'library' && (
           <LibraryPage
             state={state}
@@ -433,14 +370,11 @@ export default function Politics() {
             onToggleSave={toggleSave}
           />
         )}
-        {page === 'solution' && <SolutionPage />}
-        {page === 'recite' && (
-          <RecitePage
-            state={state}
-            request={reciteRequest}
-            onRate={rateCard}
-            onPrefs={setPrefs}
-            onNav={goPage}
+        {page === 'solution' && (
+          <SolutionPage
+            progress={state.answers}
+            onAnswer={handleSolutionAnswer}
+            onClear={handleSolutionClear}
           />
         )}
         {page === 'history' && (
@@ -452,16 +386,6 @@ export default function Politics() {
             onOpenItem={openItem}
             onOpenCategory={openCategory}
             onOpenGroup={openGroup}
-          />
-        )}
-        {page === 'me' && (
-          <MePage
-            state={state}
-            onOpenItem={openItem}
-            onOpenStatus={openStatus}
-            onStartReview={() => requestRecite('review')}
-            onSetFont={(font) => setState((prev) => ({ ...prev, font }))}
-            onRequestReset={() => setConfirmReset(true)}
           />
         )}
       </main>
@@ -492,28 +416,6 @@ export default function Politics() {
           }}
         />
       )}
-
-      {confirmReset &&
-        createPortal(
-          <div className="pp-root pp-layer">
-            <div className="layer-backdrop" onClick={() => setConfirmReset(false)} />
-            <div className="confirm-modal" role="dialog" aria-modal="true" aria-label="确认清空">
-              <h2>清空学习数据？</h2>
-              <p>
-                会清除已掌握、收藏、待复习、最近浏览和连续学习记录。字号设置会保留。这个操作不能撤销。
-              </p>
-              <div className="confirm-actions">
-                <button type="button" className="btn-ghost" onClick={() => setConfirmReset(false)}>
-                  取消
-                </button>
-                <button type="button" className="btn-primary confirm-danger" onClick={resetLearning}>
-                  确认清空
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
     </div>
   )
 }

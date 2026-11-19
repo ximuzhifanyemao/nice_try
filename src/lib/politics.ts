@@ -1,4 +1,5 @@
 import rawData from '../data/politics.json'
+import { loadSolutionProgress, sanitizeSolutionProgress, type SolutionProgress } from './solutionProgress'
 
 /**
  * 考研政治「一页纸」的静态数据与纯函数工具。
@@ -108,47 +109,33 @@ export const POLITICS_TL_ROWS = [
   },
 ]
 
-export type PoliticsPageKey = 'home' | 'library' | 'solution' | 'recite' | 'history' | 'me'
+export type PoliticsPageKey = 'library' | 'solution' | 'history'
 export type PoliticsFontSize = 'sm' | 'md' | 'lg'
 
-export const POLITICS_NAV: { page: PoliticsPageKey; label: string; icon: 'home' | 'book' | 'cards' | 'history' | 'user' | 'bulb' }[] = [
-  { page: 'home', label: '概览', icon: 'home' },
+export const POLITICS_NAV: { page: PoliticsPageKey; label: string; icon: 'book' | 'history' | 'bulb' }[] = [
   { page: 'library', label: '知识库', icon: 'book' },
   { page: 'solution', label: '解题', icon: 'bulb' },
-  { page: 'recite', label: '背诵', icon: 'cards' },
   { page: 'history', label: '史纲', icon: 'history' },
-  { page: 'me', label: '我的', icon: 'user' },
 ]
 
 export const POLITICS_PAGE_NAME: Record<PoliticsPageKey, string> = {
-  home: '概览',
   library: '知识库',
   solution: '解题',
-  recite: '背诵',
   history: '史纲',
-  me: '我的',
 }
 
 /** 本机存储键：沿用原单文件版的键名，老用户的进度不会丢 */
 export const POLITICS_STATE_KEY = 'onepaper.state.v1'
 
-export interface PoliticsRecitePrefs {
-  scope: string
-  shuffle: boolean
-  limit: string
-}
-
 export interface PoliticsLocalState {
   mastered: number[]
   saved: number[]
-  review: number[]
   visits: string[]
   last: number | null
   font: PoliticsFontSize
-  recite: PoliticsRecitePrefs
+  /** 解题手册的作答记录：与考点进度保存在同一份状态里，登录后一起同步云端 */
+  answers: SolutionProgress
 }
-
-const DEFAULT_RECITE: PoliticsRecitePrefs = { scope: 'all', shuffle: true, limit: '20' }
 
 function toNoArray(value: unknown): number[] {
   if (!Array.isArray(value)) return []
@@ -171,29 +158,27 @@ export function loadPoliticsState(): PoliticsLocalState {
     const raw = localStorage.getItem(POLITICS_STATE_KEY)
     const obj = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
     const font = obj.font === 'sm' || obj.font === 'lg' ? obj.font : 'md'
-    const recite = (obj.recite ?? {}) as Partial<PoliticsRecitePrefs>
+    /* 老版本的解题记录单独存在 kaoyan_solution_progress_v1，首次读取时迁移过来 */
+    const answers =
+      obj.answers && typeof obj.answers === 'object'
+        ? sanitizeSolutionProgress(obj.answers)
+        : loadSolutionProgress()
     return {
       mastered: toNoArray(obj.mastered),
       saved: toNoArray(obj.saved),
-      review: toNoArray(obj.review),
       visits: toVisits(obj.visits),
       last: typeof obj.last === 'number' && POLITICS_BY_NO.has(obj.last) ? obj.last : null,
       font,
-      recite: {
-        scope: typeof recite.scope === 'string' ? recite.scope : DEFAULT_RECITE.scope,
-        shuffle: typeof recite.shuffle === 'boolean' ? recite.shuffle : DEFAULT_RECITE.shuffle,
-        limit: typeof recite.limit === 'string' ? recite.limit : DEFAULT_RECITE.limit,
-      },
+      answers,
     }
   } catch {
     return {
       mastered: [],
       saved: [],
-      review: [],
       visits: [],
       last: null,
       font: 'md',
-      recite: { ...DEFAULT_RECITE },
+      answers: loadSolutionProgress(),
     }
   }
 }
@@ -213,18 +198,6 @@ export function dateKey(d = new Date()): string {
   return `${y}-${m}-${day}`
 }
 
-export function computeStreak(visits: string[]): number {
-  const set = new Set(visits)
-  const d = new Date()
-  if (!set.has(dateKey(d))) d.setDate(d.getDate() - 1)
-  let streak = 0
-  while (set.has(dateKey(d))) {
-    streak += 1
-    d.setDate(d.getDate() - 1)
-  }
-  return streak
-}
-
 export function padNo(no: number): string {
   return String(no).padStart(3, '0')
 }
@@ -242,28 +215,6 @@ export function categoryMastered(category: string, mastered: number[]): number {
   return POLITICS_ITEMS.filter((item) => item.category === category && set.has(item.no)).length
 }
 
-/** 今日三题：按日期做种子洗牌，优先未掌握 */
-export function dailyPicks(mastered: number[], count = 3): PoliticsItem[] {
-  const set = new Set(mastered)
-  const pool = POLITICS_ITEMS.filter((item) => !set.has(item.no))
-  const source = pool.length ? pool : POLITICS_ITEMS
-  const seed = parseInt(dateKey().replace(/-/g, ''), 10)
-  let a = seed
-  const rand = () => {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-  const arr = source.slice()
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rand() * (i + 1))
-    ;[arr[i], arr[j]] = [arr[j], arr[i]]
-  }
-  return arr.slice(0, count)
-}
-
 /** 卡片预览：取正文前三段（与旧版一致，第三段由 CSS 在窄屏隐藏） */
 export function previewHtml(item: PoliticsItem): string {
   if (item.no === 37) {
@@ -274,17 +225,10 @@ export function previewHtml(item: PoliticsItem): string {
   return ps.slice(0, 3).join('')
 }
 
-/** 091 会议口诀逐句拆成 chips */
-export function mnemonicLines(item: PoliticsItem | undefined, limit = 99): string[] {
-  if (!item) return []
-  const ps = item.html.match(/<p class="kp-line[^"]*">[\s\S]*?<\/p>/g) || []
-  return ps.slice(0, limit).map((p) => p.replace(/^<p[^>]*>|<\/p>$/g, ''))
-}
-
 export interface PoliticsFilters {
   cat: string
   group: string
-  status: 'all' | 'unmastered' | 'mastered' | 'review' | 'saved'
+  status: 'all' | 'unmastered' | 'mastered' | 'saved'
   q: string
 }
 
@@ -292,14 +236,12 @@ export const DEFAULT_FILTERS: PoliticsFilters = { cat: '全部', group: '全部'
 
 export function filterItems(filters: PoliticsFilters, state: PoliticsLocalState): PoliticsItem[] {
   const mastered = new Set(state.mastered)
-  const review = new Set(state.review)
   const saved = new Set(state.saved)
   return POLITICS_ITEMS.filter((item) => {
     if (filters.cat !== '全部' && item.category !== filters.cat) return false
     if (filters.group !== '全部' && item.group !== filters.group) return false
     if (filters.status === 'unmastered' && mastered.has(item.no)) return false
     if (filters.status === 'mastered' && !mastered.has(item.no)) return false
-    if (filters.status === 'review' && !review.has(item.no)) return false
     if (filters.status === 'saved' && !saved.has(item.no)) return false
     if (filters.q) {
       const q = filters.q.toLowerCase()
@@ -307,31 +249,6 @@ export function filterItems(filters: PoliticsFilters, state: PoliticsLocalState)
     }
     return true
   })
-}
-
-export function scopeItems(scope: string, state: PoliticsLocalState): PoliticsItem[] {
-  if (scope === 'all') return POLITICS_ITEMS
-  if (scope === 'ma' || scope === 'shi' || scope === 'qi') {
-    const name = { ma: '马原', shi: '史纲', qi: '其他' }[scope]
-    return POLITICS_ITEMS.filter((item) => item.category === name)
-  }
-  if (scope === 'unmastered') {
-    const set = new Set(state.mastered)
-    return POLITICS_ITEMS.filter((item) => !set.has(item.no))
-  }
-  if (scope === 'review') return state.review.map((no) => POLITICS_BY_NO.get(no)).filter((v): v is PoliticsItem => !!v)
-  if (scope === 'saved') return state.saved.map((no) => POLITICS_BY_NO.get(no)).filter((v): v is PoliticsItem => !!v)
-  return POLITICS_ITEMS
-}
-
-export const POLITICS_SCOPE_LABEL: Record<string, string> = {
-  all: '全部考点',
-  ma: '马原',
-  shi: '史纲',
-  qi: '其他',
-  unmastered: '未掌握',
-  review: '待复习',
-  saved: '已收藏',
 }
 
 export function snippetFor(item: PoliticsItem, q: string): string {
@@ -342,13 +259,4 @@ export function snippetFor(item: PoliticsItem, q: string): string {
   const start = Math.max(0, idx - 22)
   const end = Math.min(plain.length, idx + q.length + 46)
   return (start > 0 ? '…' : '') + plain.slice(start, end) + (end < plain.length ? '…' : '')
-}
-
-export function shuffleItems<T>(arr: T[]): T[] {
-  const a = arr.slice()
-  for (let i = a.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
 }

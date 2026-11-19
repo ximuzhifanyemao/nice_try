@@ -25,7 +25,6 @@ const STATUS_OPTIONS: { value: PoliticsFilters['status']; label: string }[] = [
   { value: 'all', label: '全部状态' },
   { value: 'unmastered', label: '未掌握' },
   { value: 'mastered', label: '已掌握' },
-  { value: 'review', label: '待复习' },
   { value: 'saved', label: '已收藏' },
 ]
 

@@ -38,38 +38,53 @@ export function isSolutionCorrect(picked: string[], answer: string): boolean {
   return mine.length === right.length && mine.every((letter, index) => letter === right[index])
 }
 
-/** 读取本机进度；数据损坏时按空进度处理，不影响页面使用 */
+/** 把任意来源（本机旧键 / 云端 JSON）的作答记录收敛成合法形状 */
+export function sanitizeSolutionProgress(value: unknown): SolutionProgress {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const result: SolutionProgress = {}
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    if (!/^\d+$/.test(key)) continue
+    if (!entry || typeof entry !== 'object') continue
+    const item = entry as Partial<SolutionAnswer>
+    const picked = normalizePicked(item.picked)
+    if (!picked.length) continue
+    result[key] = {
+      picked,
+      correct: item.correct === true,
+      at: typeof item.at === 'number' && Number.isFinite(item.at) ? item.at : 0,
+    }
+  }
+  return result
+}
+
+/**
+ * 合并两端的作答记录：同一题按作答时间取较新的一份。
+ * 用来处理「手机做一半、电脑做一半」以及重做后换设备的情况。
+ */
+export function mergeSolutionProgress(
+  a: SolutionProgress,
+  b: SolutionProgress,
+): SolutionProgress {
+  const merged: SolutionProgress = { ...a }
+  for (const [key, answer] of Object.entries(b)) {
+    const current = merged[key]
+    if (!current || answer.at >= current.at) merged[key] = answer
+  }
+  return merged
+}
+
+/**
+ * 读取本机旧键里的作答记录。
+ * 现在作答记录并入政治学习状态（onepaper.state.v1）统一保存 / 同步，
+ * 这里只用于把老版本的 kaoyan_solution_progress_v1 迁移过来。
+ */
 export function loadSolutionProgress(): SolutionProgress {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return {}
-    const parsed = JSON.parse(raw) as unknown
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
-    const result: SolutionProgress = {}
-    for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-      if (!/^\d+$/.test(key)) continue
-      if (!value || typeof value !== 'object') continue
-      const item = value as Partial<SolutionAnswer>
-      const picked = normalizePicked(item.picked)
-      if (!picked.length) continue
-      result[key] = {
-        picked,
-        correct: item.correct === true,
-        at: typeof item.at === 'number' && Number.isFinite(item.at) ? item.at : 0,
-      }
-    }
-    return result
+    return sanitizeSolutionProgress(JSON.parse(raw) as unknown)
   } catch {
     return {}
-  }
-}
-
-/** 写入本机进度（失败静默：隐私模式 / 存储已满时不影响做题） */
-export function saveSolutionProgress(progress: SolutionProgress): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(progress))
-  } catch {
-    /* 忽略存储失败 */
   }
 }
 

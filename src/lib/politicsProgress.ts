@@ -1,4 +1,9 @@
 import { supabase } from './supabase'
+import {
+  mergeSolutionProgress,
+  sanitizeSolutionProgress,
+  type SolutionProgress,
+} from './solutionProgress'
 
 /** 政治一页纸的学习进度（与本机 onepaper.state.v1 的进度字段一一对应） */
 export interface PoliticsProgress {
@@ -6,12 +11,12 @@ export interface PoliticsProgress {
   mastered: number[]
   /** 收藏考点编号 */
   saved: number[]
-  /** 待复习考点编号 */
-  review: number[]
   /** 访问日期 yyyy-MM-dd */
   visits: string[]
   /** 最近打开的考点编号 */
   last: number | null
+  /** 解题手册的作答记录（键为题号，按作答时间取新） */
+  answers: SolutionProgress
 }
 
 /** 访问天数上限，与一页纸本机存储保持一致 */
@@ -20,9 +25,9 @@ const VISITS_LIMIT = 180
 export const EMPTY_POLITICS_PROGRESS: PoliticsProgress = {
   mastered: [],
   saved: [],
-  review: [],
   visits: [],
   last: null,
+  answers: {},
 }
 
 function toNumberArray(value: unknown): number[] {
@@ -51,14 +56,15 @@ export function sanitizePoliticsProgress(value: unknown): PoliticsProgress {
   return {
     mastered: toNumberArray(v.mastered),
     saved: toNumberArray(v.saved),
-    review: toNumberArray(v.review),
     visits: toVisitArray(v.visits),
     last: typeof v.last === 'number' && Number.isFinite(v.last) ? v.last : null,
+    answers: sanitizeSolutionProgress(v.answers),
   }
 }
 
 /**
- * 合并两端进度：考点 / 收藏 / 复习取并集（多设备各自勾选的都保留），
+ * 合并两端进度：考点 / 收藏取并集（多设备各自勾选的都保留），
+ * 解题作答按题目逐个取较新的一次；
  * 访问日期取并集后保留最近 180 天；最近打开的考点优先用本机值。
  */
 export function mergePoliticsProgress(
@@ -70,9 +76,9 @@ export function mergePoliticsProgress(
   return {
     mastered: unionNumbers(remote.mastered, local.mastered),
     saved: unionNumbers(remote.saved, local.saved),
-    review: unionNumbers(remote.review, local.review),
     visits: toVisitArray([...remote.visits, ...local.visits]),
     last: local.last ?? remote.last,
+    answers: mergeSolutionProgress(remote.answers, local.answers),
   }
 }
 
