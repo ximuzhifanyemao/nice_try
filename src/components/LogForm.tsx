@@ -323,44 +323,42 @@ export default function LogForm({
                       )}
                     </div>
 
-                    {/* 时间段（可选）：两端填好后按区间自动换算时长，如 12:47–13:30 → 0.72 小时 */}
-                    {(row.activities.length > 0 || row.hours > 0 || row.startTime || row.endTime) && (
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] text-gray-400 dark:text-slate-500">时间段</span>
-                        <input
-                          type="time"
-                          aria-label="开始时间"
-                          value={row.startTime}
-                          onChange={(e) => handleTimeChange(row, 'start', e.target.value)}
-                          className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs tabular-nums text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
-                        />
-                        <span className="text-[11px] text-gray-400 dark:text-slate-500">至</span>
-                        <input
-                          type="time"
-                          aria-label="结束时间"
-                          value={row.endTime}
-                          onChange={(e) => handleTimeChange(row, 'end', e.target.value)}
-                          className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs tabular-nums text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
-                        />
-                        {row.startTime && row.endTime && row.endTime <= row.startTime && (
-                          <span className="text-[11px] text-red-500">结束需晚于开始</span>
-                        )}
-                        {row.startTime && row.endTime && row.endTime > row.startTime && (
-                          <span className="text-[11px] tabular-nums text-blue-500 dark:text-blue-400">
-                            共 {timeRangeHours(row.startTime, row.endTime)} 小时
-                          </span>
-                        )}
-                        {(row.startTime || row.endTime) && (
-                          <button
-                            type="button"
-                            onClick={() => updateRow(row.key, { startTime: '', endTime: '' })}
-                            className="cursor-pointer text-[11px] text-gray-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
-                          >
-                            清除
-                          </button>
-                        )}
-                      </div>
-                    )}
+                    {/* 时间段（可选）：每个科目行都可填，两端填好后按区间自动换算时长，如 12:47–13:30 → 0.72 小时 */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="text-[11px] text-gray-400 dark:text-slate-500">时间段</span>
+                      <input
+                        type="time"
+                        aria-label="开始时间"
+                        value={row.startTime}
+                        onChange={(e) => handleTimeChange(row, 'start', e.target.value)}
+                        className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs tabular-nums text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                      />
+                      <span className="text-[11px] text-gray-400 dark:text-slate-500">至</span>
+                      <input
+                        type="time"
+                        aria-label="结束时间"
+                        value={row.endTime}
+                        onChange={(e) => handleTimeChange(row, 'end', e.target.value)}
+                        className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs tabular-nums text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                      />
+                      {row.startTime && row.endTime && row.endTime <= row.startTime && (
+                        <span className="text-[11px] text-red-500">结束需晚于开始</span>
+                      )}
+                      {row.startTime && row.endTime && row.endTime > row.startTime && (
+                        <span className="text-[11px] tabular-nums text-blue-500 dark:text-blue-400">
+                          共 {timeRangeHours(row.startTime, row.endTime)} 小时
+                        </span>
+                      )}
+                      {(row.startTime || row.endTime) && (
+                        <button
+                          type="button"
+                          onClick={() => updateRow(row.key, { startTime: '', endTime: '' })}
+                          className="cursor-pointer text-[11px] text-gray-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
+                        >
+                          清除
+                        </button>
+                      )}
+                    </div>
 
                     {row.activities.length > 1 && row.hours > 0 && (
                       <p className="text-[11px] text-blue-500 dark:text-blue-400">
