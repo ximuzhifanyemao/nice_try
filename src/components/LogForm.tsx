@@ -4,6 +4,7 @@ import { todayStr, yesterdayStr } from '../lib/dailyLogs'
 import type { Subject } from '../lib/subjects'
 import { buildActivityPath, getActivityTreeForSubject } from '../lib/subjects'
 import { getCardColor } from '../lib/colors'
+import { timeRangeHours } from '../lib/format'
 
 /** 表单中一行记录：一个科目 × 一个或多个学习内容（同一行内可勾选多个，时长相同） */
 interface SubjectRow {
@@ -12,6 +13,9 @@ interface SubjectRow {
   activities: string[] // 可多选；空数组表示未选
   hours: number
   hoursText: string // 时长输入框原文（保留 "0." / "0" 等中间态，避免输入 0.2 时被清空）
+  /** 学习时间段（HH:mm，空串表示未填）：填好两端后按区间自动换算时长 */
+  startTime: string
+  endTime: string
   summary: string
   /** 该行对应的已有记录（编辑已有记录时才有）：用于保留计时器写入的时间段/暂停明细 */
   origin?: DailyLogSubject
@@ -49,6 +53,8 @@ function buildInitialRows(
         activities: s.activity ? [s.activity] : [],
         hours: s.hours,
         hoursText: String(s.hours),
+        startTime: s.startTime ?? '',
+        endTime: s.endTime ?? '',
         summary: s.summary ?? '',
         origin: s,
       })
@@ -62,6 +68,8 @@ function buildInitialRows(
         activities: [],
         hours: 0,
         hoursText: '',
+        startTime: '',
+        endTime: '',
         summary: '',
       })
     }
@@ -79,7 +87,7 @@ export default function LogForm({
   const keySeq = useRef(rows.length)
   const [summary, setSummary] = useState(initialData?.summary ?? '')
   const [date, setDate] = useState(initialData?.date ?? todayStr())
-  const [errors, setErrors] = useState<{ subjects?: string; date?: string }>({})
+  const [errors, setErrors] = useState<{ subjects?: string; date?: string; time?: string }>({})
 
   const isEditing = !!initialData
 
@@ -91,7 +99,10 @@ export default function LogForm({
   }
 
   const addRow = (subjectId: string) => {
-    setRows((prev) => [...prev, { key: nextKey(), subjectId, activities: [], hours: 0, hoursText: '', summary: '' }])
+    setRows((prev) => [
+      ...prev,
+      { key: nextKey(), subjectId, activities: [], hours: 0, hoursText: '', startTime: '', endTime: '', summary: '' },
+    ])
   }
 
   const removeRow = (key: string) => {
@@ -130,13 +141,35 @@ export default function LogForm({
     updateRow(row.key, { hoursText: cleaned, hours: isNaN(num) ? 0 : num })
   }
 
+  /** 修改时间段：两端都填且结束晚于开始时，自动按区间换算时长（如 12:47–13:30 → 0.72 小时） */
+  const handleTimeChange = (row: SubjectRow, which: 'start' | 'end', value: string) => {
+    const startTime = which === 'start' ? value : row.startTime
+    const endTime = which === 'end' ? value : row.endTime
+    const patch: Partial<SubjectRow> = { startTime, endTime }
+    if (startTime && endTime && endTime > startTime) {
+      const h = timeRangeHours(startTime, endTime)
+      patch.hours = h
+      patch.hoursText = String(h)
+    }
+    updateRow(row.key, patch)
+    setErrors((prev) => ({ ...prev, time: undefined }))
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
-    const newErrors: { subjects?: string; date?: string } = {}
+    const newErrors: { subjects?: string; date?: string; time?: string } = {}
     const hasAnyHours = rows.some((r) => r.hours > 0)
     if (!hasAnyHours) {
       newErrors.subjects = '请至少为一个科目设置学习时长'
+    }
+    // 时间段只填一端，或结束不晚于开始（跨零点不支持）都视为无效
+    const hasBadTime = rows.some((r) => {
+      if (!r.startTime && !r.endTime) return false
+      return !r.startTime || !r.endTime || r.endTime <= r.startTime
+    })
+    if (hasBadTime) {
+      newErrors.time = '时间段需同时填写开始和结束，且结束时间要晚于开始时间'
     }
     if (!date) {
       newErrors.date = '请选择记录日期'
@@ -160,12 +193,16 @@ export default function LogForm({
         const entry: DailyLogSubject = { id: r.subjectId, hours: r.hours }
         if (act) entry.activity = act
         if (r.summary.trim()) entry.summary = r.summary.trim()
-        // 计时器写入的时间段与暂停明细跟着原条目保留：
-        // 只改某一行的时长时，其它记录的时间段不能被抹掉；同一行勾了多个内容时只挂给第一条
-        if (r.origin && actIndex === 0) {
-          if (r.origin.startTime) entry.startTime = r.origin.startTime
-          if (r.origin.endTime) entry.endTime = r.origin.endTime
-          if (r.origin.pauses && r.origin.pauses.length > 0) entry.pauses = r.origin.pauses
+        // 时间段：同一行勾了多个内容时只挂给第一条，避免时间轴重复计时
+        if (actIndex === 0 && r.startTime && r.endTime) {
+          entry.startTime = r.startTime
+          entry.endTime = r.endTime
+        }
+        // 暂停明细只在时间段未改动时保留：改了起止时间后旧暂停点已对不上
+        if (r.origin && actIndex === 0 && r.origin.pauses && r.origin.pauses.length > 0) {
+          const timeUnchanged =
+            (r.origin.startTime ?? '') === r.startTime && (r.origin.endTime ?? '') === r.endTime
+          if (timeUnchanged) entry.pauses = r.origin.pauses
         }
         subjects.push(entry)
       })
@@ -286,6 +323,45 @@ export default function LogForm({
                       )}
                     </div>
 
+                    {/* 时间段（可选）：两端填好后按区间自动换算时长，如 12:47–13:30 → 0.72 小时 */}
+                    {(row.activities.length > 0 || row.hours > 0 || row.startTime || row.endTime) && (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] text-gray-400 dark:text-slate-500">时间段</span>
+                        <input
+                          type="time"
+                          aria-label="开始时间"
+                          value={row.startTime}
+                          onChange={(e) => handleTimeChange(row, 'start', e.target.value)}
+                          className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs tabular-nums text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                        />
+                        <span className="text-[11px] text-gray-400 dark:text-slate-500">至</span>
+                        <input
+                          type="time"
+                          aria-label="结束时间"
+                          value={row.endTime}
+                          onChange={(e) => handleTimeChange(row, 'end', e.target.value)}
+                          className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs tabular-nums text-gray-600 focus:outline-none focus:ring-1 focus:ring-blue-400 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
+                        />
+                        {row.startTime && row.endTime && row.endTime <= row.startTime && (
+                          <span className="text-[11px] text-red-500">结束需晚于开始</span>
+                        )}
+                        {row.startTime && row.endTime && row.endTime > row.startTime && (
+                          <span className="text-[11px] tabular-nums text-blue-500 dark:text-blue-400">
+                            共 {timeRangeHours(row.startTime, row.endTime)} 小时
+                          </span>
+                        )}
+                        {(row.startTime || row.endTime) && (
+                          <button
+                            type="button"
+                            onClick={() => updateRow(row.key, { startTime: '', endTime: '' })}
+                            className="cursor-pointer text-[11px] text-gray-400 hover:text-red-500 dark:text-slate-500 dark:hover:text-red-400"
+                          >
+                            清除
+                          </button>
+                        )}
+                      </div>
+                    )}
+
                     {row.activities.length > 1 && row.hours > 0 && (
                       <p className="text-[11px] text-blue-500 dark:text-blue-400">
                         已选 {row.activities.length} 项学习内容，每项各记 {row.hours} 小时
@@ -310,6 +386,9 @@ export default function LogForm({
         </div>
         {errors.subjects && (
           <p className="mt-1 text-sm text-red-500">{errors.subjects}</p>
+        )}
+        {errors.time && (
+          <p className="mt-1 text-sm text-red-500">{errors.time}</p>
         )}
       </div>
 
