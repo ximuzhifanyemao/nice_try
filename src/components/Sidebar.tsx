@@ -63,7 +63,11 @@ const PAGE_TITLES: [string, string][] = [
 
 /** 取窗口标题栏要显示的页面名；未收录的路径回落到产品名 */
 export function desktopPageTitle(pathname: string, search = ''): string {
-  if (pathname === '/politics' && new URLSearchParams(search).get('page') === 'solution') return '解题'
+  if (pathname === '/politics') {
+    const sub = new URLSearchParams(search).get('page')
+    if (sub === 'solution') return '解题'
+    if (sub === 'wrong') return '错题'
+  }
   for (const [prefix, title] of PAGE_TITLES) {
     if (prefix === '/' ? pathname === '/' : pathname.startsWith(prefix)) return title
   }

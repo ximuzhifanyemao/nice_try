@@ -1,4 +1,5 @@
 import rawData from '../data/politics-solutions.json'
+import type { SolutionProgress } from './solutionProgress'
 
 /**
  * 「解题手册」的静态数据与类型。
@@ -68,4 +69,26 @@ export const SOLUTION_TYPE_LABEL: Record<SolutionQuestionType, string> = {
 
 export function findSolutionChapter(id: string): SolutionChapter | undefined {
   return SOLUTION_CHAPTERS.find((chapter) => chapter.id === id)
+}
+
+export interface SolutionQuestionRef {
+  chapter: SolutionChapter
+  question: SolutionQuestion
+}
+
+/** 题号 → 所属专题 / 题目：错题本与统计按题号回查专题用 */
+export const SOLUTION_QUESTION_MAP = new Map<number, SolutionQuestionRef>(
+  SOLUTION_CHAPTERS.flatMap((chapter) =>
+    chapter.questions.map((question) => [question.no, { chapter, question }] as [number, SolutionQuestionRef]),
+  ),
+)
+
+/** 当前题库里答错的题数（题库外的历史作答不计入） */
+export function countWrongSolutions(progress: SolutionProgress): number {
+  let count = 0
+  for (const [no, answer] of Object.entries(progress)) {
+    if (answer.correct) continue
+    if (SOLUTION_QUESTION_MAP.has(Number(no))) count += 1
+  }
+  return count
 }

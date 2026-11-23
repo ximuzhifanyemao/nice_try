@@ -5,6 +5,7 @@ import { useToast } from '../lib/Toast'
 import { Icon } from '../components/Icon'
 import LibraryPage from '../components/politics/LibraryPage'
 import SolutionPage from '../components/politics/SolutionPage'
+import WrongPage from '../components/politics/WrongPage'
 import HistoryPage from '../components/politics/HistoryPage'
 import ItemDrawer from '../components/politics/ItemDrawer'
 import SearchModal from '../components/politics/SearchModal'
@@ -34,7 +35,9 @@ import {
 import {
   clearSolutionAnswer,
   recordSolutionAnswer,
+  saveSolutionResume,
 } from '../lib/solutionProgress'
+import { SOLUTION_QUESTION_MAP, countWrongSolutions } from '../lib/politicsSolutions'
 import './politics.css'
 
 /** 阅读字号 → 正文字号缩放（只作用于知识点正文） */
@@ -190,12 +193,15 @@ export default function Politics() {
     [show, state.saved],
   )
 
-  /* 解题作答：记录并入同一份本机状态，登录后随考点进度一起同步 */
+  /* 解题作答：记录并入同一份本机状态，登录后随考点进度一起同步；
+     同时记住「上一次做到哪一题」，下次进解题可以直接续上 */
   const handleSolutionAnswer = useCallback((no: number, picked: string[], answer: string) => {
     setState((prev) => ({
       ...prev,
       answers: recordSolutionAnswer(prev.answers, no, picked, answer),
     }))
+    const ref = SOLUTION_QUESTION_MAP.get(no)
+    if (ref) saveSolutionResume({ chapterId: ref.chapter.id, no, at: Date.now() })
   }, [])
 
   const handleSolutionClear = useCallback((no: number) => {
@@ -274,6 +280,9 @@ export default function Politics() {
     }
     return POLITICS_ITEMS
   }, [filters, page, stage, state])
+
+  /** 错题本角标：当前题库里答错的题数 */
+  const wrongCount = useMemo(() => countWrongSolutions(state.answers), [state.answers])
 
   /* 键盘：/ 打开搜索，Esc 关闭弹层，左右键在详情里翻页 */
   useEffect(() => {
@@ -364,6 +373,9 @@ export default function Politics() {
             >
               <Icon name={item.icon} size={15} />
               <span>{item.label}</span>
+              {item.page === 'wrong' && wrongCount > 0 && (
+                <span className="pp-tab-badge">{wrongCount}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -382,6 +394,13 @@ export default function Politics() {
         )}
         {page === 'solution' && (
           <SolutionPage
+            progress={state.answers}
+            onAnswer={handleSolutionAnswer}
+            onClear={handleSolutionClear}
+          />
+        )}
+        {page === 'wrong' && (
+          <WrongPage
             progress={state.answers}
             onAnswer={handleSolutionAnswer}
             onClear={handleSolutionClear}

@@ -1,21 +1,21 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Icon } from '../Icon'
 import { padNo } from '../../lib/politics'
 import {
   SOLUTION_CHAPTERS,
   SOLUTION_TOTAL,
-  SOLUTION_TYPE_LABEL,
   findSolutionChapter,
   type SolutionChapter,
   type SolutionKnowledge,
-  type SolutionQuestion,
 } from '../../lib/politicsSolutions'
 import {
-  isSolutionCorrect,
+  loadSolutionResume,
+  saveSolutionResume,
   summarizeSolution,
-  type SolutionAnswer,
   type SolutionProgress,
+  type SolutionResume,
 } from '../../lib/solutionProgress'
+import QuestionCard from './QuestionCard'
 
 /**
  * 解题手册：按专题把「知识点」和「对应习题」接到一起。
@@ -35,11 +35,17 @@ export default function SolutionPage({
   onClear: (no: number) => void
 }) {
   const [chapterId, setChapterId] = useState<string | null>(null)
+  /** 进入专题时要定位到的题号（从「上次做到」/错题跳转过来时） */
+  const [focusNo, setFocusNo] = useState<number | null>(null)
+  const [resume, setResume] = useState<SolutionResume | null>(() => loadSolutionResume())
   const pageRef = useRef<HTMLElement>(null)
   const chapter = chapterId ? findSolutionChapter(chapterId) : undefined
+  const resumeChapter = resume ? findSolutionChapter(resume.chapterId) : undefined
+  /** 目标题号确实在当前专题里时才跳过回顶，避免题库调整后停在旧位置 */
+  const hasFocusTarget =
+    !!chapter && focusNo != null && chapter.questions.some((question) => question.no === focusNo)
 
-  /* 进入 / 退出专题时把滚动位置带回顶部（兼容桌面端内容列自身的滚动容器） */
-  useEffect(() => {
+  const scrollTop = useCallback(() => {
     let el: HTMLElement | null = pageRef.current?.parentElement ?? null
     while (el) {
       const style = window.getComputedStyle(el)
@@ -50,7 +56,44 @@ export default function SolutionPage({
       el = el.parentElement
     }
     window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [chapterId])
+  }, [])
+
+  /* 进入 / 退出专题时把滚动位置带回顶部；带题号定位时交给专题内部滚到该题 */
+  useEffect(() => {
+    if (hasFocusTarget) return
+    scrollTop()
+  }, [chapterId, hasFocusTarget, scrollTop])
+
+  /** 打开专题；同时记住「上一次做题的位置」 */
+  const openChapter = useCallback(
+    (id: string, targetNo: number | null = null) => {
+      setChapterId(id)
+      setFocusNo(targetNo)
+      const next: SolutionResume = {
+        chapterId: id,
+        no: targetNo ?? (resume?.chapterId === id ? resume.no : null),
+        at: Date.now(),
+      }
+      setResume(next)
+      saveSolutionResume(next)
+    },
+    [resume],
+  )
+
+  const closeChapter = useCallback(() => {
+    setChapterId(null)
+    setFocusNo(null)
+  }, [])
+
+  /** 作答后同步本地位置（落盘由外层统一处理，错题本作答也会更新同一份位置） */
+  const handleAnswer = useCallback(
+    (no: number, picked: string[], answer: string) => {
+      onAnswer(no, picked, answer)
+      if (!chapterId) return
+      setResume({ chapterId, no, at: Date.now() })
+    },
+    [chapterId, onAnswer],
+  )
 
   const allQuestionNos = useMemo(
     () => SOLUTION_CHAPTERS.flatMap((item) => item.questions.map((question) => question.no)),
@@ -62,11 +105,12 @@ export default function SolutionPage({
     return (
       <ChapterView
         chapter={chapter}
-        onBack={() => setChapterId(null)}
+        onBack={closeChapter}
         sectionRef={pageRef}
         progress={progress}
-        onAnswer={onAnswer}
+        onAnswer={handleAnswer}
         onClear={onClear}
+        focusNo={focusNo}
       />
     )
   }
@@ -87,6 +131,31 @@ export default function SolutionPage({
           <span>道题 · {SOLUTION_CHAPTERS.length} 个专题</span>
         </div>
       </header>
+
+      {resume && resumeChapter && (
+        <button
+          type="button"
+          className="solution-resume"
+          onClick={() => openChapter(resumeChapter.id, resume.no)}
+        >
+          <span className="solution-resume-icon">
+            <Icon name="history" size={17} />
+          </span>
+          <span className="solution-resume-main">
+            <b>
+              上次{resume.no != null ? '做到' : '看到'} 专题 {resumeChapter.id}
+              {resume.no != null && ` · 习题 ${padNo(resume.no)}`}
+            </b>
+            <small>
+              {resumeChapter.title} · {resumeTimeLabel(resume.at)}
+            </small>
+          </span>
+          <span className="solution-resume-go">
+            {resume.no != null ? '继续做题' : '进入专题'}
+            <Icon name="arrowRight" size={13} />
+          </span>
+        </button>
+      )}
 
       <div className="solution-progress">
         <div className="solution-progress-text">
@@ -115,7 +184,7 @@ export default function SolutionPage({
               key={item.id}
               type="button"
               className="solution-chapter-card"
-              onClick={() => setChapterId(item.id)}
+              onClick={() => openChapter(item.id)}
             >
               <span className="solution-chapter-no">{item.id}</span>
               <span className="solution-chapter-main">
@@ -148,6 +217,7 @@ function ChapterView({
   progress,
   onAnswer,
   onClear,
+  focusNo,
 }: {
   chapter: SolutionChapter
   onBack: () => void
@@ -155,11 +225,30 @@ function ChapterView({
   progress: SolutionProgress
   onAnswer: (no: number, picked: string[], answer: string) => void
   onClear: (no: number) => void
+  /** 从「上次做到」进来时定位到的题号 */
+  focusNo: number | null
 }) {
+  const [highlightNo, setHighlightNo] = useState<number | null>(null)
   const summary = summarizeSolution(
     progress,
     chapter.questions.map((question) => question.no),
   )
+
+  /* 恢复上次位置：等这一章渲染完成后把目标题滚到屏幕中间，并短暂高亮 */
+  useEffect(() => {
+    if (focusNo == null) return
+    const el = document.getElementById(`solution-q-${focusNo}`)
+    if (!el) return
+    setHighlightNo(focusNo)
+    const raf = window.requestAnimationFrame(() => {
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    const timer = window.setTimeout(() => setHighlightNo(null), 2400)
+    return () => {
+      window.cancelAnimationFrame(raf)
+      window.clearTimeout(timer)
+    }
+  }, [focusNo])
 
   return (
     <section ref={sectionRef} className="page solution-page">
@@ -200,13 +289,15 @@ function ChapterView({
 
       <div className="solution-question-list">
         {chapter.questions.map((question) => (
-          <QuestionCard
-            key={question.no}
-            question={question}
-            saved={progress[String(question.no)]}
-            onAnswer={onAnswer}
-            onClear={onClear}
-          />
+          <div key={question.no} id={`solution-q-${question.no}`}>
+            <QuestionCard
+              question={question}
+              saved={progress[String(question.no)]}
+              onAnswer={onAnswer}
+              onClear={onClear}
+              highlighted={highlightNo === question.no}
+            />
+          </div>
         ))}
       </div>
     </section>
@@ -247,141 +338,15 @@ function KnowledgeCard({ card, index }: { card: SolutionKnowledge; index: number
   )
 }
 
-function QuestionCard({
-  question,
-  saved,
-  onAnswer,
-  onClear,
-}: {
-  question: SolutionQuestion
-  saved?: SolutionAnswer
-  onAnswer: (no: number, picked: string[], answer: string) => void
-  onClear: (no: number) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [picked, setPicked] = useState<string[]>(() => saved?.picked ?? [])
-  const [submitted, setSubmitted] = useState(Boolean(saved))
-  const answerLetters = useMemo(() => new Set(question.answer.split('')), [question.answer])
-
-  /* 外部进度变化（另一个窗口作答 / 重做）时同步本卡片 */
-  useEffect(() => {
-    setPicked(saved?.picked ?? [])
-    setSubmitted(Boolean(saved))
-  }, [saved])
-
-  const correct = isSolutionCorrect(picked, question.answer)
-
-  const submit = (nextPicked: string[]) => {
-    if (!nextPicked.length) return
-    setPicked(nextPicked)
-    setSubmitted(true)
-    setOpen(true)
-    onAnswer(question.no, nextPicked, question.answer)
-  }
-
-  const choose = (label: string) => {
-    if (submitted) return
-    if (question.type === 'single') {
-      submit([label])
-      return
-    }
-    setPicked((prev) =>
-      prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label].sort(),
-    )
-  }
-
-  const reset = () => {
-    setPicked([])
-    setSubmitted(false)
-    setOpen(false)
-    onClear(question.no)
-  }
-
-  return (
-    <article className={`solution-question${open ? ' is-open' : ''}${submitted ? ' is-submitted' : ''}`}>
-      <header className="solution-question-top">
-        <span className="solution-question-no">习题 {padNo(question.no)}</span>
-        <span className={`solution-question-type ${question.type}`}>
-          {SOLUTION_TYPE_LABEL[question.type]}
-        </span>
-        <span className="solution-question-source">{question.source}</span>
-        <button
-          type="button"
-          className="solution-question-toggle"
-          aria-expanded={open}
-          onClick={() => setOpen((value) => !value)}
-        >
-          {open ? '收起答案' : '答案 / 解析'}
-          <Icon name="chevronDown" size={13} />
-        </button>
-      </header>
-
-      <p className="solution-question-stem">{question.stem}</p>
-
-      <ul className="solution-question-options">
-        {question.options.map((option) => {
-          const right = (open || submitted) && answerLetters.has(option.label)
-          const wrong = submitted && picked.includes(option.label) && !answerLetters.has(option.label)
-          const active = !submitted && picked.includes(option.label)
-          return (
-            <li key={option.label}>
-              <button
-                type="button"
-                className={`solution-option${right ? ' is-answer' : ''}${wrong ? ' is-wrong' : ''}${
-                  active ? ' is-pick' : ''
-                }`}
-                aria-pressed={picked.includes(option.label)}
-                disabled={submitted}
-                onClick={() => choose(option.label)}
-              >
-                <span className="solution-option-label">{option.label}</span>
-                <span className="solution-option-text">{option.text}</span>
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-
-      <div className="solution-question-actions">
-        {submitted ? (
-          <>
-            <span className={`solution-result${correct ? ' is-right' : ' is-wrong'}`}>
-              {correct
-                ? `回答正确 · 答案 ${question.answer}`
-                : `回答错误 · 你的答案 ${picked.join('') || '—'}，正确答案 ${question.answer}`}
-            </span>
-            <button type="button" className="solution-retry" onClick={reset}>
-              重做
-            </button>
-          </>
-        ) : (
-          <>
-            {question.type === 'multi' && (
-              <button
-                type="button"
-                className="solution-submit"
-                disabled={picked.length === 0}
-                onClick={() => submit(picked)}
-              >
-                提交答案
-              </button>
-            )}
-            <span className="solution-question-hint">
-              {question.type === 'single' ? '点选项直接判对错' : '可多选，选好后提交'}
-            </span>
-          </>
-        )}
-      </div>
-
-      {open && (
-        <div className="solution-answer">
-          <div className="solution-answer-line">
-            <span>答案</span>
-            <b>{question.answer}</b>
-          </div>
-          {question.explanation && <p className="solution-explanation">{question.explanation}</p>}
-        </div>
-      )}
-    </article>
-  )
+/** 上次做题时间的轻量展示：今天 / 昨天 / 月日 */
+function resumeTimeLabel(at: number): string {
+  if (!at) return '上次学习'
+  const date = new Date(at)
+  if (!Number.isFinite(date.getTime())) return '上次学习'
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  if (at >= todayStart) return `今天 ${time}`
+  if (at >= todayStart - 86_400_000) return `昨天 ${time}`
+  return `${date.getMonth() + 1} 月 ${date.getDate()} 日`
 }

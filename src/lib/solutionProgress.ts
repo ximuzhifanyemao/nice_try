@@ -4,7 +4,7 @@
  * 只存选项字母，不存题目内容：题库更新后旧记录仍然可用，
  * 题号不存在的记录在读取时保留，但页面统计只按当前题库计算。
  */
-import { readUserCache } from './userScope'
+import { readUserCache, writeUserCache } from './userScope'
 
 export interface SolutionAnswer {
   /** 用户选择的选项字母，按 A→D 排序 */
@@ -18,6 +18,7 @@ export interface SolutionAnswer {
 export type SolutionProgress = Record<string, SolutionAnswer>
 
 const STORAGE_KEY = 'kaoyan_solution_progress_v1'
+const RESUME_KEY = 'kaoyan_solution_resume_v1'
 const LETTERS = ['A', 'B', 'C', 'D']
 
 /** 把任意来源的选择收敛成 A–D 的去重升序数组 */
@@ -105,6 +106,39 @@ export function recordSolutionAnswer(
       correct: isSolutionCorrect(normalized, answer),
       at: Date.now(),
     },
+  }
+}
+
+/** 「上一次做题的位置」：哪个专题、做到哪一题（只看专题没做题时 no 为 null） */
+export interface SolutionResume {
+  chapterId: string
+  no: number | null
+  at: number
+}
+
+/** 读取上一次做题的位置（按账号隔离，只在本机保存） */
+export function loadSolutionResume(userId?: string | null): SolutionResume | null {
+  try {
+    const raw = readUserCache(RESUME_KEY, userId)
+    if (!raw) return null
+    const obj = JSON.parse(raw) as Partial<SolutionResume>
+    if (typeof obj.chapterId !== 'string' || !obj.chapterId) return null
+    return {
+      chapterId: obj.chapterId,
+      no: typeof obj.no === 'number' && Number.isFinite(obj.no) ? obj.no : null,
+      at: typeof obj.at === 'number' && Number.isFinite(obj.at) ? obj.at : 0,
+    }
+  } catch {
+    return null
+  }
+}
+
+/** 保存上一次做题的位置 */
+export function saveSolutionResume(resume: SolutionResume, userId?: string | null): void {
+  try {
+    writeUserCache(RESUME_KEY, JSON.stringify(resume), userId)
+  } catch {
+    /* 隐私模式 / 配额不足时忽略 */
   }
 }
 

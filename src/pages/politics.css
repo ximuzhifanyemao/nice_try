@@ -2198,6 +2198,103 @@ html.dark .pp-root .meeting-teaser .btn-ghost { border-color: var(--line-strong)
   background: linear-gradient(90deg, var(--accent), var(--gold));
   transition: width .3s ease;
 }
+
+/* 上次做题的位置：可直接续上，避免每次从专题列表重新找题 */
+.pp-root .solution-resume {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 11px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--line));
+  border-radius: 13px;
+  background: linear-gradient(120deg, var(--surface) 0%, var(--surface-2) 100%);
+  color: var(--ink);
+  text-align: left;
+  box-shadow: var(--shadow-soft);
+  transition: border-color .18s ease, transform .18s ease;
+}
+.pp-root .solution-resume:hover { border-color: var(--accent); transform: translateY(-1px); }
+.pp-root .solution-resume-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: var(--shi-soft);
+  color: var(--accent);
+}
+.pp-root .solution-resume-main { flex: 1; min-width: 0; }
+.pp-root .solution-resume-main b {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.pp-root .solution-resume-main small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.pp-root .solution-resume-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 从「上次做到」定位进来时，短暂高亮目标题 */
+.pp-root .solution-question.is-focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent), var(--shadow-soft);
+  animation: ppFocusIn .4s ease both;
+}
+
+/* 错题本 */
+.pp-root .solution-wrong-group { margin-top: 24px; }
+.pp-root .solution-wrong-group:first-of-type { margin-top: 4px; }
+.pp-root .solution-wrong-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 9px;
+  padding-bottom: 7px;
+  border-bottom: 1px dashed var(--line);
+}
+.pp-root .solution-wrong-chapter {
+  color: var(--accent);
+  font-family: var(--font-num);
+  font-size: 11px;
+  letter-spacing: .06em;
+}
+.pp-root .solution-wrong-head b {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+.pp-root .solution-wrong-count { margin-left: auto; color: var(--muted); font-size: 11px; }
+.pp-root .solution-wrong-done {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 14px;
+  padding: 9px 13px;
+  border: 1px dashed color-mix(in srgb, var(--qi) 34%, var(--line));
+  border-radius: 11px;
+  background: var(--qi-soft);
+  color: var(--qi);
+  font-size: 12px;
+}
 .pp-root .solution-chapter-card {
   display: flex;
   align-items: center;
@@ -2582,6 +2679,7 @@ html.dark .pp-root .meeting-teaser .btn-ghost { border-color: var(--line-strong)
 @keyframes ppModalIn { from { opacity: 0; transform: translate(-50%, -48%) scale(.98); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 @keyframes ppSearchIn { from { opacity: 0; transform: translateX(-50%) translateY(7px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 @keyframes ppAnswerIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ppFocusIn { from { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 4%, transparent), var(--shadow-soft); } }
 @media (prefers-reduced-motion: reduce) {
   .pp-root *, .pp-root *::before, .pp-root *::after {
     animation-duration: .01ms !important;
@@ -2672,6 +2770,9 @@ html.dark .pp-root .meeting-teaser .btn-ghost { border-color: var(--line-strong)
   .pp-root .meeting-search input { font-size: 16px; }
   .pp-root .solution-chapters { grid-template-columns: 1fr; }
   .pp-root .solution-stats { align-self: flex-start; }
+  .pp-root .solution-resume { flex-wrap: wrap; }
+  .pp-root .solution-resume-go { margin-left: 43px; }
+  .pp-root .solution-wrong-head { align-items: center; }
   .pp-root .solution-knowledge { padding: 14px 13px 15px; }
   .pp-root .solution-question { padding: 12px 13px 13px; }
   .pp-root .solution-question-stem { font-size: 13px; }
